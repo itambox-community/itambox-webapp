@@ -34,6 +34,7 @@ class E2EWorkflowTopologyTests(unittest.TestCase):
         self.assertIn("schedule:", self.workflow)
         self.assertIn("cron: '17 2 * * *'", self.workflow)
         self.assertIn("workflow_call:", self.workflow)
+        self.assertIn("merge_group:", self.workflow)
         self.assertRegex(self.workflow, r"(?m)^\s+branches: \[master, main\]$")
         self.assertIn("authoritative full", self.workflow.lower())
         self.assertRegex(self.release, r"(?ms)^  e2e-qualification:.*?uses:\s*\./\.github/workflows/e2e\.yml")
