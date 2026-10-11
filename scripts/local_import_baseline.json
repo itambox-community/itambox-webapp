@@ -149,12 +149,6 @@
     },
     {
       "path": "itambox/assets/models/asset.py",
-      "context": "ClassDef:Asset/FunctionDef:audit_overdue",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/asset.py",
       "context": "ClassDef:Asset/FunctionDef:eol_date",
       "statement": "from dateutil.relativedelta import relativedelta",
       "count": 1

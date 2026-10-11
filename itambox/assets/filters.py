@@ -1,5 +1,4 @@
 from collections.abc import Mapping
-from datetime import timedelta
 
 import django_filters
 from django import forms
@@ -8,6 +7,7 @@ from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from assets.choices import RequestStatusChoices
+from assets.models.audit_cadence import audit_due_on_expression
 from core.filters import BaseFilterSet
 from extras.models import Tag
 from itambox.scanning import strip_itambox_prefix
@@ -203,23 +203,13 @@ class AssetFilterSet(SpecificationFilterMixin, BaseFilterSet):
 
         from django.utils import timezone
 
-        today = timezone.now()
-        # Policy (matches Asset.audit_due_date and core/tasks/alerts._match_audit_overdue):
-        # never-audited assets are overdue at created_at + interval, not immediately.
-        overdue_q = Q(pk__in=[])  # start empty
-        for cat in Category.objects.filter(audit_interval_months__isnull=False):
-            interval = timedelta(days=cat.audit_interval_months * 30)
-            cutoff = today - interval
-            # audited and past cutoff, OR never audited and created before cutoff
-            overdue_q |= Q(asset_type__category=cat) & (
-                Q(last_audited__lt=cutoff) | (Q(last_audited__isnull=True) & Q(created_at__lt=cutoff))
-            )
+        today = timezone.localdate()
+        has_cadence_q = Q(asset_type__category__audit_interval_months__isnull=False)
+        queryset = queryset.annotate(_audit_due_on=audit_due_on_expression())
+        overdue_q = has_cadence_q & Q(_audit_due_on__lt=today)
         if value:
             return queryset.filter(overdue_q)
-        else:
-            # "Up to date" = has a category cadence AND is within it, OR has no cadence
-            has_cadence_q = Q(asset_type__category__audit_interval_months__isnull=False)
-            return queryset.exclude(overdue_q & has_cadence_q)
+        return queryset.filter(~has_cadence_q | Q(_audit_due_on__gte=today))
 
 
 # --- AssetRole Filter ---

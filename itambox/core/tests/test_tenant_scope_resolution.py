@@ -690,6 +690,47 @@ class AllAccessibleMiddlewareTests(TestCase):
         self.assertIsNone(request.active_tenant)
         self.assertIsNone(request.active_tenant_group)
 
+    def test_superuser_live_workspace_selections_still_work(self):
+        tenant_request = self._run(self.superuser, f"?switch_tenant={self.cust.pk}")
+        self.assertEqual(tenant_request.active_tenant, self.cust)
+        self.assertIsNone(tenant_request.active_tenant_group)
+
+        group_request = self._run(self.superuser, f"?switch_tenant_group={self.group.pk}")
+        self.assertIsNone(group_request.active_tenant)
+        self.assertEqual(group_request.active_tenant_group, self.group)
+
+    def test_archived_tenant_session_pin_is_cleared_for_superuser(self):
+        Tenant._base_manager.filter(pk=self.cust.pk).update(deleted_at=timezone.now())
+
+        request = self._run(self.superuser, session={"active_tenant_id": self.cust.pk})
+
+        self.assertIsNone(request.active_tenant)
+        self.assertNotIn("active_tenant_id", request.session)
+
+    def test_archived_group_session_pin_is_cleared_for_superuser(self):
+        TenantGroup._base_manager.filter(pk=self.group.pk).update(deleted_at=timezone.now())
+
+        request = self._run(self.superuser, session={"active_tenant_group_id": self.group.pk})
+
+        self.assertIsNone(request.active_tenant_group)
+        self.assertNotIn("active_tenant_group_id", request.session)
+
+    def test_switch_to_archived_tenant_is_not_persisted_for_superuser(self):
+        Tenant._base_manager.filter(pk=self.cust.pk).update(deleted_at=timezone.now())
+
+        request = self._run(self.superuser, f"?switch_tenant={self.cust.pk}")
+
+        self.assertIsNone(request.active_tenant)
+        self.assertNotIn("active_tenant_id", request.session)
+
+    def test_switch_to_archived_group_is_not_persisted_for_superuser(self):
+        TenantGroup._base_manager.filter(pk=self.group.pk).update(deleted_at=timezone.now())
+
+        request = self._run(self.superuser, f"?switch_tenant_group={self.group.pk}")
+
+        self.assertIsNone(request.active_tenant_group)
+        self.assertNotIn("active_tenant_group_id", request.session)
+
     def test_response_restores_all_scope_contextvars(self):
         from itambox.middleware import CurrentUserMiddleware, TenantMiddleware
 
