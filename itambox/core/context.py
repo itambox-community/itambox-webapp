@@ -43,54 +43,6 @@ _request_id = contextvars.ContextVar("request_id", default=None)
 _csp_nonce = contextvars.ContextVar("csp_nonce", default=None)
 _system_authorization_scope = contextvars.ContextVar("system_authorization_scope", default=None)
 _issued_system_authorizations = contextvars.ContextVar("issued_system_authorizations", default=())
-_deletion_cascade_permit = contextvars.ContextVar("deletion_cascade_permit", default=None)
-
-
-def _deletion_cascade_value_key(value):
-    if hasattr(value, "value"):
-        value = value.value
-    if hasattr(value, "pk"):
-        value = value.pk
-    try:
-        hash(value)
-    except TypeError:
-        return repr(value)
-    return value
-
-
-@contextmanager
-def _authorized_deletion_cascade(permit):
-    """Authorize only the exact writes precomputed by Django's Collector."""
-
-    token = _deletion_cascade_permit.set(permit)
-    try:
-        yield
-    finally:
-        _deletion_cascade_permit.reset(token)
-
-
-def _deletion_cascade_allows(model_label, operation, pks, values=None):
-    permit = _deletion_cascade_permit.get()
-    if permit is None:
-        return False
-    pks = frozenset(pks)
-    if not pks:
-        return True
-    if operation == "delete":
-        return pks.issubset(permit["deletes"].get(model_label, frozenset()))
-    if operation != "update":
-        return False
-    for field_name, value in (values or {}).items():
-        value_key = _deletion_cascade_value_key(value)
-        if not any(
-            label == model_label
-            and allowed_field == field_name
-            and allowed_value == value_key
-            and pks.issubset(allowed_pks)
-            for label, allowed_field, allowed_value, allowed_pks in permit["updates"]
-        ):
-            return False
-    return bool(values)
 
 
 @dataclass(frozen=True, init=False)

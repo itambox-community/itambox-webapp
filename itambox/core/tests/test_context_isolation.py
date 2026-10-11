@@ -22,7 +22,6 @@ from core.context import (
     _current_tenant,
     _current_tenant_group,
     _current_user,
-    _deletion_cascade_permit,
     _descendant_group_ids_cache,
     _issued_system_authorizations,
     _request_id,
@@ -123,7 +122,6 @@ class TenantContextIsolationTests(TenantTestMixin, SimpleTestCase):
             (_csp_nonce, "nonce"),
             (_system_authorization_scope, object()),
             (_issued_system_authorizations, (object(),)),
-            (_deletion_cascade_permit, {"deletes": {}}),
             (_request_invalidation_state, (object(), {}, 1)),
             (_user_validation_cache, ("request", {1})),
         )
@@ -143,7 +141,6 @@ class TenantContextIsolationTests(TenantTestMixin, SimpleTestCase):
         self.assertIsNone(_csp_nonce.get())
         self.assertIsNone(_system_authorization_scope.get())
         self.assertEqual(_issued_system_authorizations.get(), ())
-        self.assertIsNone(_deletion_cascade_permit.get())
         self.assertIsNone(_request_invalidation_state.get())
         self.assertIsNone(_user_validation_cache.get())
 

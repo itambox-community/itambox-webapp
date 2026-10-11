@@ -5,6 +5,7 @@ from datetime import timedelta
 from io import StringIO
 from unittest import mock
 
+import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import OperationalError
@@ -15,6 +16,10 @@ from django_q.models import OrmQ, Schedule, Task
 
 from core import operational_health as oh
 from core.models import Job
+
+# Checks here assert on global operational state (scheduler/queue/cache/worker rows)
+# and wall-clock timings; keep them out of the parallel xdist lane (issue #750).
+pytestmark = pytest.mark.serial_only
 
 SHARED = {"default": {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": "redis://x"}}
 LOCMEM = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

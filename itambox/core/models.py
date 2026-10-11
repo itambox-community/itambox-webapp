@@ -4,8 +4,7 @@ from __future__ import annotations
 import contextvars
 import logging
 from collections import Counter
-from functools import reduce
-from operator import attrgetter, or_
+from operator import attrgetter
 
 # Third-party / Django
 from django.apps import apps
@@ -22,12 +21,7 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext_lazy as _
 
 from core.choices import JobStatusChoices, ObjectChangeActionChoices
-from core.context import (
-    _authorized_deletion_cascade,
-    _deletion_cascade_value_key,
-    get_current_request_id,
-    get_current_user,
-)
+from core.context import get_current_request_id, get_current_user
 from core.managers import (
     ExplicitScopeManager,
 )
@@ -50,23 +44,13 @@ from itambox.registry import registry
 logger = logging.getLogger(__name__)
 
 
-def _object_pks(objects):
-    if hasattr(objects, "values_list"):
-        return set(objects.values_list("pk", flat=True))
-    return {obj.pk for obj in objects if getattr(obj, "pk", None) is not None}
-
-
-def _cascade_permit(model, operation, pks, field=None, value=None):
-    permit = {"updates": (), "deletes": {}}
-    if operation == "delete":
-        permit["deletes"] = {model._meta.label_lower: frozenset(pks)}
-    else:
-        permit["updates"] = ((model._meta.label_lower, field.name, _deletion_cascade_value_key(value), frozenset(pks)),)
-    return permit
-
-
 class _AuthorizedCollector(Collector):
-    """Django 5.2 Collector with permits scoped only to its own queryset writes."""
+    """Django 5.2 Collector that writes through raw SQL queries.
+
+    Hard delete must reach rows whose queryset ``update()``/``delete()`` are
+    denied (the inventory assignment querysets), so the fast-delete and
+    field-update steps use ``sql`` queries directly instead of a permit.
+    """
 
     def delete(self):  # noqa: C901 - mirrors django.db.models.deletion.Collector.delete
         for model, instances in self.data.items():
@@ -93,30 +77,23 @@ class _AuthorizedCollector(Collector):
                     )
 
             for queryset in self.fast_deletes:
-                pks = _object_pks(queryset)
-                with _authorized_deletion_cascade(_cascade_permit(queryset.model, "delete", pks)):
-                    count = queryset._raw_delete(using=self.using)
+                count = sql.DeleteQuery(queryset.model).delete_batch(
+                    list(queryset.values_list("pk", flat=True)), self.using
+                )
                 if count:
                     deleted_counter[queryset.model._meta.label] += count
 
             for (field, value), instances_list in self.field_updates.items():
-                updates = []
-                objs = []
+                pks = set()
+                model = None
                 for instances in instances_list:
-                    if isinstance(instances, models.QuerySet) and instances._result_cache is None:
-                        updates.append(instances)
+                    model = field.model
+                    if isinstance(instances, models.QuerySet):
+                        pks.update(instances.values_list("pk", flat=True))
                     else:
-                        objs.extend(instances)
-                if updates:
-                    combined_updates = reduce(or_, updates)
-                    pks = _object_pks(combined_updates)
-                    permit = _cascade_permit(field.model, "update", pks, field=field, value=value)
-                    with _authorized_deletion_cascade(permit):
-                        combined_updates.update(**{field.name: value})
-                if objs:
-                    model = objs[0].__class__
-                    query = sql.UpdateQuery(model)
-                    query.update_batch(list({obj.pk for obj in objs}), {field.name: value}, self.using)
+                        pks.update(obj.pk for obj in instances)
+                if pks:
+                    sql.UpdateQuery(model).update_batch(list(pks), {field.name: value}, self.using)
 
             for instances in self.data.values():
                 instances.reverse()

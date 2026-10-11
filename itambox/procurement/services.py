@@ -597,6 +597,9 @@ def _cancel_purchase_order(po):
             req.save(update_fields=["status"])
             reverted_requests.append(req)
     request_line_ids = {link.purchase_order_line_id for link in links}
+    # SoftDeleteMixin never cascades (#619): retire the links of each removed line explicitly.
+    for link in links:
+        link.delete()
     for line in lines:
         if line.pk in request_line_ids:
             line.delete()

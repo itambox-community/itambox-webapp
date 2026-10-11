@@ -43,7 +43,7 @@ def resolve_policy(asset: object) -> tuple[object | None, str | None]:
     return None, None
 
 
-def _clock_start(asset: object) -> object | None:
+def _clock_start(asset: object) -> datetime.date | None:
     return getattr(asset, "in_service_date", None) or asset.purchase_date
 
 
@@ -96,6 +96,8 @@ def compute_book_value(asset: object, on_date: datetime.date | None = None) -> D
     if clock_start is None:
         return _round(purchase_cost)
     on_date = on_date or datetime.date.today()
+    if on_date < clock_start:
+        return _round(purchase_cost)
     months_held = _months_held(clock_start, on_date, getattr(policy, "convention", "exclude_purchase_month"))
 
     # Method ``none`` and non-positive schedules are intentionally non-depreciating.

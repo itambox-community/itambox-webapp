@@ -68,8 +68,8 @@ class CoreModelsTestCase(TestCase):
         self.assertIsNotNone(acc.deleted_at)
         self.assertEqual(Accessory.objects.filter(pk=acc.pk).count(), 0)
 
-    def test_cascade_soft_delete_and_hard_delete(self):
-        """Test that cascading soft-delete soft-deletes soft-deletable objects and hard-deletes non-soft-deletable ones."""
+    def test_soft_delete_does_not_cascade_to_children(self):
+        """A soft delete only tombstones the row itself; children are retired by the archive service (#619)."""
         from software.models import InstalledSoftware
 
         role = AssetRole.objects.create(name="Desktop", slug="desktop")
@@ -79,13 +79,11 @@ class CoreModelsTestCase(TestCase):
 
         self.assertEqual(InstalledSoftware.objects.filter(pk=installed_sw.pk).count(), 1)
 
-        # The install is a soft-deletable leaf of the Asset aggregate, so the cascade
-        # writes its audit row and needs an execution context.
-        with TaskContext(user_id=self.user.pk, operation="cascade_soft_delete_test"):
+        with TaskContext(user_id=self.user.pk, operation="soft_delete_test"):
             asset.delete()
 
         self.assertIsNotNone(asset.deleted_at)
-        self.assertEqual(InstalledSoftware.objects.filter(pk=installed_sw.pk).count(), 0)
+        self.assertEqual(InstalledSoftware.objects.filter(pk=installed_sw.pk).count(), 1)
 
     def test_custom_validator_integration(self):
         """Test settings-based validation on a model and verify it raises friendly field-level validation errors."""

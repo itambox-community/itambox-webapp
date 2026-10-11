@@ -213,7 +213,7 @@ line-ending = "lf"
 # Ruff owns import ordering, E501, phase-2 B007/B009/B010/B028/B905/F541,
 # phase-3 E741, phase-4 E402, and phase-5 F403/F405. The Flake8 bridge retains
 # the rules not yet migrated in setup.cfg.
-select = ["B007", "B009", "B010", "B028", "B905", "E402", "E501", "E741", "F403", "F405", "F541", "I"]
+select = ["B007", "B009", "B010", "B028", "B905", "E402", "E501", "E741", "F401", "F403", "F405", "F541", "I"]
 
 [tool.ruff.lint.pycodestyle]
 # B950's 10% grace over Flake8 max-line-length=120 was exactly 132 characters.

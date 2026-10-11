@@ -100,6 +100,8 @@ class Subscription(CustomFieldDataMixin, AutoSlugMixin, BookmarkableMixin, Delet
         verbose_name=_("Next Renewal Date"),
         db_index=True,
     )
+    renewal_reminder_cycle_date = models.DateField(blank=True, null=True, editable=False)
+    renewal_reminder_days = models.PositiveSmallIntegerField(blank=True, null=True, editable=False)
     renewal_cost = models.DecimalField(
         max_digits=10,
         decimal_places=2,

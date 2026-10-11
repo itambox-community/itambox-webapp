@@ -246,7 +246,7 @@ class RoleDeleteView(ObjectDeleteView):
         context = super().get_context_data(**kwargs)
         role = self.object
         # Role.delete() is a soft delete (SoftDeleteMixin): RoleGrant rows
-        # survive it (RoleGrant.survive_parent_soft_delete) as the audit
+        # survive it (RoleGrant is not soft-deletable) as the audit
         # trail, but a deleted role's permissions stop projecting everywhere
         # immediately (MembershipBackend checks role.deleted_at). Surface that
         # explicitly when other tenants actually hold live grants against this

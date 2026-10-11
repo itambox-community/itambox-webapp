@@ -31,16 +31,3 @@ class InstalledSoftwareViewSet(ITAMBoxReadOnlyModelViewSet):
     filter_backends = (DjangoFilterBackend, SearchFilter)
     filterset_fields = ["asset_id", "software_id", "software__manufacturer_id", "version_detected"]
     search_fields = ["asset__name", "software__name", "version_detected"]
-
-    def get_queryset(self):
-        # InstalledSoftware has no `tenant` field of its own, so the inherited
-        # filter_by_tenant() is a no-op and the base queryset would expose every
-        # tenant's records. Scope through the (tenant-owned) Asset relationship,
-        # failing closed when no tenant is active.
-        from core.managers import get_current_tenant
-
-        qs = super().get_queryset()
-        active_tenant = get_current_tenant()
-        if active_tenant is None:
-            return qs.none()
-        return qs.filter(asset__tenant=active_tenant)

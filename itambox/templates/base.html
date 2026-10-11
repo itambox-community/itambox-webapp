@@ -51,7 +51,8 @@
           rel="stylesheet" />
     <link href="{% static 'dist/vendor/gridstack/gridstack.min.css' %}"
           rel="stylesheet" />
-    <link href="{% static 'dist/itambox.css' %}?v=1.2.2" rel="stylesheet" />
+    <link href="{% static 'dist/itambox.css' %}?v={{ settings.VERSION }}"
+          rel="stylesheet" />
     {# Skip-nav: fixed + off-screen until keyboard focus, then slides in. Self-contained because #}
     {# Tabler's CSS does not ship Bootstrap's .visually-hidden-focusable utility. #}
     <style nonce="{{ request.csp_nonce }}">
@@ -127,7 +128,7 @@
     {# Django JS i18n catalog — defines gettext/ngettext/interpolate before the app bundle (same-origin, CSP 'self') #}
     <script src="{% url 'javascript-catalog' %}"></script>
     {# Application modules bundle #}
-    <script src="{% static 'dist/itambox.js' %}?v=1.2.11"></script>
+    <script src="{% static 'dist/itambox.js' %}?v={{ settings.VERSION }}"></script>
     {% block javascript %}
     {% endblock javascript %}
     {# Standalone OOB target for dynamic title swaps #}

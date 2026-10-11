@@ -905,18 +905,6 @@
     },
     {
       "path": "itambox/core/mixins.py",
-      "context": "ClassDef:SoftDeleteMixin/FunctionDef:delete",
-      "statement": "from django.db.models.deletion import Collector",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/mixins.py",
-      "context": "ClassDef:SoftDeleteMixin/FunctionDef:delete",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/mixins.py",
       "context": "ClassDef:SoftDeleteMixin/FunctionDef:soft_delete",
       "statement": "from django.utils import timezone",
       "count": 1
@@ -1063,12 +1051,6 @@
       "path": "itambox/core/views/graphql.py",
       "context": "ClassDef:PrivateGraphQLView/FunctionDef:dispatch",
       "statement": "from django.middleware.csrf import CsrfViewMiddleware",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "ClassDef:PrivateGraphQLView/FunctionDef:dispatch",
-      "statement": "from rest_framework.throttling import AnonRateThrottle, UserRateThrottle",
       "count": 1
     },
     {
@@ -2029,12 +2011,6 @@
       "path": "itambox/procurement/views.py",
       "context": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
       "statement": "from django.forms import formset_factory",
-      "count": 1
-    },
-    {
-      "path": "itambox/software/api/views.py",
-      "context": "ClassDef:InstalledSoftwareViewSet/FunctionDef:get_queryset",
-      "statement": "from core.managers import get_current_tenant",
       "count": 1
     },
     {

@@ -216,6 +216,76 @@ def archive_table_problems() -> list[str]:
     return problems
 
 
+# Soft-deletable models that carry reverse relations but are not aggregate roots.
+# ``SoftDeleteMixin`` is a leaf-only flag (#619): ``delete()`` sets ``deleted_at``
+# and never cascades, so a model with children is either a registered root
+# (its archive service owns the children) or is declared here on purpose.
+ARCHIVE_LEAVES: frozenset[str] = frozenset(
+    {
+        "assets.assetassignment",
+        "assets.assetdisposal",
+        "assets.assetmaintenance",
+        "assets.assetrequest",
+        "assets.assetreservation",
+        "assets.assetrole",
+        "assets.assettype",
+        "assets.category",
+        "assets.depreciation",
+        "assets.manufacturer",
+        "assets.statuslabel",
+        "assets.supplier",
+        "assets.warranty",
+        "compliance.auditsession",
+        "compliance.custodytemplate",
+        "extras.alertrule",
+        "extras.notificationchannel",
+        "extras.reporttemplate",
+        "extras.tag",
+        "extras.webhookendpoint",
+        "inventory.accessoryassignment",
+        "inventory.componentallocation",
+        "inventory.consumableassignment",
+        "organization.contact",
+        "organization.contactrole",
+        "organization.costcenter",
+        "organization.region",
+        "organization.role",
+        "organization.site",
+        "organization.sitegroup",
+        "organization.tenantgroup",
+        "organization.tenantresourcegrant",
+        "procurement.contract",
+        "procurement.purchaseorderline",
+        "software.installedsoftware",
+        "software.software",
+        "subscriptions.subscriptionassignment",
+        "users.usergroup",
+    }
+)
+
+
+def archive_coverage_problems() -> list[str]:
+    """Soft-deletable models with children that are neither a root nor a declared leaf."""
+    # inline import: app-registry: the model layer is only importable once apps are loaded.
+    from core.mixins import SoftDeleteMixin
+
+    problems = []
+    for model in apps.get_models():
+        if not issubclass(model, SoftDeleteMixin):
+            continue
+        label = model._meta.label_lower
+        if not reverse_relation_keys(model):
+            continue
+        if label in _ARCHIVE_HANDLERS or label in ARCHIVE_LEAVES:
+            continue
+        problems.append(
+            f"{model._meta.label}: has child relations but is neither a registered archive root nor a declared leaf."
+        )
+    for label in sorted(ARCHIVE_LEAVES & set(_ARCHIVE_HANDLERS)):
+        problems.append(f"{label}: is declared a leaf and a registered archive root.")
+    return problems
+
+
 def register_archive_handler(
     model_label: str,
     *,

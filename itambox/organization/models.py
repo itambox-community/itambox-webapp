@@ -787,7 +787,6 @@ class RoleGrant(ChangeLoggingMixin, models.Model):
         (REACH_OWN, _("This tenant")),
         (REACH_MANAGED, _("Managed tenants")),
     ]
-    survive_parent_soft_delete = True
 
     membership = models.ForeignKey(
         "organization.Membership",
@@ -1007,7 +1006,6 @@ class RoleGrantScope(ChangeLoggingMixin, models.Model):
     # RoleGrant survives a parent Role soft-delete as inert audit history. The
     # soft-delete collector also sees its non-soft-deletable children directly,
     # so scopes must opt out independently or the aggregate is only half kept.
-    survive_parent_soft_delete = True
 
     SCOPE_OWN = "own"
     SCOPE_TENANT = "tenant"
@@ -1269,7 +1267,6 @@ class TenantResourceGrant(SoftDeleteMixin, ChangeLoggingMixin, BaseModel):
     # Soft-deleting the owner/grantee tenant must not destroy the audit
     # trail; grants become inert (the resolver re-checks liveness) and
     # restore re-arms them. Hard deletes still cascade.
-    survive_parent_soft_delete = True
 
     # NO all_objects manager, on purpose (mirrors Membership/RoleGrant):
     # revocation is a lifecycle state, not "trash" — grants must not surface

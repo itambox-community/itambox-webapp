@@ -21,7 +21,7 @@ class ReservationJourneyTests(JourneyMixin, TestCase):
         StatusLabel.objects.create(name="Deployed", slug="deployed", type=StatusLabel.TYPE_DEPLOYED)
         self.asset = self.make_asset(status=deployable)
         self.reserved_for = self.make_holder()
-        AssetReservation.objects.create(
+        self.reservation = AssetReservation.objects.create(
             asset=self.asset,
             reserved_for=self.reserved_for,
             start_date=today() - timedelta(days=1),
@@ -65,3 +65,76 @@ class ReservationJourneyTests(JourneyMixin, TestCase):
     def test_reserved_holder_can_still_check_out(self):
         checkout_asset(asset=self.asset, holder=self.reserved_for, request=None)
         self.assertTrue(AssetAssignment.objects.filter(asset=self.asset, is_active=True).exists())
+
+    def test_soft_deleted_reservation_does_not_block_holder_checkout(self):
+        self.reservation.delete()
+        other = self.make_holder()
+
+        checkout_asset(asset=self.asset, holder=other, request=None)
+
+        self.assertTrue(AssetAssignment.objects.filter(asset=self.asset, assigned_user=other, is_active=True).exists())
+
+    def test_soft_deleted_reservation_does_not_block_location_checkout(self):
+        self.reservation.delete()
+
+        checkout_asset(asset=self.asset, location=self.location, request=None)
+
+        self.assertTrue(
+            AssetAssignment.objects.filter(asset=self.asset, assigned_location=self.location, is_active=True).exists()
+        )
+
+    def test_soft_deleted_reservation_does_not_block_asset_target_checkout(self):
+        self.reservation.delete()
+        target = self.make_asset()
+
+        checkout_asset(asset=self.asset, asset_target=target, request=None)
+
+        self.assertTrue(
+            AssetAssignment.objects.filter(asset=self.asset, assigned_asset=target, is_active=True).exists()
+        )
+
+    def test_reserved_holder_can_fulfill_replacement_reservation_after_delete(self):
+        self.reservation.delete()
+        replacement_holder = self.make_holder()
+        replacement = AssetReservation.objects.create(
+            asset=self.asset,
+            reserved_for=replacement_holder,
+            start_date=today() - timedelta(days=1),
+            end_date=today() + timedelta(days=3),
+            status=ReservationStatusChoices.ACTIVE,
+        )
+
+        checkout_asset(asset=self.asset, holder=replacement_holder, request=None)
+
+        self.assertIsNone(replacement.deleted_at)
+        self.assertTrue(
+            AssetAssignment.objects.filter(asset=self.asset, assigned_user=replacement_holder, is_active=True).exists()
+        )
+
+    def test_restoring_reservation_reactivates_checkout_restriction(self):
+        self.reservation.delete()
+        self.reservation.restore()
+        other = self.make_holder()
+
+        with self.assertRaises(ValidationError):
+            checkout_asset(asset=self.asset, holder=other, request=None)
+
+    def test_live_pending_reservation_blocks_every_checkout_target(self):
+        asset = self.make_asset()
+        AssetReservation.objects.create(
+            asset=asset,
+            reserved_for=self.reserved_for,
+            start_date=today() - timedelta(days=1),
+            end_date=today() + timedelta(days=3),
+            status=ReservationStatusChoices.PENDING,
+        )
+        targets = (
+            {"holder": self.make_holder()},
+            {"location": self.location},
+            {"asset_target": self.make_asset()},
+        )
+
+        for target in targets:
+            with self.subTest(target=target):
+                with self.assertRaises(ValidationError):
+                    checkout_asset(asset=asset, request=None, **target)
