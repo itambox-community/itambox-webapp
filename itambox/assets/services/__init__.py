@@ -416,14 +416,29 @@ def repair_holder(asset: Asset):
     return assignment.assigned_user
 
 
-def active_repair_loan(maintenance: "AssetMaintenance") -> "AssetAssignment | None":
-    """The open loaner of a repair maintenance, or ``None`` when none was issued (#644)."""
-    return (
-        AssetAssignment.objects.for_scope(Scope.current())
-        .filter(maintenance=maintenance, is_loan=True, is_active=True)
-        .select_related("asset", "assigned_user")
-        .first()
+def active_repair_loan(maintenance: "AssetMaintenance", *, lock: bool = False) -> "AssetAssignment | None":
+    """The open loaner of a repair maintenance, or ``None`` when none was issued (#644).
+
+    ``lock=True`` re-reads the loan ``FOR UPDATE`` (the loan row only); call it inside
+    a transaction that already holds the maintenance lock.
+    """
+    queryset = AssetAssignment.objects.for_scope(Scope.current()).filter(
+        maintenance=maintenance, is_loan=True, is_active=True
     )
+    if lock:
+        queryset = queryset.select_for_update(of=("self",))
+    return queryset.select_related("asset", "assigned_user").first()
+
+
+def _lock_repair_maintenance(maintenance: "AssetMaintenance") -> "AssetMaintenance":
+    """Serialize repair loan operations on one maintenance row (#727).
+
+    The maintenance is the anchor of the repair story, so issuing a loaner and
+    completing the repair all take this lock first and re-read their eligibility
+    after acquiring it.
+    """
+    # unscoped: repair flow locks the maintenance row by pk; re-reads eligibility under the lock
+    return AssetMaintenance._base_manager.select_for_update().get(pk=maintenance.pk)
 
 
 def issue_repair_loaner(
@@ -460,6 +475,9 @@ def issue_repair_loaner(
     # until the repair is done.
     resolved_due_date = due_date or maintenance.completion_date
     with transaction.atomic():
+        maintenance = _lock_repair_maintenance(maintenance)
+        if active_repair_loan(maintenance, lock=True) is not None:
+            raise ValidationError(_("This repair already has an open loaner."))
         checkout_asset(
             loaner,
             holder=holder,
@@ -502,16 +520,20 @@ def complete_repair(
         raise ValidationError(_("Only a repair maintenance can close a repair."))
     if action == REPAIR_ACTION_NONE:
         return None
-    loan = active_repair_loan(maintenance)
-    if loan is None:
-        raise ValidationError(_("This repair has no open loaner."))
-    if action == REPAIR_ACTION_RETURN:
-        return _return_repair(maintenance, loan, user=user, request=request)
-    if action == REPAIR_ACTION_REPLACE:
+    if action not in (REPAIR_ACTION_RETURN, REPAIR_ACTION_REPLACE):
+        raise ValidationError(_("Unknown repair completion action."))
+    with transaction.atomic():
+        # Lock first, then read the loan: a competing completion that already
+        # closed or converted it leaves nothing open for this caller.
+        maintenance = _lock_repair_maintenance(maintenance)
+        loan = active_repair_loan(maintenance, lock=True)
+        if loan is None:
+            raise ValidationError(_("This repair has no open loaner."))
+        if action == REPAIR_ACTION_RETURN:
+            return _return_repair(maintenance, loan, user=user, request=request)
         return _replace_repair(
             maintenance, loan, user=user, disposal_method=disposal_method, disposal_date=disposal_date
         )
-    raise ValidationError(_("Unknown repair completion action."))
 
 
 def _return_repair(maintenance, loan, *, user, request) -> "AssetAssignment":

@@ -548,7 +548,7 @@ class MigrationAuditTests(unittest.TestCase):
         self.assertEqual(inventory["summary"]["replacement_shards"], 62)
         self.assertEqual(inventory["summary"]["replacement_targets"], 262)
         self.assertEqual(inventory["summary"]["explicit_replacement_chain_edges"], 61)
-        self.assertEqual(inventory["summary"]["post_transition_migrations"], 65)
+        self.assertEqual(inventory["summary"]["post_transition_migrations"], 66)
         self.assertEqual(
             inventory["post_transition_migrations"],
             [
@@ -566,6 +566,7 @@ class MigrationAuditTests(unittest.TestCase):
                 "assets.0122_repair_maintenance_anchor",
                 "assets.0123_asset_archive_leaf_markers",
                 "assets.0124_tenant_archive_leaf_markers",
+                "assets.0125_unique_open_loan_per_maintenance",
                 "compliance.0101_alter_custodyreceipt_signed_at",
                 "compliance.0102_clear_unsigned_receipt_timestamps",
                 "compliance.0103_alter_custodyreceipt_options",

@@ -1571,6 +1571,46 @@
     },
     {
       "dependencies": [
+        "assets.0124_tenant_archive_leaf_markers",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "assets.0125_unique_open_loan_per_maintenance",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/assets/migrations/0125_unique_open_loan_per_maintenance.py",
+      "replaces": [],
+      "reviewed_disposition": null,
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": false,
+          "RunSQL": false,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
         "extras.0100_issue88_shard_05_extras_history_1"
       ],
       "id": "compliance.0100_issue88_shard_06_compliance_schema",
@@ -6036,6 +6076,7 @@
     "assets.0122_repair_maintenance_anchor",
     "assets.0123_asset_archive_leaf_markers",
     "assets.0124_tenant_archive_leaf_markers",
+    "assets.0125_unique_open_loan_per_maintenance",
     "compliance.0101_alter_custodyreceipt_signed_at",
     "compliance.0102_clear_unsigned_receipt_timestamps",
     "compliance.0103_alter_custodyreceipt_options",
@@ -6162,7 +6203,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 65,
+    "post_transition_migrations": 66,
     "replacement_shards": 62,
     "replacement_targets": 262
   }

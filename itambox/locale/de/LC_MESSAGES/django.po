@@ -15414,6 +15414,10 @@ msgid "This repair has no open loaner."
 msgstr "Diese Reparatur hat kein offenes Leihgerät."
 
 #: itambox/itambox/assets/services/__init__.py
+msgid "This repair already has an open loaner."
+msgstr "Diese Reparatur hat bereits ein offenes Leihgerät."
+
+#: itambox/itambox/assets/services/__init__.py
 msgid "Unknown repair completion action."
 msgstr "Unbekannte Abschluss-Aktion für die Reparatur."
 
