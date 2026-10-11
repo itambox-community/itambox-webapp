@@ -6203,7 +6203,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 65,
+    "post_transition_migrations": 66,
     "replacement_shards": 62,
     "replacement_targets": 262
   }
