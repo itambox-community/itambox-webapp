@@ -12,10 +12,10 @@ class Migration(migrations.Migration):
             model_name="assetassignment",
             constraint=models.UniqueConstraint(
                 condition=models.Q(
-                    ("is_loan", True),
-                    ("is_active", True),
-                    ("maintenance__isnull", False),
                     ("deleted_at__isnull", True),
+                    ("is_active", True),
+                    ("is_loan", True),
+                    ("maintenance__isnull", False),
                 ),
                 fields=("maintenance",),
                 name="unique_open_loan_per_maintenance",
