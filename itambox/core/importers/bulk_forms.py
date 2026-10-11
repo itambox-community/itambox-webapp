@@ -10,12 +10,14 @@ from typing import NamedTuple
 import yaml
 from django import forms
 from django.conf import settings
-from django.core.exceptions import FieldDoesNotExist, ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, FieldDoesNotExist, ValidationError
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from core.context import get_current_request_id, get_current_tenant, get_current_user
 from core.data_transfer import policy_for
+from core.mixins import AutoSlugMixin
+from core.slugs import generate_unique_slug
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,22 @@ def _import_log_extra(*, operation, row_number=None, exception_type=None):
     if exception_type is not None:
         context["exception_type"] = exception_type
     return {"import_context": context}
+
+
+def _row_error_messages(exc):
+    """Flatten a ``ValidationError`` into operator-facing row messages.
+
+    A field-keyed error (``full_clean()`` reports them as a dict) names the
+    failing field, so an operator can tell which column to fix; the flattened
+    ``messages`` property drops the field name and leaves only the text.
+    """
+    if hasattr(exc, "message_dict"):
+        messages = []
+        for field, field_messages in exc.message_dict.items():
+            prefix = "" if field == NON_FIELD_ERRORS else f"{field}: "
+            messages.extend(f"{prefix}{message}" for message in field_messages)
+        return messages
+    return [str(message) for message in exc.messages]
 
 
 # Upper bound on rows accepted in a single bulk import. Beyond this, the request
@@ -342,7 +360,7 @@ class BulkImportForm(forms.Form):
                     self._import_row(row, i)
                 imported += 1
             except ValidationError as e:
-                errors.append(f"Row {i}: {'; '.join(e.messages if hasattr(e, 'messages') else [str(e)])}")
+                errors.append(f"Row {i}: {'; '.join(_row_error_messages(e))}")
             except Exception as exc:
                 # broad except: task-isolation: one malformed import row must not abort the reviewed batch
                 extra = _import_log_extra(
@@ -371,9 +389,22 @@ class BulkImportForm(forms.Form):
         else:
             instance = self._create_instance(mapped)
 
+        self._populate_generated_slug(instance)
         if hasattr(instance, "full_clean"):
             instance.full_clean()
         instance.save()
+
+    def _populate_generated_slug(self, instance):
+        """Fill in the slug an ``AutoSlugMixin`` model generates on save.
+
+        ``full_clean()`` runs before ``save()``, so validation sees a blank slug
+        for a row that legitimately omits the column and rejects it. Generate the
+        value here with the same helper ``AutoSlugMixin.save()`` calls, so the
+        stored slug is the one the UI save path produces; an explicit slug is
+        left untouched (the helper returns early when one is set).
+        """
+        if isinstance(instance, AutoSlugMixin):
+            generate_unique_slug(instance, instance.slug_source)
 
     def _key_attnames(self):
         return [self.model._meta.get_field(name).attname for name in self.update_key]
