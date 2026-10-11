@@ -1,9 +1,14 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
+from threading import Barrier
+from unittest.mock import patch
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
-from django.test import Client, TestCase
+from django.db import close_old_connections
+from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -344,6 +349,71 @@ class SubscriptionFixesTests(TestCase):
         self.assertTrue(any("Subscription Renewal Warning: Sub 14 in 14 Days" in s for s in subjects))
         self.assertTrue(any("Subscription Renewal Warning: Sub 30 B in 30 Days" in s for s in subjects))
 
+    def test_background_task_recovers_a_missed_renewal_warning_boundary(self):
+        today = date(2026, 10, 3)
+        subscription = self._make_sub("Missed 30-day warning", self.supplier_a, self.tenant_a, 30)
+        renewal_date = today + timedelta(days=29)
+        Subscription.objects.filter(pk=subscription.pk).update(renewal_date=renewal_date)
+        Notification.objects.all().delete()
+        self._clear_scope_context()
+
+        with patch("subscriptions.tasks.timezone.localdate", return_value=today):
+            check_subscription_expiries_and_reminders()
+            check_subscription_expiries_and_reminders()
+
+        warning = Notification.objects.filter(
+            user=self.super_user,
+            subject="Subscription Renewal Warning: Missed 30-day warning in 29 Days",
+        )
+        self.assertEqual(warning.count(), 1)
+        self.assertIn(str(renewal_date), warning.get().message)
+        self.assertIn("29 days remaining", warning.get().message)
+
+    def test_background_task_starts_a_new_reminder_cycle_when_renewal_date_changes(self):
+        today = date(2026, 10, 3)
+        subscription = self._make_sub("Changed renewal", self.supplier_a, self.tenant_a, 30)
+        first_renewal_date = today + timedelta(days=29)
+        Subscription.objects.filter(pk=subscription.pk).update(renewal_date=first_renewal_date)
+        Notification.objects.all().delete()
+        self._clear_scope_context()
+
+        with patch("subscriptions.tasks.timezone.localdate", return_value=today):
+            check_subscription_expiries_and_reminders()
+
+        next_renewal_date = today + timedelta(days=13)
+        self.assertTrue(subscription.renew(next_renewal_date))
+        with patch("subscriptions.tasks.timezone.localdate", return_value=today):
+            check_subscription_expiries_and_reminders()
+            check_subscription_expiries_and_reminders()
+
+        warnings = Notification.objects.filter(user=self.super_user, message__contains=subscription.name)
+        self.assertEqual(warnings.count(), 2)
+        self.assertTrue(warnings.filter(subject__endswith="in 29 Days").exists())
+        self.assertTrue(warnings.filter(subject__endswith="in 13 Days").exists())
+        self.assertTrue(warnings.filter(message__contains=str(first_renewal_date)).exists())
+        self.assertTrue(warnings.filter(message__contains=str(next_renewal_date)).exists())
+
+    def test_background_task_collapses_obsolete_tiers_after_a_multi_tier_outage(self):
+        today = date(2026, 10, 3)
+        subscription = self._make_sub("Long outage", self.supplier_a, self.tenant_a, 30)
+        renewal_date = today + timedelta(days=29)
+        Subscription.objects.filter(pk=subscription.pk).update(renewal_date=renewal_date)
+        Notification.objects.all().delete()
+        self._clear_scope_context()
+
+        with patch("subscriptions.tasks.timezone.localdate", return_value=today):
+            check_subscription_expiries_and_reminders()
+
+        recovered_today = renewal_date - timedelta(days=4)
+        with patch("subscriptions.tasks.timezone.localdate", return_value=recovered_today):
+            check_subscription_expiries_and_reminders()
+
+        warnings = Notification.objects.filter(user=self.super_user, message__contains=subscription.name)
+        self.assertEqual(warnings.count(), 2)
+        self.assertTrue(warnings.filter(subject__endswith="in 29 Days").exists())
+        self.assertTrue(warnings.filter(subject__endswith="in 4 Days").exists())
+        self.assertFalse(warnings.filter(subject__endswith="in 14 Days").exists())
+
     def test_background_task_skips_soft_deleted_subscriptions(self):
         """The bootstrap path is unscoped by tenant, never by soft delete."""
         subs = self._seed_expiry_and_reminder_subscriptions()
@@ -360,3 +430,53 @@ class SubscriptionFixesTests(TestCase):
 
         subjects = [n.subject for n in Notification.objects.all()]
         self.assertFalse(any("Deleted Sub" in s for s in subjects))
+
+
+@pytest.mark.serial_only
+class TestSubscriptionReminderConcurrency(TransactionTestCase):
+    def test_concurrent_task_runs_persist_one_warning_for_a_cycle(self):
+        from organization.models import Role
+
+        today = date(2026, 10, 3)
+        renewal_date = today + timedelta(days=29)
+        group = TenantGroup.objects.create(name="Reminder group", slug="reminder-group")
+        tenant = Tenant.objects.create(name="Reminder tenant", slug="reminder-tenant", group=group)
+        staff_user = User.objects.create_user(username="reminder-staff", is_staff=True)
+        role = Role.objects.create(tenant=tenant, name="Reminder role", permissions=[])
+        grant(staff_user, tenant, role)
+        supplier = Supplier.objects.create(name="Reminder supplier", tenant=tenant)
+        subscription = Subscription.objects.create(
+            name="Concurrent reminder",
+            supplier=supplier,
+            tenant=tenant,
+            status=SubscriptionStatusChoices.ACTIVE,
+            renewal_date=renewal_date,
+            renewal_cost=100.00,
+            currency="USD",
+            billing_cycle=BillingCycleChoices.MONTHLY,
+        )
+        Subscription.objects.filter(pk=subscription.pk).update(renewal_date=renewal_date)
+        barrier = Barrier(2)
+
+        def run_task():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                check_subscription_expiries_and_reminders()
+            finally:
+                close_old_connections()
+
+        with patch("subscriptions.tasks.timezone.localdate", return_value=today):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [executor.submit(run_task) for _ in range(2)]
+                for future in futures:
+                    future.result(timeout=30)
+
+        warning = Notification.objects.filter(
+            user=staff_user,
+            subject="Subscription Renewal Warning: Concurrent reminder in 29 Days",
+        )
+        self.assertEqual(warning.count(), 1)
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.renewal_reminder_cycle_date, renewal_date)
+        self.assertEqual(subscription.renewal_reminder_days, 30)

@@ -1,5 +1,6 @@
 """Procurement-domain report providers."""
 
+from calendar import monthrange
 from datetime import timedelta
 
 from django.utils import timezone
@@ -16,6 +17,21 @@ from procurement.models import Contract
 CONTRACT_SOON_DAYS = 30
 
 
+def _multi_year_term_months(contract):
+    """Return whole calendar months when contract dates define the term exactly."""
+    start_date = contract.start_date
+    end_date = contract.end_date
+    if not start_date or not end_date or end_date <= start_date:
+        return None
+
+    months = (end_date.year - start_date.year) * 12 + end_date.month - start_date.month
+    start_is_month_end = start_date.day == monthrange(start_date.year, start_date.month)[1]
+    end_is_month_end = end_date.day == monthrange(end_date.year, end_date.month)[1]
+    if start_date.day != end_date.day and not (start_is_month_end and end_is_month_end):
+        return None
+    return months
+
+
 def _annual_cost(contract):
     """The contract's cost amortized to a yearly equivalent."""
     cost = float(contract.cost)
@@ -27,7 +43,8 @@ def _annual_cost(contract):
     if cycle == "biannual":
         return cost * 2.0
     if cycle == "multi_year":
-        return cost / 3.0
+        term_months = _multi_year_term_months(contract)
+        return cost * 12.0 / term_months if term_months is not None else None
     # 'annual' already is the yearly figure, and a one-time charge has no
     # sensible yearly conversion — both are included as recorded.
     return cost
@@ -45,6 +62,8 @@ def _annual_spend(queryset, request: ReportRequest):
         if contract.cost is None:
             continue
         annual = _annual_cost(contract)
+        if annual is None:
+            continue
         currency = _record_currency(getattr(contract, "currency", None), request.active_tenant)
         by_currency[currency] = by_currency.get(currency, 0.0) + annual
         supplier_name = contract.supplier.name if contract.supplier else _("Generic")

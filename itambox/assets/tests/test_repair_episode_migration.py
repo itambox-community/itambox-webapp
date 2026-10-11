@@ -46,7 +46,15 @@ class RepairEpisodeMigrationTests(TransactionTestCase):
         if status is None:
             status = StatusLabel.objects.create(name="Available (mig)", slug="available-mig", type="deployable")
         self.assets = {}
-        for label in ("one_repair", "no_repair", "several_repairs", "substitute_loan", "substitute_bare", "reserved"):
+        for label in (
+            "one_repair",
+            "no_repair",
+            "several_repairs",
+            "substitute_loan",
+            "substitute_bare",
+            "reserved",
+            "ordinary",
+        ):
             self.assets[label] = Asset.objects.create(name=f"Laptop {label}", asset_tag=f"MIG-{label}", status=status)
         loaner = Asset.objects.create(name="Loaner", asset_tag="MIG-loaner", status=status)
 
@@ -127,8 +135,27 @@ class RepairEpisodeMigrationTests(TransactionTestCase):
             episode=reserved_episode,
         )
 
+        # 7. A substitute whose only overlapping assignment is an ordinary one
+        #    (is_loan=False): it is not loan evidence and must not be linked.
+        ordinary_asset = self.assets["ordinary"]
+        ordinary_loaner = Asset.objects.create(name="Loaner 2", asset_tag="MIG-loaner2", status=status)
+        ordinary_episode = RepairEpisode.objects.create(
+            asset=ordinary_asset, substitute_asset=ordinary_loaner, notes=""
+        )
+        ordinary_repair = _repair(ordinary_asset, episode=ordinary_episode)
+        ordinary_assignment = AssetAssignment.objects.create(
+            asset=ordinary_loaner,
+            assigned_user=holder,
+            is_loan=False,
+            is_active=False,
+            checked_out_at=timezone.make_aware(datetime.datetime(2026, 1, 6, 9, 0)),
+            checked_in_at=timezone.make_aware(datetime.datetime(2026, 1, 19, 9, 0)),
+        )
+
         connection.commit()
         self.expected = {
+            "ordinary_repair": ordinary_repair.pk,
+            "ordinary_assignment": ordinary_assignment.pk,
             "maintenance": maintenance.pk,
             "disposal_one": disposal_one.pk,
             "disposal_two": disposal_two.pk,
@@ -215,3 +242,11 @@ class RepairEpisodeMigrationTests(TransactionTestCase):
 
         applied = set(MigrationRecorder(connection).applied_migrations())
         self.assertIn(MIGRATE_TO, applied)
+
+    def test_an_ordinary_assignment_is_not_mapped_as_a_repair_loan(self):
+        AssetAssignment = self.apps.get_model("assets", "AssetAssignment")
+        AssetMaintenance = self.apps.get_model("assets", "AssetMaintenance")
+
+        self.assertIsNone(AssetAssignment.objects.get(pk=self.expected["ordinary_assignment"]).maintenance_id)
+        notes = AssetMaintenance.objects.get(pk=self.expected["ordinary_repair"]).notes
+        self.assertIn("could not be translated into exactly one loan", notes)

@@ -18,16 +18,17 @@ _MONTHLY_DIVISORS = {
     "quarterly": 3.0,
     "biannual": 6.0,
     "annual": 12.0,
-    "multi_year": 36.0,
 }
 
 
 def _monthly_cost(subscription):
     """The subscription's renewal cost amortized to a monthly equivalent."""
-    cost = float(subscription.renewal_cost)
     if subscription.billing_cycle == "onetime":
         return 0.0
-    return cost / _MONTHLY_DIVISORS.get(subscription.billing_cycle, 1.0)
+    if subscription.billing_cycle == "multi_year":
+        annual_cost = subscription.annual_cost
+        return float(annual_cost / 12) if annual_cost is not None else None
+    return float(subscription.renewal_cost) / _MONTHLY_DIVISORS.get(subscription.billing_cycle, 1.0)
 
 
 def _monthly_spend(queryset, request: ReportRequest):
@@ -43,6 +44,8 @@ def _monthly_spend(queryset, request: ReportRequest):
         if subscription.renewal_cost is None:
             continue
         monthly = _monthly_cost(subscription)
+        if monthly is None:
+            continue
         currency = _record_currency(subscription.currency, subscription.tenant)
         by_currency[currency] = by_currency.get(currency, 0.0) + monthly
         supplier_name = subscription.supplier.name if subscription.supplier else _("Generic")

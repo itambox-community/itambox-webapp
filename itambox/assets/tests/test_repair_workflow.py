@@ -12,6 +12,7 @@ import datetime
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from model_bakery import baker
@@ -109,6 +110,50 @@ class RepairServiceTests(TestCase):
         upgrade = _maintenance(self.asset, maintenance_type="upgrade")
         with self.assertRaisesMessage(ValidationError, "only be issued for a repair"):
             issue_repair_loaner(upgrade, self.loaner, self.user)
+
+    def test_second_loaner_for_the_same_repair_is_refused(self):
+        first = self._loan()
+        second_loaner = _asset("Second Loaner")
+        with self.assertRaisesMessage(ValidationError, "already has an open loaner"):
+            issue_repair_loaner(self.maintenance, second_loaner, self.user)
+        self.assertFalse(AssetAssignment.objects.filter(asset=second_loaner).exists())
+        self.assertEqual(
+            list(AssetAssignment.objects.filter(maintenance=self.maintenance, is_loan=True, is_active=True)),
+            [first],
+        )
+
+    def test_database_allows_one_open_loan_per_maintenance(self):
+        first = self._loan()
+        second_loaner = _asset("Second Loaner")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            # bulk_create skips model validation, so only the database constraint answers
+            AssetAssignment.objects.bulk_create(
+                [
+                    AssetAssignment(
+                        asset=second_loaner,
+                        assigned_user=self.holder,
+                        is_loan=True,
+                        is_active=True,
+                        maintenance=self.maintenance,
+                    )
+                ]
+            )
+        first.refresh_from_db()
+        self.assertTrue(first.is_active)
+
+    def test_a_new_loaner_is_possible_after_the_first_loan_was_returned(self):
+        self._loan()
+        complete_repair(self.maintenance, "return", self.user)
+        second = issue_repair_loaner(self.maintenance, _asset("Second Loaner"), self.user)
+        self.assertTrue(second.is_active)
+
+    def test_stale_second_completion_cannot_repeat_the_hand_back(self):
+        self._loan()
+        complete_repair(self.maintenance, "return", self.user)
+        count = AssetAssignment.objects.filter(asset=self.asset).count()
+        with self.assertRaisesMessage(ValidationError, "no open loaner"):
+            complete_repair(self.maintenance, "return", self.user)
+        self.assertEqual(AssetAssignment.objects.filter(asset=self.asset).count(), count)
 
     def test_returned_closes_the_loaner_and_hands_the_unit_back(self):
         loan = self._loan()
