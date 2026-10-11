@@ -15644,6 +15644,11 @@ msgstr "Die Wareneingangsübermittlung enthält für Position %(line)s keine Ang
 msgid "The recorded quantity for line %(line)s changed since this receipt was prepared (expected %(expected)s, found %(found)s). Reload the receive form and submit again."
 msgstr "Die erfasste Menge für Position %(line)s hat sich seit Vorbereitung dieses Wareneingangs geändert (erwartet %(expected)s, vorgefunden %(found)s). Bitte das Wareneingangsformular neu laden und erneut absenden."
 
+#: itambox/itambox/procurement/api/serializers.py
+#: itambox/itambox/procurement/models.py
+msgid "The purchase order must belong to the same tenant as the contract."
+msgstr "Die Bestellung muss zum selben Mandanten gehören wie der Vertrag."
+
 #: itambox/extras/models.py
 msgid "Last Run Archive"
 msgstr "Archiv des letzten Laufs"

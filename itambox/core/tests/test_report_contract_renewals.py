@@ -11,7 +11,7 @@ Mirrors the conventions in core/tests/test_report_tenant_scoping.py:
 import datetime
 
 from django.test import TestCase
-from django.utils import timezone
+from django.utils import timezone, translation
 
 from assets.models.catalog import Supplier
 from core.tests.mixins import TenantTestMixin, compile_report_with_system_authorization
@@ -118,6 +118,58 @@ class ContractRenewalsReportTests(TenantTestMixin, TestCase):
         self.assertEqual(row_001.get("Billing Cycle"), "Annual")
         self.assertEqual(row_001.get("Auto-Renew"), "Yes")
         self.assertEqual(row_001.get("Supplier"), "Acme Support")
+
+    def test_multi_year_contract_spend_uses_start_and_end_dates(self):
+        contract_terms = (
+            ("CTR-MY-24", 2400, "EUR", datetime.date(2020, 1, 1), datetime.date(2022, 1, 1)),
+            ("CTR-MY-36", 3600, "USD", datetime.date(2020, 1, 1), datetime.date(2023, 1, 1)),
+            ("CTR-MY-48", 4800, "GBP", datetime.date(2020, 1, 1), datetime.date(2024, 1, 1)),
+        )
+        for number, cost, currency, start_date, end_date in contract_terms:
+            Contract.objects.create(
+                tenant=self.tenant,
+                name=number,
+                contract_number=number,
+                contract_type=ContractTypeChoices.SUPPORT,
+                status=ContractStatusChoices.ACTIVE,
+                supplier=self.supplier,
+                cost=cost,
+                currency=currency,
+                billing_cycle=ContractBillingCycleChoices.MULTI_YEAR,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        Contract.objects.create(
+            tenant=self.tenant,
+            name="Unaligned contract dates",
+            contract_number="CTR-MY-UNKNOWN",
+            contract_type=ContractTypeChoices.SUPPORT,
+            status=ContractStatusChoices.ACTIVE,
+            supplier=self.supplier,
+            cost=2400,
+            currency="USD",
+            billing_cycle=ContractBillingCycleChoices.MULTI_YEAR,
+            start_date=datetime.date(2020, 1, 1),
+            end_date=datetime.date(2023, 1, 2),
+        )
+
+        self.clear_tenant_context()
+        with self.tenant_context(self.tenant), translation.override("en"):
+            _, _, summary_cards, _, chart_svg, _ = compile_report_with_system_authorization(
+                self.template, active_tenant=self.tenant
+            )
+
+        summary = {card["label"]: card["value"] for card in summary_cards}["Est. Annual Spend"]
+        self.assertIn("19,200.00", summary)
+        self.assertIn("€", summary)
+        self.assertIn("$1,200.00", summary)
+        self.assertIn("£1,200.00", summary)
+        self.assertIn("Acme Support (EUR)", chart_svg)
+        self.assertIn("Acme Support (USD)", chart_svg)
+        self.assertIn("Acme Support (GBP)", chart_svg)
+        self.assertIn("13,200.00", chart_svg)
+        self.assertIn("$1,200.00", chart_svg)
+        self.assertIn("£1,200.00", chart_svg)
 
     def test_money_cell_not_dollar_prefixed_for_eur(self):
         """A EUR contract cost must NOT start with '$'."""

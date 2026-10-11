@@ -2020,12 +2020,6 @@
       "count": 1
     },
     {
-      "path": "itambox/software/api/views.py",
-      "context": "ClassDef:InstalledSoftwareViewSet/FunctionDef:get_queryset",
-      "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
       "path": "itambox/software/apps.py",
       "context": "ClassDef:SoftwareConfig/FunctionDef:ready",
       "statement": "import software.search",

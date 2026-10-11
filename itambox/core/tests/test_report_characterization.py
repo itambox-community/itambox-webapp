@@ -6,8 +6,10 @@ baseline for provider extraction: identifiers, default columns, summary-card
 labels, fallback rows, grouping, and chart output must not drift.
 """
 
+import unittest
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 
 from django.test import TestCase
 from django.utils import translation
@@ -15,12 +17,17 @@ from django.utils import translation
 from assets.models import Manufacturer, Supplier
 from core.management.commands._seed.organizations import _seed_saas_suppliers
 from core.reports import get_report_provider
+from core.reports.formatting import _format_per_currency
 from core.tests.mixins import TenantTestMixin, compile_report_with_system_authorization
 from extras.models import ReportTemplate
 from licenses.models import License, LicenseTypeChoices
 from organization.models import TenantGroup
+from procurement.reports import _annual_cost, _annual_spend
+from procurement.reports import _spend_chart as _contract_spend_chart
 from software.models import Software
 from subscriptions.models import Subscription
+from subscriptions.reports import _monthly_cost, _monthly_spend
+from subscriptions.reports import _spend_chart as _subscription_spend_chart
 
 REPORT_CHARACTERIZATIONS = {
     ReportTemplate.REPORT_TYPE_ASSET_SUMMARY: {
@@ -199,6 +206,122 @@ REPORT_CHARACTERIZATIONS = {
 }
 
 
+class ReportSpendNormalizationUnitTests(unittest.TestCase):
+    def test_subscription_terms_missing_values_zero_and_currency_buckets(self):
+        supplier = Supplier(name="Term Vendor", slug="term-vendor")
+        subscriptions = [
+            Subscription(
+                name=str(term),
+                supplier=supplier,
+                renewal_cost=Decimal(str(cost)),
+                currency=currency,
+                billing_cycle="multi_year",
+                term_months=term,
+            )
+            for term, cost, currency in (
+                (24, 2400, "EUR"),
+                (36, 3600, "USD"),
+                (48, 4800, "EUR"),
+                (None, 2400, "USD"),
+                (24, 0, "GBP"),
+            )
+        ]
+        self.assertEqual(
+            [_monthly_cost(subscription) for subscription in subscriptions],
+            [100.0, 100.0, 100.0, None, 0.0],
+        )
+        self.assertEqual(_monthly_cost(SimpleNamespace(renewal_cost=1200, billing_cycle="annual")), 100.0)
+        self.assertEqual(_monthly_cost(SimpleNamespace(renewal_cost=1200, billing_cycle="onetime")), 0.0)
+
+        request = SimpleNamespace(active_tenant=None)
+        by_currency, by_supplier = _monthly_spend(subscriptions, request)
+        self.assertEqual(by_currency, {"EUR": 200.0, "USD": 100.0, "GBP": 0.0})
+        self.assertEqual(
+            by_supplier,
+            {
+                ("Term Vendor", "EUR"): 200.0,
+                ("Term Vendor", "USD"): 100.0,
+                ("Term Vendor", "GBP"): 0.0,
+            },
+        )
+        summary = _format_per_currency(by_currency)
+        chart = _subscription_spend_chart(by_supplier, request)
+        self.assertIn("200.00", summary)
+        self.assertIn("€", summary)
+        self.assertIn("$100.00", summary)
+        self.assertIn("£0.00", summary)
+        self.assertIn("Term Vendor (EUR)", chart)
+        self.assertIn("Term Vendor (USD)", chart)
+        self.assertIn("200.00", chart)
+        self.assertIn("$100.00", chart)
+
+    def test_contract_terms_are_derived_from_calendar_dates(self):
+        supplier = Supplier(name="Vendor", slug="vendor")
+        contracts = [
+            SimpleNamespace(
+                cost=cost,
+                currency=currency,
+                billing_cycle="multi_year",
+                start_date=date(2020, 1, 1),
+                end_date=date(2020 + years, 1, 1),
+                supplier=supplier,
+            )
+            for years, cost, currency in ((2, 2400, "EUR"), (3, 3600, "USD"), (4, 4800, "GBP"))
+        ]
+        unaligned_dates = SimpleNamespace(
+            cost=2400,
+            currency="USD",
+            billing_cycle="multi_year",
+            start_date=date(2020, 1, 1),
+            end_date=date(2023, 1, 2),
+            supplier=supplier,
+        )
+        zero_cost = SimpleNamespace(
+            cost=0,
+            currency="JPY",
+            billing_cycle="multi_year",
+            start_date=date(2020, 1, 1),
+            end_date=date(2022, 1, 1),
+            supplier=supplier,
+        )
+        month_end_dates = SimpleNamespace(
+            cost=2500,
+            currency="CAD",
+            billing_cycle="multi_year",
+            start_date=date(2020, 1, 31),
+            end_date=date(2022, 2, 28),
+            supplier=supplier,
+        )
+        missing_dates = SimpleNamespace(
+            cost=2400,
+            currency="CAD",
+            billing_cycle="multi_year",
+            start_date=None,
+            end_date=date(2022, 1, 1),
+            supplier=supplier,
+        )
+        self.assertEqual([_annual_cost(contract) for contract in contracts], [1200.0, 1200.0, 1200.0])
+        self.assertIsNone(_annual_cost(unaligned_dates))
+        self.assertEqual(_annual_cost(zero_cost), 0.0)
+        self.assertEqual(_annual_cost(month_end_dates), 1200.0)
+        self.assertIsNone(_annual_cost(missing_dates))
+
+        request = SimpleNamespace(active_tenant=None)
+        by_currency, by_supplier = _annual_spend(
+            [*contracts, unaligned_dates, zero_cost, month_end_dates, missing_dates], request
+        )
+        self.assertEqual(by_currency, {"EUR": 1200.0, "USD": 1200.0, "GBP": 1200.0, "JPY": 0.0, "CAD": 1200.0})
+        self.assertEqual(by_supplier[("Vendor", "JPY")], 0.0)
+        summary = _format_per_currency(by_currency)
+        chart = _contract_spend_chart(by_supplier, request)
+        self.assertIn("€", summary)
+        self.assertIn("$1,200.00", summary)
+        self.assertIn("£1,200.00", summary)
+        self.assertIn("Vendor (EUR)", chart)
+        self.assertIn("Vendor (USD)", chart)
+        self.assertIn("Vendor (GBP)", chart)
+
+
 class ReportCompilerCharacterizationTests(TenantTestMixin, TestCase):
     def setUp(self):
         self.setup_tenant_context(name="Report Characterization Tenant", slug="report-characterization")
@@ -290,6 +413,83 @@ class ReportCompilerCharacterizationTests(TenantTestMixin, TestCase):
 
         self.assertEqual(summary_cards[0]["value"], "1")
         self.assertIn("120", str(summary_cards[1]["value"]))
+
+    def test_multi_year_subscription_spend_uses_recorded_term(self):
+        supplier = Supplier.objects.create(name="Term Vendor", slug="term-vendor", tenant=self.tenant)
+        subscriptions = [
+            Subscription.objects.create(
+                name="Two-year EUR",
+                supplier=supplier,
+                tenant=self.tenant,
+                renewal_cost=Decimal("2400.00"),
+                currency="EUR",
+                billing_cycle="multi_year",
+                term_months=24,
+            ),
+            Subscription.objects.create(
+                name="Three-year USD",
+                supplier=supplier,
+                tenant=self.tenant,
+                renewal_cost=Decimal("3600.00"),
+                currency="USD",
+                billing_cycle="multi_year",
+                term_months=36,
+            ),
+            Subscription.objects.create(
+                name="Four-year EUR",
+                supplier=supplier,
+                tenant=self.tenant,
+                renewal_cost=Decimal("4800.00"),
+                currency="EUR",
+                billing_cycle="multi_year",
+                term_months=48,
+            ),
+            Subscription.objects.create(
+                name="Unknown-term USD",
+                supplier=supplier,
+                tenant=self.tenant,
+                renewal_cost=Decimal("2400.00"),
+                currency="USD",
+                billing_cycle="multi_year",
+            ),
+            Subscription.objects.create(
+                name="Free multi-year",
+                supplier=supplier,
+                tenant=self.tenant,
+                renewal_cost=Decimal("0.00"),
+                currency="GBP",
+                billing_cycle="multi_year",
+                term_months=24,
+            ),
+        ]
+        self.assertEqual(
+            [_monthly_cost(subscription) for subscription in subscriptions],
+            [100.0, 100.0, 100.0, None, 0.0],
+        )
+
+        template = ReportTemplate(
+            name="Term-aware subscription spend",
+            report_type=ReportTemplate.REPORT_TYPE_SUBSCRIPTION_RENEWALS,
+            included_columns=[],
+            include_summary_cards=True,
+            include_distribution_chart=True,
+        )
+        with self.tenant_context(self.tenant), translation.override("en"):
+            _headers, _rows, summary_cards, _grouped, chart_svg, _context = compile_report_with_system_authorization(
+                template, active_tenant=self.tenant
+            )
+
+        summary = summary_cards[1]["value"]
+        self.assertIn("200.00", summary)
+        self.assertIn("€", summary)
+        self.assertIn("$100.00", summary)
+        self.assertIn("£0.00", summary)
+        self.assertNotIn("166.67", summary)
+        self.assertIn("Term Vendor (EUR)", chart_svg)
+        self.assertIn("Term Vendor (USD)", chart_svg)
+        self.assertIn("200.00", chart_svg)
+        self.assertIn("$100.00", chart_svg)
+        self.assertNotIn("$166.67", chart_svg)
 
     def test_subscription_entitlement_reports_agreement_quantity_not_license_seats(self):
         """A 120 agreement entitlement reports 120 even when linked licenses total 115 seats."""

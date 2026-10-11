@@ -71,7 +71,7 @@
     "organization.0104_tenant_archive_leaf_markers",
     "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
     "software.0101_asset_archive_leaf_markers",
-    "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+    "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
     "users.0104_tenant_archive_leaf_markers"
   ],
   "first_party_apps": [
@@ -413,6 +413,7 @@
     "subscriptions.0102_commercial_vendor_and_terms",
     "subscriptions.0103_unified_vendor_cutover",
     "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+    "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
     "users.0101_user_scim_id_usergroup_external_id_usergroup_scim_id_and_more",
     "users.0102_token_updated_at",
     "users.0103_oidcidentity",
@@ -426,7 +427,7 @@
     "organization.0104_tenant_archive_leaf_markers",
     "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
     "software.0101_asset_archive_leaf_markers",
-    "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+    "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
     "users.0104_tenant_archive_leaf_markers"
   ],
   "recognized_states": [
