@@ -156,7 +156,7 @@ jobs:
           always() && steps.image-gate.outputs.sarif == 'true' &&
           github.actor != 'dependabot[bot]' &&
           github.event.pull_request.head.repo.full_name == github.repository
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
         with:
           sarif_file: ${{ runner.temp }}/trivy-image.sarif
           # Both image uploads in this workflow share one code scanning
@@ -369,7 +369,7 @@ jobs:
 
       - name: Retain draft-image results in Code Scanning
         if: always() && steps.draft-image-gate.outputs.sarif == 'true'
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
         with:
           sarif_file: ${{ runner.temp }}/trivy-image.sarif
           # Same configuration as the rehearsal upload: code scanning compares the
