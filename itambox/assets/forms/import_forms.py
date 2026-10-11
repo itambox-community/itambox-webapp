@@ -38,7 +38,7 @@ class AssetBulkImportForm(BulkImportForm):
 class AssetTypeBulkImportForm(BulkImportForm):
     model = AssetType
     required_fields = ["manufacturer", "model"]
-    optional_fields = ["part_number", "category", "asset_role", "description", "comments"]
+    optional_fields = ["slug", "part_number", "category", "asset_role", "description", "comments"]
 
 
 @register_import_form

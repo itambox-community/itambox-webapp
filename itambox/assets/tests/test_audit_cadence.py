@@ -3,7 +3,8 @@ Tests for Part 6: audit cadence (Category.audit_interval_months, Asset.audit_due
 Asset.audit_overdue, AssetFilterSet audit_due filter, alert rule respects per-category cadence).
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -54,10 +55,41 @@ class AuditDueDatePropertyTests(TestCase):
         self.assertFalse(asset.audit_overdue)
 
     def test_due_date_from_last_audited(self):
-        audited_at = self.now - timedelta(days=10)
+        audited_at = timezone.make_aware(datetime(2026, 1, 15, 12))
         asset = self._make(interval_months=1, last_audited=audited_at)
-        expected = audited_at + timedelta(days=30)
-        self.assertAlmostEqual(asset.audit_due_date.timestamp(), expected.timestamp(), delta=1)
+        expected = timezone.make_aware(datetime(2026, 2, 15, 12))
+        self.assertEqual(asset.audit_due_date, expected)
+
+    def test_twelve_month_interval_advances_one_calendar_year(self):
+        audited_at = timezone.make_aware(datetime(2026, 1, 1, 12))
+        asset = self._make(interval_months=12, last_audited=audited_at)
+
+        self.assertEqual(asset.audit_due_date, timezone.make_aware(datetime(2027, 1, 1, 12)))
+
+    def test_month_end_and_leap_year_dates_clamp_to_last_day(self):
+        cases = (
+            (datetime(2024, 1, 31, 12), 1, datetime(2024, 2, 29, 12)),
+            (datetime(2025, 1, 31, 12), 1, datetime(2025, 2, 28, 12)),
+            (datetime(2024, 2, 29, 12), 12, datetime(2025, 2, 28, 12)),
+        )
+        for audited_at, interval_months, expected in cases:
+            with self.subTest(audited_at=audited_at, interval_months=interval_months):
+                asset = self._make(
+                    interval_months=interval_months,
+                    last_audited=timezone.make_aware(audited_at),
+                )
+                self.assertEqual(asset.audit_due_date, timezone.make_aware(expected))
+
+    def test_overdue_boundary_uses_due_calendar_date(self):
+        audited_at = timezone.make_aware(datetime(2026, 1, 31))
+        asset = self._make(interval_months=1, last_audited=audited_at)
+        due_at = timezone.make_aware(datetime(2026, 2, 28))
+        next_day = timezone.make_aware(datetime(2026, 3, 1))
+
+        with patch("django.utils.timezone.now", return_value=due_at):
+            self.assertFalse(asset.audit_overdue)
+        with patch("django.utils.timezone.now", return_value=next_day):
+            self.assertTrue(asset.audit_overdue)
 
     def test_due_date_falls_back_to_created_at(self):
         asset = self._make(interval_months=1, last_audited=None, created_at_offset_days=5)
@@ -124,6 +156,39 @@ class AuditDueFilterTests(TenantTestMixin, TestCase):
         results = self._filter("false")
         self.assertNotIn(overdue, results)
         self.assertIn(fresh, results)
+
+    def test_filter_uses_calendar_month_deadline(self):
+        audited_at = timezone.make_aware(datetime(2026, 1, 31))
+        asset = self._make_asset(self.at_interval, last_audited=audited_at)
+        due_at = timezone.make_aware(datetime(2026, 2, 28))
+        next_day = timezone.make_aware(datetime(2026, 3, 1))
+
+        with patch("django.utils.timezone.now", return_value=due_at):
+            self.assertNotIn(asset, self._filter("true"))
+        with patch("django.utils.timezone.now", return_value=next_day):
+            self.assertIn(asset, self._filter("true"))
+
+    def test_category_alert_uses_calendar_month_deadline(self):
+        from extras.models import AlertRule
+        from extras.tasks.alerts import _match_audit_overdue
+
+        audited_at = timezone.make_aware(datetime(2026, 1, 31))
+        asset = self._make_asset(self.at_interval, last_audited=audited_at)
+        due_at = timezone.make_aware(datetime(2026, 2, 28))
+        next_day = timezone.make_aware(datetime(2026, 3, 1))
+        rule = baker.make(
+            AlertRule,
+            alert_type=AlertRule.ALERT_TYPE_AUDIT_OVERDUE,
+            threshold_value=365,
+            tenant=None,
+            is_active=True,
+        )
+
+        due_day_matches = _match_audit_overdue(rule, due_at.date())
+        next_day_matches = _match_audit_overdue(rule, next_day.date())
+
+        self.assertNotIn(asset.pk, {match["obj"].pk for match in due_day_matches})
+        self.assertIn(asset.pk, {match["obj"].pk for match in next_day_matches})
 
     def test_null_last_audited_counts_as_overdue(self):
         never_audited = self._make_asset(self.at_interval, last_audited=None)
