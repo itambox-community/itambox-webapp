@@ -261,22 +261,24 @@ def validate_file_attachment(file):
         raise ValidationError(_("Uploaded file signature is not allowed for security reasons."))
 
 
-def validate_image_attachment(file):
-    # 1. Size Validation (5 MB limit)
-    max_size = 5 * 1024 * 1024
-    if file.size > max_size:
-        raise ValidationError(_("Image size must not exceed 5 MB."))
+# The raster image signatures an attachment may carry. Shared by the upload
+# validator and the inline image proxy: content whose signature is outside this
+# set is never served inline.
+SAFE_IMAGE_ATTACHMENT_MIMES = frozenset(
+    {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/x-ms-bmp", "image/webp"}
+)
 
-    # 2. Extension Validation (whitelist safe image extensions)
-    ext = os.path.splitext(file.name)[1].lower()
-    allowed_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
-    if ext not in allowed_extensions:
-        raise ValidationError(
-            _("Image format '%(ext)s' is not supported. Please upload a PNG, JPG, JPEG, GIF, BMP, or WebP image."),
-            params={"ext": ext},
-        )
 
-    # 3. Magic Mime Validation (verify actual file signature)
+def detect_image_mime(file):
+    """Return the MIME type detected in the file's own bytes, or "".
+
+    Never trusts the client-supplied filename or Content-Type: it prefers a
+    libmagic signature check and falls back to Pillow when libmagic is
+    unavailable (native Windows, minimal runtime images). Callers compare the
+    result against ``SAFE_IMAGE_ATTACHMENT_MIMES``: libmagic reports the real
+    type of whatever it is handed, so a non-raster file comes back with its own
+    MIME (``image/svg+xml`` for an SVG) rather than an empty string.
+    """
     initial_pos = file.tell()
     file.seek(0)
     chunk = file.read(2048)
@@ -293,6 +295,8 @@ def validate_image_attachment(file):
         # rather than trusting the client-supplied Content-Type (which an
         # attacker controls). Anything Pillow can't decode fails closed.
         try:
+            # inline import: optional-dependency: Pillow is the documented
+            # fallback when libmagic is unavailable.
             from PIL import Image
 
             file.seek(0)
@@ -310,9 +314,28 @@ def validate_image_attachment(file):
         except Exception:
             file.seek(initial_pos)
             mime_type = ""
+    return mime_type
 
-    allowed_mimes = {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/x-ms-bmp", "image/webp"}
-    if mime_type not in allowed_mimes:
+
+def validate_image_attachment(file):
+    # 1. Size Validation (5 MB limit)
+    max_size = 5 * 1024 * 1024
+    if file.size > max_size:
+        raise ValidationError(_("Image size must not exceed 5 MB."))
+
+    # 2. Extension Validation (whitelist safe image extensions)
+    ext = os.path.splitext(file.name)[1].lower()
+    allowed_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+    if ext not in allowed_extensions:
+        raise ValidationError(
+            _("Image format '%(ext)s' is not supported. Please upload a PNG, JPG, JPEG, GIF, BMP, or WebP image."),
+            params={"ext": ext},
+        )
+
+    # 3. Magic Mime Validation (verify actual file signature)
+    mime_type = detect_image_mime(file)
+
+    if mime_type not in SAFE_IMAGE_ATTACHMENT_MIMES:
         raise ValidationError(
             _("Uploaded file signature does not match a valid image format (PNG, JPG, GIF, BMP, WebP).")
         )

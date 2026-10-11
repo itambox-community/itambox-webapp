@@ -1048,12 +1048,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/validators.py",
-      "context": "FunctionDef:validate_image_attachment",
-      "statement": "from PIL import Image",
-      "count": 1
-    },
-    {
       "path": "itambox/core/views/graphql.py",
       "context": "ClassDef:PrivateGraphQLView/FunctionDef:dispatch",
       "statement": "from django.middleware.csrf import CsrfViewMiddleware",

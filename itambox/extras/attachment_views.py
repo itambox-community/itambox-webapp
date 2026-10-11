@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -16,6 +17,12 @@ from django.views.generic import View
 
 from core.forms import JournalEntryForm
 from core.job_access import visible_jobs_for_user
+from core.validators import (
+    SAFE_IMAGE_ATTACHMENT_MIMES,
+    detect_image_mime,
+    validate_file_attachment,
+    validate_image_attachment,
+)
 from extras.filters import JournalEntryFilterSet
 from extras.forms import JournalEntryFilterForm
 from extras.models import FileAttachment, ImageAttachment, JournalEntry
@@ -129,13 +136,20 @@ class ImageAttachmentUploadView(LoginRequiredMixin, View):
         obj = _attachment_parent_for_change(request, content_type, object_id)
         uploaded_file = request.FILES.get("image")
         if uploaded_file:
-            ImageAttachment.objects.create(
-                model=content_type,
-                object_id=obj.pk,
-                image=uploaded_file,
-                name=uploaded_file.name,
-            )
-            messages.success(request, _("Image '%(name)s' uploaded.") % {"name": uploaded_file.name})
+            try:
+                validate_image_attachment(uploaded_file)
+            except ValidationError as error:
+                # Reject before anything reaches storage: an invalid upload must
+                # leave neither an attachment row nor a permanent blob behind.
+                messages.error(request, " ".join(error.messages))
+            else:
+                ImageAttachment.objects.create(
+                    model=content_type,
+                    object_id=obj.pk,
+                    image=uploaded_file,
+                    name=uploaded_file.name,
+                )
+                messages.success(request, _("Image '%(name)s' uploaded.") % {"name": uploaded_file.name})
         return redirect(safe_return_url(request, request.POST.get("return_url"), obj.get_absolute_url()))
 
 
@@ -149,15 +163,22 @@ class FileAttachmentUploadView(LoginRequiredMixin, View):
         obj = _attachment_parent_for_change(request, content_type, object_id)
         uploaded_file = request.FILES.get("file")
         if uploaded_file:
-            mime_type, _encoding = mimetypes.guess_type(uploaded_file.name)
-            FileAttachment.objects.create(
-                model=content_type,
-                object_id=obj.pk,
-                file=uploaded_file,
-                name=uploaded_file.name,
-                mime_type=mime_type or "",
-            )
-            messages.success(request, _("File '%(name)s' uploaded.") % {"name": uploaded_file.name})
+            try:
+                validate_file_attachment(uploaded_file)
+            except ValidationError as error:
+                # Reject before anything reaches storage: an invalid upload must
+                # leave neither an attachment row nor a permanent blob behind.
+                messages.error(request, " ".join(error.messages))
+            else:
+                mime_type, _encoding = mimetypes.guess_type(uploaded_file.name)
+                FileAttachment.objects.create(
+                    model=content_type,
+                    object_id=obj.pk,
+                    file=uploaded_file,
+                    name=uploaded_file.name,
+                    mime_type=mime_type or "",
+                )
+                messages.success(request, _("File '%(name)s' uploaded.") % {"name": uploaded_file.name})
         return redirect(safe_return_url(request, request.POST.get("return_url"), obj.get_absolute_url()))
 
 
@@ -195,8 +216,17 @@ class ImageAttachmentServeView(LoginRequiredMixin, View):
     def get(self, request, pk):
         attachment = get_object_or_404(ImageAttachment, pk=pk)
         _attachment_parent_for_view(request, attachment.model, attachment.object_id)
-        response = FileResponse(attachment.image.open("rb"))
-        guessed, _encoding = mimetypes.guess_type(attachment.image.name)
-        response["Content-Type"] = guessed if (guessed or "").startswith("image/") else "application/octet-stream"
+        with attachment.image.open("rb") as handle:
+            verified_type = detect_image_mime(handle)
+        if verified_type in SAFE_IMAGE_ATTACHMENT_MIMES:
+            response = FileResponse(attachment.image.open("rb"))
+            response["Content-Type"] = verified_type
+        else:
+            # Content that is not a verified raster image (an SVG stored before
+            # uploads were validated, say) must never be served inline: force a
+            # download with a neutral type instead of guessing from the name.
+            filename = attachment.name or attachment.image.name.rsplit("/", 1)[-1]
+            response = FileResponse(attachment.image.open("rb"), as_attachment=True, filename=filename)
+            response["Content-Type"] = "application/octet-stream"
         response["X-Content-Type-Options"] = "nosniff"
         return response

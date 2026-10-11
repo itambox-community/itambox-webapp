@@ -245,15 +245,7 @@
     },
     {
       "path": "itambox/core/validators.py",
-      "scope": "FunctionDef:validate_file_attachment",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "ef796eee3c740d98599400b82b928aa97f512671db1c1ef96f83ee91af1d5447",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/validators.py",
-      "scope": "FunctionDef:validate_image_attachment",
+      "scope": "FunctionDef:detect_image_mime",
       "handler_type": "Exception",
       "classification": "silent",
       "body_sha256": "86dc2274821693c4424623401c88e8c8fa51d83caf83a857df7e4b8670becdeb",
@@ -261,10 +253,18 @@
     },
     {
       "path": "itambox/core/validators.py",
-      "scope": "FunctionDef:validate_image_attachment",
+      "scope": "FunctionDef:detect_image_mime",
       "handler_type": "Exception",
       "classification": "silent",
       "body_sha256": "e93aac0e647f2aefefb70cf19482b49996360747e28d190a8570e95b4678531b",
+      "count": 1
+    },
+    {
+      "path": "itambox/core/validators.py",
+      "scope": "FunctionDef:validate_file_attachment",
+      "handler_type": "Exception",
+      "classification": "silent",
+      "body_sha256": "ef796eee3c740d98599400b82b928aa97f512671db1c1ef96f83ee91af1d5447",
       "count": 1
     },
     {
