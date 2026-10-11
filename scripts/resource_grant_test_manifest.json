@@ -4,6 +4,7 @@
   "changed_tests": [
     "itambox/assets/tests/test_asset_archive.py",
     "itambox/assets/tests/test_repair_loan_concurrency.py",
+    "itambox/assets/tests/test_repair_workflow.py",
     "itambox/assets/tests/test_specification_native_reference_races.py",
     "itambox/assets/tests/test_depreciation.py",
     "itambox/assets/tests/test_tag_sequence_concurrency.py",
@@ -119,7 +120,6 @@
     "itambox/assets/tests/test_nested_serializers.py",
     "itambox/assets/tests/test_repair_episode.py",
     "itambox/assets/tests/test_repair_episode_migration.py",
-    "itambox/assets/tests/test_repair_workflow.py",
     "itambox/assets/tests/test_request_action_authorization.py",
     "itambox/assets/tests/test_request_action_scopes.py",
     "itambox/assets/tests/test_request_action_ui.py",
