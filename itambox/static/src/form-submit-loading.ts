@@ -70,17 +70,19 @@
   }
 
   // --- 1. Traditional Form Submission Event ---
+  // Capture before HTMX's form listener so repeated submits never enter its queue.
   document.body.addEventListener('submit', function (evt) {
     const form = evt.target as HTMLFormElement;
     if (form && form.tagName === 'FORM' && form.dataset.submitLoading !== 'false') {
       if (form.dataset.submitting === 'true') {
         evt.preventDefault();
+        evt.stopPropagation();
         return;
       }
       const submitter = (evt as SubmitEvent).submitter || undefined;
       showLoadingState(form, submitter);
     }
-  });
+  }, true);
 
   // --- 2. HTMX Integration ---
   // Intercept HTMX request start
