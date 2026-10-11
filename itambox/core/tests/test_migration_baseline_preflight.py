@@ -299,7 +299,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
                 "assets.0125_unique_open_loan_per_maintenance",
                 "compliance.0107_custodyreceipt_assignment_superseded",
                 "extras.0128_tenant_archive_leaf_markers",
-                "inventory.0103_stock_leaf_deleted_at",
+                "inventory.0104_consumable_tenant_scoped_uniqueness",
                 "organization.0104_tenant_archive_leaf_markers",
                 "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
                 "software.0101_asset_archive_leaf_markers",

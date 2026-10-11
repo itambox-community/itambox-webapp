@@ -189,9 +189,7 @@ class ConsumableUniquenessMigrationTests(TransactionTestCase):
         self._migrate_to_successor()
 
         # The archived twin does not stand in the way of a new active row.
-        Consumable.objects.create(
-            name="26A Toner", manufacturer_id=self.manufacturer_id, tenant_id=self.tenant_b_id
-        )
+        Consumable.objects.create(name="26A Toner", manufacturer_id=self.manufacturer_id, tenant_id=self.tenant_b_id)
         with self.assertRaises(IntegrityError), transaction.atomic():
             Consumable.objects.create(
                 name="26A Toner", manufacturer_id=self.manufacturer_id, tenant_id=self.tenant_b_id
