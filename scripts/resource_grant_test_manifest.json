@@ -11,6 +11,7 @@
     "itambox/assets/tests/test_tag_sequence_concurrency.py",
     "itambox/assets/tests/test_tag_sequence_soft_delete.py",
     "itambox/compliance/tests/test_audit_basket.py",
+    "itambox/core/tests/test_attachment_idor.py",
     "itambox/core/tests/test_archive_handlers.py",
     "itambox/core/tests/test_context_isolation.py",
     "itambox/core/tests/test_graphql_throttle.py",
