@@ -838,14 +838,15 @@ class WebhookDeliveryStateMachineTests(TenantTestMixin, TransactionTestCase):
             redeliver_webhook_delivery(legacy_delivery.pk, actor_id=None)
         legacy_rule.delete()
 
-    def test_platform_permission_user_can_redeliver_system_wide(self):
-        platform_user = User.objects.create_user(username="delivery-platform-viewer", password="password")
+    def test_superuser_can_redeliver_system_wide_but_tenant_grant_cannot(self):
+        platform_user = User.objects.create_superuser(username="delivery-platform-viewer", password="password")
+        tenant_reader = User.objects.create_user(username="delivery-tenant-reader", password="password")
         role = Role.objects.create(
             tenant=self.tenant,
-            name="Platform delivery viewer",
+            name="Tenant delivery viewer",
             permissions=["extras.view_webhookdelivery", "extras.change_webhookendpoint"],
         )
-        grant(platform_user, self.tenant, role)
+        grant(tenant_reader, self.tenant, role)
         global_delivery = WebhookDelivery._base_manager.create(
             tenant=None,
             endpoint=self.endpoint,
@@ -866,6 +867,8 @@ class WebhookDeliveryStateMachineTests(TenantTestMixin, TransactionTestCase):
         self.assertEqual(redelivery.redelivered_by_id, platform_user.pk)
         self.assertEqual(redelivery.tenant_id, None)
         async_task.assert_called_once()
+        with self.assertRaises(PermissionDenied):
+            redeliver_webhook_delivery(global_delivery.pk, actor_id=tenant_reader.pk)
         operator = User.objects.create_user(username="delivery-plain-operator", password="password")
         with self.assertRaises(PermissionDenied):
             redeliver_webhook_delivery(global_delivery.pk, actor_id=operator.pk)
@@ -874,16 +877,7 @@ class WebhookDeliveryStateMachineTests(TenantTestMixin, TransactionTestCase):
         global_endpoint = WebhookEndpoint._base_manager.create(
             name="Global hook", url="http://8.8.8.8/global", tenant=None
         )
-        platform_user = User.objects.create_user(username="delivery-global-operator", password="password")
-        grant(
-            platform_user,
-            self.tenant,
-            Role.objects.create(
-                tenant=self.tenant,
-                name="Global operator",
-                permissions=["extras.view_webhookdelivery", "extras.change_webhookendpoint"],
-            ),
-        )
+        platform_user = User.objects.create_superuser(username="delivery-global-operator", password="password")
         with patch("extras.tasks.webhooks.async_task"):
             delivery = send_webhook_test(global_endpoint.pk, actor_id=platform_user.pk)
         self.assertTrue(delivery.test_send)

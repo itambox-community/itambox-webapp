@@ -2,13 +2,13 @@
 
 import io
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from core.reports.exporters import report_pdf_bytes, report_xlsx_bytes
 from core.tests.mixins import TenantTestMixin, compile_report_with_system_authorization
 
 
-class ReportExporterUnitTests(TestCase):
+class ReportExporterUnitTests(SimpleTestCase):
     def test_xlsx_is_a_valid_workbook_with_headers_and_rows(self):
         headers = ["Asset Tag", "Cost"]
         rows = [{"Asset Tag": "EXP-1", "Cost": "€1,000.00"}, {"Asset Tag": "EXP-2", "Cost": "-"}]
@@ -23,6 +23,33 @@ class ReportExporterUnitTests(TestCase):
         self.assertEqual(ws.cell(row=2, column=1).value, "EXP-1")
         self.assertEqual(ws.cell(row=2, column=2).value, "€1,000.00")
         self.assertEqual(ws.max_row, 3)
+
+    def test_xlsx_stores_user_controlled_formula_strings_as_text(self):
+        from datetime import datetime
+
+        from openpyxl import load_workbook
+
+        formula_header = '=HYPERLINK("https://example.invalid","heading")'
+        formula_value = "=1+1"
+        disclosure = '=HYPERLINK("https://example.invalid")'
+        created_at = datetime(2026, 10, 10, 12, 30)
+        data = report_xlsx_bytes(
+            [formula_header, "Name", "Count", "Created"],
+            [{formula_header: "Header data", "Name": formula_value, "Count": 42, "Created": created_at}],
+            disclosure_text=disclosure,
+        )
+        worksheet = load_workbook(io.BytesIO(data), data_only=False).worksheets[0]
+
+        self.assertEqual(worksheet["A1"].value, formula_header)
+        self.assertEqual(worksheet["A1"].data_type, "s")
+        self.assertEqual(worksheet["B2"].value, formula_value)
+        self.assertEqual(worksheet["B2"].data_type, "s")
+        self.assertEqual(worksheet["C2"].value, 42)
+        self.assertEqual(worksheet["C2"].data_type, "n")
+        self.assertEqual(worksheet["D2"].value, created_at)
+        self.assertEqual(worksheet["D2"].data_type, "d")
+        self.assertEqual(worksheet["A4"].value, disclosure)
+        self.assertEqual(worksheet["A4"].data_type, "s")
 
     def test_pdf_export_returns_pdf_bytes(self):
         html = "<html><body><h1>Hello Report</h1><table><tr><td>Row</td></tr></table></body></html>"

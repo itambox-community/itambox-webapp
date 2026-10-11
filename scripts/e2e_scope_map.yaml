@@ -149,6 +149,11 @@
       "path": "spec/regressions/scope-switcher-context.spec.ts",
       "kind": "qualification",
       "owner": "scope-switcher-context"
+    },
+    "regression:submit-loading": {
+      "path": "spec/regressions/submit-loading-htmx.spec.ts",
+      "kind": "qualification",
+      "owner": "submit-loading"
     }
   },
   "rules": [
@@ -583,6 +588,16 @@
       ],
       "scopes": [
         "regression:scope-switcher-context"
+      ]
+    },
+    {
+      "id": "submit-loading-regression-owner",
+      "decision": "selected",
+      "patterns": [
+        "itambox/tests/e2e/spec/regressions/submit-loading-htmx.spec.ts"
+      ],
+      "scopes": [
+        "regression:submit-loading"
       ]
     },
     {

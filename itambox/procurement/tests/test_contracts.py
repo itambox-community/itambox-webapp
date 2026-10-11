@@ -163,6 +163,7 @@ class ContractModelTests(TestCase):
         user = User.objects.create_superuser(username="ctruser", email="ctr@example.com", password="pw")
         po = PurchaseOrder.objects.create(
             order_number="PO-CTR-001",
+            tenant=self.tenant,
             supplier=self.supplier,
             destination_location=self.location,
             created_by=user,
