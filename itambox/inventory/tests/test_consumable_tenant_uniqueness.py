@@ -137,25 +137,34 @@ class ConsumableUniquenessMigrationTests(TransactionTestCase):
         Consumable = old_apps.get_model("inventory", "Consumable")
         Tenant = old_apps.get_model("organization", "Tenant")
 
-        self.manufacturer = Manufacturer.objects.create(name="HP", slug="hp")
-        self.tenant_a = Tenant.objects.create(name="Tenant A", slug="t767-migration-a")
-        self.tenant_b = Tenant.objects.create(name="Tenant B", slug="t767-migration-b")
+        # The rows below are written through the predecessor state's models, so
+        # only primary keys are kept: a historical model instance cannot be used
+        # against the current model later in the test.
+        self.manufacturer_id = Manufacturer.objects.create(name="HP", slug="hp").pk
+        self.tenant_a_id = Tenant.objects.create(name="Tenant A", slug="t767-migration-a").pk
+        self.tenant_b_id = Tenant.objects.create(name="Tenant B", slug="t767-migration-b").pk
 
         # Predecessor-legal rows: one active row per (manufacturer, name) across
         # the whole installation, plus an archived twin that the active-only
         # condition already allowed (it has to be inserted archived: the
         # predecessor constraint sees the row while it is still active).
         Consumable.objects.create(
-            name="26A Toner", slug="hp-26a-toner", manufacturer=self.manufacturer, tenant=self.tenant_a
+            name="26A Toner",
+            slug="hp-26a-toner",
+            manufacturer_id=self.manufacturer_id,
+            tenant_id=self.tenant_a_id,
         )
         Consumable.objects.create(
-            name="CF258A Toner", slug="hp-cf258a-toner", manufacturer=self.manufacturer, tenant=self.tenant_b
+            name="CF258A Toner",
+            slug="hp-cf258a-toner",
+            manufacturer_id=self.manufacturer_id,
+            tenant_id=self.tenant_b_id,
         )
         Consumable.objects.create(
             name="26A Toner",
             slug="hp-26a-toner-archived",
-            manufacturer=self.manufacturer,
-            tenant=self.tenant_b,
+            manufacturer_id=self.manufacturer_id,
+            tenant_id=self.tenant_b_id,
             deleted_at=timezone.now(),
         )
 
@@ -170,18 +179,22 @@ class ConsumableUniquenessMigrationTests(TransactionTestCase):
     def test_relaxation_keeps_every_predecessor_row_valid(self):
         self._migrate_to_successor()
 
-        rows = Consumable.all_objects.filter(manufacturer=self.manufacturer)
+        rows = Consumable.all_objects.filter(manufacturer_id=self.manufacturer_id)
         self.assertEqual(rows.count(), 3)
-        self.assertEqual(rows.filter(tenant=self.tenant_a, deleted_at__isnull=True).count(), 1)
-        self.assertEqual(rows.filter(tenant=self.tenant_b, deleted_at__isnull=True).count(), 1)
+        self.assertEqual(rows.filter(tenant_id=self.tenant_a_id, deleted_at__isnull=True).count(), 1)
+        self.assertEqual(rows.filter(tenant_id=self.tenant_b_id, deleted_at__isnull=True).count(), 1)
         self.assertEqual(rows.filter(deleted_at__isnull=False).count(), 1)
 
     def test_scoped_constraint_is_live_after_the_cutover(self):
         self._migrate_to_successor()
 
         # The archived twin does not stand in the way of a new active row.
-        Consumable.objects.create(name="26A Toner", manufacturer=self.manufacturer, tenant=self.tenant_b)
+        Consumable.objects.create(
+            name="26A Toner", manufacturer_id=self.manufacturer_id, tenant_id=self.tenant_b_id
+        )
         with self.assertRaises(IntegrityError), transaction.atomic():
-            Consumable.objects.create(name="26A Toner", manufacturer=self.manufacturer, tenant=self.tenant_b)
+            Consumable.objects.create(
+                name="26A Toner", manufacturer_id=self.manufacturer_id, tenant_id=self.tenant_b_id
+            )
 
         self.assertEqual(Consumable.all_objects.filter(name="26A Toner").count(), 3)

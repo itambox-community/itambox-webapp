@@ -710,7 +710,7 @@ class MigrationAuditTests(unittest.TestCase):
             inventory["reviewed_semantics"]["review_blocker"],
             [],
         )
-        self.assertEqual(len(inventory["effective_graph"]["nodes"]), 63)
+        self.assertEqual(len(inventory["effective_graph"]["nodes"]), 62)
         self.assertEqual(
             inventory["effective_graph"]["roots"],
             ["users.0000_issue88_shard_01_users_bootstrap"],
