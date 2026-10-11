@@ -1,8 +1,11 @@
+import io
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
+from PIL import Image
 
 from assets.models import Asset, StatusLabel
 from core.models import Job
@@ -43,11 +46,20 @@ class AttachmentCrossTenantIDORTests(TestCase):
             file=SimpleUploadedFile("a.txt", b"mine"),
             name="a.txt",
         )
+        image_buffer = io.BytesIO()
+        Image.new("RGB", (1, 1)).save(image_buffer, format="PNG")
+        self.image_bytes = image_buffer.getvalue()
         self.image_b = ImageAttachment.objects.create(
             model=ct,
             object_id=self.asset_b.pk,
             image=SimpleUploadedFile("b.png", b"\x89PNG\r\n"),
             name="b.png",
+        )
+        self.image_a = ImageAttachment.objects.create(
+            model=ct,
+            object_id=self.asset_a.pk,
+            image=SimpleUploadedFile("a.png", self.image_bytes),
+            name="a.png",
         )
 
     def _login_a(self):
@@ -71,8 +83,22 @@ class AttachmentCrossTenantIDORTests(TestCase):
         url = reverse("file_attachment_download", kwargs={"pk": self.file_a.pk})
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Cache-Control"], "private, no-store")
+        self.assertEqual(resp["Content-Type"], "text/plain")
         self.assertEqual(resp["X-Content-Type-Options"], "nosniff")
         self.assertIn("attachment", resp["Content-Disposition"])
+        self.assertIn("a.txt", resp["Content-Disposition"])
+        self.assertEqual(b"".join(resp.streaming_content), b"mine")
+
+    def test_own_tenant_image_serve_ok_with_headers(self):
+        self._login_a()
+        url = reverse("image_attachment_serve", kwargs={"pk": self.image_a.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Cache-Control"], "private, no-store")
+        self.assertEqual(resp["Content-Type"], "image/png")
+        self.assertEqual(resp["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(b"".join(resp.streaming_content), self.image_bytes)
 
     def test_view_permission_allows_read_but_not_delete_or_upload(self):
         self._login_a()

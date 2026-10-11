@@ -1,5 +1,6 @@
 import re
 
+from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from assets.api.nested_serializers import NestedAssetSerializer, NestedAssetTypeSerializer, NestedSupplierSerializer
@@ -110,6 +111,17 @@ class ContractSerializer(BaseModelSerializer):
             "status",
             "end_date",
         ]
+
+    def validate(self, attrs: dict[str, object]) -> dict[str, object]:
+        attrs = super().validate(attrs)
+        purchase_order = attrs.get("purchase_order", self.instance.purchase_order if self.instance else None)
+        tenant = attrs["tenant"] if "tenant" in attrs else (self.instance.tenant if self.instance else None)
+        tenant_id = tenant.pk if tenant else None
+        if purchase_order is not None and purchase_order.tenant_id != tenant_id:
+            raise serializers.ValidationError(
+                {"purchase_order": _("The purchase order must belong to the same tenant as the contract.")}
+            )
+        return attrs
 
     def get_cost_center_display(self, obj: Contract) -> dict[str, object] | None:
         cc = obj.cost_center

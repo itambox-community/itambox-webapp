@@ -28,7 +28,11 @@ CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 SPEC_SUFFIXES = (".spec.ts", ".test.ts")
 CHANGE_STATUSES = frozenset({"A", "M", "D", "R", "C"})
 SELECTIVE_EVENTS = frozenset({"pull_request"})
-AUTHORITATIVE_FULL_EVENTS = frozenset({"push", "schedule", "workflow_dispatch", "workflow_call", "release"})
+# merge_group carries no narrow PR range (the queue owns the synthetic head),
+# so it is an authoritative full event like push/schedule/dispatch.
+AUTHORITATIVE_FULL_EVENTS = frozenset(
+    {"push", "schedule", "workflow_dispatch", "workflow_call", "release", "merge_group"}
+)
 KNOWN_EVENTS = SELECTIVE_EVENTS | AUTHORITATIVE_FULL_EVENTS
 PROVENANCE_SCHEMA = 2
 
