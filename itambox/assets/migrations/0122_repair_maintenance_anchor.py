@@ -22,6 +22,14 @@ silently return nothing during a migration). ``SET CONSTRAINTS ALL IMMEDIATE``
 flushes the deferred foreign-key events the updates queue, because the following
 ``ALTER TABLE`` steps refuse to run with pending trigger events.
 
+Already-applied databases (remediation policy): an earlier revision of this migration
+could link an ordinary (``is_loan=False``) assignment to a repair maintenance. The
+episode rows are gone after the migration, so the original evidence cannot be rebuilt
+and the links are deliberately not rewritten automatically. Such a link is inert: the
+runtime lookup only recognizes ``is_loan=True`` and ignores it. Operators can list the
+affected rows with ``AssetAssignment.objects.filter(maintenance__isnull=False,
+is_loan=False)`` and clear ``maintenance`` by hand after review.
+
 The data mapping is not reversible: the episode links it translated were derived
 facts, and converting the successor links back into a grouping row would invent
 history.
@@ -57,10 +65,15 @@ def _overlaps(assignment, start, end) -> bool:
 
 
 def _unique_window_loan(AssetAssignment, substitute_id, start, end):
-    """The one loan of the stand-in unit that overlaps the repair window, if any."""
+    """The one genuine loan (``is_loan``) of the stand-in unit overlapping the repair window, if any.
+
+    Ordinary assignments are never loan evidence: the runtime lookup
+    (``active_repair_loan``) only recognizes ``is_loan=True``, so linking anything else
+    would report unrelated history as migrated loan evidence.
+    """
     candidates = [
         assignment
-        for assignment in AssetAssignment._base_manager.filter(asset_id=substitute_id).order_by("pk")
+        for assignment in AssetAssignment._base_manager.filter(asset_id=substitute_id, is_loan=True).order_by("pk")
         if _overlaps(assignment, start, end)
     ]
     return candidates[0] if len(candidates) == 1 else None
@@ -106,7 +119,8 @@ def _migrate_episodes(apps, schema_editor):
                 counts["loans"] += 1
             else:
                 unmapped.append(
-                    f"Stand-in asset {episode.substitute_asset_id} could not be translated into exactly one loan"
+                    f"Stand-in asset {episode.substitute_asset_id} could not be translated into exactly one loan "
+                    "(only genuine loan assignments overlapping the repair window count)"
                 )
 
         if episode.notes and episode.notes.strip():

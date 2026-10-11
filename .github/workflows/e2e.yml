@@ -5,6 +5,9 @@ on:
     branches: [master, main]
   pull_request:
     branches: [main]
+  # Merge queue entries are synthetic merges of main + queued PR(s); run the
+  # full authoritative scope for them (selective optimisation can come later).
+  merge_group:
   schedule:
     - cron: '17 2 * * *'
   workflow_dispatch:

@@ -149,12 +149,6 @@
     },
     {
       "path": "itambox/assets/models/asset.py",
-      "context": "ClassDef:Asset/FunctionDef:audit_overdue",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/asset.py",
       "context": "ClassDef:Asset/FunctionDef:eol_date",
       "statement": "from dateutil.relativedelta import relativedelta",
       "count": 1
@@ -1045,12 +1039,6 @@
       "path": "itambox/core/validators.py",
       "context": "ClassDef:CustomValidator/FunctionDef:validate_object",
       "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/validators.py",
-      "context": "FunctionDef:validate_image_attachment",
-      "statement": "from PIL import Image",
       "count": 1
     },
     {
@@ -2017,12 +2005,6 @@
       "path": "itambox/procurement/views.py",
       "context": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
       "statement": "from django.forms import formset_factory",
-      "count": 1
-    },
-    {
-      "path": "itambox/software/api/views.py",
-      "context": "ClassDef:InstalledSoftwareViewSet/FunctionDef:get_queryset",
-      "statement": "from core.managers import get_current_tenant",
       "count": 1
     },
     {

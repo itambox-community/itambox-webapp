@@ -15,10 +15,17 @@
 
   function findTab(tabName: string): HTMLElement | null {
     return (
-      (document.querySelector(`a[data-bs-target="#${tabName}"]`) as HTMLElement | null) ||
-      (document.querySelector(`a[href="#${tabName}"]`) as HTMLElement | null) ||
-      (document.querySelector(`a[href="?tab=${tabName}"]`) as HTMLElement | null) ||
-      (document.querySelector(`a[hx-get="?tab=${tabName}"]`) as HTMLElement | null)
+      Array.from(document.querySelectorAll('a')).find((tabEl) => {
+        const dataTarget = tabEl.getAttribute('data-bs-target');
+        const href = tabEl.getAttribute('href');
+        const hxGet = tabEl.getAttribute('hx-get');
+        return (
+          dataTarget === `#${tabName}` ||
+          href === `#${tabName}` ||
+          href === `?tab=${tabName}` ||
+          hxGet === `?tab=${tabName}`
+        );
+      }) || null
     );
   }
 

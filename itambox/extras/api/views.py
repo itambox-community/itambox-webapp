@@ -96,7 +96,7 @@ class WebhookDeliveryPermissions(TokenPermissions):
 def _has_platform_delivery_view(user):
     """Return whether ``user`` may see system-wide delivery records."""
 
-    return bool(user and user.is_authenticated and (user.is_superuser or user.has_perm("extras.view_webhookdelivery")))
+    return bool(user and user.is_authenticated and user.is_superuser)
 
 
 def _delivery_queryset_for_user(user):

@@ -12,7 +12,23 @@ function harness() {
   const button = { innerHTML: 'Download export', textContent: 'Download export', classList: { add() {}, remove() {} }, replaceChildren() {} };
   const form = { tagName: 'FORM', dataset: {}, querySelector: () => button };
   const context = vm.createContext({ document: { body, createTextNode: text => text, createElement: () => ({ setAttribute() {} }) }, HTMLInputElement: class {}, gettext: text => text });
-  return { body, form, load: () => vm.runInContext(source, context), submit() { const event = { target: form, submitter: button, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } }; for (const fn of listeners.get('submit') || []) fn(event); return event; } };
+  return {
+    body,
+    form,
+    load: () => vm.runInContext(source, context),
+    submit() {
+      const event = {
+        target: form,
+        submitter: button,
+        defaultPrevented: false,
+        propagationStopped: false,
+        preventDefault() { this.defaultPrevented = true; },
+        stopPropagation() { this.propagationStopped = true; },
+      };
+      for (const fn of listeners.get('submit') || []) fn(event);
+      return event;
+    },
+  };
 }
 
 test('boosted page script re-evaluation does not cancel the first native submission', () => {
@@ -20,7 +36,9 @@ test('boosted page script re-evaluation does not cancel the first native submiss
   page.load();
   page.load();
   assert.equal(page.submit().defaultPrevented, false);
-  assert.equal(page.submit().defaultPrevented, true, 'an actual second submit still cannot duplicate a write');
+  const repeatedSubmit = page.submit();
+  assert.equal(repeatedSubmit.defaultPrevented, true, 'an actual second submit still cannot duplicate a write');
+  assert.equal(repeatedSubmit.propagationStopped, true);
 });
 
 test('download forms remain usable after their native attachment response', () => {

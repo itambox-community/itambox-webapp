@@ -9,6 +9,9 @@ on:
   # whose inputs are listed in two places quietly stops running on the ones
   # somebody forgot to list; scope the work inside the jobs instead.
   pull_request:
+  # Merge queue: every queue entry is tested as a synthetic merge commit, and
+  # GitHub only reports checks that workflows run for the merge_group event.
+  merge_group:
   workflow_dispatch:
 
 permissions:
