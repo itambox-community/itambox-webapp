@@ -2,11 +2,10 @@ from contextlib import contextmanager
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
+from django.db.models.deletion import Collector
 from django.utils.translation import gettext_lazy as _
 
-from core.change_signals import post_soft_delete_cascade
 from core.choices import ObjectChangeActionChoices
-from core.serialization import serialize_object
 from core.slugs import generate_unique_slug
 from itambox.registry import registry
 
@@ -219,48 +218,6 @@ class SoftDeleteMixin(models.Model):
         self.deleted_at = None
         self.save(update_fields=["deleted_at"])
 
-    def _log_cascaded_child(self, instance):
-        if hasattr(instance, "_log_change") and callable(instance._log_change):
-            excluded = getattr(instance, "_change_logging_excluded_fields", ["updated_at"])
-            prechange_data = serialize_object(instance, exclude_fields=excluded)
-            instance._log_change(action="delete", prechange_data=prechange_data)
-
-    def _soft_delete_collected_model(self, model, instances, *, now, using):
-        pks_to_soft_delete = []
-        instances_to_soft_delete = []
-        for instance in instances:
-            if instance == self:
-                continue
-            if isinstance(instance, SoftDeleteMixin):
-                if instance.deleted_at is not None:
-                    continue
-                pks_to_soft_delete.append(instance.pk)
-                instances_to_soft_delete.append(instance)
-                self._log_cascaded_child(instance)
-            elif not getattr(instance, "survive_parent_soft_delete", False) and instance.pk is not None:
-                # Non-soft-deletable cascade children are physically deleted with
-                # the (soft-deleted!) parent — EXCEPT models opting out via
-                # survive_parent_soft_delete (e.g. RoleGrant: grant rows are audit
-                # trail and must outlive a soft-deleted Role so a restore re-arms
-                # them). They still cascade on hard delete.
-                instance.delete()
-
-        if not pks_to_soft_delete:
-            return
-
-        # _base_manager (unscoped): these are cascade children of `self` collected
-        # by the ORM, so they MUST be soft-deleted regardless of the active tenant
-        # context. The tenant-scoped manager would match zero rows for a child in a
-        # different/None tenant, leaving it active after its delete audit was written.
-        model._base_manager.using(using).filter(pk__in=pks_to_soft_delete).update(deleted_at=now)
-        for instance in instances_to_soft_delete:
-            instance.deleted_at = now
-            post_soft_delete_cascade.send(sender=model, instance=instance, using=using)
-
-    def _soft_delete_collected_children(self, collector, *, now, using):
-        for model, instances in list(collector.data.items()):
-            self._soft_delete_collected_model(model, instances, now=now, using=using)
-
     def delete(self, *args, force_hard_delete=False, **kwargs):
         """
         Overrides Django's standard delete. If force_hard_delete is True,
@@ -284,23 +241,10 @@ class SoftDeleteMixin(models.Model):
                     self.snapshot()
                 self._changelog_action = ObjectChangeActionChoices.ACTION_DELETE
 
-                if getattr(self, "soft_delete_preserve_references", False):
-                    self.soft_delete()
-                    return
-
-                # Recurse and soft-delete/hard-delete cascading relations
-                from django.db.models.deletion import Collector
-
-                collector = Collector(using=using)
-                collector.collect([self])
-                collector.sort()
-
-                from django.utils import timezone
-
-                now = timezone.now()
-
-                self._soft_delete_collected_children(collector, now=now, using=using)
-
+                # Check only: PROTECT/RESTRICT children still refuse the delete
+                # (ProtectedError). Nothing is written; children are retired by
+                # the aggregate's archive handler (#619).
+                Collector(using=using).collect([self])
                 self.soft_delete()
 
     @classmethod

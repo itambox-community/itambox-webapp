@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, router, transaction
 from django.db.models import CheckConstraint, Q
 from django.urls import NoReverseMatch, reverse
 from django.utils.translation import gettext_lazy as _
@@ -217,6 +217,18 @@ class License(CustomFieldDataMixin, BookmarkableMixin, DeletableVaultModel):
         """Symmetrically encrypt product key before saving to the database."""
         if self.product_key and not self.product_key.startswith("enc$"):
             self.product_key = encrypt_string(self.product_key)
+        update_fields = kwargs.get("update_fields")
+        if self.pk and not self._state.adding and (update_fields is None or "seats" in update_fields):
+            # Seat reductions must be validated against fresh state under the same
+            # parent-row lock checkout_license() takes, or a concurrent checkout can
+            # slip in between validation and write and leave assignments > seats.
+            with transaction.atomic(using=kwargs.get("using") or router.db_for_write(type(self), instance=self)):
+                stored = type(self).all_objects.select_for_update().filter(pk=self.pk).values_list("seats", flat=True)
+                stored_seats = stored.first()
+                if stored_seats is not None and self.seats is not None and self.seats < stored_seats:
+                    self.assert_seat_capacity(seats=self.seats)
+                super().save(*args, **kwargs)
+            return
         super().save(*args, **kwargs)
 
     @property

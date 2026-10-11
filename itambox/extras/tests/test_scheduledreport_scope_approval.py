@@ -11,6 +11,7 @@ from core.tasks.utils import TaskStatus
 from core.tests.mixins import grant
 from extras.models import ReportGenerationArchive, ReportTemplate, ScheduledReport, ScheduledReportScopeAuthorization
 from organization.models import Role, Tenant
+from organization.services.tenant_archive import archive_tenant
 
 User = get_user_model()
 
@@ -296,10 +297,10 @@ class ScheduledReportScopeApprovalViewTests(TestCase):
 
     def test_approve_refused_when_a_scope_tenant_is_soft_deleted(self):
         with TaskContext(operation="test.scope_approval.soft_delete_tenant"):
-            self.tenant_b.delete()
+            archive_tenant(self.tenant_b)
         response = self._client_for(self.admin).post(self.url, {"action": "approve"}, follow=True)
         self.assertEqual(ScheduledReportScopeAuthorization.objects.filter(scheduled_report=self.sched).count(), 0)
-        self.assertContains(response, "does not need cross-tenant scope approval")
+        self.assertContains(response, "Some tenants in this scope are no longer available")
 
     def test_wound_back_schedule_still_offers_revoke(self):
         self._client_for(self.admin).post(self.url, {"action": "approve"})

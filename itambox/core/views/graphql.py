@@ -8,6 +8,7 @@ from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import exceptions
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from strawberry.django.views import GraphQLView
 from strawberry.extensions import AddValidationRules, MaxAliasesLimiter, MaxTokensLimiter, QueryDepthLimiter
 
@@ -243,28 +244,30 @@ class PrivateGraphQLView(GraphQLView):
                 except Exception:
                     return JsonResponse({"errors": [{"message": str(_("Authentication failed"))}]}, status=401)
 
-            # Perform rate limiting / throttling checks
-            from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-
-            throttles = [AnonRateThrottle(), UserRateThrottle()]
-            for throttle in throttles:
-                if not throttle.allow_request(request, self):
-                    wait = throttle.wait()
-                    return JsonResponse(
-                        {
-                            "errors": [
-                                {
-                                    "message": str(
-                                        _("Request was throttled. Expected available in %(wait)s seconds.")
-                                        % {"wait": wait}
-                                    )
-                                }
-                            ]
-                        },
-                        status=429,
-                    )
+        if self._executes_query(request):
+            throttled = self._throttle_response(request)
+            if throttled is not None:
+                return throttled
 
         return super().dispatch(request, *args, **kwargs)
+
+    @staticmethod
+    def _executes_query(request):
+        """True for every request that executes an operation (POST, or GET carrying a query).
+
+        A bare GET without a ``query`` parameter only serves the GraphiQL shell,
+        executes nothing and stays outside the shared request budget.
+        """
+        return request.method == "POST" or (request.method == "GET" and "query" in request.GET)
+
+    def _throttle_response(self, request):
+        """Apply the REST throttles (shared GET/POST budget); return a 429 response or None."""
+        for throttle in (AnonRateThrottle(), UserRateThrottle()):
+            if not throttle.allow_request(request, self):
+                wait = throttle.wait()
+                message = _("Request was throttled. Expected available in %(wait)s seconds.") % {"wait": wait}
+                return JsonResponse({"errors": [{"message": str(message)}]}, status=429)
+        return None
 
     def create_response(self, response_data, sub_response):
         # Keep the HTTP contract of the previous Graphene view: an operation

@@ -131,6 +131,11 @@ class AssetAssignment(SoftDeleteMixin, JournalingMixin, TaggableMixin, ChangeLog
                 condition=models.Q(is_active=True) & models.Q(deleted_at__isnull=True),
                 name="unique_active_assignment_per_asset",
             ),
+            models.UniqueConstraint(
+                fields=["maintenance"],
+                condition=models.Q(is_loan=True, is_active=True, maintenance__isnull=False, deleted_at__isnull=True),
+                name="unique_open_loan_per_maintenance",
+            ),
             models.CheckConstraint(
                 check=(
                     models.Q(assigned_user__isnull=False, assigned_location__isnull=True, assigned_asset__isnull=True)

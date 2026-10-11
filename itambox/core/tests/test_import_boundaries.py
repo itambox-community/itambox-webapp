@@ -1133,18 +1133,6 @@ class TenantResourceGrantBoundaryTests(SimpleTestCase):
                 PROJECT_ROOT / "inventory" / "models_assignment_write.py",
                 PROJECT_ROOT / "inventory" / "services.py",
             },
-            "_authorized_deletion_cascade": {
-                PROJECT_ROOT / "core" / "context.py",
-                PROJECT_ROOT / "core" / "models.py",
-            },
-            "_deletion_cascade_value_key": {
-                PROJECT_ROOT / "core" / "context.py",
-                PROJECT_ROOT / "core" / "models.py",
-            },
-            "_deletion_cascade_allows": {
-                PROJECT_ROOT / "core" / "context.py",
-                PROJECT_ROOT / "inventory" / "models.py",
-            },
             "authorized_assignment_hard_purge": {
                 PROJECT_ROOT / "inventory" / "models_assignment_write.py",
                 PROJECT_ROOT / "inventory" / "services.py",

@@ -114,16 +114,79 @@
   }
 
   let currentUrl = window.location.href;
+  const historyIndexKey = 'itamboxFormDirtyHistoryIndex';
+
+  function getHistoryIndex(state: unknown = history.state): number | null {
+    if (!state || typeof state !== 'object') return null;
+    const index = (state as Record<string, unknown>)[historyIndexKey];
+    return typeof index === 'number' && Number.isInteger(index) ? index : null;
+  }
+
+  function setHistoryIndex(index: number) {
+    const state = history.state && typeof history.state === 'object'
+      ? history.state as Record<string, unknown>
+      : {};
+    history.replaceState({ ...state, [historyIndexKey]: index }, '', window.location.href);
+  }
+
+  let currentHistoryIndex = getHistoryIndex() ?? 0;
+  let pendingHistoryIndex: number | null = null;
+  let restoringHistoryIndex: number | null = null;
+
+  function captureHistoryIndex(evt: Event) {
+    pendingHistoryIndex = getHistoryIndex((evt as PopStateEvent).state);
+  }
+
+  // Capture the entry before HTMX replaces its state while starting a restore.
+  window.addEventListener('popstate', captureHistoryIndex, true);
 
   function updateCurrentUrl() {
     currentUrl = window.location.href;
+    const restoredIndex = pendingHistoryIndex ?? getHistoryIndex();
+    if (restoredIndex !== null) {
+      currentHistoryIndex = restoredIndex;
+      setHistoryIndex(restoredIndex);
+      pendingHistoryIndex = null;
+    }
   }
 
-  document.body.addEventListener('htmx:afterNavigate', updateCurrentUrl);
+  function prepareHistoryUpdate() {
+    pendingHistoryIndex = null;
+    currentHistoryIndex = getHistoryIndex() ?? currentHistoryIndex;
+    setHistoryIndex(currentHistoryIndex);
+  }
+
+  function updatePushedHistory() {
+    pendingHistoryIndex = null;
+    currentHistoryIndex = (getHistoryIndex() ?? currentHistoryIndex) + 1;
+    setHistoryIndex(currentHistoryIndex);
+    updateCurrentUrl();
+  }
+
+  function updateReplacedHistory() {
+    pendingHistoryIndex = null;
+    currentHistoryIndex = getHistoryIndex() ?? currentHistoryIndex;
+    setHistoryIndex(currentHistoryIndex);
+    updateCurrentUrl();
+  }
+
+  document.body.addEventListener('htmx:beforeHistoryUpdate', prepareHistoryUpdate);
+  document.body.addEventListener('htmx:pushedIntoHistory', updatePushedHistory);
+  document.body.addEventListener('htmx:replacedInHistory', updateReplacedHistory);
   document.body.addEventListener('htmx:historyRestore', updateCurrentUrl);
 
-  function restoreHistoryUrl() {
-    history.pushState(null, '', currentUrl);
+  function restoreHistoryUrl(targetHistoryIndex: number | null) {
+    if (targetHistoryIndex !== null && targetHistoryIndex !== currentHistoryIndex) {
+      restoringHistoryIndex = currentHistoryIndex;
+      history.go(currentHistoryIndex - targetHistoryIndex);
+      return;
+    }
+
+    const state = history.state && typeof history.state === 'object'
+      ? history.state as Record<string, unknown>
+      : {};
+    history.pushState({ ...state, htmx: true, [historyIndexKey]: currentHistoryIndex }, '', currentUrl);
+    pendingHistoryIndex = null;
   }
 
   function hasAnyDirtyForm(): boolean {
@@ -147,23 +210,25 @@
   }
 
   // Intercept HTMX history navigation (Back/Forward browser buttons) when forms are dirty
-  document.body.addEventListener('htmx:historyCacheHit', function (evt) {
-    if (hasAnyDirtyForm()) {
-      if (!confirm(gettext('You have unsaved changes. Leave this page?'))) {
-        evt.preventDefault();
-        restoreHistoryUrl();
-      }
+  function interceptHistoryNavigation(evt: Event) {
+    const targetHistoryIndex = pendingHistoryIndex ?? getHistoryIndex();
+    if (targetHistoryIndex !== null) setHistoryIndex(targetHistoryIndex);
+    if (restoringHistoryIndex !== null && targetHistoryIndex === restoringHistoryIndex) {
+      evt.preventDefault();
+      setHistoryIndex(currentHistoryIndex);
+      restoringHistoryIndex = null;
+      pendingHistoryIndex = null;
+      return;
     }
-  });
 
-  document.body.addEventListener('htmx:historyCacheMiss', function (evt) {
-    if (hasAnyDirtyForm()) {
-      if (!confirm(gettext('You have unsaved changes. Leave this page?'))) {
-        evt.preventDefault();
-        restoreHistoryUrl();
-      }
+    if (hasAnyDirtyForm() && !confirm(gettext('You have unsaved changes. Leave this page?'))) {
+      evt.preventDefault();
+      restoreHistoryUrl(targetHistoryIndex);
     }
-  });
+  }
+
+  document.body.addEventListener('htmx:historyCacheHit', interceptHistoryNavigation);
+  document.body.addEventListener('htmx:historyCacheMiss', interceptHistoryNavigation);
 
   // Intercept HTMX navigation when forms are dirty
   document.body.addEventListener('htmx:beforeSwap', function (evt: Event) {
