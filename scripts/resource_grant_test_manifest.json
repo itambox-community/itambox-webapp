@@ -40,6 +40,7 @@
     "itambox/core/tests/test_tasks.py",
     "itambox/core/tests/test_tenant_field_scoping.py",
     "itambox/core/tests/test_tenant_group_scoping.py",
+    "itambox/core/tests/test_tenant_scope_resolution.py",
     "itambox/core/tests/test_tenant_security.py",
     "itambox/core/tests/test_views.py",
     "itambox/extras/tests/test_attachment_upload_validation.py",

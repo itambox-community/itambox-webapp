@@ -359,13 +359,13 @@ class TenantMiddleware:
         request.session.pop("active_all_accessible", None)
         if session_tenant_id:
             try:
-                return tenant_model._base_manager.get(pk=session_tenant_id), None
+                return tenant_model._base_manager.get(pk=session_tenant_id, deleted_at__isnull=True), None
             except tenant_model.DoesNotExist:
                 request.session.pop("active_tenant_id", None)
                 return None, None
         if session_group_id:
             try:
-                return None, tenant_group_model._base_manager.get(pk=session_group_id)
+                return None, tenant_group_model._base_manager.get(pk=session_group_id, deleted_at__isnull=True)
             except tenant_group_model.DoesNotExist:
                 request.session.pop("active_tenant_group_id", None)
         return None, None
