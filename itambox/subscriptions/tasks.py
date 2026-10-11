@@ -13,6 +13,7 @@ from .models import Subscription, SubscriptionStatusChoices
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+RENEWAL_REMINDER_THRESHOLDS = (30, 14, 7)
 
 
 def _notify_once(*, user, subject, message, target_url):
@@ -87,6 +88,27 @@ def _notify_renewal_warning(subscription, days):
         )
 
 
+def _renewal_reminder_progress(renewal_date, today):
+    days_remaining = (renewal_date - today).days
+    # When several tiers were crossed during downtime, only the closest upcoming
+    # threshold remains actionable; report the actual days remaining to recipients.
+    threshold = min(days for days in RENEWAL_REMINDER_THRESHOLDS if days_remaining <= days)
+    return days_remaining, threshold
+
+
+def _notify_pending_renewal_warning(subscription, today):
+    days_remaining, threshold = _renewal_reminder_progress(subscription.renewal_date, today)
+    last_threshold = subscription.renewal_reminder_days or max(RENEWAL_REMINDER_THRESHOLDS) + 1
+    if subscription.renewal_reminder_cycle_date == subscription.renewal_date and threshold >= last_threshold:
+        return
+
+    _notify_renewal_warning(subscription, days_remaining)
+    Subscription.objects.filter(pk=subscription.pk).update(
+        renewal_reminder_cycle_date=subscription.renewal_date,
+        renewal_reminder_days=threshold,
+    )
+
+
 def check_subscription_expiries_and_reminders():
     """
     Daily background task to:
@@ -134,22 +156,25 @@ def check_subscription_expiries_and_reminders():
         logger.info(f"Marked {expired_count} subscriptions as expired.")
 
     # 2. Handle renewal reminders (30, 14, 7 days warning)
-    reminder_days = [30, 14, 7]
-    for days in reminder_days:
-        target_date = today + timezone.timedelta(days=days)
-        subs_to_remind = Subscription.objects.filter(status=SubscriptionStatusChoices.ACTIVE, renewal_date=target_date)
-        for candidate in subs_to_remind:
-            with transaction.atomic():
-                sub = (
-                    Subscription.objects.select_for_update()
-                    .filter(
-                        pk=candidate.pk,
-                        status=SubscriptionStatusChoices.ACTIVE,
-                        renewal_date=target_date,
-                    )
-                    .first()
+    reminder_cutoff = today + timezone.timedelta(days=max(RENEWAL_REMINDER_THRESHOLDS))
+    subs_to_remind = Subscription.objects.filter(
+        status=SubscriptionStatusChoices.ACTIVE,
+        renewal_date__gt=today,
+        renewal_date__lte=reminder_cutoff,
+    )
+    for candidate in subs_to_remind:
+        with transaction.atomic():
+            sub = (
+                Subscription.objects.select_for_update()
+                .filter(
+                    pk=candidate.pk,
+                    status=SubscriptionStatusChoices.ACTIVE,
+                    renewal_date__gt=today,
+                    renewal_date__lte=reminder_cutoff,
                 )
-                if sub is None:
-                    continue
-                with TaskContext(tenant_id=sub.tenant_id, user_id=None):
-                    _notify_renewal_warning(sub, days)
+                .first()
+            )
+            if sub is None:
+                continue
+            with TaskContext(tenant_id=sub.tenant_id, user_id=None):
+                _notify_pending_renewal_warning(sub, today)

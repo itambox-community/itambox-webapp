@@ -361,6 +361,11 @@ class Contract(BaseModel, ChangeLoggingMixin, SoftDeleteMixin, TaggableMixin):
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValidationError({"end_date": _("End date must be on or after the start date.")})
 
+        if self.purchase_order_id and self.purchase_order.tenant_id != self.tenant_id:
+            raise ValidationError(
+                {"purchase_order": _("The purchase order must belong to the same tenant as the contract.")}
+            )
+
 
 class FulfillmentLink(BaseModel, ChangeLoggingMixin, SoftDeleteMixin):
     """Links an AssetRequest to the PurchaseOrderLine that will supply it."""
