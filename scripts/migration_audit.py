@@ -77,6 +77,7 @@ POST_TRANSITION_MIGRATIONS = {
     "software.0101_asset_archive_leaf_markers",
     "extras.0128_tenant_archive_leaf_markers",
     "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+    "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
     "users.0101_user_scim_id_usergroup_external_id_usergroup_scim_id_and_more",
     "users.0102_token_updated_at",
     "users.0103_oidcidentity",

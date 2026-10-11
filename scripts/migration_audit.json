@@ -5477,6 +5477,46 @@
     },
     {
       "dependencies": [
+        "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/subscriptions/migrations/0105_subscription_renewal_reminder_cycle_date_and_more.py",
+      "replaces": [],
+      "reviewed_disposition": null,
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": false,
+          "RunSQL": false,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
         "auth.0012_alter_user_first_name_max_length"
       ],
       "id": "users.0000_issue88_shard_01_users_bootstrap",
@@ -6042,6 +6082,7 @@
     "subscriptions.0102_commercial_vendor_and_terms",
     "subscriptions.0103_unified_vendor_cutover",
     "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+    "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
     "users.0101_user_scim_id_usergroup_external_id_usergroup_scim_id_and_more",
     "users.0102_token_updated_at",
     "users.0103_oidcidentity",
@@ -6121,7 +6162,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 64,
+    "post_transition_migrations": 65,
     "replacement_shards": 62,
     "replacement_targets": 262
   }
