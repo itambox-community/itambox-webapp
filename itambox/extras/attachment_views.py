@@ -209,6 +209,7 @@ class FileAttachmentDownloadView(LoginRequiredMixin, View):
         filename = attachment.name or attachment.file.name.rsplit("/", 1)[-1]
         response = FileResponse(attachment.file.open("rb"), as_attachment=True, filename=filename)
         response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "private, no-store"
         return response
 
 
@@ -229,4 +230,5 @@ class ImageAttachmentServeView(LoginRequiredMixin, View):
             response = FileResponse(attachment.image.open("rb"), as_attachment=True, filename=filename)
             response["Content-Type"] = "application/octet-stream"
         response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "private, no-store"
         return response
