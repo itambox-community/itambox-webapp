@@ -136,11 +136,15 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          MG_BASE: ${{ github.event.merge_group.base_sha }}
+          MG_HEAD: ${{ github.event.merge_group.head_sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_SHA: ${{ github.sha }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             value="${PR_BASE}..${PR_HEAD}"
+          elif [[ "$EVENT_NAME" == "merge_group" ]]; then
+            value="${MG_BASE}..${MG_HEAD}"
           elif [[ "$EVENT_NAME" == "push" && ! "$PUSH_BEFORE" =~ ^0+$ ]]; then
             value="${PUSH_BEFORE}..${PUSH_SHA}"
           else
