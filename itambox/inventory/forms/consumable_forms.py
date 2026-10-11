@@ -103,6 +103,30 @@ class ConsumableForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModel
         )
         self.append_custom_fields_to_layout()
 
+    def clean(self):
+        """Report an active-row duplicate as a form error (#767).
+
+        The catalogue uniqueness is a conditional constraint
+        (``deleted_at IS NULL``), and Django skips constraint validation when
+        the condition references a field the form does not carry
+        (``deleted_at`` is not editable). Without this check the INSERT fails
+        with an ``IntegrityError`` and the request answers 500.
+        """
+        cleaned_data = super().clean()
+        manufacturer = cleaned_data.get("manufacturer")
+        name = cleaned_data.get("name")
+        if manufacturer and name and "tenant" in cleaned_data:
+            duplicates = Consumable.objects.filter(
+                manufacturer=manufacturer, name=name, tenant=cleaned_data["tenant"]
+            )
+            if self.instance.pk:
+                duplicates = duplicates.exclude(pk=self.instance.pk)
+            if duplicates.exists():
+                raise ValidationError(
+                    {"name": _("A consumable with this manufacturer and name already exists for this tenant.")}
+                )
+        return cleaned_data
+
 
 class ConsumableStockForm(TenantScopedFormMixin, forms.ModelForm):
     class Meta:

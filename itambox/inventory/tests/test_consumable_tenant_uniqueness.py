@@ -143,18 +143,21 @@ class ConsumableUniquenessMigrationTests(TransactionTestCase):
 
         # Predecessor-legal rows: one active row per (manufacturer, name) across
         # the whole installation, plus an archived twin that the active-only
-        # condition already allowed.
+        # condition already allowed (it has to be inserted archived: the
+        # predecessor constraint sees the row while it is still active).
         Consumable.objects.create(
             name="26A Toner", slug="hp-26a-toner", manufacturer=self.manufacturer, tenant=self.tenant_a
         )
         Consumable.objects.create(
             name="CF258A Toner", slug="hp-cf258a-toner", manufacturer=self.manufacturer, tenant=self.tenant_b
         )
-        archived = Consumable.objects.create(
-            name="26A Toner", slug="hp-26a-toner-archived", manufacturer=self.manufacturer, tenant=self.tenant_b
+        Consumable.objects.create(
+            name="26A Toner",
+            slug="hp-26a-toner-archived",
+            manufacturer=self.manufacturer,
+            tenant=self.tenant_b,
+            deleted_at=timezone.now(),
         )
-        archived.deleted_at = timezone.now()
-        archived.save(update_fields=["deleted_at"])
 
     def _restore_leaf(self):
         executor = MigrationExecutor(connection)
