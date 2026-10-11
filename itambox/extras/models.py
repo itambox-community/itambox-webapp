@@ -1070,11 +1070,14 @@ class WebhookDeliveryQuerySet(TenantScopingQuerySet):
 
         if user is None or not getattr(user, "is_authenticated", False):
             return self.none()
-        if getattr(user, "is_superuser", False) or user.has_perm("extras.view_webhookdelivery"):
+        if getattr(user, "is_superuser", False):
             # Platform-wide read: tenant=None operational history must stay visible
-            # whatever tenant the session selected, so this bypasses the scope.
+            # whatever tenant the session selected, so only the explicit platform
+            # principal bypasses the scope. A tenant role grant never does.
             return self.model._base_manager.all()
-        return self.for_scope(Scope.current())
+        # Tenant role grants stay bounded to the authorized scope; global rows
+        # (tenant=None) are platform history and never reach them.
+        return self.for_scope(Scope.current()).filter(tenant__isnull=False)
 
 
 class WebhookDeliveryManager(models.Manager.from_queryset(WebhookDeliveryQuerySet)):

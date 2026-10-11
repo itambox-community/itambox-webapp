@@ -388,8 +388,6 @@ class GroupMembership(ChangeLoggingMixin, models.Model):
     application deliberately has no group-in-group relation.
     """
 
-    survive_parent_soft_delete = True
-
     SOURCE_MANUAL = "manual"
     SOURCE_SCIM = "scim"
     SOURCE_LDAP = "ldap"

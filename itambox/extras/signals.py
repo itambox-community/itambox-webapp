@@ -13,7 +13,6 @@ from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
-from core.change_signals import post_soft_delete_cascade
 from core.mixins import SoftDeleteMixin
 from core.models import ChangeLoggingMixin, Notification
 from core.schedules import SCHEDULED_REPORT_TASK_PATH, remove_schedule
@@ -28,7 +27,6 @@ logger = logging.getLogger(__name__)
 _PRE_SAVE_UID = "extras.signals.capture_prior_soft_delete_state.v1"
 _POST_SAVE_UID = "extras.signals.event_on_save.v1"
 _POST_DELETE_UID = "extras.signals.event_on_delete.v1"
-_CASCADE_SOFT_DELETE_UID = "extras.signals.event_on_cascade_soft_delete.v1"
 _RULE_SAVE_UID = "extras.signals.invalidate_rule_index_on_save.v1"
 _RULE_DELETE_UID = "extras.signals.invalidate_rule_index_on_delete.v1"
 
@@ -158,18 +156,6 @@ def event_on_delete(sender, instance, **kwargs):
     transaction.on_commit(lambda: _safe_dispatch(sender, instance, "delete", object_id=object_id))
 
     # Notify watchers (deferred to on_commit — see event_on_save).
-    _defer_notify_watchers(sender, instance, "deleted")
-
-
-@receiver(post_soft_delete_cascade, dispatch_uid=_CASCADE_SOFT_DELETE_UID)
-def event_on_cascade_soft_delete(sender, instance, using="default", **kwargs):
-    if not issubclass(sender, ChangeLoggingMixin) or sender.__name__ in _SIGNAL_SKIP_MODELS:
-        return
-    object_id = instance.pk
-    transaction.on_commit(
-        lambda: _safe_dispatch(sender, instance, "delete", object_id=object_id),
-        using=using,
-    )
     _defer_notify_watchers(sender, instance, "deleted")
 
 

@@ -181,11 +181,7 @@ def _has_permission(user, permission: str) -> bool:
 
 
 def _is_platform_actor(user) -> bool:
-    return bool(
-        user
-        and getattr(user, "is_authenticated", False)
-        and (getattr(user, "is_superuser", False) or _has_permission(user, "extras.view_webhookdelivery"))
-    )
+    return bool(user and getattr(user, "is_authenticated", False) and getattr(user, "is_superuser", False))
 
 
 def _configuration_result(message: str = _SAFE_CONFIGURATION_MESSAGE) -> DeliveryResult:

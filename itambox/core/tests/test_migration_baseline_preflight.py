@@ -290,6 +290,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
                 "extras.0116_asset_type_definition_cutover",
                 "extras.0117_asset_type_definition_guards",
                 "subscriptions.0103_unified_vendor_cutover",
+                "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
             }.issubset(manifest["post_transition_ids"])
         )
         self.assertEqual(
@@ -302,7 +303,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
                 "organization.0104_tenant_archive_leaf_markers",
                 "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
                 "software.0101_asset_archive_leaf_markers",
-                "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+                "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
                 "users.0104_tenant_archive_leaf_markers",
             ],
         )

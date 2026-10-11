@@ -101,10 +101,10 @@ def checkout_asset(
         from assets.models import AssetReservation, ReservationStatusChoices
 
         today = datetime.date.today()
-        # unscoped: disposal and reservation evidence includes cancelled and soft-deleted rows; asset scope narrows
-        # visibility
+        # unscoped: preserve the reservation row lock for this asset; only live rows block checkout.
         blocking_qs = AssetReservation.all_objects.select_for_update().filter(
             asset=asset,
+            deleted_at__isnull=True,
             status__in=[
                 ReservationStatusChoices.ACTIVE,
                 ReservationStatusChoices.PENDING,

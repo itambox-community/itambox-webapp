@@ -85,6 +85,14 @@ class LicenseSerializer(BaseModelSerializer):
                 raise serializers.ValidationError(exc.message_dict) from exc
         return super().validate(data)
 
+    def update(self, instance: License, validated_data: dict[str, object]) -> License:
+        # License.save() re-checks seat capacity under the row lock; surface that
+        # race-time rejection as an ordinary 400 validation response.
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
 
 class LicenseSeatAssignmentSerializer(BaseModelSerializer):
     license = LicenseSerializer(read_only=True)

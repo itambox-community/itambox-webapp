@@ -42,6 +42,13 @@ def report_xlsx_bytes(headers, rows, sheet_title="Report", disclosure_text=""):
         note = ws.cell(row=ws.max_row + 2, column=1, value=disclosure_text)
         note.font = Font(italic=True)
 
+    # Report strings can be user-controlled; openpyxl otherwise treats leading "=" as a formula.
+    # Keep headings, values, and the disclosure note as literal spreadsheet text.
+    for row in ws.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str):
+                cell.data_type = "s"
+
     for col_idx, h in enumerate(headers, start=1):
         ws.column_dimensions[get_column_letter(col_idx)].width = max(12, min(40, len(str(h)) + 4))
 

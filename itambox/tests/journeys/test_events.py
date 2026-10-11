@@ -1,4 +1,4 @@
-"""Event journeys: a cascaded soft delete is as visible to EventRules as a direct one."""
+"""Event journeys: a soft delete is as visible to EventRules as a direct one."""
 
 from datetime import timedelta
 
@@ -13,12 +13,12 @@ from extras.models import Event, EventRule
 from .support import JourneyMixin, today
 
 
-class CascadedSoftDeleteEventJourneyTests(JourneyMixin, TestCase):
+class SoftDeleteEventJourneyTests(JourneyMixin, TestCase):
     def setUp(self):
         self.make_tenant("journey-events")
         self.actor = self.make_member("event-actor", set())
 
-    def test_cascaded_soft_delete_emits_a_delete_event_for_each_logged_child(self):
+    def test_soft_delete_emits_a_delete_event_for_a_logged_row(self):
         # Events are only recorded for models some rule subscribes to (#621).
         EventRule.objects.create(
             name="reservation lifecycle",
@@ -39,7 +39,7 @@ class CascadedSoftDeleteEventJourneyTests(JourneyMixin, TestCase):
         set_current_user(self.actor)
         try:
             with self.captureOnCommitCallbacks(execute=True):
-                asset.delete()
+                reservation.delete()
         finally:
             _request_id.set(None)
             set_current_user(None)
@@ -49,15 +49,15 @@ class CascadedSoftDeleteEventJourneyTests(JourneyMixin, TestCase):
             ObjectChange.objects.filter(
                 changed_object_type=reservation_type, changed_object_id=reservation.pk, action="delete"
             ).exists(),
-            "precondition: the cascaded child was change-logged",
+            "precondition: the deleted row was change-logged",
         )
         self.assertTrue(
             Event.objects.filter(model=reservation_type, object_id=reservation.pk, action="delete").exists(),
-            "the cascaded child has an ObjectChange but no delete Event",
+            "the deleted row has an ObjectChange but no delete Event",
         )
         with self.captureOnCommitCallbacks(execute=True):
             reservation.restore()
         self.assertTrue(
             Event.objects.filter(model=reservation_type, object_id=reservation.pk, action="restore").exists(),
-            "restoring the cascaded child must emit a restore Event",
+            "restoring the deleted row must emit a restore Event",
         )

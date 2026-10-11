@@ -613,6 +613,7 @@ class MigrationAuditTests(unittest.TestCase):
                 "subscriptions.0102_commercial_vendor_and_terms",
                 "subscriptions.0103_unified_vendor_cutover",
                 "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
+                "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
                 "users.0101_user_scim_id_usergroup_external_id_usergroup_scim_id_and_more",
                 "users.0102_token_updated_at",
                 "users.0103_oidcidentity",

@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
   "canonical_python": "3.12",
-  "policy_sha256": "9bfacaddf148d3ffe9d235cb9e1a674993bcf80542d1ca96fdc486759d4196a6",
+  "policy_sha256": "9f91d3779ad8b42ba0834e86d56605328566ec462b1b0d421d18dfedfe0a8272",
   "findings": [
     {
       "path": "itambox/assets/api/serializers.py",
