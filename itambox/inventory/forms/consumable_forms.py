@@ -116,9 +116,7 @@ class ConsumableForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModel
         manufacturer = cleaned_data.get("manufacturer")
         name = cleaned_data.get("name")
         if manufacturer and name and "tenant" in cleaned_data:
-            duplicates = Consumable.objects.filter(
-                manufacturer=manufacturer, name=name, tenant=cleaned_data["tenant"]
-            )
+            duplicates = Consumable.objects.filter(manufacturer=manufacturer, name=name, tenant=cleaned_data["tenant"])
             if self.instance.pk:
                 duplicates = duplicates.exclude(pk=self.instance.pk)
             if duplicates.exists():
