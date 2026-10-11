@@ -5,6 +5,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("inventory", "0103_stock_leaf_deleted_at"),
+        ("users", "0100_issue88_shard_62_users_relations"),
     ]
 
     operations = [

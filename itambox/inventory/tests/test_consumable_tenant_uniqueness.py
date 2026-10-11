@@ -185,4 +185,3 @@ class ConsumableUniquenessMigrationTests(TransactionTestCase):
             Consumable.objects.create(name="26A Toner", manufacturer=self.manufacturer, tenant=self.tenant_b)
 
         self.assertEqual(Consumable.all_objects.filter(name="26A Toner").count(), 3)
-
