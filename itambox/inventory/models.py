@@ -4,7 +4,6 @@ from django.db.models import CheckConstraint, Q, Sum
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from core.context import _deletion_cascade_allows
 from core.managers import (
     ExplicitScopeAllObjectsManager,
     ExplicitScopeSoftDeleteManager,
@@ -36,10 +35,6 @@ class AssignmentWriteProtectionMixin:
             _("This assignment cannot be changed here. Use the authorized checkout or check-in action.")
         )
 
-    def _cascade_allows(self, operation, values=None):
-        pks = tuple(self.values_list("pk", flat=True))
-        return _deletion_cascade_allows(self.model._meta.label_lower, operation, pks, values)
-
     def bulk_create(self, *args, **kwargs):
         self._deny_bulk_write()
 
@@ -47,8 +42,6 @@ class AssignmentWriteProtectionMixin:
         self._deny_bulk_write()
 
     def update(self, **kwargs):
-        if self._cascade_allows("update", kwargs):
-            return super().update(**kwargs)
         self._deny_bulk_write()
 
     def update_or_create(self, *args, **kwargs):
@@ -58,13 +51,9 @@ class AssignmentWriteProtectionMixin:
         self._deny_bulk_write()
 
     def delete(self):
-        if self._cascade_allows("delete"):
-            return super().delete()
         self._deny_bulk_write()
 
     def _raw_delete(self, using):
-        if self._cascade_allows("delete"):
-            return super()._raw_delete(using)
         self._deny_bulk_write()
 
 

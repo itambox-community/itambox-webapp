@@ -114,3 +114,12 @@ def check_archive_behaviour_tables(app_configs, **kwargs):
     from core.archive_handlers import archive_table_problems
 
     return [Error(problem, id="core.E003") for problem in archive_table_problems()]
+
+
+@register()
+def check_archive_coverage(app_configs, **kwargs):
+    """Every soft-deletable model with children is a registered root or a declared leaf (#619)."""
+    # inline import: app-registry: the archive registry is populated by app ready() hooks.
+    from core.archive_handlers import archive_coverage_problems
+
+    return [Error(problem, id="core.E004") for problem in archive_coverage_problems()]

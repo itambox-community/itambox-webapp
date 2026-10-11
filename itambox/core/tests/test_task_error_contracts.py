@@ -1,4 +1,6 @@
+import datetime
 import pickle
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -86,6 +88,38 @@ class DepreciationTaskContractTests(SimpleTestCase):
         bulk_update.assert_called_once_with(
             [changed], ["current_book_value", "depreciation_updated_at"], batch_size=1000
         )
+
+    @patch("assets.tasks.depreciation.Asset.objects.bulk_update")
+    @patch("assets.tasks.depreciation.Asset.objects.select_related")
+    def test_materializes_purchase_cost_before_future_depreciation_start(self, select_related, bulk_update):
+        policy = SimpleNamespace(
+            method="straight_line",
+            months=36,
+            convention="include_purchase_month",
+            immediate_expense_threshold=Decimal("800"),
+        )
+        asset = SimpleNamespace(
+            purchase_cost=Decimal("500.00"),
+            salvage_value=Decimal("0.00"),
+            purchase_date=datetime.date.today() + datetime.timedelta(days=1),
+            in_service_date=None,
+            depreciation_override=None,
+            tenant=None,
+            asset_type=SimpleNamespace(depreciation=policy),
+            disposed_at=None,
+            disposal_value=None,
+            current_book_value=Decimal("0.00"),
+            depreciation_updated_at=None,
+        )
+        queryset = MagicMock()
+        queryset.filter.return_value = [asset]
+        select_related.return_value = queryset
+
+        from assets.tasks.depreciation import calculate_depreciation
+
+        self.assertEqual(calculate_depreciation(), 1)
+        self.assertEqual(asset.current_book_value, Decimal("500.00"))
+        bulk_update.assert_called_once_with([asset], ["current_book_value", "depreciation_updated_at"], batch_size=1000)
 
     @patch("assets.tasks.depreciation.Asset.objects.bulk_update")
     @patch("assets.tasks.depreciation.Asset.objects.select_related")

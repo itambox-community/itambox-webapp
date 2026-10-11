@@ -17,10 +17,18 @@
     });
   }
 
-  function initReportTemplateForm() {
-    const reportEditor = document.getElementById('report-template-editor');
+  const initializedEditors = new WeakSet<HTMLElement>();
+
+  function initReportTemplateForm(root: ParentNode = document) {
+    const rootElement = root as HTMLElement;
+    const reportEditor = root === document
+      ? document.getElementById('report-template-editor')
+      : rootElement.id === 'report-template-editor'
+        ? rootElement
+        : root.querySelector<HTMLElement>('#report-template-editor');
     const previewModal = document.getElementById('previewModal');
-    if (!reportEditor || !previewModal) return;
+    if (!reportEditor || !previewModal || initializedEditors.has(reportEditor)) return;
+    initializedEditors.add(reportEditor);
 
     const colsContainer = document.getElementById('div_id_included_columns');
     if (colsContainer) {
@@ -333,10 +341,15 @@
     });
   }
 
+  function initSwappedReportTemplateForm(event: Event) {
+    const target = (event as CustomEvent<{ target?: ParentNode }>).detail?.target;
+    if (target) initReportTemplateForm(target);
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initReportTemplateForm);
+    document.addEventListener('DOMContentLoaded', () => initReportTemplateForm());
   } else {
     initReportTemplateForm();
   }
-  document.addEventListener('htmx:afterSwap', initReportTemplateForm);
+  document.addEventListener('htmx:afterSwap', initSwappedReportTemplateForm);
 })();

@@ -162,6 +162,15 @@ Use these in:
 The billing cycle is **informational** — it does not automatically generate
 invoices or trigger payments. Use it for budget forecasting and cost reporting.
 
+In the Contract Renewals report, a `multi_year` cost is treated as the total
+contract price for the recorded term. The report derives that term in whole
+calendar months from the start and end dates when they share a day of month (or
+both dates are month-end), then annualizes as `cost × 12 / term months`. If the
+dates do not establish a positive whole-month term, the amount is omitted from
+estimated annual spend and supplier charts rather than assuming a three-year
+term. Subscription renewal reports instead use the subscription's recorded
+`term_months`; a missing term is omitted from estimated monthly spend.
+
 ### Auto-renewal
 
 Set `auto_renew = True` for contracts that renew automatically. This is a

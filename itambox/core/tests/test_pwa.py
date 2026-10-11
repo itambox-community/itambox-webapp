@@ -1,9 +1,14 @@
 import json
 import re
 
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.staticfiles import finders
-from django.test import SimpleTestCase
-from django.urls import reverse
+from django.template import engines
+from django.templatetags.static import static
+from django.test import RequestFactory, SimpleTestCase
+from django.urls import resolve, reverse
+
+from itambox.release import VERSION
 
 
 class PWAInstallabilityTests(SimpleTestCase):
@@ -48,3 +53,25 @@ class PWAInstallabilityTests(SimpleTestCase):
             if icon["type"] == "image/png":
                 with self.subTest(icon=icon["src"]):
                     self.assertRegex(worker_source, rf"['\"]{re.escape(icon['src'])}['\"]")
+
+    def test_shell_asset_urls_are_precached_with_the_release_version(self):
+        css_url = f"{static('dist/itambox.css')}?v={VERSION}"
+        js_url = f"{static('dist/itambox.js')}?v={VERSION}"
+
+        public_page = self.client.get(reverse("login"))
+        request = RequestFactory().get(reverse("dashboard"))
+        request.user = AnonymousUser()
+        request.resolver_match = resolve(reverse("dashboard"))
+        request.csp_nonce = "test-nonce"
+        authenticated_shell = engines["django"].get_template("base.html").render({}, request=request)
+        worker_source = self.client.get(reverse("service-worker.js")).content.decode()
+        precache_block = worker_source.split("const PRECACHE_ASSETS = [", 1)[1].split("];", 1)[0]
+        precache_urls = re.findall(r"['\"]([^'\"]+)['\"]", precache_block)
+
+        for asset_url in (css_url, js_url):
+            with self.subTest(asset_url=asset_url):
+                self.assertContains(public_page, asset_url)
+                self.assertIn(asset_url, authenticated_shell)
+                self.assertIn(asset_url, precache_urls)
+
+        self.assertIn(f"const CACHE_NAME = 'itambox-pwa-cache-v{VERSION}';", worker_source)

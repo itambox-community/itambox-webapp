@@ -165,6 +165,57 @@ class TestComputeBookValue(TestCase):
         asset = _asset(purchase_cost=1000, purchase_date=purchase_date, asset_type=asset_type)
         self.assertEqual(compute_book_value(asset, on_date=on_date), Decimal("1000.00"))
 
+    def test_before_purchase_date_preserves_cost_for_both_conventions(self):
+        purchase_date = datetime.date(2026, 10, 20)
+        on_date = datetime.date(2026, 10, 1)
+        for convention in ("exclude_purchase_month", "include_purchase_month"):
+            with self.subTest(convention=convention):
+                policy = _policy(months=36, convention=convention, threshold=Decimal("800"))
+                asset_type = SimpleNamespace(depreciation_id=1, depreciation=policy)
+                asset = _asset(
+                    purchase_cost=500,
+                    salvage_value=0,
+                    purchase_date=purchase_date,
+                    asset_type=asset_type,
+                )
+
+                self.assertEqual(compute_book_value(asset, on_date=on_date), Decimal("500.00"))
+
+    def test_before_in_service_date_preserves_cost_for_both_conventions(self):
+        purchase_date = datetime.date(2026, 10, 1)
+        in_service_date = datetime.date(2026, 10, 20)
+        on_date = datetime.date(2026, 10, 1)
+        for convention in ("exclude_purchase_month", "include_purchase_month"):
+            with self.subTest(convention=convention):
+                policy = _policy(months=36, convention=convention, threshold=Decimal("800"))
+                asset_type = SimpleNamespace(depreciation_id=1, depreciation=policy)
+                asset = _asset(
+                    purchase_cost=500,
+                    salvage_value=0,
+                    purchase_date=purchase_date,
+                    in_service_date=in_service_date,
+                    asset_type=asset_type,
+                )
+
+                self.assertEqual(compute_book_value(asset, on_date=on_date), Decimal("500.00"))
+
+    def test_include_purchase_month_starts_on_resolved_start_date(self):
+        policy = _policy(months=36, convention="include_purchase_month", threshold=Decimal("800"))
+        asset_type = SimpleNamespace(depreciation_id=1, depreciation=policy)
+        purchase_date = datetime.date(2026, 10, 1)
+        in_service_date = datetime.date(2026, 10, 20)
+
+        purchase_start_asset = _asset(purchase_cost=500, purchase_date=purchase_date, asset_type=asset_type)
+        in_service_start_asset = _asset(
+            purchase_cost=500,
+            purchase_date=purchase_date,
+            in_service_date=in_service_date,
+            asset_type=asset_type,
+        )
+
+        self.assertEqual(compute_book_value(purchase_start_asset, on_date=purchase_date), Decimal("0.00"))
+        self.assertEqual(compute_book_value(in_service_start_asset, on_date=in_service_date), Decimal("0.00"))
+
     # --- GWG immediate expense threshold ---
 
     def test_gwg_at_or_below_threshold_first_month(self):

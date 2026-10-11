@@ -115,10 +115,10 @@ class MitigationsPhase4Tests(TestCase):
         )
 
         with self.assertRaises(ProtectedError):
-            self.asset.delete()
+            self.asset.delete(force_hard_delete=True)
 
         with self.assertRaises(ProtectedError):
-            self.asset_holder.delete()
+            self.asset_holder.delete(force_hard_delete=True)
 
         receipt.delete(force_hard_delete=True)
 
@@ -126,7 +126,7 @@ class MitigationsPhase4Tests(TestCase):
         AssetMaintenance.objects.create(asset=self.asset, start_date="2026-01-01")
 
         with self.assertRaises(ProtectedError):
-            self.asset.delete()
+            self.asset.delete(force_hard_delete=True)
 
     def test_magic_byte_validation_dangerous_files(self):
         # 1. Dangerous extension

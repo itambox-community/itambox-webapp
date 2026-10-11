@@ -87,7 +87,7 @@ def _assert_rejected(result, kit, kind):
     _assert_no_create_effects()
 
 
-def _assert_created(result, kit, *, tag_deleted=False):
+def _assert_created(result, kit):
     assert isinstance(result, OwnerCreatedDTO)
     owner = AssetType.all_objects.get(pk=result.owner.owner_id)
     assert AssetType.all_objects.count() == 1
@@ -96,9 +96,9 @@ def _assert_created(result, kit, *, tag_deleted=False):
     assert owner.depreciation_id == kit["native"].depreciation_id
     assert list(owner.fieldset_memberships.values_list("fieldset_id", "position")) == [(kit["first"].pk, 1)]
     assert AssetTypeFieldset.objects.count() == 1
-    # The sequential control establishes that Tag deletion removes its link,
-    # whereas Role/Depreciation soft deletion retains existing nullable FKs.
-    expected_tags = kit["native"].tag_ids[1:] if tag_deleted else kit["native"].tag_ids
+    # Soft deletion never cascades (#619): a deleted Tag keeps its link rows,
+    # exactly like Role/Depreciation keep their nullable FKs.
+    expected_tags = kit["native"].tag_ids
     assert set(AssetType.tags.through.objects.values_list("assettype_id", "tag_id")) == {
         (owner.pk, pk) for pk in expected_tags
     }
@@ -150,8 +150,8 @@ def _assert_reference_wait(pid, reference):
     pytest.fail(f"backend {pid} never reached reference row wait: {last}")
 
 
-def test_sequential_tag_delete_removes_only_its_link_after_create(reference_kit):
-    """Control for existing Collector soft-delete semantics, not a race repair."""
+def test_sequential_tag_delete_keeps_its_link_after_create(reference_kit):
+    """Control for the no-cascade soft-delete semantics (#619), not a race repair."""
     kit = reference_kit
     preview = _create_preview(kit["actor"], kit["native"])
     assert isinstance(preview, AssetTypePreviewDTO)
@@ -163,9 +163,9 @@ def test_sequential_tag_delete_removes_only_its_link_after_create(reference_kit)
     assert owner.deleted_at is None
     assert owner.asset_role_id == kit["native"].suggested_asset_role_id
     assert owner.depreciation_id == kit["native"].depreciation_id
-    assert list(AssetType.tags.through.objects.values_list("assettype_id", "tag_id")) == [
-        (owner.pk, kit["native"].tag_ids[1])
-    ]
+    assert set(AssetType.tags.through.objects.values_list("assettype_id", "tag_id")) == {
+        (owner.pk, pk) for pk in kit["native"].tag_ids
+    }
     assert list(owner.fieldset_memberships.values_list("fieldset_id", "position")) == [(kit["first"].pk, 1)]
     assert list(_changes(AssetType).values_list("pk", flat=True)) == before
     _assert_reference_state(kit, "tag", deleted=True)
@@ -246,5 +246,5 @@ def test_rest_reference_delete_waits_for_create_transaction(reference_kit, kind,
     if rollback_create:
         _assert_no_create_effects()
     else:
-        _assert_created(result, kit, tag_deleted=kind == "tag")
+        _assert_created(result, kit)
     _assert_reference_state(kit, kind, deleted=True)

@@ -66,7 +66,9 @@ def _own_tenants(user):
     if not direct_ids:
         return []
     # unscoped: the tenant switcher lists every tenant the principal may enter, before any tenant is active
-    return list(Tenant._base_manager.filter(pk__in=direct_ids).order_by("-is_provider", "name"))
+    return list(
+        Tenant._base_manager.filter(pk__in=direct_ids, deleted_at__isnull=True).order_by("-is_provider", "name")
+    )
 
 
 def _grouped_managed_tenants(user):
@@ -78,7 +80,11 @@ def _grouped_managed_tenants(user):
     if not managed_ids:
         return []
     # unscoped: the tenant switcher lists every tenant the principal may enter, before any tenant is active
-    tenants = Tenant._base_manager.filter(pk__in=managed_ids).select_related("group").order_by("group__name", "name")
+    tenants = (
+        Tenant._base_manager.filter(pk__in=managed_ids, deleted_at__isnull=True)
+        .select_related("group")
+        .order_by("group__name", "name")
+    )
     return _bucket_by_group(tenants)
 
 

@@ -1,11 +1,12 @@
-const CACHE_NAME = 'itambox-pwa-cache-v25';
+{% load static %}
+const CACHE_NAME = 'itambox-pwa-cache-v{{ settings.VERSION }}';
 const OFFLINE_URL = '/offline/';
 
 // Core assets to pre-cache on service worker installation
 const PRECACHE_ASSETS = [
   OFFLINE_URL,
-  '/static/dist/itambox.css',
-  '/static/dist/itambox.js',
+  '{% static 'dist/itambox.css' %}?v={{ settings.VERSION }}',
+  '{% static 'dist/itambox.js' %}?v={{ settings.VERSION }}',
   '/static/dist/vendor/bootstrap.bundle.min.js',
   '/static/dist/vendor/htmx.min.js',
   '/static/pwa/icon-192.png',

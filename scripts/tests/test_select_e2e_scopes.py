@@ -431,6 +431,9 @@ class SelectionClassificationTests(unittest.TestCase):
         full = self.select([], event_name="push", base_sha=HEAD, head_sha=HEAD, merge_base_sha=HEAD)
         self.assertEqual(full["mode"], "full")
         self.assertEqual(full["changed_path_digest"].split(":", 1)[0], "sha256")
+        merge_queue = self.select([], event_name="merge_group", base_sha=HEAD, head_sha=HEAD, merge_base_sha=HEAD)
+        self.assertEqual(merge_queue["mode"], "full")
+        self.assertEqual(merge_queue["scopes"], ["all"])
 
     def test_delete_and_rename_classify_old_and_new_identities(self):
         deleted = self.select([{"status": "D", "old_path": "src/assets/removed.py"}])

@@ -30,6 +30,7 @@ class FakeNode {
     this.parentNode = null;
     this.nextSibling = null;
     this.listeners = new Map();
+    this.listenerCounts = new Map();
     this.queryResults = new Map();
     this.type = '';
     this.className = '';
@@ -37,17 +38,29 @@ class FakeNode {
     this.srcdoc = '';
     this.attributes = new Map();
     this.classList = {
-      add: () => {},
-      remove: () => {},
+      add: (name) => {
+        const classes = this.className.split(/\s+/).filter(Boolean);
+        if (!classes.includes(name)) classes.push(name);
+        this.className = classes.join(' ');
+      },
+      remove: (name) => {
+        this.className = this.className.split(/\s+/).filter((item) => item && item !== name).join(' ');
+      },
     };
   }
 
   addEventListener(name, handler) {
     this.listeners.set(name, handler);
+    this.listenerCounts.set(name, (this.listenerCounts.get(name) || 0) + 1);
   }
 
   querySelector(selector) {
     return this.queryResults.get(selector) || null;
+  }
+
+  querySelectorAll(selector) {
+    const results = this.queryResults.get(selector);
+    return (typeof results === 'function' ? results() : results) || [];
   }
 
   getAttribute(name) {
@@ -55,24 +68,37 @@ class FakeNode {
   }
 
   insertBefore(node, referenceNode) {
+    if (node === referenceNode) return node;
+    if (node.parentNode) {
+      const previousIndex = node.parentNode.children.indexOf(node);
+      if (previousIndex >= 0) node.parentNode.children.splice(previousIndex, 1);
+    }
     const index = referenceNode ? this.children.indexOf(referenceNode) : -1;
     if (index < 0) this.children.push(node);
     else this.children.splice(index, 0, node);
     node.parentNode = this;
+    return node;
+  }
+
+  appendChild(node) {
+    return this.insertBefore(node, null);
   }
 }
 
 class FakeDocument {
-  constructor({ submitButton, reportEditor, reportModal }) {
+  constructor({ submitButton, reportEditor, reportModal, reportTypeSelect = null, elements = new Map() }) {
     this.readyState = 'complete';
     this.submitButton = submitButton;
     this.reportEditor = reportEditor;
     this.reportModal = reportModal;
+    this.reportTypeSelect = reportTypeSelect;
+    this.elements = elements;
     this.listeners = new Map();
     this.globalQueries = [];
   }
 
   getElementById(id) {
+    if (this.elements.has(id)) return this.elements.get(id);
     if (id === 'report-template-editor') return this.reportEditor;
     if (id === 'previewModal') return this.reportModal;
     return null;
@@ -80,6 +106,8 @@ class FakeDocument {
 
   querySelector(selector) {
     this.globalQueries.push(selector);
+    if (selector === '#report-template-editor') return this.reportEditor;
+    if (selector === 'select[name="report_type"]') return this.reportTypeSelect;
     if (selector === 'input[name="submit"]' || selector === 'button[type="submit"]' || selector === '.btn-primary') {
       return this.submitButton;
     }
@@ -93,6 +121,55 @@ class FakeDocument {
   addEventListener(name, handler) {
     this.listeners.set(name, handler);
   }
+}
+
+function makeReportEditorFixture(savedSequence) {
+  const submitButton = new FakeNode('button', 'report-submit');
+  submitButton.type = 'submit';
+  const submitParent = new FakeNode('div', 'report-actions');
+  submitParent.appendChild(submitButton);
+  const reportEditor = new FakeNode('div', 'report-template-editor');
+  reportEditor.queryResults.set('input[name="submit"], button[type="submit"]', submitButton);
+  const reportModal = new FakeNode('div', 'previewModal');
+  const reportTypeSelect = new FakeNode('select', 'report-type');
+  reportTypeSelect.value = 'asset_summary';
+  const activeList = new FakeNode('div', 'active-cols-list');
+  const availableList = new FakeNode('div', 'available-cols-list');
+  const managerWrapper = new FakeNode('div', 'visual-cols-manager-wrapper');
+  managerWrapper.queryResults.set('#active-cols-list', activeList);
+  managerWrapper.queryResults.set('#available-cols-list', availableList);
+
+  const checkboxes = ['name', 'asset_tag'].map((value) => {
+    const check = new FakeNode('div');
+    check.className = 'form-check';
+    const input = { value, checked: false };
+    check.queryResults.set('input', input);
+    check.queryResults.set('label', { textContent: value });
+    return { check, input };
+  });
+  const columnsContainer = new FakeNode('div', 'div_id_included_columns');
+  checkboxes.forEach(({ check }) => columnsContainer.appendChild(check));
+  columnsContainer.appendChild(managerWrapper);
+  columnsContainer.queryResults.set('.form-check', () =>
+    columnsContainer.children.filter((child) => child.className.split(/\s+/).includes('form-check')),
+  );
+  columnsContainer.queryResults.set('input[name="included_columns"]', () =>
+    columnsContainer.querySelectorAll('.form-check').map((check) => check.querySelector('input')),
+  );
+
+  const elements = new Map([
+    ['report-template-editor', reportEditor],
+    ['previewModal', reportModal],
+    ['div_id_included_columns', columnsContainer],
+    ['report-template-saved-sequence', { textContent: JSON.stringify(savedSequence) }],
+    ['visual-cols-manager-wrapper', managerWrapper],
+    ['btn-preview-report', new FakeNode('button', 'btn-preview-report')],
+  ]);
+  return { submitButton, submitParent, reportEditor, reportModal, reportTypeSelect, columnsContainer, checkboxes, elements };
+}
+
+function columnOrder(columnsContainer) {
+  return columnsContainer.querySelectorAll('.form-check').map((check) => check.querySelector('input').value);
 }
 
 function runDesigner({ page }) {
@@ -116,6 +193,43 @@ function runDesigner({ page }) {
   runInContext(compiled, context);
   return { document, submitParent };
 }
+
+test('notification swaps preserve editor state while a replacement editor initializes once', () => {
+  const editor = makeReportEditorFixture(['asset_tag', 'name']);
+  const document = new FakeDocument(editor);
+  const context = createContext({
+    console,
+    document,
+    gettext: (message) => message,
+  });
+  runInContext(compiled, context);
+
+  assert.deepEqual(columnOrder(editor.columnsContainer), ['asset_tag', 'name']);
+  assert.equal(editor.reportTypeSelect.listenerCounts.get('change'), 1);
+
+  const [nameCheck, assetTagCheck] = editor.checkboxes;
+  editor.columnsContainer.insertBefore(nameCheck.check, assetTagCheck.check);
+  const notificationTarget = new FakeNode('div', 'notification-dropdown-content');
+  const afterSwap = document.listeners.get('htmx:afterSwap');
+  for (let index = 0; index < 3; index++) {
+    afterSwap({ detail: { target: notificationTarget } });
+  }
+
+  assert.deepEqual(columnOrder(editor.columnsContainer), ['name', 'asset_tag'], 'notification swaps retain unsaved ordering');
+  assert.equal(editor.reportTypeSelect.listenerCounts.get('change'), 1, 'the existing editor keeps one report-type listener');
+
+  const replacement = makeReportEditorFixture(['name', 'asset_tag']);
+  replacement.elements.delete('btn-preview-report');
+  document.reportEditor = replacement.reportEditor;
+  document.reportModal = replacement.reportModal;
+  document.reportTypeSelect = replacement.reportTypeSelect;
+  document.elements = replacement.elements;
+  afterSwap({ detail: { target: replacement.reportEditor } });
+  afterSwap({ detail: { target: replacement.reportEditor } });
+
+  assert.equal(replacement.reportTypeSelect.listenerCounts.get('change'), 1, 'the replacement editor initializes its listener only once');
+  assert.equal(replacement.submitParent.children[1].id, 'btn-preview-report', 'the replacement editor gets its preview control');
+});
 
 test('report preview is not injected into an unrelated login submit form', () => {
   const { submitParent, document } = runDesigner({ page: 'login' });
