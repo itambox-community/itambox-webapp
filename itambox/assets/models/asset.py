@@ -1,7 +1,6 @@
 """Asset state machine and the core Asset model."""
 
 import datetime
-from datetime import timedelta
 from decimal import Decimal
 
 from django.apps import apps
@@ -16,6 +15,7 @@ from django.utils.translation import ngettext
 
 from assets.choices import StatusTypeChoices
 from assets.model_book_value import compute_book_value
+from assets.models.audit_cadence import add_calendar_months, is_audit_overdue
 from assets.models.tagsequence import AssetTagSequence
 from core.currency import CurrencyField
 from core.managers import ExplicitScopeAllObjectsManager, ExplicitScopeSoftDeleteManager
@@ -240,22 +240,20 @@ class Asset(CustomFieldDataMixin, BookmarkableMixin, SubscribableMixin, Deletabl
         """Date by which the next physical audit is due, or None if no cadence is set.
 
         Never-audited assets with a cadence are overdue immediately (returns created_at).
+        Calendar-month additions clamp month-end dates to the destination month's last day.
         """
         category = self.category
         if not category or not category.audit_interval_months:
             return None
 
-        interval_days = category.audit_interval_months * 30
         base = self.last_audited or self.created_at
-        return base + timedelta(days=interval_days)
+        return add_calendar_months(base, category.audit_interval_months)
 
     @property
     def audit_overdue(self) -> bool:
-        """True when a cadence is set and the due date has passed."""
-        from django.utils import timezone
-
+        """True when the current local date is later than the audit's due date."""
         due = self.audit_due_date
-        return due is not None and timezone.now() > due
+        return due is not None and is_audit_overdue(due, timezone.localdate())
 
     def get_status_display(self):
         return self.status.name if self.status else _("Not set")
