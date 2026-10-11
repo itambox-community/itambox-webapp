@@ -209,20 +209,35 @@ class WebhookDeliveryUITests(TenantTestMixin, TestCase):
         self.assertContains(response, self.failed_delivery.error_message)
         self.assertNotContains(response, "ui-secret-value")
 
-    def test_platform_user_sees_system_wide_deliveries(self):
-        platform_user = User.objects.create_user(username="webhook_ui_platform", password="pw")
+    def test_tenant_delivery_grant_does_not_expose_system_wide_deliveries(self):
+        reader = User.objects.create_user(username="webhook_ui_reader", password="pw")
         grant(
-            platform_user,
+            reader,
             self.tenant_a,
             Role.objects.create(
                 tenant=self.tenant_a,
-                name="Webhook UI Platform",
+                name="Webhook UI Reader",
                 permissions=["extras.view_webhookdelivery", "extras.view_webhookendpoint"],
             ),
         )
-        global_delivery = self._delivery(tenant=None, status="success", response_code=200)
+        global_delivery = WebhookDelivery.objects.create(
+            delivery_id=str(uuid4()), endpoint=self.endpoint_a, tenant=None, status="success", response_code=200
+        )
 
-        self.client_login_to_tenant(platform_user, self.tenant_a)
+        self.client_login_to_tenant(reader, self.tenant_a)
+        response = self.client.get(self._endpoint_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, global_delivery.delivery_id[:8])
+        self.assertContains(response, self.failed_delivery.delivery_id[:8])
+
+    def test_superuser_sees_system_wide_deliveries(self):
+        superuser = User.objects.create_superuser(username="webhook_ui_platform", password="pw")
+        global_delivery = WebhookDelivery.objects.create(
+            delivery_id=str(uuid4()), endpoint=self.endpoint_a, tenant=None, status="success", response_code=200
+        )
+
+        self.client_login_to_tenant(superuser, self.tenant_a)
         response = self.client.get(self._endpoint_url())
 
         self.assertEqual(response.status_code, 200)
