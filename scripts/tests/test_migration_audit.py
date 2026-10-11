@@ -548,7 +548,7 @@ class MigrationAuditTests(unittest.TestCase):
         self.assertEqual(inventory["summary"]["replacement_shards"], 62)
         self.assertEqual(inventory["summary"]["replacement_targets"], 262)
         self.assertEqual(inventory["summary"]["explicit_replacement_chain_edges"], 61)
-        self.assertEqual(inventory["summary"]["post_transition_migrations"], 66)
+        self.assertEqual(inventory["summary"]["post_transition_migrations"], 67)
         self.assertEqual(
             inventory["post_transition_migrations"],
             [
@@ -601,6 +601,7 @@ class MigrationAuditTests(unittest.TestCase):
                 "inventory.0101_alter_accessoryassignment_options_and_more",
                 "inventory.0102_kititem_leaf_deleted_at",
                 "inventory.0103_stock_leaf_deleted_at",
+                "inventory.0104_consumable_tenant_scoped_uniqueness",
                 "organization.0101_membership_external_id_and_more",
                 "organization.0102_alter_tenantresourcegrant_options",
                 "organization.0103_tenant_resource_grant_expiry",
@@ -709,7 +710,7 @@ class MigrationAuditTests(unittest.TestCase):
             inventory["reviewed_semantics"]["review_blocker"],
             [],
         )
-        self.assertEqual(len(inventory["effective_graph"]["nodes"]), 62)
+        self.assertEqual(len(inventory["effective_graph"]["nodes"]), 63)
         self.assertEqual(
             inventory["effective_graph"]["roots"],
             ["users.0000_issue88_shard_01_users_bootstrap"],

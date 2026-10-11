@@ -275,7 +275,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
         self.assertEqual(len(manifest["historical_ids"]), 262)
         self.assertEqual(len(manifest["replacement_ids"]), 62)
         self.assertEqual(len(manifest["replacement_target_ids"]), 262)
-        self.assertEqual(len(manifest["post_transition_ids"]), 66)
+        self.assertEqual(len(manifest["post_transition_ids"]), 67)
         self.assertTrue(
             {
                 "assets.0102_asset_type_composition_schema",

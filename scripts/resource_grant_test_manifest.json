@@ -64,7 +64,8 @@
     "scripts/tests/test_migration_audit.py",
     "scripts/tests/test_merge_queue_support.py",
     "scripts/tests/test_select_e2e_scopes.py",
-    "scripts/tests/test_e2e_workflow_policy.py"
+    "scripts/tests/test_e2e_workflow_policy.py",
+    "itambox/inventory/tests/test_consumable_tenant_uniqueness.py"
   ],
   "baseline_tests": [
     "itambox/assets/api/tests/test_error_boundary_disclosure.py",
@@ -782,6 +783,7 @@
     "itambox/extras/tests/test_webhook_stable_upgrade_preservation.py",
     "itambox/inventory/tests/test_checkout_permissions.py",
     "itambox/inventory/tests/test_component_scoping.py",
+    "itambox/inventory/tests/test_consumable_tenant_uniqueness.py",
     "itambox/inventory/tests/test_form_scoping.py",
     "itambox/inventory/tests/test_forms.py",
     "itambox/inventory/tests/test_graphql_global_guard.py",
