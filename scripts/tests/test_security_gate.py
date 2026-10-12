@@ -574,6 +574,18 @@ class SecurityAutomationContractTests(unittest.TestCase):
         self.assertEqual(workflow.count("--expect-target"), 3)
         self.assertIn("--fail-on medium", workflow)
         self.assertEqual(workflow.count("--fail-on medium"), 1)
+        self.assertIn("merge_group:", workflow)
+        self.assertIn("github.event.merge_group.base_sha", workflow)
+        self.assertIn("github.event.merge_group.head_sha", workflow)
+        range_selector = workflow.split("Select reviewed commit range", 1)[1].split(
+            "Scan commits without exposing findings", 1
+        )[0]
+        # The reviewed range must never fall back to the full history on the events that can
+        # reach protected main: pull requests use the PR range, merge-queue groups use the
+        # merge-group range. A full-history scan (--all) surfaces historical, unsuppressed
+        # findings and ejects the queue entry with "failed_checks".
+        self.assertIn("${MG_BASE}..${MG_HEAD}", range_selector)
+        self.assertLess(range_selector.index("merge_group"), range_selector.index('value="--all"'))
 
     def test_release_rehearsal_scans_the_same_image_before_draft_creation(self):
         workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
