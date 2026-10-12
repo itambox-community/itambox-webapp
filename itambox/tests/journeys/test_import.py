@@ -13,7 +13,6 @@ from organization.models import AssetHolder, Location, Site, Tenant, TenantGroup
 from subscriptions.forms import SubscriptionBulkImportForm
 from subscriptions.models import Subscription
 
-
 from .support import JourneyMixin
 
 
@@ -378,7 +377,7 @@ class ImportJourneyTests(JourneyMixin, TestCase):
 
         self.assertEqual(response.status_code, 302)
         job = Job.objects.latest("created")
-        self.assertEqual(job.status, Job.STATUS_COMPLETED)
+        self.assertEqual(job.status, Job.STATUS_COMPLETED, job.logs)
         child = Location._base_manager.get(name="Visible import child")
         self.assertEqual(child.site_id, site.pk)
         self.assertEqual(child.parent_id, parent.pk)
