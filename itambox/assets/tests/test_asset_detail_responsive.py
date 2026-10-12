@@ -10,14 +10,18 @@ contract renders the affected include directly.
 from html.parser import HTMLParser
 from types import SimpleNamespace
 
+from django.contrib.auth import get_user_model
 from django.template.loader import render_to_string
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from assets.models import Asset, AssetRole, AssetType, Manufacturer, StatusLabel
 from assets.services import checkout_asset
 from core.tests.mixins import TenantTestMixin
-from organization.models import AssetHolder
+from organization.models import AssetHolder, Role, Tenant, TenantGroup
+
+User = get_user_model()
 
 
 class _ScanInputGroupParser(HTMLParser):
@@ -237,3 +241,127 @@ class AssetListMobileSelectionTests(TenantTestMixin, TestCase):
         self.assertIn("mobile-select-all", body)
         self.assertIn('data-select-all="true"', body)
         self.assertIn("card-table", body)
+
+
+class CatalogueDetailAssetScopeTests(TenantTestMixin, TestCase):
+    """Catalogue detail asset tables must respect the viewer's request scope."""
+
+    asset_permissions = (
+        "assets.view_asset",
+        "assets.view_assetrole",
+        "assets.view_assettype",
+        "assets.view_statuslabel",
+    )
+    catalogue_permissions = (
+        "assets.view_assetrole",
+        "assets.view_assettype",
+        "assets.view_statuslabel",
+    )
+
+    def setUp(self):
+        self.setup_tenant_context(name="Catalogue Scope Tenant A", slug="catalogue-scope-a")
+        self.group = TenantGroup.objects.create(name="Catalogue Scope Group", slug="catalogue-scope-group")
+        self.tenant.group = self.group
+        self.tenant.save(update_fields=["group"])
+        self.tenant_b = Tenant.objects.create(
+            name="Catalogue Scope Tenant B",
+            slug="catalogue-scope-b",
+            group=self.group,
+        )
+
+        view_role = Role.objects.create(
+            tenant=self.tenant,
+            name="Catalogue detail asset viewer",
+            permissions=self.asset_permissions,
+        )
+        self.grant(self.tenant_user, self.tenant, view_role)
+        self.catalogue_only_user = User.objects.create_user(username="catalogue-only", password="password")
+        catalogue_role = Role.objects.create(
+            tenant=self.tenant,
+            name="Catalogue detail viewer",
+            permissions=self.catalogue_permissions,
+        )
+        self.grant(self.catalogue_only_user, self.tenant, catalogue_role)
+
+        manufacturer = Manufacturer.objects.create(name="Catalogue Scope Mfr", slug="catalogue-scope-mfr")
+        self.asset_role = AssetRole.objects.create(name="Catalogue Scope Role", slug="catalogue-scope-role")
+        self.asset_type = AssetType.objects.create(
+            manufacturer=manufacturer,
+            model="Catalogue Scope Device",
+            slug="catalogue-scope-device",
+            asset_role=self.asset_role,
+        )
+        self.status = StatusLabel.objects.create(
+            name="Catalogue Scope Status",
+            slug="catalogue-scope-status",
+            type=StatusLabel.TYPE_DEPLOYABLE,
+        )
+        self.asset_a = self._make_asset(self.tenant, "A")
+        self.asset_b = self._make_asset(self.tenant_b, "B")
+        self.deleted_asset = self._make_asset(self.tenant, "DELETED")
+        self.deleted_asset.deleted_at = timezone.now()
+        self.deleted_asset.save(update_fields=["deleted_at"])
+
+        self.detail_pages = (
+            ("assets:assetrole_detail", self.asset_role.pk, "assets-tab"),
+            ("assets:assettype_detail", self.asset_type.pk, "related-assets"),
+            ("assets:statuslabel_detail", self.status.pk, "assets"),
+        )
+
+    def _make_asset(self, tenant, suffix):
+        return Asset.objects.create(
+            name="Catalogue Scope Asset " + suffix,
+            asset_tag="CATALOGUE-SCOPE-" + suffix,
+            serial_number="CATALOGUE-SCOPE-SN-" + suffix,
+            asset_type=self.asset_type,
+            asset_role=self.asset_role,
+            status=self.status,
+            tenant=tenant,
+        )
+
+    def _login_for_scope(self, user, scope):
+        self.client.force_login(user)
+        session = self.client.session
+        for key in ("active_tenant_id", "active_tenant_group_id", "active_all_accessible"):
+            session.pop(key, None)
+        if scope == "tenant":
+            session["active_tenant_id"] = self.tenant.pk
+        elif scope == "group":
+            session["active_tenant_group_id"] = self.group.pk
+        else:
+            session["active_all_accessible"] = True
+        session.save()
+
+    def test_detail_asset_tables_and_counts_use_tenant_group_and_all_accessible_scope(self):
+        for scope in ("tenant", "group", "all_accessible"):
+            self._login_for_scope(self.tenant_user, scope)
+            for route, object_id, _tab in self.detail_pages:
+                with self.subTest(scope=scope, route=route):
+                    response = self.client.get(reverse(route, kwargs={"pk": object_id}))
+                    self.assertEqual(response.status_code, 200)
+                    table = response.context["assets_table"]
+                    self.assertEqual([row.record.pk for row in table.rows], [self.asset_a.pk])
+                    self.assertEqual(response.context["related_objects_list"][0]["count"], 1)
+
+                    body = response.content.decode()
+                    self.assertIn(self.asset_a.asset_tag, body)
+                    self.assertNotIn(self.asset_b.name, body)
+                    self.assertNotIn(self.asset_b.asset_tag, body)
+                    self.assertNotIn(self.asset_b.serial_number, body)
+                    self.assertNotIn(self.deleted_asset.asset_tag, body)
+
+    def test_catalogue_only_role_does_not_receive_asset_panels_or_records(self):
+        self._login_for_scope(self.catalogue_only_user, "tenant")
+        for route, object_id, tab in self.detail_pages:
+            with self.subTest(route=route):
+                response = self.client.get(reverse(route, kwargs={"pk": object_id}))
+                self.assertEqual(response.status_code, 200)
+                self.assertIsNone(response.context.get("assets_table"))
+                self.assertEqual(response.context["related_objects_list"], [])
+
+                body = response.content.decode()
+                self.assertNotIn('data-bs-target="#' + tab + '"', body)
+                self.assertNotIn(self.asset_a.name, body)
+                self.assertNotIn(self.asset_a.asset_tag, body)
+                self.assertNotIn(self.asset_b.name, body)
+                self.assertNotIn(self.asset_b.asset_tag, body)
