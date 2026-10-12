@@ -123,6 +123,7 @@ class ImportJourneyTests(JourneyMixin, TestCase):
         finally:
             set_current_tenant_group(None)
             set_current_all_accessible(False)
+            self.clear_tenant_context()
 
     def test_add_only_role_cannot_update_an_existing_row_by_id(self):
         existing = Manufacturer.objects.create(name="Journey Original", slug="journey-original")
