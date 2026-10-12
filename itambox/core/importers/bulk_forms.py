@@ -494,9 +494,9 @@ class BulkImportForm(forms.Form):
                 raise ValidationError(_('Row %(row)s: "%(field)s" is required.') % {"row": row_number, "field": name})
 
     def _create_instance(self, mapped_data):
-        """Create a model instance from mapped data. Override in subclass."""
-        instance = self.model(**mapped_data)
+        """Bind a new tenant-owned row to the active import tenant before validation."""
         tenant = get_current_tenant()
-        if self.update_key and tenant is not None and hasattr(instance, "tenant_id") and instance.tenant_id is None:
-            instance.tenant = tenant
-        return instance
+        tenant_field = next((field for field in self.model._meta.fields if field.name == "tenant"), None)
+        if tenant is not None and tenant_field is not None:
+            mapped_data = {**mapped_data, tenant_field.attname: tenant.pk}
+        return self.model(**mapped_data)
