@@ -72,6 +72,8 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
 
     def post(self, request, *args, **kwargs):
         form = self.get_form_class()(request.POST, request.FILES)
+        # Preview-time checks (e.g. permission to create related objects) run as the importing user.
+        form.actor = request.user
 
         if "_preview" in request.POST:
             if form.is_valid():
@@ -82,6 +84,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
                     "form": form,
                     "preview_rows": rows,
                     "preview_headers": form.field_names if rows else [],
+                    "preview_notes": form.row_notes,
                     "title": self._get_title(),
                     "cancel_url": self._get_cancel_url(),
                 }

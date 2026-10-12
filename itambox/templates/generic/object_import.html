@@ -54,6 +54,15 @@
               <h3 class="card-title">{% translate "Preview Import Data" %}</h3>
             </div>
             <div class="card-body">
+              {% if preview_notes %}
+                <div class="alert alert-info">
+                  <ul class="mb-0">
+                    {% for note in preview_notes %}
+                      <li>{{ note }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
               <div class="table-responsive mb-4">
                 <table class="table table-vcenter card-table">
                   <thead>

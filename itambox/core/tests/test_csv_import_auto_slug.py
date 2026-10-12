@@ -41,6 +41,8 @@ class TestAutoSlugImport(TenantTestMixin):
             slug="auto-slug-tenant",
             permissions=list(IMPORT_PERMISSIONS),
         )
+        self.tenant.is_provider = True
+        self.tenant.save(update_fields=["is_provider"])
         self.set_active_tenant(self.tenant, self.tenant_membership)
         if model_name == "location":
             Site.objects.create(name="Import Site", slug="import-site", tenant=self.tenant)
@@ -106,12 +108,14 @@ class TestAutoSlugImport(TenantTestMixin):
             model_name="assettype",
             rows=[
                 {"manufacturer": "Fairphone", "model": "Fairphone 5"},
-                {"manufacturer": "Fairphone", "model": "Fairphone 5"},
+                {"manufacturer": "Fairphone", "model": "Fairphone-5"},
             ],
         )
 
         assert job.result == {"imported": 2, "failed": 0, "total": 2}
-        assert set(AssetType.objects.filter(model="Fairphone 5").values_list("slug", flat=True)) == {
+        assert set(
+            AssetType.objects.filter(model__in=["Fairphone 5", "Fairphone-5"]).values_list("slug", flat=True)
+        ) == {
             "fairphone-fairphone-5",
             "fairphone-fairphone-5-1",
         }
