@@ -1,10 +1,11 @@
 from django.contrib import messages
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
+from assets.models.catalog import scoped_related_count
 from core.managers import Scope
 from itambox.panels import Panel
 from itambox.utils import get_paginate_count
@@ -21,14 +22,23 @@ from ..models import Asset, Manufacturer
 
 
 class ManufacturerListView(ObjectListView):
-    queryset = Manufacturer.objects.prefetch_related("tags").annotate(
-        asset_count=Count("asset_types__assets", distinct=True),
-        asset_type_count=Count("asset_types", distinct=True),
-    )
+    queryset = Manufacturer.objects.prefetch_related("tags")
     filterset = filters.ManufacturerFilterSet
     filterset_form = forms.ManufacturerFilterForm
     table = tables.ManufacturerTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        assets = Asset.objects.for_scope(Scope.current())
+        return queryset.annotate(
+            asset_count=scoped_related_count(assets, "asset_type__manufacturer_id"),
+            asset_type_count=Count(
+                "asset_types",
+                filter=Q(asset_types__deleted_at__isnull=True),
+                distinct=True,
+            ),
+        )
 
 
 class ManufacturerDetailView(ObjectDetailView):

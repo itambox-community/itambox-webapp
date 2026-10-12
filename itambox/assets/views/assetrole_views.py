@@ -1,10 +1,10 @@
 from django.contrib import messages
-from django.db.models import Count
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
+from assets.models.catalog import scoped_related_count
 from core.managers import Scope
 from itambox.panels import Panel
 from itambox.quick_add import QuickAddMixin
@@ -22,11 +22,16 @@ from ..models import Asset, AssetRole
 
 
 class AssetRoleListView(ObjectListView):
-    queryset = AssetRole.objects.prefetch_related("tags").annotate(asset_count=Count("assets"))
+    queryset = AssetRole.objects.prefetch_related("tags")
     filterset = filters.AssetRoleFilterSet
     filterset_form = forms.AssetRoleFilterForm
     table = tables.AssetRoleTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        assets = Asset.objects.for_scope(Scope.current())
+        return queryset.annotate(asset_count=scoped_related_count(assets, "asset_role_id"))
 
 
 class AssetRoleDetailView(ObjectDetailView):
