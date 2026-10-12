@@ -1,6 +1,6 @@
 from typing import cast
 
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 
 from assets.models import Asset, AssetType, Manufacturer
 from assets.services.specifications.commands import create_asset_type, preview_asset_type_create
@@ -69,8 +69,6 @@ class AssetTypeBulkImportForm(BulkImportForm):
         self._populate_generated_slug(instance)
         instance.full_clean()
 
-        if self.actor is None:
-            raise PermissionDenied("An authenticated actor is required to import Asset Types.")
         actor = actor_context_for_user(self.actor)
         native = native_asset_type_create_input(
             {
