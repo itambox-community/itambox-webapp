@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 
-from assets.models import Manufacturer, Supplier
+from assets.models import Asset, Manufacturer, Supplier
 from core.importers.bulk_forms import is_model_importable
 from core.models import Job, ObjectChange
 from organization.models import AssetHolder, Tenant
@@ -55,6 +55,91 @@ class ImportJourneyTests(JourneyMixin, TestCase):
 
         existing.refresh_from_db()
         self.assertEqual(existing.description, "after")
+
+    def test_asset_update_ignores_same_tag_in_another_tenant(self):
+        tenant_b = Tenant.objects.create(name="Journey Import B", slug="journey-import-b")
+        asset_a = Asset.objects.create(name="Asset A before", asset_tag="SHARED-TAG", tenant=self.tenant)
+        asset_b = Asset.objects.create(name="Asset B before", asset_tag="SHARED-TAG", tenant=tenant_b)
+        editor = self.make_member("import-asset-editor", {"assets.add_asset", "assets.change_asset"})
+
+        self._import(editor, "assets", "asset", "name,asset_tag\nAsset A after,SHARED-TAG\n")
+
+        asset_a.refresh_from_db()
+        asset_b.refresh_from_db()
+        self.assertEqual(asset_a.name, "Asset A after")
+        self.assertEqual(asset_b.name, "Asset B before")
+        self.assertEqual(Job.objects.latest("created").status, Job.STATUS_COMPLETED)
+
+    def test_holder_update_ignores_same_upn_in_another_tenant(self):
+        tenant_b = Tenant.objects.create(name="Journey Holder B", slug="journey-holder-b")
+        holder_a = self.make_holder(first_name="A before", upn="same@example.test")
+        holder_b = AssetHolder.objects.create(
+            first_name="B before", last_name="Holder", upn="same@example.test", tenant=tenant_b
+        )
+        editor = self.make_member(
+            "import-holder-editor", {"organization.add_assetholder", "organization.change_assetholder"}
+        )
+
+        self._import(
+            editor,
+            "organization",
+            "assetholder",
+            "first_name,last_name,upn\nA after,Holder,same@example.test\n",
+        )
+
+        holder_a.refresh_from_db()
+        holder_b.refresh_from_db()
+        self.assertEqual(holder_a.first_name, "A after")
+        self.assertEqual(holder_b.first_name, "B before")
+        self.assertEqual(Job.objects.latest("created").status, Job.STATUS_COMPLETED)
+
+    def test_holder_key_only_in_another_tenant_allows_local_creation(self):
+        tenant_b = Tenant.objects.create(name="Journey Holder B", slug="journey-holder-b")
+        holder_b = AssetHolder.objects.create(
+            first_name="B before", last_name="Holder", upn="b-only@example.test", tenant=tenant_b
+        )
+        editor = self.make_member("import-holder-creator", {"organization.add_assetholder"})
+
+        self._import(
+            editor,
+            "organization",
+            "assetholder",
+            "first_name,last_name,upn\nA created,Holder,b-only@example.test\n",
+        )
+
+        holder_a = AssetHolder.objects.get(tenant=self.tenant, upn="b-only@example.test")
+        holder_b.refresh_from_db()
+        self.assertEqual(holder_a.first_name, "A created")
+        self.assertEqual(holder_b.first_name, "B before")
+        self.assertEqual(Job.objects.latest("created").status, Job.STATUS_COMPLETED)
+
+    def test_asset_tag_only_in_another_tenant_allows_local_creation(self):
+        tenant_b = Tenant.objects.create(name="Journey Asset B", slug="journey-asset-b")
+        asset_b = Asset.objects.create(name="Asset B before", asset_tag="B-ONLY-TAG", tenant=tenant_b)
+        editor = self.make_member("import-asset-creator", {"assets.add_asset"})
+
+        self._import(editor, "assets", "asset", "name,asset_tag\nAsset A created,B-ONLY-TAG\n")
+
+        asset_a = Asset.objects.get(tenant=self.tenant, asset_tag="B-ONLY-TAG")
+        asset_b.refresh_from_db()
+        self.assertEqual(asset_a.name, "Asset A created")
+        self.assertEqual(asset_b.name, "Asset B before")
+        self.assertEqual(Job.objects.latest("created").status, Job.STATUS_COMPLETED)
+
+    def test_add_only_role_cannot_update_existing_holder_in_job_tenant(self):
+        holder = self.make_holder(first_name="Before", upn="add-only@example.test")
+        adder = self.make_member("import-holder-add-only", {"organization.add_assetholder"})
+
+        self._import(
+            adder,
+            "organization",
+            "assetholder",
+            "first_name,last_name,upn\nAfter,Holder,add-only@example.test\n",
+        )
+
+        holder.refresh_from_db()
+        self.assertEqual(holder.first_name, "Before")
+        self.assertIn("permission to update", Job.objects.latest("created").logs)
 
     def test_add_only_role_cannot_rewrite_an_asset_holder_by_id(self):
         holder = self.make_holder(email="holder@example.test", upn="holder@example.test")
