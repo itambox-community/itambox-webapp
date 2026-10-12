@@ -48,7 +48,7 @@ from organization.services.access_scope import (
 
 from .loaders import RequestScopedSpecificationLoader
 from .readers import fields_for_fieldset, issues_for_entries, issues_for_missing_required
-from .types import FieldsetView, LibraryOriginView, UserErrorType
+from .types import FieldsetView, UserErrorType
 
 
 @dataclass(frozen=True)
@@ -264,22 +264,6 @@ def owner_user_errors(loader: RequestScopedSpecificationLoader, owner: object, t
     )
 
 
-def library_origin_for(asset_type: AssetType) -> LibraryOriginView | None:
-    library = getattr(asset_type, "library", None)
-    if library is None:
-        return None
-    accepted_release = getattr(library, "accepted_release", None)
-    sequence = getattr(accepted_release, "sequence", None) if accepted_release is not None else None
-    namespace = getattr(library, "namespace", None)
-    if type(namespace) is not str or not namespace:
-        return None
-    return LibraryOriginView(
-        identity=namespace,
-        accepted_release=sequence if type(sequence) is int else None,
-        state="unreconciled",
-    )
-
-
 def choice_set_for_identity(
     identity: str,
     *,
@@ -297,12 +281,7 @@ def _choice_set_for_identity(identity: str) -> ChoiceSetDTO | None:
     if type(identity) is not str or identity.count("/") != 1:
         return None
     namespace, slug = identity.split("/", 1)
-    choice_set = (
-        CustomFieldChoiceSet.objects.select_related("library", "library__accepted_release")
-        .prefetch_related("choices")
-        .filter(namespace=namespace, slug=slug)
-        .first()
-    )
+    choice_set = CustomFieldChoiceSet.objects.prefetch_related("choices").filter(namespace=namespace, slug=slug).first()
     if choice_set is None:
         return None
     choices = tuple(
@@ -462,7 +441,6 @@ __all__ = [
     "encode_cursor",
     "fieldsets_for_type",
     "has_global_permission",
-    "library_origin_for",
     "owner_resource_revision",
     "owner_user_errors",
     "page_size",

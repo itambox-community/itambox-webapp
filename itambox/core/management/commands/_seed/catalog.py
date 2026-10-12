@@ -609,7 +609,7 @@ class SeedCatalogMixin:
         from assets.services.specifications.core_vocabulary import get_core_vocabulary
 
         vocabulary = get_core_vocabulary()
-        library_release = vocabulary["library"]["release"]
+        vocabulary_version = vocabulary["version"]
         asset_ct = ContentType.objects.get_for_model(AssetModel)
         assettype_ct = ContentType.objects.get_for_model(AssetTypeModel)
 
@@ -620,9 +620,9 @@ class SeedCatalogMixin:
             self._choice_sets,
             asset_ct,
             assettype_ct,
-            library_release,
+            vocabulary_version,
         )
-        self._fieldsets = _reconcile_core_fieldsets(vocabulary["sections"], self._custom_fields, library_release)
+        self._fieldsets = _reconcile_core_fieldsets(vocabulary["sections"], self._custom_fields, vocabulary_version)
 
         canonical_category_rows = vocabulary["categories"]
 
@@ -1099,8 +1099,6 @@ class SeedCatalogMixin:
                     "management_kind": AssetType.MANAGEMENT_LOCAL,
                     "region": "",
                     "configuration": "",
-                    "library": None,
-                    "library_definition_key": None,
                 },
             )
             obj.model = model_name
@@ -1113,8 +1111,6 @@ class SeedCatalogMixin:
             obj.management_kind = AssetType.MANAGEMENT_LOCAL
             obj.region = ""
             obj.configuration = ""
-            obj.library = None
-            obj.library_definition_key = None
             obj.save(
                 update_fields=[
                     "model",
@@ -1127,8 +1123,6 @@ class SeedCatalogMixin:
                     "management_kind",
                     "region",
                     "configuration",
-                    "library",
-                    "library_definition_key",
                 ]
             )
             obj.fieldset_memberships.all().delete()

@@ -80,7 +80,6 @@ type AssetType {
   specificationDefinition(target: SpecificationTarget!): SpecificationDefinition!
   specificationEntries: [SpecificationEntry!]!
   specificationIssues: [UserError!]!
-  library: LibraryOrigin
 }
 
 type AssetTypeConnection {
@@ -270,19 +269,6 @@ type KitNode {
   updatedAt: DateTime!
   name: String!
   description: String!
-}
-
-type LibraryOrigin {
-  identity: String!
-  acceptedRelease: SafeInteger
-  state: LibraryReconciliationState!
-}
-
-enum LibraryReconciliationState {
-  UNCHANGED
-  LOCALLY_MODIFIED
-  UNRECONCILED
-  RETAINED_HISTORY
 }
 
 type LicenseNode {

@@ -41057,8 +41057,6 @@ components:
         definition_revision:
           type: string
           readOnly: true
-        library:
-          readOnly: true
         image:
           type: string
           format: uri
@@ -41090,7 +41088,6 @@ components:
       - definition_revision
       - depreciation
       - id
-      - library
       - manufacturer
       - model
       - resource_revision

@@ -15,13 +15,10 @@ from collections.abc import Iterable, Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
 
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import DEFAULT_DB_ALIAS
 from django.db.models import Prefetch, Q
 
-from assets.models.asset import Asset
-from assets.models.catalog import AssetType, AssetTypeFieldset
+from assets.models.catalog import AssetTypeFieldset
 from extras.models import CustomField, CustomFieldChoice, CustomFieldset, CustomFieldsetField
 from extras.services.specifications.contracts import (
     ChoiceDTO,
@@ -65,22 +62,10 @@ _TARGET_KIND_BY_CONTENT_TYPE = {
 
 _FIELDSET_SELECT_RELATED = (
     "fieldset",
-    "fieldset__library",
-    "fieldset__library__accepted_release",
     "custom_field",
-    "custom_field__library",
-    "custom_field__library__accepted_release",
     "custom_field__choice_set",
-    "custom_field__choice_set__library",
-    "custom_field__choice_set__library__accepted_release",
 )
-_FIELD_SELECT_RELATED = (
-    "choice_set",
-    "choice_set__library",
-    "choice_set__library__accepted_release",
-    "library",
-    "library__accepted_release",
-)
+_FIELD_SELECT_RELATED = ("choice_set",)
 
 
 def _validate_type_ids(raw_type_ids: Any) -> tuple[int, ...]:
@@ -211,30 +196,6 @@ def _revision(payload: Mapping[str, Any]) -> ResourceRevision:
     return ResourceRevision("sha256:" + hashlib.sha256(serialized.encode("utf-8")).hexdigest())
 
 
-def _library_payload(resource: Any) -> dict[str, Any] | None:
-    """Return source identity without depending on legacy provenance fields."""
-    library = _safe_attr(resource, "library")
-    library_id = _safe_attr(resource, "library_id")
-    if library is None and library_id is None:
-        return None
-
-    accepted_release = _safe_attr(library, "accepted_release") if library is not None else None
-    payload: dict[str, Any] = {
-        "namespace": _safe_attr(library, "namespace") if library is not None else None,
-        "accepted_release": None,
-    }
-    if payload["namespace"] is None and library_id is not None:
-        # This fallback is only for an incompletely selected test double. Real
-        # queries select the library namespace and accepted release together.
-        payload["library_id"] = str(library_id)
-    if accepted_release is not None:
-        payload["accepted_release"] = {
-            "sequence": _safe_attr(accepted_release, "sequence"),
-            "semantic_digest": _safe_attr(accepted_release, "semantic_digest"),
-        }
-    return payload
-
-
 def _target_kinds(field: Any) -> frozenset[TargetKind]:
     targets: set[TargetKind] = set()
     for content_type in _relation_rows(field, "object_types"):
@@ -303,7 +264,6 @@ def _choice_set_dto(choice_set: Any, cache: dict[str, ChoiceSetDTO]) -> ChoiceSe
             "version": _safe_attr(choice_set, "version"),
             "management_kind": _safe_attr(choice_set, "management_kind"),
             "connector_identity": _safe_attr(choice_set, "connector_identity"),
-            "library": _library_payload(choice_set),
             "choices": choice_revision_rows,
         }
     )
@@ -367,7 +327,6 @@ def _field_dto(field: Any, choice_set_cache: dict[str, ChoiceSetDTO]) -> FieldDe
             "management_kind": _safe_attr(field, "management_kind"),
             "connector_identity": _safe_attr(field, "connector_identity"),
             "replaced_by": _safe_attr(field, "replaced_by"),
-            "library": _library_payload(field),
             "choice_set": (
                 None
                 if choice_set_dto is None
@@ -488,7 +447,6 @@ def _fieldset_dto(
             "management_kind": _safe_attr(fieldset, "management_kind"),
             "connector_identity": _safe_attr(fieldset, "connector_identity"),
             "replaced_by": _safe_attr(fieldset, "replaced_by"),
-            "library": _library_payload(fieldset),
             "field_memberships": revision_memberships,
         }
     )
@@ -529,11 +487,7 @@ def _load_type_memberships(
     for chunk in _chunks(type_ids):
         rows = (
             AssetTypeFieldset.objects.filter(asset_type_id__in=chunk)
-            .select_related(
-                "fieldset",
-                "fieldset__library",
-                "fieldset__library__accepted_release",
-            )
+            .select_related("fieldset")
             .order_by("asset_type_id", "position", "fieldset__namespace", "fieldset__slug", "fieldset_id")
         )
         for row in rows:
@@ -765,11 +719,7 @@ def _load_prospective_fieldsets(identities: Sequence[str]) -> dict[Any, Any]:
         for identity in chunk:
             namespace, slug = identity.split("/", 1)
             predicate |= Q(namespace=namespace, slug=slug)
-        rows = (
-            CustomFieldset.objects.filter(predicate)
-            .select_related("library", "library__accepted_release")
-            .order_by("namespace", "slug", "pk")
-        )
+        rows = CustomFieldset.objects.filter(predicate).order_by("namespace", "slug", "pk")
         for fieldset in rows:
             identity = f"{_safe_attr(fieldset, 'namespace')}/{_safe_attr(fieldset, 'slug')}"
             if identity in chunk:
@@ -782,99 +732,6 @@ def _load_prospective_fieldsets(identities: Sequence[str]) -> dict[Any, Any]:
     if missing:
         raise ValueError(f"unresolved prospective Fieldset identity: {missing[0]}")
     return fieldsets_by_id
-
-
-def _add_library_id(library_ids: set[int], value: object) -> None:
-    if value is not None:
-        if type(value) is not int or value <= 0:
-            raise ValueError("library id must be a positive integer")
-        library_ids.add(value)
-
-
-def relevant_library_ids(
-    asset_type_ids: Sequence[int],
-    target_kind: TargetKind,
-    *,
-    using: str = DEFAULT_DB_ALIAS,
-) -> tuple[int, ...]:
-    """Find libraries reachable from the destination graph before owner locking."""
-    library_ids: set[int] = set()
-    type_ids = tuple(sorted(set(asset_type_ids)))
-    # unscoped: command locks and re-reads the row regardless of soft-delete state; the service authorizes scope
-    # itself
-    type_rows = AssetType.all_objects.using(using).filter(pk__in=type_ids).values("pk", "library_id")
-    for row in type_rows:
-        _add_library_id(library_ids, row["library_id"])
-
-    fieldset_ids = set(
-        AssetTypeFieldset.objects.using(using).filter(asset_type_id__in=type_ids).values_list("fieldset_id", flat=True)
-    )
-    if fieldset_ids:
-        for library_id in (
-            CustomField.objects.using(using)
-            .filter(fieldset_memberships__fieldset_id__in=fieldset_ids)
-            .values_list("library_id", flat=True)
-        ):
-            _add_library_id(library_ids, library_id)
-        for library_id in (
-            CustomFieldset.objects.using(using).filter(pk__in=fieldset_ids).values_list("library_id", flat=True)
-        ):
-            _add_library_id(library_ids, library_id)
-        for library_id in (
-            CustomFieldsetField.objects.using(using)
-            .filter(fieldset_id__in=fieldset_ids)
-            .values_list("custom_field__choice_set__library_id", flat=True)
-        ):
-            _add_library_id(library_ids, library_id)
-
-    target_model = AssetType if target_kind == "asset_type" else Asset
-    content_type = ContentType.objects.db_manager(using).get_for_model(target_model)
-    global_fields = CustomField.objects.using(using).filter(
-        activation=CustomField.ACTIVATION_GLOBAL,
-        object_types=content_type,
-    )
-    for library_id in global_fields.values_list("library_id", flat=True):
-        _add_library_id(library_ids, library_id)
-    for library_id in global_fields.values_list("choice_set__library_id", flat=True):
-        _add_library_id(library_ids, library_id)
-
-    return tuple(sorted(library_ids))
-
-
-def composition_library_ids(
-    current_fieldset_ids: Sequence[int],
-    proposed_fieldset_identities: Sequence[str],
-    target_kind: TargetKind,
-    *,
-    asset_type_ids: Sequence[int] = (),
-    using: str = DEFAULT_DB_ALIAS,
-) -> tuple[int, ...]:
-    """Discover lock dependencies only; commands lock before loading definitions."""
-    library_ids = set(relevant_library_ids(asset_type_ids, target_kind, using=using))
-    if any(type(value) is not int or value <= 0 for value in current_fieldset_ids):
-        raise ValueError("Fieldset ID must be a positive integer")
-    fieldset_ids = set(current_fieldset_ids)
-
-    identity_predicate = Q()
-    for identity in proposed_fieldset_identities:
-        namespace, slug = identity.split("/", 1)
-        identity_predicate |= Q(namespace=namespace, slug=slug)
-    if proposed_fieldset_identities:
-        fieldset_ids.update(CustomFieldset.objects.using(using).filter(identity_predicate).values_list("pk", flat=True))
-
-    if fieldset_ids:
-        for library_id in (
-            CustomFieldset.objects.using(using).filter(pk__in=fieldset_ids).values_list("library_id", flat=True)
-        ):
-            _add_library_id(library_ids, library_id)
-        field_rows = CustomField.objects.using(using).filter(
-            fieldset_memberships__fieldset_id__in=fieldset_ids,
-        )
-        for library_id, choice_library_id in field_rows.values_list("library_id", "choice_set__library_id"):
-            _add_library_id(library_ids, library_id)
-            _add_library_id(library_ids, choice_library_id)
-
-    return tuple(sorted(library_ids))
 
 
 def fieldset_ids_for_identities(identities: Sequence[str], *, using: str) -> tuple[int | None, ...]:

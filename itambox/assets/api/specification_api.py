@@ -529,15 +529,6 @@ def owner_specification_payload(owner: Asset | AssetType) -> dict[str, object]:
         "resource_revision": str(resource_revision_for_owner(owner)),
         "definition_revision": str(definition.revision),
     }
-    if isinstance(owner, AssetType):
-        library = getattr(owner, "library", None)
-        if library is not None and owner.library_definition_key:
-            accepted_release = getattr(library, "accepted_release", None)
-            payload["library"] = {
-                "identity": f"{library.namespace}/{owner.library_definition_key}",
-                "accepted_release": None if accepted_release is None else accepted_release.sequence,
-                "state": "unchanged",
-            }
     payload["_definition"] = definition_payload(definition, graph)
     return payload
 

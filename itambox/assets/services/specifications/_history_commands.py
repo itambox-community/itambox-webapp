@@ -56,7 +56,6 @@ from organization.services.catalogue_authorization import has_provider_catalogue
 from ._command_support import (
     issue,
     json_values_equal,
-    lock_relevant_libraries,
     map_structure_error,
     positive_id,
     rejected,
@@ -543,15 +542,6 @@ def _cleanup_type_locked(
     )
 
 
-def _preliminary_asset_type_ids(asset_id: int) -> tuple[int, ...]:
-    # unscoped: command locks and re-reads the row regardless of soft-delete state; the service authorizes scope
-    # itself
-    current_type_id = (
-        Asset._base_manager.using(_DEFAULT_DB).filter(pk=asset_id).values_list("asset_type_id", flat=True).first()
-    )
-    return () if current_type_id is None else (current_type_id,)
-
-
 def _preview_asset_locked(
     *,
     authorization: ResolvedAccessAuthorizationDTO,
@@ -680,7 +670,6 @@ def preview_asset_type_history_cleanup(
     )
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(using=_DEFAULT_DB):
-            lock_relevant_libraries((asset_type_id,), "asset_type", using=_DEFAULT_DB)
             return _preview_type_locked(
                 actor=actor,
                 asset_type_id=asset_type_id,
@@ -709,7 +698,6 @@ def cleanup_asset_type_history(
     )
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(using=_DEFAULT_DB):
-            lock_relevant_libraries((asset_type_id,), "asset_type", using=_DEFAULT_DB)
             return _cleanup_type_locked(
                 actor=actor,
                 asset_type_id=asset_type_id,
@@ -737,7 +725,6 @@ def preview_asset_history_cleanup(
     )
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(using=_DEFAULT_DB):
-            lock_relevant_libraries(_preliminary_asset_type_ids(asset_id), "asset", using=_DEFAULT_DB)
             return _preview_asset_locked(
                 authorization=authorization,
                 asset_id=asset_id,
@@ -766,7 +753,6 @@ def cleanup_asset_history(
     )
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(using=_DEFAULT_DB):
-            lock_relevant_libraries(_preliminary_asset_type_ids(asset_id), "asset", using=_DEFAULT_DB)
             return _cleanup_asset_locked(
                 authorization=authorization,
                 asset_id=asset_id,

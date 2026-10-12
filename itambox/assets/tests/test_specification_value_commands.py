@@ -16,7 +16,6 @@ from assets.models.catalog import AssetType, AssetTypeFieldset, Manufacturer
 from assets.models.tagsequence import AssetTagSequence
 from assets.services.specifications._command_support import (
     load_effective_definition,
-    relevant_library_ids,
     resource_revision_for_owner,
 )
 from assets.services.specifications.commands import (
@@ -36,7 +35,7 @@ from assets.services.specifications.contracts import (
 )
 from core.context import override_current_tenant_scope
 from core.models import ObjectChange
-from extras.models import CustomField, CustomFieldset, CustomFieldsetField, Event, SpecificationLibrary
+from extras.models import CustomField, CustomFieldset, CustomFieldsetField, Event
 from organization.models import Membership, Role, RoleGrant, RoleGrantScope, Tenant
 from organization.services.access_scope import (
     AccessScopeResolutionRequestDTO,
@@ -244,19 +243,6 @@ class SpecificationValueCommandTests(TestCase):
         self.assertIs(specification_patch.set_values["nested"]["flag"], False)
         with self.assertRaises(TypeError):
             specification_patch.set_values["nested"]["flag"] = True
-
-    def test_empty_composed_fieldset_still_locks_its_library(self):
-        library = SpecificationLibrary.objects.create(namespace="empty-values", label="Empty values")
-        fieldset = CustomFieldset.objects.create(
-            namespace=library.namespace,
-            slug="empty",
-            label="Empty",
-            management_kind=CustomFieldset.MANAGEMENT_LIBRARY,
-            library=library,
-        )
-        AssetTypeFieldset.objects.create(asset_type=self.type, fieldset=fieldset, position=3)
-        self.assertIn(library.pk, relevant_library_ids((self.type.pk,), "asset_type"))
-        self.assertIn(library.pk, relevant_library_ids((self.type.pk,), "asset"))
 
     def test_staff_and_tenant_permission_cannot_replace_global_type_permission(self):
         self.user.is_staff = True

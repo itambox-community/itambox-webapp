@@ -2484,7 +2484,6 @@ export interface components {
       specification_state: unknown;
       resource_revision: string;
       definition_revision: string;
-      library: unknown;
       /**
        * Model Image
        * Format: uri

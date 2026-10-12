@@ -621,9 +621,6 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
         )
 
     def _fieldset_source(self, fieldset):
-        library = getattr(fieldset, "library", None)
-        if library is not None:
-            return getattr(library, "namespace", None) or str(library)
         return str(getattr(fieldset, "management_kind", "local")).capitalize()
 
     def _build_t15_presentation(self):

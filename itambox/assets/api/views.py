@@ -49,7 +49,7 @@ from assets.services import (
     dispose_asset,
     update_asset_disposal,
 )
-from assets.services.specifications._command_support import issue, lock_relevant_libraries, resource_revision_for_owner
+from assets.services.specifications._command_support import issue, resource_revision_for_owner
 from assets.services.specifications.commands import (
     apply_category_defaults,
     cleanup_asset_history,
@@ -261,22 +261,7 @@ class SpecificationCommandUpdateMixin(SpecificationContractMixin):
         # rechecks that required precondition under its owner lock before save.
         # Native-only requests retain the unchanged generic persistence path.
         with transaction.atomic(), catalogue_transaction_lock(exclusive=False):
-            self._lock_command_libraries(serializer)
             return super().perform_update(serializer)
-
-    @staticmethod
-    def _lock_command_libraries(serializer):
-        owner = serializer.instance
-        data = serializer.validated_data
-        if isinstance(owner, Asset):
-            # unscoped: post-save re-read of the row being persisted must not depend on soft-delete state or
-            # ambient scope
-            current_type_id = Asset._base_manager.filter(pk=owner.pk).values_list("asset_type_id", flat=True).first()
-            target_type_id = getattr(data.get("asset_type"), "pk", None)
-            type_ids = tuple(sorted({value for value in (current_type_id, target_type_id) if value is not None}))
-            lock_relevant_libraries(type_ids, "asset")
-        else:
-            lock_relevant_libraries((owner.pk,), "asset_type")
 
 
 class AssetViewSet(SpecificationCommandUpdateMixin, ITAMBoxModelViewSet):

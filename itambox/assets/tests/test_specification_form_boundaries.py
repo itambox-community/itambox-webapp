@@ -552,9 +552,7 @@ class AssetTypeFormT15StateTests(SimpleTestCase):
 
         self.assertNotIn("cf_note", cleaned)
 
-    def test_fieldset_source_prefers_a_library_namespace(self):
+    def test_fieldset_source_uses_the_management_kind(self):
         form = self._form()
 
-        self.assertEqual(form._fieldset_source(SimpleNamespace(library=SimpleNamespace(namespace="local"))), "local")
-        self.assertEqual(form._fieldset_source(SimpleNamespace(library="Library")), "Library")
         self.assertEqual(form._fieldset_source(SimpleNamespace(management_kind="core")), "Core")

@@ -179,7 +179,7 @@ def test_runtime_seed_matches_complete_normalized_vocabulary():
     runtime_vocabulary = get_core_vocabulary()
     _seed_catalog()
 
-    assert runtime_vocabulary["library"]["label"] == canonical["library"]["label"]
+    assert runtime_vocabulary["label"] == canonical["label"]
     assert runtime_vocabulary["expected_counts"] == canonical["expected_counts"]
     expected_active = {row["key"]: row for row in canonical["active_fields"]}
     expected_retired = {row["key"]: row for row in canonical["reserved_retired_fields"]}
