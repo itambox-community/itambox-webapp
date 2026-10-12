@@ -62,6 +62,20 @@ def _row_error_messages(exc):
     return [str(message) for message in exc.messages]
 
 
+def _normalize_csv_row(row, row_number):
+    if None in row:
+        raise ValidationError(_("Row %(row)s: CSV row has more cells than headers.") % {"row": row_number})
+    return {key.strip() if key else "": (value.strip() if value else "") for key, value in row.items()}
+
+
+def _validate_yaml_rows(rows, start_row=1):
+    for row_number, row in enumerate(rows, start=start_row):
+        if not isinstance(row, dict):
+            raise ValidationError(
+                _("Row %(row)s: YAML data elements must be mappings (key-value pairs).") % {"row": row_number}
+            )
+
+
 # Upper bound on rows accepted in a single bulk import. Beyond this, the request
 # is rejected so a single submission can't exhaust memory / hold a transaction
 # open indefinitely; large datasets should be split into batches.
@@ -291,9 +305,8 @@ class BulkImportForm(forms.Form):
                 )
 
             self._rows_data = []
-            for row in rows:
-                cleaned_row = {k.strip() if k else "": (v.strip() if v else "") for k, v in row.items()}
-                self._rows_data.append(cleaned_row)
+            for row_number, row in enumerate(rows, start=2):
+                self._rows_data.append(_normalize_csv_row(row, row_number))
 
         elif import_format == "yaml":
             try:
@@ -311,7 +324,7 @@ class BulkImportForm(forms.Form):
                     raise ValidationError(_("YAML input must be a list of objects or a single object mapping."))
 
             if not parsed_yaml or not isinstance(parsed_yaml[0], dict):
-                raise ValidationError(_("YAML data elements must be mappings (key-value pairs)."))
+                _validate_yaml_rows(parsed_yaml[:1])
 
             if len(parsed_yaml) > MAX_IMPORT_ROWS:
                 raise ValidationError(
@@ -319,6 +332,8 @@ class BulkImportForm(forms.Form):
                         max=MAX_IMPORT_ROWS
                     )
                 )
+
+            _validate_yaml_rows(parsed_yaml[1:], start_row=2)
 
             headers = set(parsed_yaml[0].keys())
             missing_required = [f for f in self.required_fields if f not in headers]
