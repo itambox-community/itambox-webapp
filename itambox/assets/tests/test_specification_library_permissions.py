@@ -28,7 +28,6 @@ from core.context import (
     set_current_tenant_group,
 )
 from core.models import ObjectChange
-from core.navigation.menu import _can_manage_type_libraries, _can_view_type_libraries
 from core.tests.mixins import grant
 from extras.models import (
     CustomField,
@@ -250,35 +249,3 @@ class LibraryPermissionContractTests(TestCase):
                 with self.assertRaises(LibraryCommandError) as denied:
                     self._preview(actor)
                 self.assertEqual(denied.exception.code, "OBJECT_UNAVAILABLE")
-
-    def test_type_library_navigation_requires_active_provider_permission(self):
-        actor = self._actor("library-navigation-provider")
-        provider_role = Role.objects.create(
-            tenant=self.provider,
-            name="Provider Library Viewer",
-            permissions=["extras.view_specificationlibrary", f"extras.{_MANAGE_PERMISSION}"],
-        )
-        grant(actor, self.provider, provider_role)
-        self.assertTrue(_can_view_type_libraries(actor))
-        self.assertTrue(_can_manage_type_libraries(actor))
-
-        customer = Tenant.objects.create(name="Navigation Customer", slug="navigation-customer")
-        customer_role = Role.objects.create(
-            tenant=customer,
-            name="Customer Library Viewer",
-            permissions=["extras.view_specificationlibrary", f"extras.{_MANAGE_PERMISSION}"],
-        )
-        grant(actor, customer, customer_role)
-        set_current_tenant(customer)
-        self.assertFalse(_can_view_type_libraries(actor))
-        self.assertFalse(_can_manage_type_libraries(actor))
-
-        set_current_tenant(self.provider)
-        group = TenantGroup.objects.create(name="Navigation aggregate")
-        set_current_tenant_group(group)
-        self.assertFalse(_can_view_type_libraries(actor))
-        self.assertFalse(_can_manage_type_libraries(actor))
-        set_current_tenant_group(None)
-        set_current_all_accessible(True)
-        self.assertFalse(_can_view_type_libraries(actor))
-        self.assertFalse(_can_manage_type_libraries(actor))

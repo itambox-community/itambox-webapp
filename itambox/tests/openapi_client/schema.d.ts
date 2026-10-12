@@ -259,18 +259,6 @@ export interface paths {
     delete: operations["assets_suppliers_destroy"];
     patch: operations["assets_suppliers_partial_update"];
   };
-  "/api/assets/type-libraries/apply/": {
-    /** @description Apply exactly the client-supplied signed plan and preconditions. */
-    post: operations["assets_type_library_apply"];
-  };
-  "/api/assets/type-libraries/export/": {
-    /** @description Export an authorized original release, effective snapshot, or fork. */
-    post: operations["assets_type_library_export"];
-  };
-  "/api/assets/type-libraries/preview/": {
-    /** @description Preview a bounded release/snapshot without persistent writes. */
-    post: operations["assets_type_library_preview"];
-  };
   "/api/assets/warranties/": {
     get: operations["assets_warranties_list"];
     put: operations["assets_warranties_update_bulk"];
@@ -1808,16 +1796,6 @@ export interface components {
       /** Quantity */
       qty?: number;
     };
-    /**
-     * @description * `create` - create
-     * * `update` - update
-     * * `unchanged` - unchanged
-     * * `deprecate` - deprecate
-     * * `conflict` - conflict
-     * * `reference` - reference
-     * @enum {string}
-     */
-    ActionEnum: "create" | "update" | "unchanged" | "deprecate" | "conflict" | "reference";
     /**
      * @description * `webhook` - Webhook
      * * `notification` - Notification
@@ -3475,15 +3453,6 @@ export interface components {
      */
     DataSanitizationMethodEnum: "none" | "nist_clear" | "nist_purge" | "nist_destroy" | "dod_3pass" | "degauss" | "physical_destruction" | "crypto_erase";
     /**
-     * @description * `unchanged` - unchanged
-     * * `take_upstream` - take_upstream
-     * * `keep_local` - keep_local
-     * * `abort` - abort
-     * * `conflict` - conflict
-     * @enum {string}
-     */
-    DecisionEnum: "unchanged" | "take_upstream" | "keep_local" | "abort" | "conflict";
-    /**
      * @description * `none` - No delivery planned
      * * `pending` - Dispatch pending
      * * `delivered` - Delivered
@@ -3735,124 +3704,6 @@ export interface components {
       description?: string;
       tenant_id?: number | null;
     };
-    /** @description Reject unknown request members instead of silently dropping them. */
-    LibraryApplyInputRequest: {
-      document: string;
-      preview_token: string;
-      plan: components["schemas"]["LibraryPlanInputRequest"];
-      resolutions?: {
-        [key: string]: "keep_local" | "take_upstream" | "abort";
-      };
-    };
-    LibraryApplyResponse: {
-      namespace: string;
-      release: number;
-      plan_digest: string;
-      source_digest: string;
-      changed_action_ids: readonly string[];
-      no_op: boolean;
-    };
-    LibraryErrorBody: {
-      code: string;
-      message: string;
-      issues: readonly components["schemas"]["LibraryIssueOutput"][];
-    };
-    LibraryErrorResponse: {
-      error: components["schemas"]["LibraryErrorBody"];
-    };
-    /** @description Reject unknown request members instead of silently dropping them. */
-    LibraryExportInputRequest: {
-      namespace: string;
-      mode: components["schemas"]["ModeEnum"];
-      new_namespace?: string;
-      /** @default false */
-      acknowledge_retained_history?: boolean;
-    };
-    LibraryExportResponse: {
-      mode: components["schemas"]["ModeEnum"];
-      namespace: string;
-      source_digest: string;
-      semantic_digest: string;
-      identity_changed: boolean;
-      document: unknown;
-    };
-    LibraryIssueOutput: {
-      code: string;
-      path: readonly unknown[];
-      field_key: string | null;
-      message: string;
-    };
-    /** @description Reject unknown request members instead of silently dropping them. */
-    LibraryPlanActionInputRequest: {
-      action_id: string;
-      action: components["schemas"]["ActionEnum"];
-      identity: string;
-      path: string[];
-      baseline?: unknown;
-      local?: unknown;
-      incoming?: unknown;
-      decision: components["schemas"]["DecisionEnum"];
-      reason: string;
-    };
-    LibraryPlanActionOutput: {
-      action_id: string;
-      action: components["schemas"]["ActionEnum"];
-      identity: string;
-      path: readonly string[];
-      baseline: unknown;
-      local: unknown;
-      incoming: unknown;
-      decision: components["schemas"]["DecisionEnum"];
-      reason: string;
-    };
-    /** @description Reject unknown request members instead of silently dropping them. */
-    LibraryPlanInputRequest: {
-      namespace: string;
-      incoming_release: number;
-      source_digest: string;
-      snapshot_digest?: string | null;
-      baseline_digest?: string | null;
-      current_digest?: string | null;
-      actions: components["schemas"]["LibraryPlanActionInputRequest"][];
-      conflicts: components["schemas"]["LibraryPlanActionInputRequest"][];
-      resolutions?: {
-        [key: string]: "keep_local" | "take_upstream" | "abort";
-      };
-      can_apply: boolean;
-      plan_digest: string;
-    };
-    LibraryPlanOutput: {
-      namespace: string;
-      incoming_release: number;
-      source_digest: string;
-      snapshot_digest: string | null;
-      baseline_digest: string | null;
-      current_digest: string | null;
-      actions: readonly components["schemas"]["LibraryPlanActionOutput"][];
-      conflicts: readonly components["schemas"]["LibraryPlanActionOutput"][];
-      resolutions: {
-        [key: string]: "keep_local" | "take_upstream" | "abort";
-      };
-      can_apply: boolean;
-      plan_digest: string;
-    };
-    /** @description Reject unknown request members instead of silently dropping them. */
-    LibraryPreviewInputRequest: {
-      document: string;
-      resolutions?: {
-        [key: string]: "keep_local" | "take_upstream" | "abort";
-      };
-    };
-    LibraryPreviewResponse: {
-      preview_token: string;
-      plan: components["schemas"]["LibraryPlanOutput"];
-      can_apply: boolean;
-      document: components["schemas"]["LibraryValidatedDocumentOutput"];
-    };
-    LibraryValidatedDocumentOutput: {
-      kind: string;
-      semantic_digest: string;
-    };
     License: {
       id: number;
       /** @description Descriptive name for the license (e.g., Visio Pro 2021 - EA Renewal FY24) */
@@ -4027,13 +3878,6 @@ export interface components {
      * @enum {string}
      */
     MethodEnum: "straight_line" | "none";
-    /**
-     * @description * `original_release` - original_release
-     * * `effective_snapshot` - effective_snapshot
-     * * `fork` - fork
-     * @enum {string}
-     */
-    ModeEnum: "original_release" | "effective_snapshot" | "fork";
     NestedAccessory: {
       id: number;
       name: string;
@@ -14325,177 +14169,6 @@ export interface operations {
       412: {
         content: {
           "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  /** @description Apply exactly the client-supplied signed plan and preconditions. */
-  assets_type_library_apply: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LibraryApplyInputRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["LibraryApplyInputRequest"];
-        "multipart/form-data": components["schemas"]["LibraryApplyInputRequest"];
-      };
-    };
-    responses: {
-      200: {
-        content: {
-          "application/json": components["schemas"]["LibraryApplyResponse"];
-        };
-      };
-      400: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      /** @description Authentication required. */
-      401: {
-        content: never;
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      404: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      409: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      412: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      413: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  /** @description Export an authorized original release, effective snapshot, or fork. */
-  assets_type_library_export: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LibraryExportInputRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["LibraryExportInputRequest"];
-        "multipart/form-data": components["schemas"]["LibraryExportInputRequest"];
-      };
-    };
-    responses: {
-      200: {
-        content: {
-          "application/json": components["schemas"]["LibraryExportResponse"];
-        };
-      };
-      400: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      /** @description Authentication required. */
-      401: {
-        content: never;
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      404: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      409: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      413: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  /** @description Preview a bounded release/snapshot without persistent writes. */
-  assets_type_library_preview: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LibraryPreviewInputRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["LibraryPreviewInputRequest"];
-        "multipart/form-data": components["schemas"]["LibraryPreviewInputRequest"];
-      };
-    };
-    responses: {
-      200: {
-        content: {
-          "application/json": components["schemas"]["LibraryPreviewResponse"];
-        };
-      };
-      400: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      /** @description Authentication required. */
-      401: {
-        content: never;
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      409: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      413: {
-        content: {
-          "application/json": components["schemas"]["LibraryErrorResponse"];
         };
       };
       /** @description The request could not be completed. */
