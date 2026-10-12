@@ -64,11 +64,8 @@
     "users.0100_issue88_shard_62_users_relations"
   ],
   "current_leaf_ids": [
-    "assets.0125_unique_open_loan_per_maintenance",
     "compliance.0107_custodyreceipt_assignment_superseded",
-    "extras.0128_tenant_archive_leaf_markers",
-    "inventory.0104_consumable_tenant_scoped_uniqueness",
-    "organization.0104_tenant_archive_leaf_markers",
+    "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
     "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
     "software.0101_asset_archive_leaf_markers",
     "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
@@ -403,6 +400,7 @@
     "inventory.0102_kititem_leaf_deleted_at",
     "inventory.0103_stock_leaf_deleted_at",
     "inventory.0104_consumable_tenant_scoped_uniqueness",
+    "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
     "organization.0101_membership_external_id_and_more",
     "organization.0102_alter_tenantresourcegrant_options",
     "organization.0103_tenant_resource_grant_expiry",
@@ -422,11 +420,8 @@
     "users.0104_tenant_archive_leaf_markers"
   ],
   "post_transition_leaf_ids": [
-    "assets.0125_unique_open_loan_per_maintenance",
     "compliance.0107_custodyreceipt_assignment_superseded",
-    "extras.0128_tenant_archive_leaf_markers",
-    "inventory.0104_consumable_tenant_scoped_uniqueness",
-    "organization.0104_tenant_archive_leaf_markers",
+    "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
     "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
     "software.0101_asset_archive_leaf_markers",
     "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
