@@ -472,10 +472,4 @@ class BulkImportForm(forms.Form):
 
     def _create_instance(self, mapped_data):
         """Create a model instance from mapped data. Override in subclass."""
-        tenant = get_current_tenant()
-        if self.model is not None and tenant is not None and _model_has_concrete_field(self.model, "tenant"):
-            # Tenant ownership comes from the authorized task context, never a CSV/YAML cell.
-            tenant_field = self.model._meta.get_field("tenant")
-            if tenant_field.is_relation and tenant_field.many_to_one:
-                mapped_data = {**mapped_data, tenant_field.attname: tenant.pk}
         return self.model(**mapped_data)
