@@ -33,6 +33,7 @@
     "itambox/core/tests/test_graphql_throttle.py",
     "itambox/core/tests/test_htmx.py",
     "itambox/core/tests/test_import_boundaries.py",
+    "itambox/core/tests/test_kernel_leaves.py",
     "itambox/core/tests/test_intune_sync.py",
     "itambox/core/tests/test_kernel_leaves.py",
     "itambox/core/tests/test_label_print_perms.py",

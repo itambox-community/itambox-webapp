@@ -154,26 +154,30 @@ def _model_has_concrete_field(model, name):
 
 
 def resolve_related(related_model, value):
-    """Resolve a raw import cell to a related-object PK by id, then slug/name/
-    model/username/upn (case-sensitive then case-insensitive). Returns the PK, or
-    the original value (so model validation surfaces a clear per-row error)."""
+    """Resolve a raw cell by id, then natural key, within the actor's live scope."""
+    queryset = related_model.objects
+    if hasattr(queryset, "for_scope"):
+        queryset = queryset.for_scope(Scope.current())
+
     obj = None
     if value.isdigit():
-        obj = related_model.objects.filter(pk=int(value)).first()
+        obj = queryset.filter(pk=int(value)).first()
     lookup_fields = ["slug", "name", "model", "username", "upn"]
     if not obj:
         for lookup in lookup_fields:
             if _model_has_concrete_field(related_model, lookup):
-                obj = related_model.objects.filter(**{lookup: value}).first()
+                obj = queryset.filter(**{lookup: value}).first()
                 if obj:
                     break
     if not obj:
         for lookup in lookup_fields:
             if _model_has_concrete_field(related_model, lookup):
-                obj = related_model.objects.filter(**{f"{lookup}__iexact": value}).first()
+                obj = queryset.filter(**{f"{lookup}__iexact": value}).first()
                 if obj:
                     break
-    return obj.pk if obj else value
+    if not obj:
+        raise ValidationError(_("Select a valid choice."))
+    return obj.pk
 
 
 class BulkImportForm(forms.Form):
