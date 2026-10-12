@@ -113,12 +113,15 @@ class ImportJourneyTests(JourneyMixin, TestCase):
         view.kwargs = {"app_label": "assets", "model_name": "assettype"}
 
         try:
-            for scope, select_scope in (
-                ("tenant_group", lambda: (set_current_tenant_group(group), set_current_all_accessible(False))),
-                ("all_accessible", lambda: (set_current_tenant_group(None), set_current_all_accessible(True))),
-            ):
+            for scope in ("tenant_group", "all_accessible"):
                 with self.subTest(scope=scope):
-                    select_scope()
+                    self.clear_tenant_context()
+                    if scope == "tenant_group":
+                        set_current_tenant_group(group)
+                        set_current_all_accessible(False)
+                    else:
+                        set_current_tenant_group(None)
+                        set_current_all_accessible(True)
                     self.assertFalse(view.has_permission())
         finally:
             set_current_tenant_group(None)
