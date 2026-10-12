@@ -13,16 +13,21 @@ enqueues, with an actor whose only authority is a role grant (no superuser).
 from unittest.mock import patch
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 
 from assets.forms.import_forms import LocationBulkImportForm, ManufacturerBulkImportForm
-from assets.models import AssetType, Manufacturer
+from assets.models import Asset, AssetType, Manufacturer
 from core.importers.bulk_forms import _row_error_messages
-from core.models import Job
+from core.managers import Scope
+from core.models import Job, ObjectChange
 from core.tasks.csv_import import import_csv_task
-from core.tests.mixins import TenantTestMixin
+from core.tests.mixins import TenantTestMixin, grant
 from inventory.models import Accessory, Consumable
 from organization.models import Location, Site
+from licenses.models import License
+from organization.models import AssetHolder, Location, Role, Site, Tenant
+from software.models import Software
 
 IMPORT_PERMISSIONS = (
     "assets.add_assettype",
@@ -247,6 +252,206 @@ class TestAutoSlugImport(TenantTestMixin):
         assert job.status == Job.STATUS_FAILED
         assert "Row 2: slug: " in job.logs
         assert not Manufacturer.objects.filter(name="Lenovo").exists()
+
+    def _import_task(self, *, tenant, user, app_label, model_name, rows):
+        job = Job.objects.create(name="Bulk Import", tenant=tenant, status=Job.STATUS_PENDING)
+
+        import_csv_task(
+            job_id=job.pk,
+            rows_data=rows,
+            app_label=app_label,
+            model_name=model_name,
+            user_id=user.pk,
+            tenant_id=tenant.pk,
+        )
+
+        job.refresh_from_db()
+        return job
+
+    def test_tenant_imports_bind_owner_for_each_tenant_owned_model(self):
+        self.setup_tenant_context(
+            name="Tenant Import Owner",
+            slug="tenant-import-owner",
+            permissions=[
+                "assets.add_asset",
+                "inventory.add_accessory",
+                "inventory.add_consumable",
+                "licenses.add_license",
+                "organization.add_assetholder",
+                "organization.add_location",
+            ],
+        )
+        self.set_active_tenant(self.tenant, self.tenant_membership)
+        unrelated_tenant = Tenant.objects.create(name="Unrelated Import Tenant", slug="unrelated-import-tenant")
+
+        manufacturer = self._manufacturer()
+        site = Site.objects.create(name="Tenant Import Site", slug="tenant-import-site", tenant=self.tenant)
+        asset_location = Location.objects.create(
+            name="Tenant Import Location Reference",
+            slug="tenant-import-location-reference",
+            site=site,
+            tenant=self.tenant,
+        )
+        software = Software.objects.create(
+            name="Tenant Import Software",
+            manufacturer=manufacturer,
+            tenant=self.tenant,
+        )
+        private_note = "tenant-private-import-note"
+        cases = (
+            (
+                "inventory",
+                "accessory",
+                Accessory,
+                [{"name": "Tenant Import Accessory", "manufacturer": str(manufacturer.pk), "notes": private_note}],
+                {"name": "Tenant Import Accessory"},
+            ),
+            (
+                "inventory",
+                "consumable",
+                Consumable,
+                [{"name": "Tenant Import Consumable", "manufacturer": str(manufacturer.pk)}],
+                {"name": "Tenant Import Consumable"},
+            ),
+            (
+                "assets",
+                "asset",
+                Asset,
+                [{"name": "Tenant Import Asset", "location": str(asset_location.pk)}],
+                {"name": "Tenant Import Asset"},
+            ),
+            (
+                "organization",
+                "assetholder",
+                AssetHolder,
+                [{"first_name": "Tenant", "last_name": "Import Holder", "upn": "tenant-import-holder@example.test"}],
+                {"upn": "tenant-import-holder@example.test"},
+            ),
+            (
+                "organization",
+                "location",
+                Location,
+                [{"name": "Tenant Imported Location", "slug": "tenant-imported-location", "site": str(site.pk)}],
+                {"name": "Tenant Imported Location"},
+            ),
+            (
+                "licenses",
+                "license",
+                License,
+                [{"name": "Tenant Import License", "software": str(software.pk)}],
+                {"name": "Tenant Import License"},
+            ),
+        )
+
+        owner_scope = Scope(Scope.TENANT, tenant=self.tenant)
+        unrelated_scope = Scope(Scope.TENANT, tenant=unrelated_tenant)
+        failures = []
+        for app_label, model_name, model, rows, lookup in cases:
+            job = self._import_task(
+                tenant=self.tenant,
+                user=self.tenant_user,
+                app_label=app_label,
+                model_name=model_name,
+                rows=rows,
+            )
+            if job.status != Job.STATUS_COMPLETED:
+                failures.append(f"{model_name} import did not complete: {job.logs}")
+                continue
+
+            imported = model._base_manager.filter(**lookup).first()
+            if imported is None:
+                failures.append(f"{model_name} import created no row")
+                continue
+            if imported.tenant_id != self.tenant.pk:
+                failures.append(f"{model_name} owner was {imported.tenant_id}, expected {self.tenant.pk}")
+            if not model.objects.for_scope(owner_scope).filter(pk=imported.pk).exists():
+                failures.append(f"{model_name} is not visible in its owner tenant")
+            if model.objects.for_scope(unrelated_scope).filter(pk=imported.pk).exists():
+                failures.append(f"{model_name} is visible in an unrelated tenant")
+
+            if model is Accessory:
+                if imported.notes != private_note:
+                    failures.append("accessory private note was not preserved")
+                audit = ObjectChange._base_manager.filter(
+                    changed_object_type=ContentType.objects.get_for_model(Accessory),
+                    changed_object_id=imported.pk,
+                ).first()
+                if audit is None:
+                    failures.append("accessory import did not write an audit row")
+                elif audit.tenant_id != imported.tenant_id:
+                    failures.append(f"accessory/audit tenant mismatch: {imported.tenant_id} != {audit.tenant_id}")
+
+        assert not failures, "\\n".join(failures)
+
+    def test_same_consumable_can_be_imported_for_two_tenants(self):
+        self.setup_tenant_context(
+            name="Consumable Import Owner",
+            slug="consumable-import-owner",
+            permissions=["inventory.add_consumable"],
+        )
+        self.set_active_tenant(self.tenant, self.tenant_membership)
+        second_tenant = Tenant.objects.create(name="Consumable Import Second", slug="consumable-import-second")
+        second_role = Role.objects.create(
+            tenant=second_tenant,
+            name="Consumable Import Role",
+            permissions=["inventory.add_consumable"],
+        )
+        grant(self.tenant_user, second_tenant, second_role)
+        manufacturer = self._manufacturer()
+        rows = [{"name": "Same Imported Product", "manufacturer": str(manufacturer.pk), "part_number": "SKU-779"}]
+
+        first_job = self._import_task(
+            tenant=self.tenant,
+            user=self.tenant_user,
+            app_label="inventory",
+            model_name="consumable",
+            rows=rows,
+        )
+        second_job = self._import_task(
+            tenant=second_tenant,
+            user=self.tenant_user,
+            app_label="inventory",
+            model_name="consumable",
+            rows=rows,
+        )
+
+        assert first_job.result == {"imported": 1, "failed": 0, "total": 1}, first_job.logs
+        assert second_job.result == {"imported": 1, "failed": 0, "total": 1}, second_job.logs
+        products = Consumable._base_manager.filter(name="Same Imported Product", manufacturer=manufacturer)
+        assert set(products.values_list("tenant_id", flat=True)) == {self.tenant.pk, second_tenant.pk}
+        assert products.count() == 2
+
+    def test_asset_import_rejects_a_location_owned_by_another_tenant(self):
+        self.setup_tenant_context(
+            name="Asset Import Owner",
+            slug="asset-import-owner",
+            permissions=["assets.add_asset"],
+        )
+        self.set_active_tenant(self.tenant, self.tenant_membership)
+        foreign_tenant = Tenant.objects.create(name="Foreign Asset Import Tenant", slug="foreign-asset-import")
+        foreign_site = Site.objects.create(
+            name="Foreign Asset Import Site",
+            slug="foreign-asset-import-site",
+            tenant=foreign_tenant,
+        )
+        foreign_location = Location.objects.create(
+            name="Foreign Asset Import Location",
+            slug="foreign-asset-import-location",
+            site=foreign_site,
+            tenant=foreign_tenant,
+        )
+
+        job = self._import_task(
+            tenant=self.tenant,
+            user=self.tenant_user,
+            app_label="assets",
+            model_name="asset",
+            rows=[{"name": "Asset With Foreign Location", "location": str(foreign_location.pk)}],
+        )
+
+        assert job.status == Job.STATUS_FAILED
+        assert "different tenant" in job.logs
+        assert not Asset._base_manager.filter(name="Asset With Foreign Location").exists()
 
 
 class TestRowErrorMessages:
