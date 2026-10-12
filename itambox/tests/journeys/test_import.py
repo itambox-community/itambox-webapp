@@ -8,9 +8,11 @@ from django.urls import reverse
 from assets.models import Asset, Manufacturer, Supplier
 from core.importers.bulk_forms import is_model_importable
 from core.models import Job, ObjectChange
-from organization.models import AssetHolder, Tenant
+from inventory.models import Accessory
+from organization.models import AssetHolder, Location, Site, Tenant, TenantGroup
 from subscriptions.forms import SubscriptionBulkImportForm
 from subscriptions.models import Subscription
+
 
 from .support import JourneyMixin
 
@@ -218,3 +220,165 @@ class ImportJourneyTests(JourneyMixin, TestCase):
 
         form = LegacyTenantSubscriptionImportForm()
         self.assertEqual(form.map_row({"tenant": "forged-tenant"}), {})
+
+    def _audit_count(self, *models):
+        content_types = ContentType.objects.get_for_models(*models).values()
+        return ObjectChange._base_manager.filter(changed_object_type__in=content_types).count()
+
+    def _assert_reference_rejected(self, user, app_label, model_name, csv_text, target_model, *reference_models):
+        rows_before = target_model._base_manager.count()
+        audit_before = self._audit_count(target_model, *reference_models)
+
+        _preview, response = self._import(user, app_label, model_name, csv_text)
+
+        self.assertEqual(response.status_code, 302)
+        job = Job.objects.latest("created")
+        self.assertIn("Row 2:", job.logs)
+        self.assertEqual(job.status, Job.STATUS_FAILED)
+        self.assertEqual(target_model._base_manager.count(), rows_before)
+        self.assertEqual(self._audit_count(target_model, *reference_models), audit_before)
+
+    def test_import_rejects_foreign_supplier_ids_slugs_and_names(self):
+        foreign_tenant = Tenant.objects.create(name="Private import tenant", slug="private-import-tenant")
+        supplier = Supplier.objects.create(
+            name="Private import supplier", slug="private-import-supplier", tenant=foreign_tenant
+        )
+        manufacturer = Manufacturer.objects.create(name="Import supplier manufacturer", slug="import-supplier-mfr")
+        user = self.make_member("import-supplier-ref", {"inventory.add_accessory"})
+
+        for index, value in enumerate((str(supplier.pk), supplier.slug, supplier.name), start=1):
+            with self.subTest(reference=value):
+                self._assert_reference_rejected(
+                    user,
+                    "inventory",
+                    "accessory",
+                    f"name,manufacturer,supplier\nPrivate reference {index},{manufacturer.name},{value}\n",
+                    Accessory,
+                    Supplier,
+                )
+
+    def test_import_rejects_foreign_site_ids_slugs_and_names(self):
+        foreign_tenant = Tenant.objects.create(name="Private site tenant", slug="private-site-tenant")
+        site = Site.objects.create(name="Private import site", slug="private-import-site", tenant=foreign_tenant)
+        user = self.make_member("import-site-ref", {"organization.add_location"})
+
+        for index, value in enumerate((str(site.pk), site.slug, site.name), start=1):
+            with self.subTest(reference=value):
+                self._assert_reference_rejected(
+                    user,
+                    "organization",
+                    "location",
+                    f"name,site\nPrivate location {index},{value}\n",
+                    Location,
+                    Site,
+                )
+
+    def test_import_rejects_foreign_location_parent_ids_slugs_and_names(self):
+        foreign_tenant = Tenant.objects.create(name="Private parent tenant", slug="private-parent-tenant")
+        foreign_site = Site.objects.create(
+            name="Private parent site", slug="private-parent-site", tenant=foreign_tenant
+        )
+        parent = Location.objects.create(
+            name="Private import parent", slug="private-import-parent", site=foreign_site, tenant=foreign_tenant
+        )
+        site = Site.objects.create(name="Import destination site", slug="import-destination-site", tenant=self.tenant)
+        user = self.make_member("import-parent-ref", {"organization.add_location"})
+
+        for index, value in enumerate((str(parent.pk), parent.slug, parent.name), start=1):
+            with self.subTest(reference=value):
+                self._assert_reference_rejected(
+                    user,
+                    "organization",
+                    "location",
+                    f"name,site,parent\nChild location {index},{site.pk},{value}\n",
+                    Location,
+                    Location,
+                )
+
+    def test_import_rejects_numeric_ids_of_soft_deleted_supplier_site_and_location(self):
+        manufacturer = Manufacturer.objects.create(name="Deleted reference manufacturer", slug="deleted-ref-mfr")
+        supplier = Supplier.objects.create(
+            name="Deleted import supplier", slug="deleted-import-supplier", tenant=self.tenant
+        )
+        site = Site.objects.create(name="Deleted import site", slug="deleted-import-site", tenant=self.tenant)
+        parent_site = Site.objects.create(name="Parent import site", slug="parent-import-site", tenant=self.tenant)
+        parent = Location.objects.create(
+            name="Deleted import parent", slug="deleted-import-parent", site=parent_site, tenant=self.tenant
+        )
+        supplier.delete()
+        site.delete()
+        parent.delete()
+        user = self.make_member("import-deleted-ref", {"inventory.add_accessory", "organization.add_location"})
+
+        self._assert_reference_rejected(
+            user,
+            "inventory",
+            "accessory",
+            f"name,manufacturer,supplier\nDeleted supplier ref,{manufacturer.name},{supplier.pk}\n",
+            Accessory,
+            Supplier,
+        )
+        self._assert_reference_rejected(
+            user,
+            "organization",
+            "location",
+            f"name,site\nDeleted site ref,{site.pk}\n",
+            Location,
+            Site,
+        )
+        self._assert_reference_rejected(
+            user,
+            "organization",
+            "location",
+            f"name,site,parent\nDeleted parent ref,{parent_site.pk},{parent.pk}\n",
+            Location,
+            Location,
+        )
+
+    def test_import_keeps_same_tenant_global_and_group_visible_suppliers(self):
+        group = TenantGroup.objects.create(name="Import sharing group", slug="import-sharing-group")
+        self.tenant.group = group
+        self.tenant.save()
+        suppliers = [
+            Supplier.objects.create(name="Tenant import supplier", slug="tenant-import-supplier", tenant=self.tenant),
+            Supplier.objects.create(name="Global import supplier", slug="global-import-supplier"),
+            Supplier.objects.create(name="Group import supplier", slug="group-import-supplier", tenant_group=group),
+        ]
+        manufacturer = Manufacturer.objects.create(name="Shared import manufacturer", slug="shared-import-mfr")
+        user = self.make_member("import-shared-ref", {"inventory.add_accessory"})
+        names = ("Tenant supplier accessory", "Global supplier accessory", "Group supplier accessory")
+        csv_text = "name,manufacturer,supplier\n" + "".join(
+            f"{name},{manufacturer.name},{supplier_value}\n"
+            for name, supplier_value in zip(
+                names, (str(suppliers[0].pk), suppliers[1].slug, suppliers[2].name), strict=True
+            )
+        )
+
+        _preview, response = self._import(user, "inventory", "accessory", csv_text)
+
+        self.assertEqual(response.status_code, 302)
+        job = Job.objects.latest("created")
+        self.assertEqual(job.status, Job.STATUS_COMPLETED)
+        imported = dict(Accessory._base_manager.filter(name__in=names).values_list("name", "supplier_id"))
+        self.assertEqual(imported, dict(zip(names, (supplier.pk for supplier in suppliers), strict=True)))
+
+    def test_import_keeps_same_tenant_site_and_parent_location_references(self):
+        site = Site.objects.create(name="Visible import site", slug="visible-import-site", tenant=self.tenant)
+        parent = Location.objects.create(
+            name="Visible import parent", slug="visible-import-parent", site=site, tenant=self.tenant
+        )
+        user = self.make_member("import-visible-location-ref", {"organization.add_location"})
+
+        _preview, response = self._import(
+            user,
+            "organization",
+            "location",
+            f"name,site,parent\nVisible import child,{site.pk},{parent.slug}\n",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        job = Job.objects.latest("created")
+        self.assertEqual(job.status, Job.STATUS_COMPLETED)
+        child = Location._base_manager.get(name="Visible import child")
+        self.assertEqual(child.site_id, site.pk)
+        self.assertEqual(child.parent_id, parent.pk)
