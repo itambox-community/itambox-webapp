@@ -12,25 +12,29 @@
 {# Object details rendered via panel layout #}
 {# --- Tabs Hook --- #}
 {% block extra_tabs %}
-  <li class="nav-item" role="presentation">
-    <a href="?tab=assets-tab"
-       data-bs-target="#assets-tab"
-       class="nav-link {% if request.GET.tab == 'assets-tab' %}active{% endif %}"
-       data-bs-toggle="tab"
-       hx-boost="false"
-       role="tab">
-      <i class="mdi mdi-laptop me-1 text-green"></i>
-      {% translate "Assets" %} <span class="badge bg-green-lt ms-2">{{ assets_table.rows|length }}</span>
-    </a>
-  </li>
+  {% if can_view_assets %}
+    <li class="nav-item" role="presentation">
+      <a href="?tab=assets-tab"
+         data-bs-target="#assets-tab"
+         class="nav-link {% if request.GET.tab == 'assets-tab' %}active{% endif %}"
+         data-bs-toggle="tab"
+         hx-boost="false"
+         role="tab">
+        <i class="mdi mdi-laptop me-1 text-green"></i>
+        {% translate "Assets" %} <span class="badge bg-green-lt ms-2">{{ assets_table.rows|length }}</span>
+      </a>
+    </li>
+  {% endif %}
 {% endblock extra_tabs %}
 {# --- Related Objects (Sidebar) --- #}
 {% block related_objects %}
 {% endblock related_objects %}
 {# --- Extra Tab Panes --- #}
 {% block extra_tab_panes %}
-  {# Assets Tab Pane #}
-  {% translate "Assets in this Role" as t_assets %}
-  {% translate "No assets have been assigned this role yet." as e_assets %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assets-tab" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-laptop" %}
+  {% if can_view_assets %}
+    {# Assets Tab Pane #}
+    {% translate "Assets in this Role" as t_assets %}
+    {% translate "No assets have been assigned this role yet." as e_assets %}
+    {% include 'generic/includes/related_table_tab.html' with tab="assets-tab" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-laptop" %}
+  {% endif %}
 {% endblock extra_tab_panes %}
