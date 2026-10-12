@@ -42,7 +42,7 @@ class ImportJourneyTests(JourneyMixin, TestCase):
         content_type = ContentType.objects.get_for_model(AssetType)
         before_types = AssetType.objects.count()
         before_memberships = AssetTypeFieldset.objects.count()
-        before_changes = ObjectChange.objects.filter(content_type=content_type).count()
+        before_changes = ObjectChange.objects.filter(changed_object_type=content_type).count()
 
         for import_format, import_text in (
             ("csv", "manufacturer,model\nJourney Import Maker,Customer CSV Type\n"),
@@ -61,7 +61,7 @@ class ImportJourneyTests(JourneyMixin, TestCase):
 
         self.assertEqual(AssetType.objects.count(), before_types)
         self.assertEqual(AssetTypeFieldset.objects.count(), before_memberships)
-        self.assertEqual(ObjectChange.objects.filter(content_type=content_type).count(), before_changes)
+        self.assertEqual(ObjectChange.objects.filter(changed_object_type=content_type).count(), before_changes)
 
     def test_provider_add_assettype_role_can_import_csv_and_yaml(self):
         Manufacturer.objects.create(name="Journey Provider Maker", slug="journey-provider-maker")

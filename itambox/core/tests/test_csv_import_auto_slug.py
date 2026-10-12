@@ -85,7 +85,7 @@ class TestAutoSlugImport(TenantTestMixin):
         content_type = ContentType.objects.get_for_model(AssetType)
         before_types = AssetType.objects.count()
         before_memberships = AssetTypeFieldset.objects.count()
-        before_changes = ObjectChange.objects.filter(content_type=content_type).count()
+        before_changes = ObjectChange.objects.filter(changed_object_type=content_type).count()
 
         job = self._import(
             app_label="assets",
@@ -96,7 +96,7 @@ class TestAutoSlugImport(TenantTestMixin):
         assert job.status == Job.STATUS_FAILED
         assert AssetType.objects.count() == before_types
         assert AssetTypeFieldset.objects.count() == before_memberships
-        assert ObjectChange.objects.filter(content_type=content_type).count() == before_changes
+        assert ObjectChange.objects.filter(changed_object_type=content_type).count() == before_changes
 
     def test_provider_grant_outside_active_provider_tenant_cannot_create_asset_type(self):
         self._manufacturer()
@@ -122,7 +122,7 @@ class TestAutoSlugImport(TenantTestMixin):
         content_type = ContentType.objects.get_for_model(AssetType)
         before_types = AssetType.objects.count()
         before_memberships = AssetTypeFieldset.objects.count()
-        before_changes = ObjectChange.objects.filter(content_type=content_type).count()
+        before_changes = ObjectChange.objects.filter(changed_object_type=content_type).count()
 
         import_csv_task(
             job_id=job.pk,
@@ -137,7 +137,7 @@ class TestAutoSlugImport(TenantTestMixin):
         assert job.status == Job.STATUS_FAILED
         assert AssetType.objects.count() == before_types
         assert AssetTypeFieldset.objects.count() == before_memberships
-        assert ObjectChange.objects.filter(content_type=content_type).count() == before_changes
+        assert ObjectChange.objects.filter(changed_object_type=content_type).count() == before_changes
 
     def test_accessory_row_without_slug_imports_with_the_generated_slug(self):
         self._manufacturer()
