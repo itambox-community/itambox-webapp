@@ -33,7 +33,7 @@ from assets.services.specifications.contracts import (
 )
 from core.models import ObjectChange
 from core.tests.mixins import TenantTestMixin
-from extras.models import CustomField, CustomFieldset, CustomFieldsetField, Event, SpecificationLibrary
+from extras.models import CustomField, CustomFieldset, CustomFieldsetField, Event
 from organization.models import Role, Tenant
 from organization.services.access_scope import ActorContextDTO, authentication_revision_for_actor
 
@@ -79,13 +79,11 @@ class SpecificationCompositionCommandTests(TenantTestMixin, TestCase):
             lifecycle=CustomFieldset.LIFECYCLE_DEPRECATED,
             management_kind=CustomFieldset.MANAGEMENT_LOCAL,
         )
-        self.library = SpecificationLibrary.objects.create(namespace="composition-library", label="Composition library")
-        self.empty_library_fieldset = CustomFieldset.objects.create(
-            namespace=self.library.namespace,
+        self.empty_fieldset = CustomFieldset.objects.create(
+            namespace="local",
             slug="empty",
-            label="Empty library fieldset",
-            management_kind=CustomFieldset.MANAGEMENT_LIBRARY,
-            library=self.library,
+            label="Empty fieldset",
+            management_kind=CustomFieldset.MANAGEMENT_LOCAL,
         )
 
         AssetTypeFieldset.objects.create(asset_type=self.type, fieldset=self.first, position=1)
@@ -632,18 +630,18 @@ class SpecificationCompositionCommandTests(TenantTestMixin, TestCase):
         self.assertNotEqual(resource_revision, _resource_after)
         self.assertEqual(definition_revision, definition_after)
 
-    def test_category_defaults_can_include_empty_fieldset_and_lock_library(self):
+    def test_category_defaults_can_include_empty_fieldset(self):
         resource_revision = self._category_plan()
         result = set_category_defaults(
             actor=self._actor(),
             category_id=self.category.pk,
             expected_resource_revision=resource_revision,
-            fieldsets=self._selection(self.empty_library_fieldset),
+            fieldsets=self._selection(self.empty_fieldset),
         )
         self.assertIsInstance(result, OwnerChangedDTO)
         self.assertEqual(
             list(CategoryDefaultFieldset.objects.filter(category=self.category).values_list("fieldset_id", "position")),
-            [(self.empty_library_fieldset.pk, 1)],
+            [(self.empty_fieldset.pk, 1)],
         )
 
     def test_missing_category_is_nondisclosing(self):
@@ -801,14 +799,12 @@ class SpecificationCompositionCommandTests(TenantTestMixin, TestCase):
             self.assertIsNone(result.safe_owner)
             self.assertEqual(result.issues[0].code, "OBJECT_UNAVAILABLE")
 
-    def test_category_locks_current_and_proposed_empty_libraries_in_pk_order_before_owner(self):
-        other_library = SpecificationLibrary.objects.create(namespace="other-library", label="Other")
+    def test_category_defaults_take_only_the_owner_row_lock(self):
         other = CustomFieldset.objects.create(
-            namespace=other_library.namespace,
+            namespace="other-local",
             slug="empty",
             label="Empty",
-            management_kind=CustomFieldset.MANAGEMENT_LIBRARY,
-            library=other_library,
+            management_kind=CustomFieldset.MANAGEMENT_LOCAL,
         )
         CategoryDefaultFieldset.objects.filter(category=self.category).delete()
         CategoryDefaultFieldset.objects.create(category=self.category, fieldset=other, position=1)
@@ -825,15 +821,11 @@ class SpecificationCompositionCommandTests(TenantTestMixin, TestCase):
                 actor=self._actor(),
                 category_id=self.category.pk,
                 expected_resource_revision=revision,
-                fieldsets=self._selection(self.empty_library_fieldset),
+                fieldsets=self._selection(self.empty_fieldset),
             )
         self.assertIsInstance(result, OwnerChangedDTO)
-        self.assertEqual(len(queries), 2)
-        library_sql, params = queries[0]
-        self.assertIn('FROM "extras_specificationlibrary"', library_sql)
-        self.assertIn('ORDER BY "extras_specificationlibrary"."id" ASC', library_sql)
-        self.assertEqual(tuple(params), tuple(sorted((self.library.pk, other_library.pk))))
-        self.assertIn('FROM "assets_category"', queries[1][0])
+        self.assertEqual(len(queries), 1)
+        self.assertIn('FROM "assets_category"', queries[0][0])
 
     def test_missing_type_is_nondisclosing(self):
         result = set_asset_type_composition(

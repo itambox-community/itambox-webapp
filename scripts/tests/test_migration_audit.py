@@ -548,7 +548,7 @@ class MigrationAuditTests(unittest.TestCase):
         self.assertEqual(inventory["summary"]["replacement_shards"], 62)
         self.assertEqual(inventory["summary"]["replacement_targets"], 262)
         self.assertEqual(inventory["summary"]["explicit_replacement_chain_edges"], 61)
-        self.assertEqual(inventory["summary"]["post_transition_migrations"], 68)
+        self.assertEqual(inventory["summary"]["post_transition_migrations"], 70)
         self.assertEqual(
             inventory["post_transition_migrations"],
             [
@@ -567,6 +567,7 @@ class MigrationAuditTests(unittest.TestCase):
                 "assets.0123_asset_archive_leaf_markers",
                 "assets.0124_tenant_archive_leaf_markers",
                 "assets.0125_unique_open_loan_per_maintenance",
+                "assets.0126_remove_type_library_identity",
                 "compliance.0101_alter_custodyreceipt_signed_at",
                 "compliance.0102_clear_unsigned_receipt_timestamps",
                 "compliance.0103_alter_custodyreceipt_options",
@@ -598,6 +599,7 @@ class MigrationAuditTests(unittest.TestCase):
                 "extras.0126_scheduledreport_last_run_archive",
                 "extras.0127_retire_report_designer_legacy",
                 "extras.0128_tenant_archive_leaf_markers",
+                "extras.0129_remove_type_library",
                 "inventory.0101_alter_accessoryassignment_options_and_more",
                 "inventory.0102_kititem_leaf_deleted_at",
                 "inventory.0103_stock_leaf_deleted_at",
@@ -661,8 +663,10 @@ class MigrationAuditTests(unittest.TestCase):
                 "assets.0101_seed_canonical_missing_status",
                 "assets.0104_asset_type_core_vocabulary",
                 "assets.0107_asset_type_specification_guards",
+                "assets.0126_remove_type_library_identity",
                 "extras.0108_alertlog_delivery_outcome",
                 "extras.0117_asset_type_definition_guards",
+                "extras.0129_remove_type_library",
             ],
         )
         replacement_extension = next(

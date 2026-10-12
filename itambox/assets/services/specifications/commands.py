@@ -41,7 +41,6 @@ from organization.services.catalogue_authorization import has_provider_catalogue
 from ._command_support import (
     json_values_equal,
     load_effective_definition,
-    lock_relevant_libraries,
     map_reference_error,
     map_structure_error,
     normalize_patch,
@@ -230,7 +229,6 @@ def update_asset_type_specifications(
 
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(using=_DEFAULT_DB):
-            lock_relevant_libraries((type_id,), "asset_type", using=_DEFAULT_DB)
             return _update_asset_type_locked(
                 actor=actor,
                 type_id=type_id,
@@ -260,19 +258,6 @@ def _validate_asset_command_inputs(
     revision_string(expected_resource_revision, "expected_resource_revision")
     revision_string(expected_definition_revision, "expected_definition_revision")
     return asset_id
-
-
-def _preliminary_asset_type_ids(
-    asset_id: int,
-    destination: DestinationAssetTypeSelectionDTO,
-) -> tuple[int, ...]:
-    # unscoped: command locks and re-reads the row regardless of soft-delete state; the service authorizes scope
-    # itself
-    current_type_id = (
-        Asset._base_manager.using(_DEFAULT_DB).filter(pk=asset_id).values_list("asset_type_id", flat=True).first()
-    )
-    ids = {value for value in (current_type_id, destination.asset_type_id) if value is not None}
-    return tuple(sorted(ids))
 
 
 def _reauthorize_asset_update(
@@ -429,11 +414,6 @@ def update_asset_specifications(
 
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(using=_DEFAULT_DB):
-            lock_relevant_libraries(
-                _preliminary_asset_type_ids(owner_id, destination),
-                "asset",
-                using=_DEFAULT_DB,
-            )
             return _update_asset_locked(
                 authorization=authorization,
                 owner_id=owner_id,

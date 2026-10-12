@@ -87,7 +87,6 @@ from ._command_support import (
     issue,
     json_values_equal,
     load_prospective_definition,
-    lock_relevant_libraries_for_composition,
     map_structure_error,
     normalize_patch,
     positive_id,
@@ -391,11 +390,11 @@ def _lock_manufacturer(manufacturer_id: int):
 
 
 def _category_default_identities_read(category_id: int, *, using: str = _DEFAULT_DB) -> tuple[str, ...]:
-    """Raw structural read of default identities for stable library locks.
+    """Raw structural read of a Category's default Fieldset identities.
 
-    This is lock discovery, not the authoritative snapshot: unresolvable
-    Fieldsets are skipped here and surface as the structure error from the
-    locked recomputation, after the authority and token gates.
+    This is not the authoritative snapshot: unresolvable Fieldsets are skipped
+    here and surface as the structure error from the locked recomputation,
+    after the authority and token gates.
     """
     rows = list(
         CategoryDefaultFieldset.objects.using(using)
@@ -734,24 +733,17 @@ def _create_front_state(
     native: AssetTypeNativeCreateInputDTO,
     fieldsets: FieldsetSelectionDTO,
 ):
-    """Locked row-2 preconditions: authorization, then references and libraries.
+    """Locked row-2 preconditions: authorization, then references.
 
-    Authorization is reloaded before any lock discovery or structural read so
-    a broken/unresolvable graph can never disclose structure to an
-    unauthorized caller.  Library locks (raw identity read) precede the
-    reference-row locks, and the rows themselves are locked in deterministic
-    model-label/PK order.
+    Authorization is reloaded before any structural read so a
+    broken/unresolvable graph can never disclose structure to an unauthorized
+    caller.  The reference rows are locked in deterministic model-label/PK
+    order.
     """
     actor_model = _reloaded_authorized_actor(actor, AssetType, _ADD_PERMISSION)
     if actor_model is None:
         return unavailable()
     proposed_identities = _proposed_identities_read(native, fieldsets)
-    lock_relevant_libraries_for_composition(
-        (),
-        proposed_identities,
-        _TARGET_KIND,
-        using=_DEFAULT_DB,
-    )
     locks = _lock_create_references(native, actor)
     if isinstance(locks, CommandRejectedDTO):
         return locks
@@ -800,12 +792,6 @@ def _create_back_state(
                 ),
             )
         authoritative_identities = _proposed_identities(native, fieldsets, snapshot)
-        lock_relevant_libraries_for_composition(
-            (),
-            authoritative_identities,
-            _TARGET_KIND,
-            using=_DEFAULT_DB,
-        )
     plan = _prospective_definition_or_rejection(
         authoritative_identities,
         stored_values={},
@@ -853,12 +839,6 @@ def _preview_create_plan(
     actor: ActorContextDTO,
 ):
     proposed_identities = _proposed_identities(native, fieldsets, snapshot)
-    lock_relevant_libraries_for_composition(
-        (),
-        proposed_identities,
-        _TARGET_KIND,
-        using=_DEFAULT_DB,
-    )
     plan = _prospective_definition_or_rejection(
         proposed_identities,
         stored_values={},
@@ -1158,16 +1138,6 @@ def _apply_preview_plan(
     owner_ref: OwnerRefDTO,
 ):
     proposed_identities = tuple(str(membership.fieldset_identity) for membership in snapshot.memberships)
-    current_ids = tuple(
-        row["fieldset_id"] for row in _current_membership_rows(AssetType, asset_type_id, using=_DEFAULT_DB)
-    )
-    lock_relevant_libraries_for_composition(
-        current_ids,
-        proposed_identities,
-        _TARGET_KIND,
-        asset_type_ids=(asset_type_id,),
-        using=_DEFAULT_DB,
-    )
     stored_values = stored_values_for(owner)
     plan = _prospective_definition_or_rejection(
         proposed_identities,
@@ -1286,11 +1256,10 @@ def _apply_front_state(
     actor: ActorContextDTO,
     asset_type_id: int,
 ):
-    """Locked row-2 preconditions: authorization, owner, category, libraries.
+    """Locked row-2 preconditions: authorization, owner, category.
 
     Authorization precedes every lock; the owner and Category rows are locked
-    in stable ``(model identity, primary key)`` order after the library locks
-    that use a raw identity read of the Category defaults.
+    in stable ``(model identity, primary key)`` order.
     """
     actor_model = _reloaded_authorized_actor(actor, AssetType, _CHANGE_PERMISSION)
     if actor_model is None:
@@ -1304,17 +1273,6 @@ def _apply_front_state(
     if _lock_category(category_id) is None:
         return unavailable()
     owner_ref = OwnerRefDTO("asset_type", asset_type_id)
-    read_identities = _category_default_identities_read(category_id)
-    current_ids = tuple(
-        row["fieldset_id"] for row in _current_membership_rows(AssetType, asset_type_id, using=_DEFAULT_DB)
-    )
-    lock_relevant_libraries_for_composition(
-        current_ids,
-        read_identities,
-        _TARGET_KIND,
-        asset_type_ids=(asset_type_id,),
-        using=_DEFAULT_DB,
-    )
     return owner, actor_model, owner_ref
 
 

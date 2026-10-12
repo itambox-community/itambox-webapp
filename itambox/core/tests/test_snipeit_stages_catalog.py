@@ -1172,17 +1172,13 @@ class TestSnipeITCatalogStages(TenantTestMixin):
 
     def test_asset_model_import_refuses_library_managed_source_match(self):
         from assets.models import AssetType, Manufacturer
-        from extras.models import SpecificationLibrary
 
         manufacturer = Manufacturer.objects.create(name="Managed Stage Maker")
-        library = SpecificationLibrary.objects.create(namespace="managed-stage")
         asset_type = AssetType.objects.create(
             manufacturer=manufacturer,
             model="Managed Stage Model",
             slug="managed-stage-model",
             management_kind=AssetType.MANAGEMENT_LIBRARY,
-            library=library,
-            library_definition_key="managed-model",
             custom_field_data={"snipeit_id": "118"},
         )
         deps = AssetModelDependencies({118: manufacturer}, {}, {}, {})
@@ -1246,7 +1242,6 @@ class TestSnipeITCatalogStages(TenantTestMixin):
             manufacturer=manufacturer,
             model="Deleted Stage Model",
             slug="deleted-stage-model",
-            lifecycle=AssetType.LIFECYCLE_ACTIVE,
             deleted_at=timezone.now(),
             custom_field_data={"snipeit_id": "120"},
         )

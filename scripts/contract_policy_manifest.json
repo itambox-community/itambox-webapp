@@ -280,8 +280,7 @@
     "core.change_recyclebin",
     "core.delete_recyclebin",
     "procurement.receive_purchaseorder",
-    "procurement.approve_purchaseorder",
-    "extras.manage_specification_library"
+    "procurement.approve_purchaseorder"
   ],
   "required_statements": [
     {

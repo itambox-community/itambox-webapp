@@ -19,7 +19,7 @@ from assets.services.specifications.contracts import CommandRejectedDTO
 from assets.specification_adapters import actor_context_for_user, native_asset_type_create_input, patch_from_mapping
 from core.tests.mixins import TenantTestMixin
 from extras.api.serializers import CustomFieldSerializer, CustomFieldsetSerializer
-from extras.models import CustomField, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField, SpecificationLibrary
+from extras.models import CustomField, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField
 from itambox.api.viewsets import ITAMBoxModelViewSet
 from itambox.views.generic import ObjectDeleteView, ObjectEditView
 
@@ -214,12 +214,10 @@ class CustomFieldAPISerializerContractTests(TenantTestMixin, TestCase):
         self.assertEqual(field.management_kind, CustomField.MANAGEMENT_CORE)
 
     def test_api_delete_rejects_library_definition(self):
-        library = SpecificationLibrary.objects.create(namespace="api-contract", label="API contract")
         field = CustomField.objects.create(
             name="api_managed_delete",
             label="API Managed Delete",
-            namespace=library.namespace,
-            library=library,
+            namespace="api-contract",
             activation=CustomField.ACTIVATION_GLOBAL,
             management_kind=CustomField.MANAGEMENT_LIBRARY,
         )

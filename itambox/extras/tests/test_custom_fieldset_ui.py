@@ -5,7 +5,7 @@ import pytest
 from django.urls import reverse
 from django.utils.html import format_html
 
-from extras.models import CustomFieldset, SpecificationLibrary
+from extras.models import CustomFieldset
 from extras.tables import CustomFieldsetTable
 
 
@@ -48,13 +48,11 @@ def test_list_name_orders_by_label(admin_client, order_by, expected):
 @pytest.fixture
 def fieldset(request):
     kind = request.param
-    library = SpecificationLibrary.objects.create(namespace="issue516") if kind == "library" else None
     return CustomFieldset.objects.create(
-        namespace=library.namespace if library else kind,
+        namespace="issue516" if kind == "library" else kind,
         slug=f"{kind}-fieldset",
         label=f"{kind.title()} Fieldset",
         management_kind=kind,
-        library=library,
     )
 
 

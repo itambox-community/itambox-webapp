@@ -2,7 +2,6 @@ from functools import cache
 
 from django.utils.translation import gettext_lazy as _
 
-from core.context import get_current_all_accessible, get_current_tenant, get_current_tenant_group
 from core.tenant_scope import accessible_tenant_ids, tenant_model
 from itambox.capabilities import registry
 
@@ -54,37 +53,6 @@ def _can_admin_provider(user):
         or user.has_perm("organization.change_tenant", obj=tenant)
         for tenant in _user_provider_tenants(user)
     )
-
-
-def _has_active_provider_catalogue_permission(user, permission):
-    """Mirror the command guard for catalogue navigation visibility.
-
-    Core navigation cannot depend on an application service, so keep this display
-    predicate on the platform side and leave write authorization to the services.
-    """
-    if not getattr(user, "is_authenticated", False) or not getattr(user, "is_active", False):
-        return False
-    if getattr(user, "is_superuser", False):
-        return True
-    if get_current_tenant_group() is not None or get_current_all_accessible():
-        return False
-    provider_tenant = get_current_tenant()
-    if (
-        provider_tenant is None
-        or not getattr(provider_tenant, "is_provider", False)
-        or getattr(provider_tenant, "deleted_at", None) is not None
-    ):
-        return False
-    check_permission = getattr(user, "has_perm", None)
-    return bool(check_permission and check_permission(permission, obj=provider_tenant))
-
-
-def _can_view_type_libraries(user):
-    return _has_active_provider_catalogue_permission(user, "extras.view_specificationlibrary")
-
-
-def _can_manage_type_libraries(user):
-    return _has_active_provider_catalogue_permission(user, "extras.manage_specification_library")
 
 
 def can_manage_user_groups(user):
@@ -188,19 +156,6 @@ ASSETS_MENU = Menu(
             label=_("Catalog"),
             items=(
                 get_model_item("assets", "assettype", _("Asset Types")),
-                MenuItem(
-                    link="assets:type_library_list",
-                    link_text=_("Type Libraries"),
-                    condition=_can_view_type_libraries,
-                    buttons=(
-                        MenuItemButton(
-                            link="assets:type_library_import",
-                            title=_("Import Library"),
-                            icon_class="mdi mdi-upload",
-                            condition=_can_manage_type_libraries,
-                        ),
-                    ),
-                ),
                 get_model_item("assets", "manufacturer", _("Manufacturers")),
                 get_model_item("assets", "category", _("Categories")),
             ),

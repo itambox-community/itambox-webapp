@@ -33,7 +33,6 @@ from ._command_support import (
     json_values_equal,
     load_effective_definition,
     load_prospective_definition,
-    lock_relevant_libraries_for_composition,
     map_structure_error,
     normalize_patch,
     positive_id,
@@ -111,8 +110,7 @@ def _validate_proposed_graph(
     inside the same Fieldset, including a Fieldset whose members all target
     the Asset kind and whose Fields contribute only to Asset specifications.
     This validation owns structure, existence, lifecycle, and activation: an
-    empty Fieldset stays selectable (it locks its library and contributes
-    nothing), and every member must resolve to an existing active, composed
+    empty Fieldset stays selectable (it contributes nothing), and every member must resolve to an existing active, composed
     Field.
     """
     fields_by_identity = {str(field.identity): field for field in graph.fields_by_key.values()}
@@ -469,16 +467,6 @@ def set_asset_type_composition(
     )
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(exclusive=True, using=_DEFAULT_DB):
-            current_ids = tuple(
-                row["fieldset_id"] for row in _current_membership_rows(AssetType, asset_type_id, using=_DEFAULT_DB)
-            )
-            lock_relevant_libraries_for_composition(
-                current_ids,
-                fieldsets.identities,
-                _TARGET_KIND,
-                asset_type_ids=(asset_type_id,),
-                using=_DEFAULT_DB,
-            )
             return _set_type_locked(
                 actor=actor,
                 type_id=asset_type_id,
@@ -507,15 +495,6 @@ def set_category_defaults(
     )
     with transaction.atomic(using=_DEFAULT_DB):
         with catalogue_transaction_lock(exclusive=True, using=_DEFAULT_DB):
-            current_ids = tuple(
-                row["fieldset_id"] for row in _current_membership_rows(Category, category_id, using=_DEFAULT_DB)
-            )
-            lock_relevant_libraries_for_composition(
-                current_ids,
-                fieldsets.identities,
-                _TARGET_KIND,
-                using=_DEFAULT_DB,
-            )
             return _set_category_locked(
                 actor=actor,
                 category_id=category_id,

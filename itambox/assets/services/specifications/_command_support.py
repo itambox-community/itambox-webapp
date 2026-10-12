@@ -1,7 +1,6 @@
 """Private support for the locked specification value commands.
 
-This module owns only command plumbing: stable owner revisions, relevant
-catalogue-library locking, conversion of pure codec issues, and the short
+This module owns only command plumbing: stable owner revisions, conversion of pure codec issues, and the short
 actor context needed by the existing ChangeLoggingMixin.  It does not define a
 second specification resolver or value codec.
 """
@@ -35,12 +34,9 @@ from assets.services.specifications.contracts import (
     SpecificationResolutionRequest,
 )
 from assets.services.specifications.loader import (
-    composition_library_ids,
     load_prospective_specification_graph,
     load_specification_graph,
-    relevant_library_ids,
 )
-from extras.models import SpecificationLibrary
 from extras.services.custom_field_data import actor_change_context, write_custom_field_data
 from extras.services.specifications.codecs import (
     NormalizedSpecificationPatch,
@@ -229,41 +225,6 @@ def stored_values_for(owner: Asset | AssetType) -> dict[str, object]:
     return dict(values)
 
 
-def lock_relevant_libraries(
-    asset_type_ids: Sequence[int],
-    target_kind: TargetKind,
-    *,
-    using: str = DEFAULT_DB_ALIAS,
-) -> tuple[int, ...]:
-    """Lock relevant library rows in ascending primary-key order."""
-    library_ids = relevant_library_ids(asset_type_ids, target_kind, using=using)
-    if library_ids:
-        list(SpecificationLibrary.objects.using(using).select_for_update().filter(pk__in=library_ids).order_by("pk"))
-    return library_ids
-
-
-def lock_relevant_libraries_for_composition(
-    current_fieldset_ids: Sequence[int],
-    proposed_fieldset_identities: Sequence[str],
-    target_kind: TargetKind,
-    *,
-    asset_type_ids: Sequence[int] = (),
-    using: str = DEFAULT_DB_ALIAS,
-) -> tuple[int, ...]:
-    """Lock libraries reachable from both the current and proposed graph."""
-    library_ids = composition_library_ids(
-        current_fieldset_ids,
-        proposed_fieldset_identities,
-        target_kind,
-        asset_type_ids=asset_type_ids,
-        using=using,
-    )
-
-    if library_ids:
-        list(SpecificationLibrary.objects.using(using).select_for_update().filter(pk__in=library_ids).order_by("pk"))
-    return tuple(sorted(library_ids))
-
-
 def _field_definition_for_edit(field: ResolvedFieldDTO) -> FieldDefinitionDTO:
     return FieldDefinitionDTO(
         resource_revision=field.resource_revision,
@@ -436,8 +397,6 @@ __all__ = [
     "json_values_equal",
     "load_effective_definition",
     "load_prospective_definition",
-    "lock_relevant_libraries",
-    "lock_relevant_libraries_for_composition",
     "map_reference_error",
     "map_structure_error",
     "normalize_patch",

@@ -27,7 +27,7 @@ from assets.services.specifications.contracts import (
 from assets.services.specifications.locking import SPECIFICATION_CATALOGUE_LOCK_KEY, catalogue_transaction_lock
 from core.context import set_current_tenant
 from core.tests.mixins import grant
-from extras.models import CustomField, CustomFieldset, CustomFieldsetField, SpecificationLibrary
+from extras.models import CustomField, CustomFieldset, CustomFieldsetField
 from organization.models import Role, Tenant
 from organization.services.access_scope import ActorContextDTO, authentication_revision_for_actor
 
@@ -150,7 +150,7 @@ def _assert_waiting(pid, *, advisory=True):
                         [pid, *SPECIFICATION_CATALOGUE_LOCK_KEY],
                     )
                     assert cursor.fetchone() is not None
-                print("OBSERVED_DATABASE_WAIT", pid, last, "catalogue" if advisory else "library")
+                print("OBSERVED_DATABASE_WAIT", pid, last, "catalogue" if advisory else "owner")
                 return
         threading.Event().wait(0.01)
     pytest.fail(f"backend {pid} never reached the expected database wait: {last}")
@@ -235,38 +235,3 @@ def test_composition_reauthorizes_and_reloads_after_observed_wait(composition_ra
     assert list(owner.fieldset_memberships.values_list("fieldset_id", "position")) == [(first.pk, 1)]
     owner.refresh_from_db()
     assert owner.custom_field_data == {}
-
-
-@pytest.mark.parametrize("locked_side", ["current", "proposed"])
-def test_empty_current_and_proposed_library_fieldsets_contend_before_owner_lock(composition_race_type, locked_side):
-    owner, _, _, actor, provider_id, _role_id = composition_race_type
-    groups = []
-    libraries = []
-    for suffix in ("current", "proposed"):
-        library = SpecificationLibrary.objects.create(namespace=f"race-{suffix}", label=suffix)
-        libraries.append(library)
-        groups.append(
-            CustomFieldset.objects.create(
-                namespace=library.namespace,
-                slug="empty",
-                label=suffix,
-                management_kind=CustomFieldset.MANAGEMENT_LIBRARY,
-                library=library,
-            )
-        )
-    owner.fieldset_memberships.all().delete()
-    AssetTypeFieldset.objects.create(asset_type=owner, fieldset=groups[0], position=1)
-    plan = _type_plan(owner, groups[1])
-    started = None
-    try:
-        with transaction.atomic():
-            SpecificationLibrary.objects.select_for_update().get(pk=libraries[locked_side == "proposed"].pk)
-            started = _start(lambda: _composition(owner, groups[1], actor, plan), provider_id)
-            _assert_waiting(started[1], advisory=False)
-            # The waiting command must not have taken the owner lock first.
-            AssetType.all_objects.select_for_update(nowait=True).get(pk=owner.pk)
-    finally:
-        if started is not None:
-            result = _finish(started)
-    assert isinstance(result, OwnerChangedDTO)
-    assert list(owner.fieldset_memberships.values_list("fieldset_id", "position")) == [(groups[1].pk, 1)]

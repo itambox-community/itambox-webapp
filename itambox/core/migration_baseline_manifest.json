@@ -65,6 +65,7 @@
   ],
   "current_leaf_ids": [
     "compliance.0107_custodyreceipt_assignment_superseded",
+    "extras.0129_remove_type_library",
     "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
     "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
     "software.0101_asset_archive_leaf_markers",
@@ -365,6 +366,7 @@
     "assets.0123_asset_archive_leaf_markers",
     "assets.0124_tenant_archive_leaf_markers",
     "assets.0125_unique_open_loan_per_maintenance",
+    "assets.0126_remove_type_library_identity",
     "compliance.0101_alter_custodyreceipt_signed_at",
     "compliance.0102_clear_unsigned_receipt_timestamps",
     "compliance.0103_alter_custodyreceipt_options",
@@ -396,6 +398,7 @@
     "extras.0126_scheduledreport_last_run_archive",
     "extras.0127_retire_report_designer_legacy",
     "extras.0128_tenant_archive_leaf_markers",
+    "extras.0129_remove_type_library",
     "inventory.0101_alter_accessoryassignment_options_and_more",
     "inventory.0102_kititem_leaf_deleted_at",
     "inventory.0103_stock_leaf_deleted_at",
@@ -421,6 +424,7 @@
   ],
   "post_transition_leaf_ids": [
     "compliance.0107_custodyreceipt_assignment_superseded",
+    "extras.0129_remove_type_library",
     "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
     "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
     "software.0101_asset_archive_leaf_markers",

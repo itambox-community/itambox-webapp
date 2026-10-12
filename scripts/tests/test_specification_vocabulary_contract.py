@@ -146,7 +146,7 @@ class SpecificationVocabularyContractTests(unittest.TestCase):
                 self.assertTrue(set(field["targets"]) <= {"asset_type", "asset"})
                 self.assertGreaterEqual(len(field["memberships"]), 1)
         self.assertNotIn("input_voltage", self.active_fields)
-        self.assertEqual(self.canonical["library"]["label"], "ITAMbox Core Vocabulary v1")
+        self.assertEqual(self.canonical["label"], "ITAMbox Core Vocabulary v1")
 
     def test_section_membership_is_ordered_complete_and_cross_referenced(self):
         member_keys = []

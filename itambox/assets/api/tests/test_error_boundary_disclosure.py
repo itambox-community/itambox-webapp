@@ -1,8 +1,5 @@
 """Boundary regression: internal exception text must never become a REST message."""
 
-import json
-from types import SimpleNamespace
-
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
@@ -11,8 +8,6 @@ from rest_framework.test import APITestCase
 
 from assets.api.serializer_mixins import CanonicalSpecificationSerializerMixin
 from assets.api.specification_api import explicit_fieldset_selection
-from assets.api.type_library import _command_error_response
-from assets.services.type_library.commands import LibraryCommandError
 
 INTERNAL_SENTINEL = "INTERNAL-SECRET-SENTINEL-DO-NOT-EXPOSE"
 
@@ -52,45 +47,3 @@ class FieldsetSelectionBoundaryTests(APITestCase):
         with self.assertRaises(serializers.ValidationError) as raised:
             create_fieldset_selection_from_values(["not-qualified"], omitted=False)
         self.assertEqual(raised.exception.detail, {"fieldsets": "Invalid fieldset selection."})
-
-
-class TypeLibraryErrorBoundaryTests(APITestCase):
-    def test_command_issue_messages_are_public_only(self):
-        error = LibraryCommandError(
-            "REFERENCE_CONFLICT",
-            path=("catalog", "laptops"),
-            issues=(
-                SimpleNamespace(
-                    code="REFERENCE_CONFLICT",
-                    path=("catalog", "laptops"),
-                    message=INTERNAL_SENTINEL,
-                ),
-            ),
-        )
-        response = _command_error_response(error)
-        body = json.dumps(response.data)
-        self.assertNotIn(INTERNAL_SENTINEL, body)
-        self.assertEqual(response.status_code, 409)
-        data = response.data["error"]
-        self.assertEqual(data["code"], "REFERENCE_CONFLICT")
-        self.assertEqual(data["message"], "The submitted library conflicts with existing state.")
-        self.assertEqual(data["issues"][0]["path"], ["catalog", "laptops"])
-        self.assertEqual(data["issues"][0]["message"], "The submitted library conflicts with existing state.")
-
-    def test_fallback_exception_text_is_public_only(self):
-        error = LibraryCommandError(
-            "UNSUPPORTED_STRUCTURE",
-            path=("catalog",),
-            message=INTERNAL_SENTINEL,
-        )
-        response = _command_error_response(error)
-        self.assertNotIn(INTERNAL_SENTINEL, json.dumps(response.data))
-        self.assertEqual(response.status_code, 409)
-
-    def test_unknown_code_falls_back_to_the_generic_public_message(self):
-        error = SimpleNamespace(code="MYSTERY_CODE", path=(), issues=(), message=INTERNAL_SENTINEL)
-        response = _command_error_response(error)
-        body = json.dumps(response.data)
-        self.assertNotIn(INTERNAL_SENTINEL, body)
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["error"]["message"], "The submitted library request is invalid.")

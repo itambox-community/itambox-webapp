@@ -100,7 +100,6 @@ class TenantNavigationTests(TestCase):
                 "assets:asset_bulk_checkin_scan",
                 "assets:asset_bulk_dispose_scan",
                 "assets:assettype_list",
-                "assets:type_library_list",
                 "assets:manufacturer_list",
                 "assets:category_list",
                 "assets:assetrole_list",
