@@ -4119,6 +4119,49 @@
     },
     {
       "dependencies": [
+        "assets.0125_unique_open_loan_per_maintenance",
+        "extras.0128_tenant_archive_leaf_markers",
+        "inventory.0104_consumable_tenant_scoped_uniqueness",
+        "organization.0104_tenant_archive_leaf_markers",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/inventory/migrations/0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more.py",
+      "replaces": [],
+      "reviewed_disposition": null,
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": false,
+          "RunSQL": false,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
         "assets.0100_issue88_shard_10_assets_history_1"
       ],
       "id": "licenses.0100_issue88_shard_11_licenses_schema",
@@ -6152,6 +6195,7 @@
     "inventory.0102_kititem_leaf_deleted_at",
     "inventory.0103_stock_leaf_deleted_at",
     "inventory.0104_consumable_tenant_scoped_uniqueness",
+    "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
     "organization.0101_membership_external_id_and_more",
     "organization.0102_alter_tenantresourcegrant_options",
     "organization.0103_tenant_resource_grant_expiry",
@@ -6244,7 +6288,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 67,
+    "post_transition_migrations": 68,
     "replacement_shards": 62,
     "replacement_targets": 262
   }
