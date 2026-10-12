@@ -42,6 +42,8 @@ class _Manager:
 class _SlugModel:
     _base_manager = None
     objects = None
+    _slug_field = models.SlugField(max_length=255)
+    _meta = SimpleNamespace(get_field=lambda field_name: _SlugModel._slug_field)
 
     def __init__(self, slug=None, source="Plain Name"):
         self.slug = slug
@@ -145,6 +147,14 @@ class KernelSlugTests(SimpleTestCase):
         generate_unique_slug(obj)
         self.assertEqual(obj.slug, "already-set")
 
+    def test_explicit_overlong_slug_remains_invalid(self):
+        explicit_slug = "a" * 256
+        obj = _SlugModel(slug=explicit_slug)
+        generate_unique_slug(obj)
+        self.assertEqual(obj.slug, explicit_slug)
+        with self.assertRaises(ValidationError):
+            obj._meta.get_field("slug").clean(obj.slug, None)
+
     def test_collision_appends_counter(self):
         obj = _SlugModel(slug="", source="Asset")
         previous = _SlugModel._base_manager
@@ -164,6 +174,30 @@ class KernelSlugTests(SimpleTestCase):
         finally:
             _SlugModel._base_manager = previous
         self.assertEqual(obj.slug, "asset")
+
+    def test_two_part_source_is_bounded_to_the_slug_field_length(self):
+        obj = _SlugModel(slug="")
+        obj.__dict__.update({"manufacturer": SimpleNamespace(name="M" * 100), "model": "M" * 200})
+        previous = _SlugModel._base_manager
+        _SlugModel._base_manager = _Manager([False])
+        try:
+            generate_unique_slug(obj, ["manufacturer__name", "model"])
+        finally:
+            _SlugModel._base_manager = previous
+        self.assertEqual(obj.slug, "m" * 100 + "-" + "m" * 154)
+        self.assertLessEqual(len(obj.slug), _SlugModel._meta.get_field("slug").max_length)
+
+    def test_collision_suffix_reserves_space_when_suffix_gains_a_digit(self):
+        obj = _SlugModel(slug="", source="A" * 300)
+        manager = _Manager([True] * 10 + [False])
+        previous = _SlugModel._base_manager
+        _SlugModel._base_manager = manager
+        try:
+            generate_unique_slug(obj, "slug_source")
+        finally:
+            _SlugModel._base_manager = previous
+        self.assertEqual(obj.slug, "a" * 252 + "-10")
+        self.assertTrue(all(len(call["slug"]) <= 255 for call in manager.filter_calls))
 
 
 class _GroupManager:
