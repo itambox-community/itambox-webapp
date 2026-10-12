@@ -140,6 +140,39 @@ class TestAssetTypeCatalogueImport(TenantTestMixin):
         form = self._preview([{"manufacturer": "Newco", "model": "N1"}])
         assert "permission" in self._errors(form)
 
+    def test_preview_rejects_missing_names_unknown_role_and_bad_specs_text(self):
+        self._context()
+        Manufacturer.objects.create(name="Lenovo", slug="lenovo")
+        cases = (
+            ({"manufacturer": "", "model": "X"}, "required"),
+            ({"manufacturer": "Lenovo", "model": "X", "asset_role": "no-such-role"}, "asset role"),
+            ({"manufacturer": "Lenovo", "model": "X", "specs": "{not json"}, "mapping"),
+            ({"manufacturer": "Lenovo", "model": "X", "specs": '["a"]'}, "mapping"),
+        )
+        for row, needle in cases:
+            assert needle in self._errors(self._preview([row]))
+
+    def test_preview_without_actor_is_rejected_when_the_command_runs(self):
+        self._context()
+        Manufacturer.objects.create(name="Lenovo", slug="lenovo")
+        form = AssetTypeBulkImportForm(
+            data={
+                "import_format": "yaml",
+                "active_tab": "editor",
+                "import_text": json.dumps([{"manufacturer": "Lenovo", "model": "NoActor"}]),
+            }
+        )
+        form.actor = type("Anonymous", (), {"is_authenticated": False, "has_perm": lambda self, p: False})()
+        assert not form.is_valid()
+
+    def test_json_specs_text_and_role_by_name_are_accepted(self):
+        self._context()
+        Manufacturer.objects.create(name="Lenovo", slug="lenovo")
+        form = self._preview(
+            [{"manufacturer": "Lenovo", "model": "Txt", "specs": '{"core_count": 4}', "asset_role": ""}]
+        )
+        assert form.is_valid(), form.errors
+
 
 class TestSpecsValidation:
     def test_unknown_spec_key_is_rejected(self):
