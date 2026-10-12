@@ -51,7 +51,6 @@ class SubscriptionBulkImportForm(BulkImportForm):
         "owner",
         "description",
         "notes",
-        "tenant",
     ]
 
     @staticmethod

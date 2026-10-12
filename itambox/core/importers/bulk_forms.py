@@ -68,8 +68,8 @@ def _row_error_messages(exc):
 MAX_IMPORT_ROWS = getattr(settings, "MAX_IMPORT_ROWS", 10000)
 
 # Fields that are never user-importable: set from request context, computed by
-# background tasks, or framework-managed. Excluded from both the dynamic field
-# enumeration and the "Field Options" help table.
+# background tasks, or framework-managed. Excluded from the dynamic field
+# enumeration, row mapper, and the "Field Options" help table.
 IMPORT_EXCLUDED_FIELDS = frozenset(
     {
         "tenant",
@@ -224,7 +224,7 @@ class BulkImportForm(forms.Form):
 
     @property
     def field_names(self):
-        return list(self.required_fields) + list(self.optional_fields)
+        return [name for name in [*self.required_fields, *self.optional_fields] if name not in IMPORT_EXCLUDED_FIELDS]
 
     def clean_csv_file(self):
         return self.cleaned_data.get("csv_file")
@@ -444,7 +444,7 @@ class BulkImportForm(forms.Form):
             return mapped
 
         for k in self.field_names:
-            if k not in row or row[k] is None:
+            if k in IMPORT_EXCLUDED_FIELDS or k not in row or row[k] is None:
                 continue
             val = str(row[k]).strip()
             if not val:
@@ -472,4 +472,10 @@ class BulkImportForm(forms.Form):
 
     def _create_instance(self, mapped_data):
         """Create a model instance from mapped data. Override in subclass."""
+        tenant = get_current_tenant()
+        if self.model is not None and tenant is not None and _model_has_concrete_field(self.model, "tenant"):
+            # Tenant ownership comes from the authorized task context, never a CSV/YAML cell.
+            tenant_field = self.model._meta.get_field("tenant")
+            if tenant_field.is_relation and tenant_field.many_to_one:
+                mapped_data = {**mapped_data, tenant_field.attname: tenant.pk}
         return self.model(**mapped_data)

@@ -120,4 +120,16 @@ class ImportJourneyTests(JourneyMixin, TestCase):
 
         response = self.client.get(import_url)
         documented_fields = {field["name"] for field in response.context["fields"]}
-        self.assertEqual(documented_fields, set(SubscriptionBulkImportForm().field_names))
+        import_fields = set(SubscriptionBulkImportForm().field_names)
+        self.assertNotIn("tenant", documented_fields)
+        self.assertNotIn("tenant", import_fields)
+        self.assertEqual(documented_fields, import_fields)
+
+    def test_subscription_mapper_skips_excluded_fields_even_if_a_form_lists_them(self):
+        class LegacyTenantSubscriptionImportForm(SubscriptionBulkImportForm):
+            @property
+            def field_names(self):
+                return ["tenant"]
+
+        form = LegacyTenantSubscriptionImportForm()
+        self.assertEqual(form.map_row({"tenant": "forged-tenant"}), {})
