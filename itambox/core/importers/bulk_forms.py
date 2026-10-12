@@ -153,31 +153,36 @@ def _model_has_concrete_field(model, name):
         return False
 
 
+def _find_related_by_natural_key(related_model, queryset, value):
+    """Match a visible related object by its curated natural-key fields."""
+    lookup_fields = ["slug", "name", "model", "username", "upn"]
+    for lookup in lookup_fields:
+        if _model_has_concrete_field(related_model, lookup):
+            obj = queryset.filter(**{lookup: value}).first()
+            if obj:
+                return obj
+    for lookup in lookup_fields:
+        if _model_has_concrete_field(related_model, lookup):
+            obj = queryset.filter(**{f"{lookup}__iexact": value}).first()
+            if obj:
+                return obj
+    return None
+
+
 def resolve_related(related_model, value):
     """Resolve a raw cell by id, then natural key, within the actor's live scope."""
     queryset = related_model.objects
     if hasattr(queryset, "for_scope"):
         queryset = queryset.for_scope(Scope.current())
 
-    obj = None
     if value.isdigit():
         obj = queryset.filter(pk=int(value)).first()
-    lookup_fields = ["slug", "name", "model", "username", "upn"]
-    if not obj:
-        for lookup in lookup_fields:
-            if _model_has_concrete_field(related_model, lookup):
-                obj = queryset.filter(**{lookup: value}).first()
-                if obj:
-                    break
-    if not obj:
-        for lookup in lookup_fields:
-            if _model_has_concrete_field(related_model, lookup):
-                obj = queryset.filter(**{f"{lookup}__iexact": value}).first()
-                if obj:
-                    break
-    if not obj:
-        raise ValidationError(_("Select a valid choice."))
-    return obj.pk
+        if obj:
+            return obj.pk
+    obj = _find_related_by_natural_key(related_model, queryset, value)
+    if obj:
+        return obj.pk
+    raise ValidationError(_("Select a valid choice."))
 
 
 class BulkImportForm(forms.Form):
