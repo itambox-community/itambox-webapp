@@ -395,16 +395,20 @@ class BulkImportForm(forms.Form):
         instance.save()
 
     def _populate_generated_slug(self, instance):
-        """Fill in the slug an ``AutoSlugMixin`` model generates on save.
+        """Fill in a configured model slug before row validation.
 
         ``full_clean()`` runs before ``save()``, so validation sees a blank slug
-        for a row that legitimately omits the column and rejects it. Generate the
-        value here with the same helper ``AutoSlugMixin.save()`` calls, so the
-        stored slug is the one the UI save path produces; an explicit slug is
-        left untouched (the helper returns early when one is set).
+        for a row that legitimately omits the column and rejects it. Models with
+        ``AutoSlugMixin`` use their declared source; curated forms may declare
+        ``generated_slug_source`` for supported models without that mixin. An
+        explicit slug is left untouched by the shared generator.
         """
         if isinstance(instance, AutoSlugMixin):
-            generate_unique_slug(instance, instance.slug_source)
+            slug_source = instance.slug_source
+        else:
+            slug_source = getattr(self, "generated_slug_source", None)
+        if slug_source:
+            generate_unique_slug(instance, slug_source)
 
     def _key_attnames(self):
         return [self.model._meta.get_field(name).attname for name in self.update_key]

@@ -6,25 +6,30 @@ row that omits the slug column therefore failed with ``This field cannot be
 blank.`` for every auto-slug model, and ``AssetTypeBulkImportForm`` — which
 declared no slug column at all — could not import a single row.
 
-Every test drives ``import_csv_task``, the entry point the import view enqueues,
-with an actor whose only authority is a role grant (no superuser).
+The integration tests drive ``import_csv_task``, the entry point the import view
+enqueues, with an actor whose only authority is a role grant (no superuser).
 """
+
+from unittest.mock import patch
 
 import pytest
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 
+from assets.forms.import_forms import LocationBulkImportForm, ManufacturerBulkImportForm
 from assets.models import AssetType, Manufacturer
 from core.importers.bulk_forms import _row_error_messages
 from core.models import Job
 from core.tasks.csv_import import import_csv_task
 from core.tests.mixins import TenantTestMixin
 from inventory.models import Accessory, Consumable
+from organization.models import Location, Site
 
 IMPORT_PERMISSIONS = (
     "assets.add_assettype",
     "assets.add_manufacturer",
     "inventory.add_accessory",
     "inventory.add_consumable",
+    "organization.add_location",
 )
 
 
@@ -37,6 +42,8 @@ class TestAutoSlugImport(TenantTestMixin):
             permissions=list(IMPORT_PERMISSIONS),
         )
         self.set_active_tenant(self.tenant, self.tenant_membership)
+        if model_name == "location":
+            Site.objects.create(name="Import Site", slug="import-site", tenant=self.tenant)
         job = Job.objects.create(name="Bulk Import", tenant=self.tenant, status=Job.STATUS_PENDING)
 
         import_csv_task(
@@ -131,6 +138,105 @@ class TestAutoSlugImport(TenantTestMixin):
         assert job.result == {"imported": 1, "failed": 0, "total": 1}
         assert Manufacturer.objects.get(name="Lenovo").slug == "lenovo-custom"
 
+    @pytest.mark.parametrize(
+        ("form_class", "app_label", "model_name", "import_format", "import_text", "name", "slug"),
+        [
+            (
+                ManufacturerBulkImportForm,
+                "assets",
+                "manufacturer",
+                "csv",
+                "name\nNew Maker",
+                "New Maker",
+                "new-maker",
+            ),
+            (
+                ManufacturerBulkImportForm,
+                "assets",
+                "manufacturer",
+                "yaml",
+                "- name: New Maker\n",
+                "New Maker",
+                "new-maker",
+            ),
+            (
+                LocationBulkImportForm,
+                "organization",
+                "location",
+                "csv",
+                "name,site\nHQ,Import Site",
+                "HQ",
+                "hq",
+            ),
+            (
+                LocationBulkImportForm,
+                "organization",
+                "location",
+                "yaml",
+                "- name: HQ\n  site: Import Site\n",
+                "HQ",
+                "hq",
+            ),
+        ],
+    )
+    def test_manufacturer_and_location_csv_yaml_imports_generate_omitted_slugs(
+        self, form_class, app_label, model_name, import_format, import_text, name, slug
+    ):
+        form = form_class(
+            data={"active_tab": "editor", "import_format": import_format, "import_text": import_text, "delimiter": ","}
+        )
+        assert form.is_valid(), form.errors
+
+        job = self._import(app_label=app_label, model_name=model_name, rows=form._rows_data)
+
+        assert job.status == Job.STATUS_COMPLETED
+        assert job.result == {"imported": 1, "failed": 0, "total": 1}
+        model = Manufacturer if model_name == "manufacturer" else Location
+        assert model.objects.get(name=name).slug == slug
+
+    def test_location_row_with_an_explicit_slug_keeps_it(self):
+        job = self._import(
+            app_label="organization",
+            model_name="location",
+            rows=[{"name": "Custom HQ", "site": "Import Site", "slug": "custom-hq-code"}],
+        )
+
+        assert job.result == {"imported": 1, "failed": 0, "total": 1}
+        assert Location.objects.get(name="Custom HQ").slug == "custom-hq-code"
+
+    def test_generated_location_slugs_avoid_active_and_soft_deleted_collisions(self):
+        self.setup_tenant_context(
+            name="Location Slug Tenant",
+            slug="location-slug-tenant",
+            permissions=list(IMPORT_PERMISSIONS),
+        )
+        self.set_active_tenant(self.tenant, self.tenant_membership)
+        site = Site.objects.create(name="Import Site", slug="import-site", tenant=self.tenant)
+        Location.objects.create(name="Existing Active Location", slug="active-collision", site=site, tenant=self.tenant)
+        deleted = Location.objects.create(
+            name="Existing Deleted Location", slug="deleted-collision", site=site, tenant=self.tenant
+        )
+        deleted.delete()
+        job = Job.objects.create(name="Bulk Import", tenant=self.tenant, status=Job.STATUS_PENDING)
+
+        import_csv_task(
+            job_id=job.pk,
+            rows_data=[
+                {"name": "Active Collision", "site": str(site.pk)},
+                {"name": "Deleted Collision", "site": str(site.pk)},
+            ],
+            app_label="organization",
+            model_name="location",
+            user_id=self.tenant_user.pk,
+            tenant_id=self.tenant.pk,
+        )
+
+        job.refresh_from_db()
+        assert job.status == Job.STATUS_COMPLETED
+        assert job.result == {"imported": 2, "failed": 0, "total": 2}
+        assert Location.objects.get(name="Active Collision").slug == "active-collision-1"
+        assert Location.objects.get(name="Deleted Collision").slug == "deleted-collision-1"
+
     def test_rejected_row_error_names_the_failing_field(self):
         job = self._import(
             app_label="assets",
@@ -158,3 +264,20 @@ class TestRowErrorMessages:
 
     def test_plain_message_error_is_reported_unchanged(self):
         assert _row_error_messages(ValidationError("invalid")) == ["invalid"]
+
+
+class TestConfiguredSlugGeneration:
+    @pytest.mark.parametrize(
+        ("form_class", "model"),
+        [
+            (ManufacturerBulkImportForm, Manufacturer),
+            (LocationBulkImportForm, Location),
+        ],
+    )
+    def test_non_auto_slug_models_use_the_curated_form_slug_source(self, form_class, model):
+        instance = model(name="Example")
+
+        with patch("core.importers.bulk_forms.generate_unique_slug") as generate_unique_slug:
+            form_class()._populate_generated_slug(instance)
+
+        generate_unique_slug.assert_called_once_with(instance, "name")
