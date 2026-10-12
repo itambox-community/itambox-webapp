@@ -2297,6 +2297,10 @@ msgstr "Bitte fügen Sie die Daten im Editor-Tab ein."
 msgid "CSV data is empty."
 msgstr "CSV-Daten sind leer."
 
+#, python-format
+msgid "Row %(row)s: CSV row has more cells than headers."
+msgstr "Zeile %(row)s: Die CSV-Zeile enthält mehr Werte als Spaltenüberschriften."
+
 #, python-brace-format
 msgid "Import exceeds the maximum of {max} rows; split into smaller batches."
 msgstr ""
@@ -2315,8 +2319,9 @@ msgstr ""
 "Die YAML-Eingabe muss eine Liste von Objekten oder ein einzelnes Objekt-"
 "Mapping sein."
 
-msgid "YAML data elements must be mappings (key-value pairs)."
-msgstr "YAML-Datenelemente müssen Mappings (Schlüssel-Wert-Paare) sein."
+#, python-format
+msgid "Row %(row)s: YAML data elements must be mappings (key-value pairs)."
+msgstr "Zeile %(row)s: YAML-Datenelemente müssen Mappings (Schlüssel-Wert-Paare) sein."
 
 #, python-brace-format
 msgid "Missing required fields: {fields}"

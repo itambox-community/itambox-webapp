@@ -16,6 +16,7 @@
     "itambox/core/tests/test_attachment_idor.py",
     "itambox/core/tests/test_context_isolation.py",
     "itambox/core/tests/test_csv_import_auto_slug.py",
+    "itambox/core/tests/test_csv_import_error_contracts.py",
     "itambox/core/tests/test_graphql_throttle.py",
     "itambox/core/tests/test_htmx.py",
     "itambox/core/tests/test_import_boundaries.py",
