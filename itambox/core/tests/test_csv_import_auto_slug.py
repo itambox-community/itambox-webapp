@@ -24,7 +24,6 @@ from core.models import Job, ObjectChange
 from core.tasks.csv_import import import_csv_task
 from core.tests.mixins import TenantTestMixin, grant
 from inventory.models import Accessory, Consumable
-from organization.models import Location, Site
 from licenses.models import License
 from organization.models import AssetHolder, Location, Role, Site, Tenant
 from software.models import Software
@@ -268,6 +267,20 @@ class TestAutoSlugImport(TenantTestMixin):
         job.refresh_from_db()
         return job
 
+    def _accessory_audit_failures(self, imported, private_note):
+        failures = []
+        if imported.notes != private_note:
+            failures.append("accessory private note was not preserved")
+        audit = ObjectChange._base_manager.filter(
+            changed_object_type=ContentType.objects.get_for_model(Accessory),
+            changed_object_id=imported.pk,
+        ).first()
+        if audit is None:
+            failures.append("accessory import did not write an audit row")
+        elif audit.tenant_id != imported.tenant_id:
+            failures.append(f"accessory/audit tenant mismatch: {imported.tenant_id} != {audit.tenant_id}")
+        return failures
+
     def test_tenant_imports_bind_owner_for_each_tenant_owned_model(self):
         self.setup_tenant_context(
             name="Tenant Import Owner",
@@ -370,16 +383,7 @@ class TestAutoSlugImport(TenantTestMixin):
                 failures.append(f"{model_name} is visible in an unrelated tenant")
 
             if model is Accessory:
-                if imported.notes != private_note:
-                    failures.append("accessory private note was not preserved")
-                audit = ObjectChange._base_manager.filter(
-                    changed_object_type=ContentType.objects.get_for_model(Accessory),
-                    changed_object_id=imported.pk,
-                ).first()
-                if audit is None:
-                    failures.append("accessory import did not write an audit row")
-                elif audit.tenant_id != imported.tenant_id:
-                    failures.append(f"accessory/audit tenant mismatch: {imported.tenant_id} != {audit.tenant_id}")
+                failures.extend(self._accessory_audit_failures(imported, private_note))
 
         assert not failures, "\\n".join(failures)
 
