@@ -1,8 +1,10 @@
+from django.apps import apps
 from django.db.models import Count, Q
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
+from assets.models.catalog import scoped_related_count
 from core.managers import Scope
 from inventory.models import Accessory
 from itambox.panels import Panel
@@ -20,16 +22,25 @@ from ..models import AssetType, Category
 
 
 class CategoryListView(ObjectListView):
-    queryset = Category.objects.prefetch_related("tags").annotate(
-        assettype_count=Count("asset_types", filter=Q(asset_types__deleted_at__isnull=True), distinct=True),
-        accessory_count=Count("accessories", filter=Q(accessories__deleted_at__isnull=True), distinct=True),
-        consumable_count=Count("consumables", filter=Q(consumables__deleted_at__isnull=True), distinct=True),
-        component_count=Count("components", filter=Q(components__deleted_at__isnull=True), distinct=True),
-    )
+    queryset = Category.objects.prefetch_related("tags")
     filterset = filters.CategoryFilterSet
     filterset_form = forms.CategoryFilterForm
     table = tables.CategoryTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        scope = Scope.current()
+        return queryset.annotate(
+            assettype_count=Count("asset_types", filter=Q(asset_types__deleted_at__isnull=True), distinct=True),
+            accessory_count=scoped_related_count(Accessory.objects.for_scope(scope), "category_id"),
+            consumable_count=scoped_related_count(
+                apps.get_model("inventory", "Consumable").objects.for_scope(scope), "category_id"
+            ),
+            component_count=scoped_related_count(
+                apps.get_model("inventory", "Component").objects.for_scope(scope), "category_id"
+            ),
+        )
 
 
 class CategoryDetailView(ObjectDetailView):

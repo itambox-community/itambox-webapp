@@ -1,10 +1,10 @@
 from django.contrib import messages
-from django.db.models import Count
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
+from assets.models.catalog import scoped_related_count
 from core.managers import Scope
 from itambox.panels import Panel
 from itambox.utils import get_paginate_count
@@ -21,11 +21,16 @@ from ..models import Asset, StatusLabel
 
 
 class StatusLabelListView(ObjectListView):
-    queryset = StatusLabel.objects.annotate(asset_count=Count("assets"))
+    queryset = StatusLabel.objects.all()
     filterset = filters.StatusLabelFilterSet
     filterset_form = forms.StatusLabelFilterForm
     table = tables.StatusLabelTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        assets = Asset.objects.for_scope(Scope.current())
+        return queryset.annotate(asset_count=scoped_related_count(assets, "status_id"))
 
 
 class StatusLabelDetailView(ObjectDetailView):

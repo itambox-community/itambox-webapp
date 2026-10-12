@@ -87,6 +87,7 @@ class AssetTypeDetailView(ObjectDetailView):
         requests_table = tables.AssetRequestTable(req_qs, request=self.request)
         RequestConfig(self.request, paginate={"per_page": get_paginate_count(self.request)}).configure(requests_table)
         context["requests_table"] = requests_table
+        context["request_count"] = requests_table.page.paginator.count
 
         # Kits
         from inventory.models import Kit

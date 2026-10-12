@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import models, transaction
+from django.db import transaction
 from django.db.models import Prefetch
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -41,6 +41,7 @@ from assets.models import (
     Supplier,
     Warranty,
 )
+from assets.models.catalog import scoped_related_count
 from assets.services import (
     cancel_asset_disposal,
     checkin_asset,
@@ -426,17 +427,27 @@ class AssetViewSet(SpecificationCommandUpdateMixin, ITAMBoxModelViewSet):
 
 
 class AssetRoleViewSet(ITAMBoxModelViewSet):
-    queryset = AssetRole.objects.annotate(asset_count=models.Count("assets"))
+    queryset = AssetRole.objects.all()
     serializer_class = AssetRoleSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = AssetRoleFilterSet
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        assets = Asset.objects.for_scope(Scope.current())
+        return queryset.annotate(asset_count=scoped_related_count(assets, "asset_role_id"))
+
 
 class ManufacturerViewSet(ITAMBoxModelViewSet):
-    queryset = Manufacturer.objects.annotate(asset_count=models.Count("asset_types__assets"))
+    queryset = Manufacturer.objects.all()
     serializer_class = ManufacturerSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = ManufacturerFilterSet
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        assets = Asset.objects.for_scope(Scope.current())
+        return queryset.annotate(asset_count=scoped_related_count(assets, "asset_type__manufacturer_id"))
 
 
 class AssetTypeViewSet(SpecificationCommandUpdateMixin, ITAMBoxModelViewSet):
