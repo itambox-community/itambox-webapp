@@ -118,7 +118,7 @@ class DeletedProviderCapabilityVocabularyTests(TenantTestMixin, TestCase):
             )
         offered_codenames.update(full for _field_key, _label, full in role_form_module.get_custom_permissions())
         manage_star = {c for c in offered_codenames if c.split(".", 1)[-1].startswith("manage_")}
-        self.assertEqual(manage_star, {"extras.manage_specification_library"})
+        self.assertEqual(manage_star, set())
 
     def test_role_model_has_no_scope_or_provider_field(self):
         field_names = {f.name for f in Role._meta.get_fields()}

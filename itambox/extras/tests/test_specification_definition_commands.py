@@ -444,11 +444,8 @@ class DefinitionValidatorUnitTests(SimpleTestCase):
     def test_definition_guards_and_error_mapping(self):
         from types import SimpleNamespace
 
-        validate_local_definition(SimpleNamespace(management_kind="local", library_id=None))
-        for definition in (
-            SimpleNamespace(management_kind="library", library_id=None),
-            SimpleNamespace(management_kind="local", library_id=7),
-        ):
+        validate_local_definition(SimpleNamespace(management_kind="local"))
+        for definition in (SimpleNamespace(management_kind="library"), SimpleNamespace(management_kind="core")):
             with self.assertRaises(DefinitionCommandError) as context:
                 validate_local_definition(definition)
             self.assertEqual([item.code for item in context.exception.issues], ["IMMUTABLE_DEFINITION"])

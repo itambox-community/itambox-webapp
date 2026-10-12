@@ -414,8 +414,6 @@ def lock_choice_dependencies(choice_id: int, *, using: str) -> tuple[CustomField
 def validate_local_definition(definition: object) -> None:
     if getattr(definition, "management_kind", CustomField.MANAGEMENT_LOCAL) != CustomField.MANAGEMENT_LOCAL:
         raise DefinitionCommandError(issue("IMMUTABLE_DEFINITION"))
-    if getattr(definition, "library_id", None) is not None:
-        raise DefinitionCommandError(issue("IMMUTABLE_DEFINITION"))
 
 
 def save_definition(definition: object, principal: object, *, using: str) -> None:

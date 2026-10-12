@@ -6,73 +6,15 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 
 from assets.models import AssetType, Manufacturer
-from extras.canonicalization import canonicalize_release_document
 from extras.models import (
     CustomField,
     CustomFieldChoice,
     CustomFieldChoiceSet,
     CustomFieldset,
-    SpecificationLibrary,
-    SpecificationLibraryRelease,
-    release_document_digest,
 )
-
-RFC8785_DOCUMENT = {"\U0001f600": "emoji", "\ue000": "bmp"}
-RFC8785_DIGEST = "sha256:3d3586c197a332ed14e1fb20a6623099695a6acdf9e91e512f41bf886c5edbee"
-
-
-def _release(library, sequence):
-    document = {
-        "kind": "itambox.type-library.release",
-        "library": {"namespace": library.namespace, "release": sequence},
-        "schema_version": 1,
-    }
-    return SpecificationLibraryRelease.objects.create(
-        library=library,
-        sequence=sequence,
-        semantic_digest=release_document_digest(document),
-        source_document=document,
-    )
 
 
 class T07ProvenanceModelTests(TestCase):
-    def test_release_uses_real_rfc8785_digest_for_normalized_document(self):
-        self.assertEqual(
-            canonicalize_release_document(RFC8785_DOCUMENT),
-            '{"😀":"emoji","":"bmp"}'.encode("utf-8"),
-        )
-        self.assertEqual(release_document_digest(RFC8785_DOCUMENT), RFC8785_DIGEST)
-
-        library = SpecificationLibrary.objects.create(namespace="rfc-test")
-        release = SpecificationLibraryRelease.objects.create(
-            library=library,
-            sequence=1,
-            semantic_digest=RFC8785_DIGEST,
-            source_document=RFC8785_DOCUMENT,
-        )
-        release.refresh_from_db()
-        self.assertEqual(release.semantic_digest, RFC8785_DIGEST)
-        self.assertEqual(release_document_digest(release.source_document), RFC8785_DIGEST)
-
-    def test_library_accepts_only_same_library_non_older_release(self):
-        library = SpecificationLibrary.objects.create(namespace="acceptance")
-        first = _release(library, 1)
-        second = _release(library, 2)
-        other_library = SpecificationLibrary.objects.create(namespace="other")
-        foreign = _release(other_library, 3)
-
-        library.accept_release(second)
-        library.refresh_from_db()
-        self.assertEqual(library.accepted_release_id, second.pk)
-
-        with self.assertRaises(ValidationError):
-            library.accept_release(first)
-        with self.assertRaises(ValidationError):
-            library.accept_release(foreign)
-
-        library.refresh_from_db()
-        self.assertEqual(library.accepted_release_id, second.pk)
-
     def test_choice_owns_source_identity_and_has_no_obsolete_scalar_metadata(self):
         choice_set = CustomFieldChoiceSet.objects.create(
             namespace="local",
@@ -99,8 +41,7 @@ class T07ProvenanceModelTests(TestCase):
         ):
             self.assertNotIn(obsolete_name, field_names)
 
-    def test_model_guards_preserve_library_and_definition_identities(self):
-        library = SpecificationLibrary.objects.create(namespace="model-guards")
+    def test_model_guards_preserve_definition_identities(self):
         manufacturer = Manufacturer.objects.create(name="T07 Manufacturer", slug="t07-manufacturer")
         field = CustomField.objects.create(
             name="t07_model_field",
@@ -126,13 +67,10 @@ class T07ProvenanceModelTests(TestCase):
             model="T07 Model",
             slug="t07-model",
             management_kind=AssetType.MANAGEMENT_LIBRARY,
-            library=library,
-            library_definition_key="t07-model-definition",
             connector_identity="sha256:" + "e" * 64,
         )
 
         attempted_changes = (
-            (library, "namespace", "model-guards-renamed"),
             (field, "name", "t07_model_field_renamed"),
             (fieldset, "slug", "t07-model-fieldset-renamed"),
             (choice_set, "connector_identity", "sha256:" + "f" * 64),
@@ -145,8 +83,6 @@ class T07ProvenanceModelTests(TestCase):
                     instance.save()
 
     def test_queryset_updates_cannot_rewrite_identity_or_source_state(self):
-        library = SpecificationLibrary.objects.create(namespace="queryset-guards")
-        release = _release(library, 1)
         field = CustomField.objects.create(
             name="t07_queryset_field",
             namespace="local",
@@ -172,14 +108,10 @@ class T07ProvenanceModelTests(TestCase):
             model="T07 Queryset Model",
             slug="t07-queryset-model",
             management_kind=AssetType.MANAGEMENT_LIBRARY,
-            library=library,
-            library_definition_key="t07-queryset-definition",
             connector_identity="sha256:" + "4" * 64,
         )
 
         attempted_updates = (
-            (SpecificationLibrary, library.pk, {"namespace": "queryset-guards-renamed"}),
-            (SpecificationLibraryRelease, release.pk, {"source_document": {"changed": True}}),
             (CustomField, field.pk, {"namespace": "queryset-renamed"}),
             (CustomFieldset, fieldset.pk, {"connector_identity": "sha256:" + "5" * 64}),
             (CustomFieldChoiceSet, choice_set.pk, {"slug": "t07-queryset-choice-set-renamed"}),
@@ -194,8 +126,6 @@ class T07ProvenanceModelTests(TestCase):
                 model._base_manager.filter(pk=pk).update(**values)
 
     def test_model_and_database_hard_delete_guards_retain_identities(self):
-        library = SpecificationLibrary.objects.create(namespace="delete-guards")
-        release = _release(library, 1)
         field = CustomField.objects.create(
             name="t07_delete_field",
             namespace="local",
@@ -214,29 +144,22 @@ class T07ProvenanceModelTests(TestCase):
             position=1,
         )
 
-        for instance in (library, release, field, choice_set, choice):
+        for instance in (field, choice_set, choice):
             with self.subTest(model=type(instance).__name__), self.assertRaises(ProtectedError):
                 instance.delete()
 
         with self.assertRaises(IntegrityError), transaction.atomic():
             CustomField.objects.filter(pk=field.pk).delete()
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            with connection.cursor() as cursor:
-                cursor.execute("DELETE FROM extras_specificationlibraryrelease WHERE id = %s", [release.pk])
 
         self.assertTrue(CustomField.objects.filter(pk=field.pk).exists())
-        self.assertTrue(SpecificationLibraryRelease.objects.filter(pk=release.pk).exists())
 
     def test_targeted_sql_cannot_hard_delete_library_managed_asset_type(self):
-        library = SpecificationLibrary.objects.create(namespace="asset-type-delete")
         manufacturer = Manufacturer.objects.create(name="T07 Delete Manufacturer", slug="t07-delete-manufacturer")
         asset_type = AssetType.objects.create(
             manufacturer=manufacturer,
             model="T07 Protected Model",
             slug="t07-protected-model",
             management_kind=AssetType.MANAGEMENT_LIBRARY,
-            library=library,
-            library_definition_key="t07-protected-definition",
             connector_identity="sha256:" + "7" * 64,
         )
 

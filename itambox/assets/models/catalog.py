@@ -4,7 +4,6 @@ Supplier, Category — shared reference data that assets point into.
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator
 from django.db import models
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -18,9 +17,7 @@ from core.managers import (
 )
 from core.mixins import AutoSlugMixin, CustomFieldDataMixin, SoftDeleteMixin
 from core.models import BaseModel, StandardModel
-from extras.models import CustomFieldset, SpecificationLibrary
-
-_LIBRARY_DEFINITION_KEY_VALIDATOR = RegexValidator(r"^[a-z][a-z0-9]*(?:[-_.][a-z0-9]+)*$")
+from extras.models import CustomFieldset
 
 
 class StatusLabel(AutoSlugMixin, StandardModel, SoftDeleteMixin):
@@ -232,12 +229,6 @@ class AssetType(CustomFieldDataMixin, AutoSlugMixin, StandardModel, SoftDeleteMi
         (MANAGEMENT_LIBRARY, _("Library")),
         (MANAGEMENT_LOCAL, _("Local")),
     ]
-    LIFECYCLE_ACTIVE = "active"
-    LIFECYCLE_DEPRECATED = "deprecated"
-    LIFECYCLE_CHOICES = [
-        (LIFECYCLE_ACTIVE, _("Active")),
-        (LIFECYCLE_DEPRECATED, _("Deprecated")),
-    ]
 
     manufacturer = models.ForeignKey(
         "assets.Manufacturer", on_delete=models.PROTECT, related_name="asset_types", verbose_name=_("Manufacturer")
@@ -261,23 +252,7 @@ class AssetType(CustomFieldDataMixin, AutoSlugMixin, StandardModel, SoftDeleteMi
     region = models.CharField(max_length=64, blank=True, default="")
     configuration = models.CharField(max_length=255, blank=True, default="")
     management_kind = models.CharField(max_length=16, choices=MANAGEMENT_KIND_CHOICES, default=MANAGEMENT_LOCAL)
-    library = models.ForeignKey(
-        SpecificationLibrary,
-        on_delete=models.PROTECT,
-        related_name="asset_types",
-        null=True,
-        blank=True,
-    )
     connector_identity = models.CharField(max_length=71, null=True, blank=True, db_index=True)
-    library_definition_key = models.CharField(
-        max_length=127,
-        null=True,
-        blank=True,
-        validators=[_LIBRARY_DEFINITION_KEY_VALIDATOR],
-    )
-    lifecycle = models.CharField(max_length=16, choices=LIFECYCLE_CHOICES, default=LIFECYCLE_ACTIVE)
-    deprecated_at = models.DateTimeField(null=True, blank=True)
-    replaced_by = models.CharField(max_length=190, null=True, blank=True)
 
     eol_months = models.PositiveIntegerField(
         null=True, blank=True, verbose_name=_("EOL (Months)"), help_text=_("Lifespan in months before EOL replacement")
@@ -334,33 +309,6 @@ class AssetType(CustomFieldDataMixin, AutoSlugMixin, StandardModel, SoftDeleteMi
             models.UniqueConstraint(
                 fields=["slug"], condition=models.Q(deleted_at__isnull=True), name="unique_assettype_slug_active"
             ),
-            models.UniqueConstraint(
-                fields=["library", "library_definition_key"],
-                name="assettype_library_identity_uq",
-            ),
-            models.CheckConstraint(
-                condition=(
-                    models.Q(library__isnull=True, library_definition_key__isnull=True)
-                    | models.Q(library__isnull=False, library_definition_key__isnull=False)
-                ),
-                name="assettype_library_identity_ck",
-            ),
-            models.CheckConstraint(
-                condition=(
-                    (
-                        models.Q(management_kind="library")
-                        & models.Q(library__isnull=False)
-                        & models.Q(library_definition_key__isnull=False)
-                        & ~models.Q(library_definition_key="")
-                    )
-                    | (
-                        models.Q(management_kind__in=["core", "local"])
-                        & models.Q(library__isnull=True)
-                        & models.Q(library_definition_key__isnull=True)
-                    )
-                ),
-                name="assettype_library_mgmt_ck",
-            ),
         ]
         verbose_name = _("Asset Type")
         verbose_name_plural = _("Asset Types")
@@ -371,48 +319,11 @@ class AssetType(CustomFieldDataMixin, AutoSlugMixin, StandardModel, SoftDeleteMi
     def get_absolute_url(self):
         return reverse("assets:assettype_detail", kwargs={"pk": self.pk})
 
-    def restore(self):
-        """Restore an Asset Type and normalize the pre-cutover deleted state."""
-        update_fields = ["deleted_at"]
-        self.deleted_at = None
-        if self.lifecycle == "deleted":
-            self.lifecycle = self.LIFECYCLE_DEPRECATED
-            update_fields.append("lifecycle")
-        self.save(update_fields=update_fields)
-
-    def clean(self):
-        super().clean()
-        errors = {}
-        if self.library_definition_key:
-            try:
-                _LIBRARY_DEFINITION_KEY_VALIDATOR(self.library_definition_key)
-            except ValidationError as exc:
-                errors["library_definition_key"] = exc.messages
-        if self.management_kind == self.MANAGEMENT_LIBRARY:
-            if self.library_id is None:
-                errors["library"] = _("Library-managed Asset Types require a Library.")
-            if not self.library_definition_key:
-                errors["library_definition_key"] = _("Library-managed Asset Types require a non-empty definition key.")
-        elif self.library_id is not None or self.library_definition_key not in (None, ""):
-            errors["management_kind"] = _("Only library-managed Asset Types may carry Library identity.")
-        if errors:
-            raise ValidationError(errors)
-
     def save(self, *args, **kwargs):
         if self.pk:
-            previous = (
-                type(self)
-                .all_objects.filter(pk=self.pk)
-                .values("library_id", "library_definition_key", "connector_identity")
-                .first()
-            )
-            if previous and any(
-                previous[field_name] != getattr(self, field_name)
-                for field_name in ("library_id", "library_definition_key", "connector_identity")
-            ):
-                raise ValidationError(
-                    {"library_definition_key": _("The library Asset Type identity is immutable after creation.")}
-                )
+            previous = type(self).all_objects.filter(pk=self.pk).values("connector_identity").first()
+            if previous and previous["connector_identity"] != self.connector_identity:
+                raise ValidationError({"connector_identity": _("This value is immutable after creation.")})
         return super().save(*args, **kwargs)
 
 

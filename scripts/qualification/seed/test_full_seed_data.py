@@ -56,8 +56,6 @@ class FullSeedDataQualificationTests(TransactionTestCase):
         self.assertFalse(lars.is_superuser)
         lars_membership = Membership._base_manager.select_related("tenant").get(user=lars, is_active=True)
         self.assertTrue(lars_membership.tenant.is_provider)
-        self.assertTrue(lars.has_perm("extras.view_specificationlibrary", obj=lars_membership.tenant))
-        self.assertTrue(lars.has_perm("extras.manage_specification_library", obj=lars_membership.tenant))
         self.assertTrue(self.client.login(username="lars.eklund", password="configured-seed-password"))
         self._activate_seeded_tenant(lars_membership.tenant_id)
         check_seed_access_invariants()

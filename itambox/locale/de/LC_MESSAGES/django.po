@@ -13818,10 +13818,6 @@ msgstr "Der Feldtyp wird nicht unterstützt."
 msgid "The integer is outside the supported range."
 msgstr "Die Ganzzahl liegt außerhalb des unterstützten Bereichs."
 
-#: itambox/assets/models/catalog.py
-msgid "The library Asset Type identity is immutable after creation."
-msgstr "Die Identität des Asset-Typs aus der Bibliothek kann nach der Erstellung nicht geändert werden."
-
 #: itambox/extras/customfields.py
 msgid "The text is too long."
 msgstr "Der Text ist zu lang."
@@ -13941,14 +13937,6 @@ msgstr "Veraltete benutzerdefinierte Felder sind schreibgeschützt."
 msgid "Inline regular-expression flags are not allowed."
 msgstr "Inline-Flags für reguläre Ausdrücke sind nicht zulässig."
 
-#: itambox/assets/models/catalog.py
-msgid "Library-managed Asset Types require a Library."
-msgstr "Von einer Bibliothek verwaltete Asset-Typen benötigen eine Bibliothek."
-
-#: itambox/assets/models/catalog.py
-msgid "Library-managed Asset Types require a non-empty definition key."
-msgstr "Von einer Bibliothek verwaltete Asset-Typen benötigen einen nicht leeren Definitionsschlüssel."
-
 #: itambox/itambox/views/generic/restore.py
 msgid "Skipped %(count)s permanent schema tombstone(s)."
 msgstr "%(count)s dauerhafte Schema-Tombstones übersprungen."
@@ -13997,107 +13985,6 @@ msgstr "Wählen Sie alle Modelle aus, für die dieses Feld gilt. Die Anwendbarke
 #, python-format
 msgid "Unsupported custom-field owner: %(models)s."
 msgstr "Nicht unterstütztes Modell für benutzerdefinierte Felder: %(models)s."
-
-
-#: itambox/extras/models.py:250
-msgid "A Library namespace is immutable after creation."
-msgstr "Der Namespace einer Bibliothek kann nach der Erstellung nicht geändert werden."
-
-#: itambox/extras/models.py:162
-msgid "A release document must be a JSON object."
-msgstr "Ein Release-Dokument muss ein JSON-Objekt sein."
-
-#: itambox/extras/models.py:280
-msgid "An older Release cannot become accepted."
-msgstr "Ein älteres Release kann nicht akzeptiert werden."
-
-#: itambox/extras/models.py:378
-msgid "Choice"
-msgstr "Auswahl"
-
-#: itambox/extras/models.py:377
-msgid "Choice Set"
-msgstr "Auswahlset"
-
-#: itambox/extras/models.py:493
-msgid "Core and local definitions cannot carry a Library link."
-msgstr "Kern- und lokale Definitionen dürfen keine Bibliotheksverknüpfung enthalten."
-
-#: itambox/extras/models.py:258
-msgid "Create a Library before accepting a Release."
-msgstr "Erstellen Sie eine Bibliothek, bevor Sie ein Release akzeptieren."
-
-#: itambox/extras/models.py:421
-msgid "Legacy managed paths must be a JSON object."
-msgstr "Legacy-verwaltete Pfade müssen ein JSON-Objekt sein."
-
-#: itambox/extras/models.py:425
-msgid "Legacy provenance is immutable transition evidence."
-msgstr "Die Legacy-Herkunft ist ein unveränderlicher Übergangsnachweis."
-
-#: itambox/extras/models.py:419
-msgid "Legacy provenance rows are immutable after insertion."
-msgstr "Legacy-Herkunftsdatensätze können nach dem Einfügen nicht geändert werden."
-
-#: itambox/extras/models.py:491
-msgid "Library-managed definitions require a Library."
-msgstr "Von einer Bibliothek verwaltete Definitionen benötigen eine Bibliothek."
-
-#: itambox/assets/models/catalog.py:391
-msgid "Only library-managed Asset Types may carry Library identity."
-msgstr "Nur von einer Bibliothek verwaltete Asset-Typen dürfen eine Bibliotheksidentität enthalten."
-
-#: itambox/extras/models.py:355
-msgid "Release rows are immutable after insertion."
-msgstr "Release-Datensätze können nach dem Einfügen nicht geändert werden."
-
-#: itambox/extras/models.py:360
-msgid "Release rows are immutable and retained."
-msgstr "Release-Datensätze sind unveränderlich und bleiben erhalten."
-
-#: itambox/extras/models.py:332
-msgid "Release sequence must be a positive integer."
-msgstr "Die Release-Sequenz muss eine positive Ganzzahl sein."
-
-#: itambox/extras/models.py:262
-msgid "Specification Library identities are permanent."
-msgstr "Identitäten von Spezifikationsbibliotheken sind dauerhaft."
-
-#: itambox/extras/models.py:267
-msgid "The Library must be saved before accepting a Release."
-msgstr "Die Bibliothek muss gespeichert sein, bevor ein Release akzeptiert werden kann."
-
-#: itambox/extras/models.py:275
-msgid "The Release belongs to another Library."
-msgstr "Das Release gehört zu einer anderen Bibliothek."
-
-#: itambox/extras/models.py:351
-msgid "The Release library identity is inconsistent."
-msgstr "Die Bibliotheksidentität des Releases ist inkonsistent."
-
-#: itambox/extras/models.py:255
-msgid "The accepted Release may only change through the library command."
-msgstr "Das akzeptierte Release darf nur über den Bibliotheksbefehl geändert werden."
-
-#: itambox/extras/models.py:235
-msgid "The accepted Release must belong to this Library."
-msgstr "Das akzeptierte Release muss zu dieser Bibliothek gehören."
-
-#: itambox/extras/models.py:343
-msgid "The digest does not match the normalized release document."
-msgstr "Der Digest stimmt nicht mit dem normalisierten Release-Dokument überein."
-
-#: itambox/extras/models.py:166
-msgid "The release document is not valid normalized JSON."
-msgstr "Das Release-Dokument ist kein gültiges normalisiertes JSON."
-
-#: itambox/extras/models.py:383
-msgid "Uninitialized"
-msgstr "Nicht initialisiert"
-
-#: itambox/extras/models.py:384
-msgid "Unreconciled"
-msgstr "Nicht abgeglichen"
 
 #: itambox/assets/models/catalog.py
 msgid "Actor ID"
