@@ -348,6 +348,7 @@ class CatalogueDetailAssetScopeTests(TenantTestMixin, TestCase):
                     self.assertNotIn(self.asset_b.name, body)
                     self.assertNotIn(self.asset_b.asset_tag, body)
                     self.assertNotIn(self.asset_b.serial_number, body)
+                    self.assertNotIn(self.tenant_b.name, body)
                     self.assertNotIn(self.deleted_asset.asset_tag, body)
 
     def test_catalogue_only_role_does_not_receive_asset_panels_or_records(self):
