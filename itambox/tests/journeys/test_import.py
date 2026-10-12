@@ -1,13 +1,16 @@
 """Import journeys: import never mutates beyond the role's grants and never writes lifecycle rows."""
 
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 
-from assets.models import Manufacturer
+from assets.models import Manufacturer, Supplier
 from core.importers.bulk_forms import is_model_importable
-from core.models import Job
-from organization.models import AssetHolder
+from core.models import Job, ObjectChange
+from organization.models import AssetHolder, Tenant
+from subscriptions.forms import SubscriptionBulkImportForm
+from subscriptions.models import Subscription
 
 from .support import JourneyMixin
 
@@ -83,3 +86,50 @@ class ImportJourneyTests(JourneyMixin, TestCase):
             with self.subTest(model=f"{app_label}.{model_name}"):
                 self.assertEqual(self.client.get(url).status_code, 404)
                 self.assertEqual(self.client.post(url, {"_preview": "1", "import_text": "x"}).status_code, 404)
+
+    def test_subscription_import_cannot_set_a_foreign_tenant(self):
+        foreign_tenant = Tenant.objects.create(name="Import Foreign", slug="import-foreign")
+        supplier = Supplier.objects.create(name="Global Import Supplier", slug="global-import-supplier")
+        adder = self.make_member("import-subscription-adder", {"subscriptions.add_subscription"})
+        names = ["Numeric Tenant Import", "Slug Tenant Import", "Name Tenant Import"]
+        tenant_values = [str(foreign_tenant.pk), foreign_tenant.slug, foreign_tenant.name]
+        rows = [
+            f"{name},{supplier.pk},EUR,{tenant_value}" for name, tenant_value in zip(names, tenant_values, strict=True)
+        ]
+        csv_text = "name,supplier,currency,tenant\n" + "\n".join(rows) + "\n"
+
+        self._import(adder, "subscriptions", "subscription", csv_text)
+
+        imported = list(Subscription._base_manager.filter(name__in=names))
+        self.assertEqual(len(imported), len(names), "forged tenant cells should be ignored, not block valid rows")
+        self.assertEqual({subscription.tenant_id for subscription in imported}, {self.tenant.pk})
+        subscription_type = ContentType.objects.get_for_model(Subscription)
+        self.assertFalse(
+            ObjectChange._base_manager.filter(
+                tenant=foreign_tenant,
+                changed_object_type=subscription_type,
+                changed_object_id__in=[subscription.pk for subscription in imported],
+            ).exists(),
+            "the import must not create subscription audit records in the forged tenant",
+        )
+
+    def test_subscription_import_field_docs_match_mapper_allowlist(self):
+        adder = self.make_member("import-subscription-field-reader", {"subscriptions.add_subscription"})
+        self.client_login_to_tenant(adder, self.tenant)
+        import_url = reverse("generic_import", kwargs={"app_label": "subscriptions", "model_name": "subscription"})
+
+        response = self.client.get(import_url)
+        documented_fields = {field["name"] for field in response.context["fields"]}
+        import_fields = set(SubscriptionBulkImportForm().field_names)
+        self.assertNotIn("tenant", documented_fields)
+        self.assertNotIn("tenant", import_fields)
+        self.assertEqual(documented_fields, import_fields)
+
+    def test_subscription_mapper_skips_excluded_fields_even_if_a_form_lists_them(self):
+        class LegacyTenantSubscriptionImportForm(SubscriptionBulkImportForm):
+            @property
+            def field_names(self):
+                return ["tenant"]
+
+        form = LegacyTenantSubscriptionImportForm()
+        self.assertEqual(form.map_row({"tenant": "forged-tenant"}), {})
