@@ -1,13 +1,20 @@
 """Import journeys: import never mutates beyond the role's grants and never writes lifecycle rows."""
 
+from unittest.mock import patch
+
 from django.apps import apps
-from django.test import TestCase
+from django.contrib.contenttypes.models import ContentType
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from assets.models import Manufacturer
+from assets.models import AssetType, Manufacturer
+from assets.models.catalog import AssetTypeFieldset
+from assets.services.specifications.commands import create_asset_type
+from core.context import set_current_all_accessible, set_current_tenant_group
 from core.importers.bulk_forms import is_model_importable
-from core.models import Job
-from organization.models import AssetHolder
+from core.models import Job, ObjectChange
+from itambox.views.generic import GenericObjectImportView
+from organization.models import AssetHolder, Tenant, TenantGroup
 
 from .support import JourneyMixin
 
@@ -16,13 +23,106 @@ class ImportJourneyTests(JourneyMixin, TestCase):
     def setUp(self):
         self.make_tenant("journey-import")
 
-    def _import(self, user, app_label, model_name, csv_text):
-        self.client_login_to_tenant(user, self.tenant)
+    def _import(self, user, app_label, model_name, import_text, *, import_format="csv", tenant=None):
+        self.client_login_to_tenant(user, tenant or self.tenant)
         url = reverse("generic_import", kwargs={"app_label": app_label, "model_name": model_name})
-        payload = {"import_text": csv_text, "active_tab": "editor", "import_format": "csv", "delimiter": ","}
+        payload = {
+            "import_text": import_text,
+            "active_tab": "editor",
+            "import_format": import_format,
+            "delimiter": ",",
+        }
         preview = self.client.post(url, {**payload, "_preview": "1"})
         confirm = self.client.post(url, {"_confirm": "1"})
         return preview, confirm
+
+    def test_customer_add_assettype_grant_cannot_preview_or_confirm_csv_or_yaml(self):
+        Manufacturer.objects.create(name="Journey Import Maker", slug="journey-import-maker")
+        creator = self.make_member("customer-import-type", {"assets.add_assettype"})
+        content_type = ContentType.objects.get_for_model(AssetType)
+        before_types = AssetType.objects.count()
+        before_memberships = AssetTypeFieldset.objects.count()
+        before_changes = ObjectChange.objects.filter(content_type=content_type).count()
+
+        for import_format, import_text in (
+            ("csv", "manufacturer,model\nJourney Import Maker,Customer CSV Type\n"),
+            ("yaml", "- manufacturer: Journey Import Maker\n  model: Customer YAML Type\n"),
+        ):
+            with self.subTest(import_format=import_format):
+                preview, confirm = self._import(
+                    creator,
+                    "assets",
+                    "assettype",
+                    import_text,
+                    import_format=import_format,
+                )
+                self.assertEqual(preview.status_code, 403)
+                self.assertEqual(confirm.status_code, 403)
+
+        self.assertEqual(AssetType.objects.count(), before_types)
+        self.assertEqual(AssetTypeFieldset.objects.count(), before_memberships)
+        self.assertEqual(ObjectChange.objects.filter(content_type=content_type).count(), before_changes)
+
+    def test_provider_add_assettype_role_can_import_csv_and_yaml(self):
+        Manufacturer.objects.create(name="Journey Provider Maker", slug="journey-provider-maker")
+        provider = self.make_provider_tenant("journey-import-provider")
+        creator = self.make_member("provider-import-type", {"assets.add_assettype"}, tenant=provider)
+
+        for import_format, import_text, model in (
+            ("csv", "manufacturer,model\nJourney Provider Maker,Provider CSV Type\n", "Provider CSV Type"),
+            (
+                "yaml",
+                "- manufacturer: Journey Provider Maker\n  model: Provider YAML Type\n",
+                "Provider YAML Type",
+            ),
+        ):
+            with self.subTest(import_format=import_format):
+                with patch(
+                    "assets.forms.import_forms.create_asset_type",
+                    create=True,
+                    wraps=create_asset_type,
+                ) as create_command:
+                    preview, confirm = self._import(
+                        creator,
+                        "assets",
+                        "assettype",
+                        import_text,
+                        import_format=import_format,
+                        tenant=provider,
+                    )
+                self.assertEqual(preview.status_code, 200)
+                self.assertEqual(confirm.status_code, 302)
+                self.assertEqual(create_command.call_count, 1)
+                self.assertTrue(AssetType.objects.filter(model=model).exists())
+
+    def test_provider_add_assettype_role_is_denied_in_group_and_all_accessible_scopes(self):
+        group = TenantGroup.objects.create(name="Import Provider Group", slug="import-provider-group")
+        provider = Tenant.objects.create(
+            name="Grouped Import Provider",
+            slug="grouped-import-provider",
+            is_provider=True,
+            group=group,
+        )
+        creator = self.make_member("aggregate-import-type", {"assets.add_assettype"}, tenant=provider)
+        self.client_login_to_tenant(creator, provider)
+        request = RequestFactory().get("/import/assets/assettype/")
+        request.user = creator
+        request.active_tenant = provider
+        view = GenericObjectImportView()
+        view.request = request
+        view.kwargs = {"app_label": "assets", "model_name": "assettype"}
+
+        try:
+            for scope, select_scope in (
+                ("tenant_group", lambda: (set_current_tenant_group(group), set_current_all_accessible(False))),
+                ("all_accessible", lambda: (set_current_tenant_group(None), set_current_all_accessible(True))),
+            ):
+                with self.subTest(scope=scope):
+                    select_scope()
+                    self.assertFalse(view.has_permission())
+        finally:
+            set_current_tenant_group(None)
+            set_current_all_accessible(False)
 
     def test_add_only_role_cannot_update_an_existing_row_by_id(self):
         existing = Manufacturer.objects.create(name="Journey Original", slug="journey-original")
