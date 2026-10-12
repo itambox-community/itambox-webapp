@@ -376,12 +376,20 @@ class Consumable(AbstractInventoryItem):
     class Meta(AbstractInventoryItem.Meta):
         verbose_name = _("Consumable")
         verbose_name_plural = _("Consumables")
+        # Product data is per tenant: two tenants of one installation may each
+        # stock the same product. Tenantless (global) rows keep their own
+        # single-name rule, the same tenant/global split as Supplier.
         constraints = [
             models.UniqueConstraint(
+                fields=["tenant", "manufacturer", "name"],
+                condition=models.Q(deleted_at__isnull=True) & models.Q(tenant__isnull=False),
+                name="inventory_consumable_unique_tenant_manufacturer_name",
+            ),
+            models.UniqueConstraint(
                 fields=["manufacturer", "name"],
-                condition=models.Q(deleted_at__isnull=True),
-                name="inventory_consumable_unique_manufacturer_name",
-            )
+                condition=models.Q(deleted_at__isnull=True) & models.Q(tenant__isnull=True),
+                name="inventory_consumable_unique_global_manufacturer_name",
+            ),
         ]
 
     def get_absolute_url(self):

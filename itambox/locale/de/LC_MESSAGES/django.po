@@ -15733,3 +15733,6 @@ msgstr "%(object)s kann nicht wiederhergestellt werden: Der verwaltende Mandant 
 
 msgid "managed tenants"
 msgstr "verwaltete Mandanten"
+
+msgid "A consumable with this manufacturer and name already exists for this tenant."
+msgstr "Ein Verbrauchsmaterial mit diesem Hersteller und diesem Namen existiert für diesen Mandanten bereits."
