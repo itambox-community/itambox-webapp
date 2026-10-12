@@ -6,6 +6,8 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models import Count, IntegerField, OuterRef, QuerySet, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -21,6 +23,21 @@ from core.models import BaseModel, StandardModel
 from extras.models import CustomFieldset, SpecificationLibrary
 
 _LIBRARY_DEFINITION_KEY_VALIDATOR = RegexValidator(r"^[a-z][a-z0-9]*(?:[-_.][a-z0-9]+)*$")
+
+
+def scoped_related_count(child_queryset: QuerySet, relation_lookup: str) -> Coalesce:
+    """Return a correlated count over an already-authorized child queryset."""
+    related_rows = child_queryset.filter(**{relation_lookup: OuterRef("pk")}).order_by()
+    count_query = (
+        related_rows.values(relation_lookup)
+        .annotate(scoped_count=Count("pk", distinct=True))
+        .values("scoped_count")[:1]
+    )
+    return Coalesce(
+        Subquery(count_query, output_field=IntegerField()),
+        Value(0),
+        output_field=IntegerField(),
+    )
 
 
 class StatusLabel(AutoSlugMixin, StandardModel, SoftDeleteMixin):
