@@ -10,18 +10,20 @@
 {% endblock %}
 {# --- Tabs Hook --- #}
 {% block extra_tabs %}
-  <li class="nav-item" role="presentation">
-    <a href="?tab=assets"
-       class="nav-link {% if request.GET.tab == 'assets' %}active{% endif %}"
-       data-bs-toggle="tab"
-       hx-boost="false"
-       data-bs-target="#assets"
-       role="tab"
-       aria-selected="{% if request.GET.tab == 'assets' %}true{% else %}false{% endif %}">
-      <i class="mdi mdi-office-building-outline me-1 text-green"></i>
-      {% translate "Assets" %} <span class="badge bg-green-lt ms-2">{{ assets_table.rows|length }}</span>
-    </a>
-  </li>
+  {% if can_view_assets %}
+    <li class="nav-item" role="presentation">
+      <a href="?tab=assets"
+         class="nav-link {% if request.GET.tab == 'assets' %}active{% endif %}"
+         data-bs-toggle="tab"
+         hx-boost="false"
+         data-bs-target="#assets"
+         role="tab"
+         aria-selected="{% if request.GET.tab == 'assets' %}true{% else %}false{% endif %}">
+        <i class="mdi mdi-office-building-outline me-1 text-green"></i>
+        {% translate "Assets" %} <span class="badge bg-green-lt ms-2">{{ assets_table.rows|length }}</span>
+      </a>
+    </li>
+  {% endif %}
 {% endblock extra_tabs %}
 {# Object details rendered via panel layout #}
 {# Sidebar elements #}
@@ -29,23 +31,25 @@
 {% endblock related_objects %}
 {# --- Extra Tab Panes --- #}
 {% block extra_tab_panes %}
-  {# Assets Tab Pane #}
-  <div class="tab-pane fade {% if request.GET.tab == 'assets' %}show active{% endif %}"
-       id="assets"
-       role="tabpanel">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header border-0 bg-transparent">
-        <h3 class="card-title">{% blocktranslate with name=object.name %}Assets / Devices with status "{{ name }}"{% endblocktranslate %}</h3>
-      </div>
-      {% if assets_table.rows %}
-        <div class="table-responsive">{% render_table assets_table %}</div>
-        {% include 'generic/includes/table_pagination.html' with table=assets_table tab="assets" %}
-      {% else %}
-        <div class="card-body py-5 text-muted text-center">
-          <i class="mdi mdi-devices text-muted mb-2"></i>
-          <p class="mb-0">{% translate "No assets found with this status label." %}</p>
+  {% if can_view_assets %}
+    {# Assets Tab Pane #}
+    <div class="tab-pane fade {% if request.GET.tab == 'assets' %}show active{% endif %}"
+         id="assets"
+         role="tabpanel">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header border-0 bg-transparent">
+          <h3 class="card-title">{% blocktranslate with name=object.name %}Assets / Devices with status "{{ name }}"{% endblocktranslate %}</h3>
         </div>
-      {% endif %}
+        {% if assets_table.rows %}
+          <div class="table-responsive">{% render_table assets_table %}</div>
+          {% include 'generic/includes/table_pagination.html' with table=assets_table tab="assets" %}
+        {% else %}
+          <div class="card-body py-5 text-muted text-center">
+            <i class="mdi mdi-devices text-muted mb-2"></i>
+            <p class="mb-0">{% translate "No assets found with this status label." %}</p>
+          </div>
+        {% endif %}
+      </div>
     </div>
-  </div>
+  {% endif %}
 {% endblock extra_tab_panes %}

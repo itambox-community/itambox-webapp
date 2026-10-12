@@ -256,12 +256,19 @@ class Component(AbstractInventoryItem):
     class Meta(AbstractInventoryItem.Meta):
         verbose_name = _("Component (Catalog)")
         verbose_name_plural = _("Components (Catalog)")
+        # Product data is per tenant: the same component may exist in separate
+        # tenants, while tenantless (global) rows retain their own single-name rule.
         constraints = [
             models.UniqueConstraint(
+                fields=["tenant", "manufacturer", "name"],
+                condition=models.Q(deleted_at__isnull=True) & models.Q(tenant__isnull=False),
+                name="inventory_component_unique_tenant_manufacturer_name",
+            ),
+            models.UniqueConstraint(
                 fields=["manufacturer", "name"],
-                condition=models.Q(deleted_at__isnull=True),
-                name="unique_component_manufacturer_name",
-            )
+                condition=models.Q(deleted_at__isnull=True) & models.Q(tenant__isnull=True),
+                name="inventory_component_unique_global_manufacturer_name",
+            ),
         ]
 
     def get_absolute_url(self):
@@ -338,12 +345,19 @@ class Accessory(AbstractInventoryItem):
     class Meta(AbstractInventoryItem.Meta):
         verbose_name = _("Accessory")
         verbose_name_plural = _("Accessories")
+        # Product data is per tenant: the same accessory may exist in separate
+        # tenants, while tenantless (global) rows retain their own single-name rule.
         constraints = [
             models.UniqueConstraint(
+                fields=["tenant", "manufacturer", "name"],
+                condition=models.Q(deleted_at__isnull=True) & models.Q(tenant__isnull=False),
+                name="inventory_accessory_unique_tenant_manufacturer_name",
+            ),
+            models.UniqueConstraint(
                 fields=["manufacturer", "name"],
-                condition=models.Q(deleted_at__isnull=True),
-                name="inventory_accessory_unique_manufacturer_name",
-            )
+                condition=models.Q(deleted_at__isnull=True) & models.Q(tenant__isnull=True),
+                name="inventory_accessory_unique_global_manufacturer_name",
+            ),
         ]
 
     def get_absolute_url(self):

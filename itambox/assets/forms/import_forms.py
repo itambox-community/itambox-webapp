@@ -45,6 +45,7 @@ class AssetTypeBulkImportForm(BulkImportForm):
 class ManufacturerBulkImportForm(BulkImportForm):
     model = Manufacturer
     update_key = ("name",)
+    generated_slug_source = "name"
     required_fields = ["name"]
     optional_fields = ["slug", "description"]
 
@@ -83,6 +84,7 @@ class LicenseBulkImportForm(BulkImportForm):
 @register_import_form
 class LocationBulkImportForm(BulkImportForm):
     model = Location
+    generated_slug_source = "name"
     required_fields = ["name", "site"]
     optional_fields = ["slug", "status", "parent", "facility", "description"]
 

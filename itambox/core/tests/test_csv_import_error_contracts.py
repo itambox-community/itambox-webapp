@@ -2,8 +2,10 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import FieldDoesNotExist
 from django.db import IntegrityError, transaction
+from django.test import RequestFactory, SimpleTestCase
 from django.utils.translation import override
 
 from assets.models import Manufacturer
@@ -230,3 +232,56 @@ class TestImportTaskAbortContract(TenantTestMixin):
         cleanup = next(record for record in caplog.records if record.import_context["operation"] == "task.cleanup")
         assert cleanup.import_context["exception_type"] == "RuntimeError"
         assert SECRET not in caplog.text
+
+
+class TestMalformedImportPreview(SimpleTestCase):
+    def test_malformed_rows_return_indexed_form_errors_without_enqueuing_jobs(self):
+        malformed_inputs = [
+            ("csv", "name,slug\nMaker,maker,extra", "Row 2: CSV row has more cells than headers."),
+            (
+                "yaml",
+                "- name: Maker\n  slug: maker\n- invalid_scalar",
+                "Row 2: YAML data elements must be mappings (key-value pairs).",
+            ),
+            (
+                "yaml",
+                "- name: Maker\n  slug: maker\n- null",
+                "Row 2: YAML data elements must be mappings (key-value pairs).",
+            ),
+            (
+                "yaml",
+                "- name: Maker\n  slug: maker\n- [invalid, item]",
+                "Row 2: YAML data elements must be mappings (key-value pairs).",
+            ),
+        ]
+
+        with (
+            patch("itambox.views.generic.import_.async_task") as enqueue,
+            patch.object(Job.objects, "create") as create_job,
+        ):
+            for import_format, import_text, error in malformed_inputs:
+                with self.subTest(import_format=import_format, import_text=import_text):
+                    payload = {
+                        "active_tab": "editor",
+                        "import_format": import_format,
+                        "import_text": import_text,
+                        "delimiter": ",",
+                        "_preview": "1",
+                    }
+                    request = RequestFactory().post("/import/", payload)
+                    request.session = {}
+                    request.user = AnonymousUser()
+                    view = ObjectImportView()
+                    view.model_form = _ConditionalImportForm
+                    view.setup(request)
+
+                    response = view.post(request)
+                    response.render()
+                    content = response.content.decode()
+                    self.assertEqual(response.status_code, 200)
+                    self.assertIn(error, content)
+                    self.assertNotIn("object has no attribute", content)
+                    self.assertNotIn("import_rows", request.session)
+
+        create_job.assert_not_called()
+        enqueue.assert_not_called()

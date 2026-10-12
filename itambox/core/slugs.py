@@ -18,11 +18,13 @@ def generate_unique_slug(instance, slug_source=None, slug_field="slug"):
         source = "-".join(values)
     else:
         source = getattr(instance, slug_source, "")
-    base_slug = slugify(source) or "auto-slug"
+    max_length = instance._meta.get_field(slug_field).max_length
+    base_slug = (slugify(source) or "auto-slug")[:max_length]
     current_slug = base_slug
     counter = 1
     manager = getattr(instance.__class__, "_base_manager", instance.__class__.objects)
     while manager.filter(**{slug_field: current_slug}).exclude(pk=instance.pk).exists():
-        current_slug = f"{base_slug}-{counter}"
+        suffix = f"-{counter}"
+        current_slug = f"{base_slug[: max_length - len(suffix)]}{suffix}"
         counter += 1
     setattr(instance, slug_field, current_slug)

@@ -10,17 +10,19 @@
 {% endblock %}
 {# --- Tabs Hook --- #}
 {% block extra_tabs %}
-  <li class="nav-item" role="presentation">
-    <a href="?tab=related-assets"
-       data-bs-target="#related-assets"
-       class="nav-link {% if request.GET.tab == 'related-assets' %}active{% endif %}"
-       data-bs-toggle="tab"
-       hx-boost="false"
-       role="tab">
-      <i class="mdi mdi-office-building-outline me-1 text-purple"></i>
-      {% translate "Related Assets" %} <span class="badge bg-purple-lt ms-2">{{ assets_table.rows|length }}</span>
-    </a>
-  </li>
+  {% if can_view_assets %}
+    <li class="nav-item" role="presentation">
+      <a href="?tab=related-assets"
+         data-bs-target="#related-assets"
+         class="nav-link {% if request.GET.tab == 'related-assets' %}active{% endif %}"
+         data-bs-toggle="tab"
+         hx-boost="false"
+         role="tab">
+        <i class="mdi mdi-office-building-outline me-1 text-purple"></i>
+        {% translate "Related Assets" %} <span class="badge bg-purple-lt ms-2">{{ assets_table.rows|length }}</span>
+      </a>
+    </li>
+  {% endif %}
   <li class="nav-item" role="presentation">
     <a href="?tab=requests"
        data-bs-target="#requests"
@@ -29,7 +31,7 @@
        hx-boost="false"
        role="tab">
       <i class="mdi mdi-clipboard-text-outline me-1 text-yellow"></i>
-      {% translate "Requests" %} <span class="badge bg-yellow-lt ms-2">{{ object.requests.count }}</span>
+      {% translate "Requests" %} <span class="badge bg-yellow-lt ms-2">{{ request_count }}</span>
     </a>
   </li>
   <li class="nav-item" role="presentation">
@@ -48,9 +50,11 @@
 {# --- Extra Tab Panes --- #}
 {% block extra_tab_panes %}
   {# Related Assets Tab Pane #}
-  {% translate "Assets of this Model / Type" as t_assets %}
-  {% translate "No physical assets registered under this type/model yet." as e_assets %}
-  {% include 'generic/includes/related_table_tab.html' with tab="related-assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-cancel" %}
+  {% if can_view_assets %}
+    {% translate "Assets of this Model / Type" as t_assets %}
+    {% translate "No physical assets registered under this type/model yet." as e_assets %}
+    {% include 'generic/includes/related_table_tab.html' with tab="related-assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-cancel" %}
+  {% endif %}
   {% translate "Asset Requests for this Model / Type" as t_requests %}
   {% translate "No requests logged for this asset type." as e_requests %}
   {% include 'generic/includes/related_table_tab.html' with tab="requests" table=requests_table title=t_requests empty=e_requests %}

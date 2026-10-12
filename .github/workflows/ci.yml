@@ -416,7 +416,7 @@ jobs:
       # consumes -- and removes -- the `.coverage.combined` data file it reads.
       - name: Download lane coverage
         if: needs.test.result == 'success'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: coverage-and-durations-py3.12
           path: artifacts
@@ -436,7 +436,7 @@ jobs:
       # measurement to the ordinary lanes.
       - name: Download qualification coverage
         if: always() && needs.migration-qualification.outputs.enabled == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qualification-coverage
           path: artifacts/qualification-coverage

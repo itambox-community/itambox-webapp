@@ -20,7 +20,7 @@ from itambox.views.generic import (
 )
 
 from .. import filters, forms, tables
-from ..models import AssetType, AssetTypeFieldset
+from ..models import Asset, AssetType, AssetTypeFieldset
 
 
 class AssetTypeListView(ObjectListView):
@@ -34,7 +34,6 @@ class AssetTypeListView(ObjectListView):
 class AssetTypeDetailView(ObjectDetailView):
     queryset = AssetType.objects.select_related("manufacturer").prefetch_related(
         "tags",
-        "assets",
         Prefetch(
             "fieldset_memberships",
             queryset=AssetTypeFieldset.objects.select_related("fieldset").prefetch_related(
@@ -46,23 +45,33 @@ class AssetTypeDetailView(ObjectDetailView):
     layout = (((Panel("info", _("Asset Type Details")), Panel("specs", _("Hardware Specifications"))),),)
 
     def get_context_data(self, **kwargs):
+        asset_scope = Scope.current()
         context = super().get_context_data(**kwargs)
         assettype = self.get_object()
 
-        assets_table = tables.AssetTable(assettype.assets.all(), request=self.request)
-        RequestConfig(self.request, paginate={"per_page": get_paginate_count(self.request)}).configure(assets_table)
-
+        can_view_assets = self.request.user.has_perm("assets.view_asset")
+        assets_table = None
         related_objects_list = []
-        asset_count = assettype.assets.count()
-        if asset_count:
-            related_objects_list.append(
-                {
-                    "label": "Assets",
-                    "count": asset_count,
-                    "url": f"{reverse('assets:asset_list')}?asset_type={assettype.pk}",
-                }
+        if can_view_assets:
+            assets_qs = (
+                Asset.objects.for_scope(asset_scope)
+                .filter(asset_type=assettype)
+                .select_related("asset_role", "asset_type", "location", "tenant")
             )
+            assets_table = tables.AssetTable(assets_qs, request=self.request)
+            RequestConfig(self.request, paginate={"per_page": get_paginate_count(self.request)}).configure(assets_table)
 
+            asset_count = assets_qs.count()
+            if asset_count:
+                related_objects_list.append(
+                    {
+                        "label": "Assets",
+                        "count": asset_count,
+                        "url": f"{reverse('assets:asset_list')}?asset_type={assettype.pk}",
+                    }
+                )
+
+        context["can_view_assets"] = can_view_assets
         context["assets_table"] = assets_table
         context["related_objects_list"] = related_objects_list
         context["specification_fields"] = resolve_asset_type_custom_fields(assettype)
@@ -78,6 +87,7 @@ class AssetTypeDetailView(ObjectDetailView):
         requests_table = tables.AssetRequestTable(req_qs, request=self.request)
         RequestConfig(self.request, paginate={"per_page": get_paginate_count(self.request)}).configure(requests_table)
         context["requests_table"] = requests_table
+        context["request_count"] = requests_table.page.paginator.count
 
         # Kits
         from inventory.models import Kit

@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, Supplier
+from core.context import get_current_tenant
 from core.forms import BulkEditForm, CrispyFormMixin, FilterForm, TenantScopedFormMixin
 from core.importers.bulk_forms import BulkImportForm, register_import_form
 from core.managers import Scope
@@ -51,8 +52,13 @@ class SubscriptionBulkImportForm(BulkImportForm):
         "owner",
         "description",
         "notes",
-        "tenant",
     ]
+
+    def _create_instance(self, mapped_data):
+        tenant = get_current_tenant()
+        if tenant is not None:
+            mapped_data = {**mapped_data, "tenant_id": tenant.pk}
+        return super()._create_instance(mapped_data)
 
     @staticmethod
     def _boolean(value):

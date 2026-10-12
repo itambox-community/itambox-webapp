@@ -63,14 +63,28 @@ def _row_error_messages(exc):
     return [str(message) for message in exc.messages]
 
 
+def _normalize_csv_row(row, row_number):
+    if None in row:
+        raise ValidationError(_("Row %(row)s: CSV row has more cells than headers.") % {"row": row_number})
+    return {key.strip() if key else "": (value.strip() if value else "") for key, value in row.items()}
+
+
+def _validate_yaml_rows(rows, start_row=1):
+    for row_number, row in enumerate(rows, start=start_row):
+        if not isinstance(row, dict):
+            raise ValidationError(
+                _("Row %(row)s: YAML data elements must be mappings (key-value pairs).") % {"row": row_number}
+            )
+
+
 # Upper bound on rows accepted in a single bulk import. Beyond this, the request
 # is rejected so a single submission can't exhaust memory / hold a transaction
 # open indefinitely; large datasets should be split into batches.
 MAX_IMPORT_ROWS = getattr(settings, "MAX_IMPORT_ROWS", 10000)
 
 # Fields that are never user-importable: set from request context, computed by
-# background tasks, or framework-managed. Excluded from both the dynamic field
-# enumeration and the "Field Options" help table.
+# background tasks, or framework-managed. Excluded from the dynamic field
+# enumeration, row mapper, and the "Field Options" help table.
 IMPORT_EXCLUDED_FIELDS = frozenset(
     {
         "tenant",
@@ -225,7 +239,7 @@ class BulkImportForm(forms.Form):
 
     @property
     def field_names(self):
-        return list(self.required_fields) + list(self.optional_fields)
+        return [name for name in [*self.required_fields, *self.optional_fields] if name not in IMPORT_EXCLUDED_FIELDS]
 
     def clean_csv_file(self):
         return self.cleaned_data.get("csv_file")
@@ -292,9 +306,8 @@ class BulkImportForm(forms.Form):
                 )
 
             self._rows_data = []
-            for row in rows:
-                cleaned_row = {k.strip() if k else "": (v.strip() if v else "") for k, v in row.items()}
-                self._rows_data.append(cleaned_row)
+            for row_number, row in enumerate(rows, start=2):
+                self._rows_data.append(_normalize_csv_row(row, row_number))
 
         elif import_format == "yaml":
             try:
@@ -312,7 +325,7 @@ class BulkImportForm(forms.Form):
                     raise ValidationError(_("YAML input must be a list of objects or a single object mapping."))
 
             if not parsed_yaml or not isinstance(parsed_yaml[0], dict):
-                raise ValidationError(_("YAML data elements must be mappings (key-value pairs)."))
+                _validate_yaml_rows(parsed_yaml[:1])
 
             if len(parsed_yaml) > MAX_IMPORT_ROWS:
                 raise ValidationError(
@@ -320,6 +333,8 @@ class BulkImportForm(forms.Form):
                         max=MAX_IMPORT_ROWS
                     )
                 )
+
+            _validate_yaml_rows(parsed_yaml[1:], start_row=2)
 
             headers = set(parsed_yaml[0].keys())
             missing_required = [f for f in self.required_fields if f not in headers]
@@ -396,16 +411,20 @@ class BulkImportForm(forms.Form):
         instance.save()
 
     def _populate_generated_slug(self, instance):
-        """Fill in the slug an ``AutoSlugMixin`` model generates on save.
+        """Fill in a configured model slug before row validation.
 
         ``full_clean()`` runs before ``save()``, so validation sees a blank slug
-        for a row that legitimately omits the column and rejects it. Generate the
-        value here with the same helper ``AutoSlugMixin.save()`` calls, so the
-        stored slug is the one the UI save path produces; an explicit slug is
-        left untouched (the helper returns early when one is set).
+        for a row that legitimately omits the column and rejects it. Models with
+        ``AutoSlugMixin`` use their declared source; curated forms may declare
+        ``generated_slug_source`` for supported models without that mixin. An
+        explicit slug is left untouched by the shared generator.
         """
         if isinstance(instance, AutoSlugMixin):
-            generate_unique_slug(instance, instance.slug_source)
+            slug_source = instance.slug_source
+        else:
+            slug_source = getattr(self, "generated_slug_source", None)
+        if slug_source:
+            generate_unique_slug(instance, slug_source)
 
     def _key_attnames(self):
         return [self.model._meta.get_field(name).attname for name in self.update_key]
@@ -448,7 +467,7 @@ class BulkImportForm(forms.Form):
             return mapped
 
         for k in self.field_names:
-            if k not in row or row[k] is None:
+            if k in IMPORT_EXCLUDED_FIELDS or k not in row or row[k] is None:
                 continue
             val = str(row[k]).strip()
             if not val:
