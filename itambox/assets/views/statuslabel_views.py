@@ -5,6 +5,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
+from core.managers import Scope
 from itambox.panels import Panel
 from itambox.utils import get_paginate_count
 from itambox.views.generic import (
@@ -16,7 +17,7 @@ from itambox.views.generic import (
 )
 
 from .. import filters, forms, tables
-from ..models import StatusLabel
+from ..models import Asset, StatusLabel
 
 
 class StatusLabelListView(ObjectListView):
@@ -28,29 +29,38 @@ class StatusLabelListView(ObjectListView):
 
 
 class StatusLabelDetailView(ObjectDetailView):
-    queryset = StatusLabel.objects.prefetch_related("assets")
+    queryset = StatusLabel.objects.all()
 
     layout = (((Panel("info", _("Status Label Details")),),),)
 
     def get_context_data(self, **kwargs):
+        asset_scope = Scope.current()
         context = super().get_context_data(**kwargs)
         statuslabel = self.get_object()
 
-        assets_qs = statuslabel.assets.select_related("asset_role", "asset_type", "location")
-        assets_table = tables.AssetTable(assets_qs, request=self.request)
-        RequestConfig(self.request, paginate={"per_page": get_paginate_count(self.request)}).configure(assets_table)
-
+        can_view_assets = self.request.user.has_perm("assets.view_asset")
+        assets_table = None
         related_objects_list = []
-        asset_count = assets_qs.count()
-        if asset_count:
-            related_objects_list.append(
-                {
-                    "label": "Assets",
-                    "count": asset_count,
-                    "url": f"{reverse('assets:asset_list')}?status={statuslabel.slug}",
-                }
+        if can_view_assets:
+            assets_qs = (
+                Asset.objects.for_scope(asset_scope)
+                .filter(status=statuslabel)
+                .select_related("asset_role", "asset_type", "location", "tenant")
             )
+            assets_table = tables.AssetTable(assets_qs, request=self.request)
+            RequestConfig(self.request, paginate={"per_page": get_paginate_count(self.request)}).configure(assets_table)
 
+            asset_count = assets_qs.count()
+            if asset_count:
+                related_objects_list.append(
+                    {
+                        "label": "Assets",
+                        "count": asset_count,
+                        "url": f"{reverse('assets:asset_list')}?status={statuslabel.slug}",
+                    }
+                )
+
+        context["can_view_assets"] = can_view_assets
         context["assets_table"] = assets_table
         context["related_objects_list"] = related_objects_list
         return context
