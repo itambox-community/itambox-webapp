@@ -25,7 +25,7 @@ Reports against the latest prerelease and against current `main` are both welcom
 
 Use one of the private channels:
 
-1. **GitHub Private Vulnerability Reporting** — open the repository's [Security tab](https://github.com/itambox/itambox-webapp/security) and select *Report a vulnerability*. This opens a private advisory visible only to you and the maintainers.
+1. **GitHub Private Vulnerability Reporting** — open the repository's [Security tab](https://github.com/itambox-community/itambox-webapp/security) and select *Report a vulnerability*. This opens a private advisory visible only to you and the maintainers.
 2. **Email** — [security@itambox.dev](mailto:security@itambox.dev) with the subject prefix `[ITAMbox Security]`.
 
 A useful report describes:
