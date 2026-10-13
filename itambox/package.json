@@ -24,8 +24,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@typescript-eslint/eslint-plugin": "^8.61.1",
-    "@typescript-eslint/parser": "^8.65.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.2",
+    "@typescript-eslint/parser": "^8.71.2",
     "autoprefixer": "^10.5.0",
     "cssnano": "^9.0.5",
     "esbuild": "^0.28.1",
@@ -43,7 +43,7 @@
     "stylelint": "17.14.1",
     "stylelint-config-standard-scss": "17.0.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.65.0"
+    "typescript-eslint": "^8.71.2"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
