@@ -5543,6 +5543,9 @@ msgstr "Die ausgewählte Software gehört zu einem anderen Mandanten."
 msgid "Selected subscription belongs to a different tenant."
 msgstr "Das ausgewählte Abonnement gehört zu einem anderen Mandanten."
 
+msgid "Selected %(model)s belongs to a different tenant or is no longer available."
+msgstr "Das ausgewählte %(model)s gehört zu einem anderen Mandanten oder ist nicht mehr verfügbar."
+
 #| msgid "Installed Software Instance"
 msgid "Installed Software"
 msgstr "Installierte Software"

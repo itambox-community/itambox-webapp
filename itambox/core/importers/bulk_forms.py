@@ -184,6 +184,11 @@ def resolve_related(related_model, value):
         obj = queryset.filter(pk=int(value)).first()
         if obj:
             return obj.pk
+        if related_model._base_manager.filter(pk=int(value)).exists():
+            raise ValidationError(
+                _("Selected %(model)s belongs to a different tenant or is no longer available.")
+                % {"model": related_model._meta.verbose_name}
+            )
     obj = _find_related_by_natural_key(related_model, queryset, value)
     if obj:
         return obj.pk
