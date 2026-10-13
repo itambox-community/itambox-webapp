@@ -271,12 +271,22 @@ Keep generated files in sync with their sources. Do not include unrelated format
 
 ## Merging
 
-`main` is protected by a ruleset that requires the 13 status checks (`lint`, `template-lint`, `stylelint`, `inline-style`, `docs`, `frontend`, `test (3.12)`, `Migration & seed qualification`, `Coverage gates`, `policy`, `dependencies`, `secrets`, `E2E / Gate`) and a clean CodeQL code-scanning result. Required checks are strict: a pull request can only be merged when its head contains the current tip of `main`, so what lands has been qualified against the state it lands into.
+`main` is protected by a ruleset that requires the 13 status checks (`lint`, `template-lint`, `stylelint`,
+`inline-style`, `docs`, `frontend`, `test (3.12)`, `Migration & seed qualification`, `Coverage gates`,
+`policy`, `dependencies`, `secrets`, `E2E / Gate`), a clean CodeQL code-scanning result, and the merge
+queue. Every merge lands through the queue:
 
-GitHub's merge queue is not available for this repository (it is owned by a personal account), so freshness is enforced through the up-to-date requirement:
+- Once the required checks are green on a pull request's head, a maintainer enqueues the pull request;
+  direct merges into `main` are refused.
+- The queue re-qualifies each entry against the current tip of `main` in a `merge_group` run before
+  merging (squash), so what lands has been qualified against the state it lands into. Entries that no
+  longer qualify are removed from the queue instead of landing on stale qualification.
+- No manual **Update branch** is needed for freshness on the queue path; rebase locally only to resolve
+  real conflicts.
+- Queue configuration: all-green batching, up to three entries building and five merging per batch, a
+  minimum of one entry merged after a five minute wait, and a 60 minute check-response timeout.
+- The strict up-to-date requirement stays enabled as an additional guard.
 
-- When another pull request merges first, use **Update branch** on your pull request. The required checks re-run on the updated head.
-- Rebase locally only to resolve real conflicts, not for freshness alone.
-- Merging is done by a maintainer once every required check is green on the current head.
+Merging is done by a maintainer via the queue once every required check is green on the current head.
 
 By submitting a contribution, you agree that it is licensed under the repository's [Apache License 2.0](LICENSE), as described by the license's contribution terms.
