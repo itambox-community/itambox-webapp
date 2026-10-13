@@ -31,6 +31,19 @@ def _task_log_extra(*, operation, tenant_id, actor_id, exception_type=None):
     return {"import_context": context}
 
 
+def _log_skipped(job, form):
+    """Report rows the form deliberately left untouched (existing records) in the job log."""
+    skipped = list(getattr(form, "skipped_list", ()))
+    if skipped:
+        job.append_log(
+            ngettext("Skipped %(count)s existing record:", "Skipped %(count)s existing records:", len(skipped))
+            % {"count": len(skipped)}
+        )
+        for note in skipped:
+            job.append_log(f" - {note}")
+    return skipped
+
+
 def import_csv_task(
     job_id: int,
     rows_data: Sequence[Mapping[str, object]],
@@ -86,6 +99,8 @@ def import_csv_task(
                     % {"count": imported_count}
                 )
 
+                skipped = _log_skipped(job, form)
+
                 if errors:
                     job.append_log(
                         ngettext(
@@ -110,7 +125,9 @@ def import_csv_task(
                         )
                         return
 
-                job.mark_completed(result={"imported": imported_count, "failed": len(errors), "total": len(rows_data)})
+                result = {"imported": imported_count, "failed": len(errors), "total": len(rows_data)}
+                result.update({"skipped": len(skipped)} if skipped else {})
+                job.mark_completed(result=result)
 
                 Notification.objects.create(
                     user=ctx.user,
