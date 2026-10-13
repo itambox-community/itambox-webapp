@@ -4,6 +4,7 @@
 
 import csv
 import io
+import json
 import logging
 from typing import NamedTuple
 
@@ -100,6 +101,10 @@ IMPORT_EXCLUDED_FIELDS = frozenset(
         "last_audited_by",
     }
 )
+
+
+class RowSkipped(Exception):
+    """A row was recognised as already present and deliberately left untouched."""
 
 
 class ImportNotAllowed(Exception):
@@ -209,6 +214,9 @@ class BulkImportForm(forms.Form):
     # in-scope object updates it, and only for an actor holding ``change_<model>``
     # on that object. Without a key every row creates a new object.
     update_key = ()
+    # Columns whose YAML value is a mapping or list that must reach the row
+    # unchanged (all other YAML scalars are stringified like CSV cells).
+    structured_fields = ()
     # The authenticated actor of the import. Set by the task; an unset actor can
     # never update.
     actor = None
@@ -244,6 +252,8 @@ class BulkImportForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.imported_count = 0
         self.errors_list = []
+        self.skipped_list = []
+        self.row_notes = []
         self._rows_data = []
 
     @property
@@ -357,17 +367,19 @@ class BulkImportForm(forms.Form):
                     if k is None:
                         continue
                     key_str = str(k).strip()
-                    if v is None:
-                        cleaned_row[key_str] = ""
-                    elif isinstance(v, bool):
-                        cleaned_row[key_str] = str(v)
-                    elif isinstance(v, (int, float)):
-                        cleaned_row[key_str] = str(v)
-                    else:
-                        cleaned_row[key_str] = str(v).strip()
+                    cleaned_row[key_str] = self._yaml_cell(key_str, v)
                 self._rows_data.append(cleaned_row)
 
         return cleaned_data
+
+    def _yaml_cell(self, key, value):
+        """Normalise one YAML value; declared structured columns keep their mapping or list."""
+        if value is None:
+            return ""
+        if key in self.structured_fields and isinstance(value, (dict, list)):
+            # Round-trip through JSON so the preview session can store it.
+            return json.loads(json.dumps(value, default=str))
+        return str(value) if isinstance(value, (bool, int, float)) else str(value).strip()
 
     def import_data(self, request=None):
         if not self.model:
@@ -378,12 +390,15 @@ class BulkImportForm(forms.Form):
 
         imported = 0
         errors = []
+        skipped = []
 
         for i, row in enumerate(self._rows_data, start=2):
             try:
                 with transaction.atomic():
                     self._import_row(row, i)
                 imported += 1
+            except RowSkipped as skip:
+                skipped.append(f"Row {i}: {skip}")
             except ValidationError as e:
                 errors.append(f"Row {i}: {'; '.join(_row_error_messages(e))}")
             except Exception as exc:
@@ -398,6 +413,7 @@ class BulkImportForm(forms.Form):
 
         self.imported_count = imported
         self.errors_list = errors
+        self.skipped_list = skipped
         return ImportResult(imported, errors)
 
     def _import_row(self, row, row_number):
@@ -503,9 +519,9 @@ class BulkImportForm(forms.Form):
                 raise ValidationError(_('Row %(row)s: "%(field)s" is required.') % {"row": row_number, "field": name})
 
     def _create_instance(self, mapped_data):
-        """Create a model instance from mapped data. Override in subclass."""
-        instance = self.model(**mapped_data)
+        """Bind a new tenant-owned row to the active import tenant before validation."""
         tenant = get_current_tenant()
-        if self.update_key and tenant is not None and hasattr(instance, "tenant_id") and instance.tenant_id is None:
-            instance.tenant = tenant
-        return instance
+        tenant_field = next((field for field in self.model._meta.fields if field.name == "tenant"), None)
+        if tenant is not None and tenant_field is not None:
+            mapped_data = {**mapped_data, tenant_field.attname: tenant.pk}
+        return self.model(**mapped_data)
