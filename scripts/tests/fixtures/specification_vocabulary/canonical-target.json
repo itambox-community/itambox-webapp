@@ -1,11 +1,7 @@
 {
   "schema_version": 1,
-  "kind": "itambox.type-library.release",
-  "library": {
-    "namespace": "itambox",
-    "release": 1,
-    "label": "ITAMbox Core Vocabulary v1"
-  },
+  "version": 1,
+  "label": "ITAMbox Core Vocabulary v1",
   "expected_counts": {
     "active_fields": 54,
     "reserved_retired_fields": 0,

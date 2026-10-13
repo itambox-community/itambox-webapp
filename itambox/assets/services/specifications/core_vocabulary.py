@@ -9,8 +9,8 @@ from copy import deepcopy
 # Generated from canonical-target.json; do not import historical migration data.
 _CORE_VOCABULARY: dict[str, object] = {
     "schema_version": 1,
-    "kind": "itambox.type-library.release",  # noqa: E128
-    "library": {"namespace": "itambox", "release": 1, "label": "ITAMbox Core Vocabulary v1"},  # noqa: E128
+    "version": 1,
+    "label": "ITAMbox Core Vocabulary v1",
     "expected_counts": {
         "active_fields": 54,
         "reserved_retired_fields": 0,

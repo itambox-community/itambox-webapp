@@ -10,13 +10,12 @@ import pytest
 from django.db import close_old_connections, connection, connections, transaction
 from django.test import TransactionTestCase
 
-from assets.models.catalog import AssetType, AssetTypeFieldset
+from assets.models.catalog import AssetType
 from assets.services.specifications.commands import cleanup_asset_type_history
 from assets.services.specifications.contracts import HistoryCleanupPreviewDTO, OwnerChangedDTO
 from assets.services.specifications.locking import SPECIFICATION_CATALOGUE_LOCK_KEY, catalogue_transaction_lock
 from assets.tests.test_specification_history_boundaries import HistoryBoundaryFixtureMixin
 from core.context import set_current_tenant
-from extras.models import CustomFieldset, SpecificationLibrary
 from organization.models import Tenant
 
 pytestmark = [pytest.mark.serial_only, pytest.mark.django_db(transaction=True)]
@@ -60,30 +59,6 @@ def _start_advisory_blocker():
                         cursor.execute("SELECT pg_backend_pid()")
                         arrived.put(cursor.fetchone()[0])
                     release.wait(timeout=30)
-        except Exception as error:  # pragma: no cover - surfaced by _finish_blocker
-            errors.append(error)
-        finally:
-            connections["default"].close()
-
-    thread = threading.Thread(target=blocker)
-    thread.start()
-    return thread, arrived.get(timeout=10), release, errors
-
-
-def _start_library_blocker(library):
-    arrived = queue.Queue()
-    release = threading.Event()
-    errors = []
-
-    def blocker():
-        close_old_connections()
-        try:
-            with transaction.atomic():
-                SpecificationLibrary.objects.select_for_update().get(pk=library.pk)
-                with connection.cursor() as cursor:
-                    cursor.execute("SELECT pg_backend_pid()")
-                    arrived.put(cursor.fetchone()[0])
-                release.wait(timeout=30)
         except Exception as error:  # pragma: no cover - surfaced by _finish_blocker
             errors.append(error)
         finally:
@@ -211,57 +186,6 @@ class TestSpecificationHistoryRaces(HistoryBoundaryFixtureMixin, TransactionTest
                     self.tenant.pk,
                 )
                 _assert_advisory_wait(started[1], blocker[1])
-                blocker[2].set()
-                _assert_row_wait(started[1], owner_blocker_pid, AssetType._meta.db_table)
-        finally:
-            if blocker is not None:
-                blocker[2].set()
-            if started is not None:
-                result = _finish_worker(started)
-            if blocker is not None:
-                _finish_blocker(blocker)
-
-        assert isinstance(result, OwnerChangedDTO)
-        self.asset_type.refresh_from_db()
-        assert self.asset_type.custom_field_data == {"active_history": "type-active"}
-
-    def test_history_cleanup_locks_empty_composed_library_before_owner(self):
-        assert connection.vendor == "postgresql"
-        library = SpecificationLibrary.objects.create(
-            namespace="history-race-library",
-            label="History race library",
-        )
-        empty_fieldset = CustomFieldset.objects.create(
-            namespace=library.namespace,
-            slug="empty",
-            label="Empty history race fieldset",
-            management_kind=CustomFieldset.MANAGEMENT_LIBRARY,
-            library=library,
-        )
-        AssetTypeFieldset.objects.create(asset_type=self.asset_type, fieldset=empty_fieldset, position=2)
-        preview = self._preview_type(keys=("inactive_history", "deprecated_history", "deprecated_choice_history"))
-        assert isinstance(preview, HistoryCleanupPreviewDTO)
-        blocker = None
-        started = None
-        try:
-            with transaction.atomic():
-                with connection.cursor() as cursor:
-                    cursor.execute("SELECT pg_backend_pid()")
-                    owner_blocker_pid = cursor.fetchone()[0]
-                AssetType.all_objects.select_for_update().get(pk=self.asset_type.pk)
-                blocker = _start_library_blocker(library)
-                started = _start_worker(
-                    lambda: cleanup_asset_type_history(
-                        actor=self._actor(),
-                        asset_type_id=self.asset_type.pk,
-                        keys=preview.keys,
-                        preview_token=preview.preview_token,
-                        expected_resource_revision=preview.expected_resource_revision,
-                        expected_definition_revision=preview.expected_definition_revision,
-                    ),
-                    self.tenant.pk,
-                )
-                _assert_row_wait(started[1], blocker[1], SpecificationLibrary._meta.db_table)
                 blocker[2].set()
                 _assert_row_wait(started[1], owner_blocker_pid, AssetType._meta.db_table)
         finally:

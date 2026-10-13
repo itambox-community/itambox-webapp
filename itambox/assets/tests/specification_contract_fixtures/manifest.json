@@ -7,8 +7,7 @@
   "corpus_files": [
     "scalars.json",
     "composition.json",
-    "history.json",
-    "reconciliation.json"
+    "history.json"
   ],
   "test_module": "test_specification_contract_fixtures.py",
   "oracle_independence": "Expected outcomes are static JSON authored from the exact contract paragraphs; no fixture or test imports or executes application code.",
@@ -41,16 +40,7 @@
     "omitted_vs_empty_defaults": ["T02-COMP-011"],
     "definition_revision_value_independence": ["T02-COMP-012"],
     "deterministic_section_rendering": ["T02-COMP-002", "T02-COMP-008"],
-    "single_definition_truth": ["T02-COMP-001", "T02-COMP-012"],
-    "source_local_snapshot_distinct": ["T02-REC-009"],
-    "atomic_list_conflict": ["T02-REC-007", "T02-REC-008"],
-    "all_five_b_l_r_outcomes": ["T02-REC-001", "T02-REC-002", "T02-REC-003", "T02-REC-004", "T02-REC-005"],
-    "keep_local_baseline_rule": ["T02-REC-006"],
-    "older_release_refusal": ["T02-REC-010"],
-    "same_release_equivocation": ["T02-REC-011"],
-    "local_unmanaged_collision": ["T02-REC-012"],
-    "retirement_closure": ["T02-REC-013"],
-    "approval_required_for_apply": ["T02-REC-002", "T02-REC-014"]
+    "single_definition_truth": ["T02-COMP-001", "T02-COMP-012"]
   },
   "required_categories": [
     "presence_distinctions",
@@ -61,9 +51,6 @@
     "a_b_a_type_switch",
     "duplicate_field_provenance",
     "explicit_global_activation",
-    "omitted_vs_empty_defaults",
-    "source_local_snapshot_distinct",
-    "atomic_list_conflict",
-    "all_five_b_l_r_outcomes"
+    "omitted_vs_empty_defaults"
   ]
 }

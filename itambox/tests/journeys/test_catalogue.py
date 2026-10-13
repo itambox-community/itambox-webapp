@@ -1,8 +1,8 @@
 """Catalogue journeys: role grants reach the catalogue views under the approved scope.
 
-Catalogue rows -- asset types, their specifications, and type libraries -- are
-global, so the approved provider-scoped semantics (#611, implemented by #646)
-authorize them against a concrete, active provider tenant only. A role grant
+Catalogue rows -- asset types and their specifications -- are global, so the
+approved provider-scoped semantics (#611, implemented by #646) authorize them
+against a concrete, active provider tenant only. A role grant
 held in a plain customer tenant (or in a tenant group, or under the
 "All accessible tenants" scope) never opens a global catalogue surface, while a
 role grant held in a managing (``is_provider``) tenant does.
@@ -21,21 +21,26 @@ class CataloguePermissionJourneyTests(JourneyMixin, TestCase):
         self.customer = self.make_tenant("journey-catalogue")
         self.provider = self.make_provider_tenant("journey-catalogue-provider")
 
-    def test_provider_role_with_view_specificationlibrary_can_open_type_libraries(self):
-        reader = self.make_member("library-reader", {"extras.view_specificationlibrary"}, tenant=self.provider)
+    def test_removed_type_library_urls_answer_404(self):
+        """The in-app Type Library is gone (#768): its UI and REST URLs no longer resolve."""
+        reader = self.make_member("catalogue-reader", {"assets.view_assettype"}, tenant=self.provider)
         self.client_login_to_tenant(reader, self.provider)
 
-        response = self.client.get(reverse("assets:type_library_list"))
-
-        self.assertEqual(response.status_code, 200)
-
-    def test_customer_role_with_view_specificationlibrary_cannot_open_type_libraries(self):
-        reader = self.make_member("customer-library-reader", {"extras.view_specificationlibrary"}, tenant=self.customer)
-        self.client_login_to_tenant(reader, self.customer)
-
-        response = self.client.get(reverse("assets:type_library_list"))
-
-        self.assertEqual(response.status_code, 403)
+        for url in (
+            "/assets/type-libraries/",
+            "/assets/type-libraries/import/",
+            "/assets/type-libraries/1/",
+            "/assets/type-libraries/1/export/",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 404)
+        for url in (
+            "/api/assets/type-libraries/preview/",
+            "/api/assets/type-libraries/apply/",
+            "/api/assets/type-libraries/export/",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.post(url, {}, content_type="application/json").status_code, 404)
 
     def test_provider_role_with_add_assettype_can_create_an_asset_type(self):
         manufacturer = Manufacturer.objects.create(name="Journey Catalogue Maker", slug="journey-catalogue-maker")

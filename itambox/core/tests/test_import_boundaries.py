@@ -1043,7 +1043,8 @@ class TenantResourceGrantBoundaryTests(SimpleTestCase):
         if (REPO_ROOT / ".git").exists():
             base = RESOURCE_GRANT_TEST_MANIFEST["base_commit"]
             diff = subprocess.run(
-                ["git", "diff", "--name-only", "--find-renames=20%", base, "--"],
+                # Deleted modules cannot run, so they cannot be mandatory tests.
+                ["git", "diff", "--name-only", "--find-renames=20%", "--diff-filter=d", base, "--"],
                 cwd=REPO_ROOT,
                 check=True,
                 capture_output=True,

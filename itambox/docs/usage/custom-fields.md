@@ -241,47 +241,15 @@ For a composition change, obtain the prospective preconditions from
 current definition describes the old composition, not the proposed one.
 The preview is read-only; the write still rechecks both submitted revisions.
 
-## Type Libraries
+## Shared Asset Type definitions
 
-Open **Asset Management > Type Libraries** to review installed global Library
-identities and immutable release history. **Import Library** opens the JSON
-upload and preview workflow. Library management requires the global
-`extras.manage_specification_library` capability together with the model
-permissions required by the operation; permission to view a Library alone
-never permits applying one.
-
-1. Upload a UTF-8 JSON Library document of at most 10 MiB. Validation and preview
-   do not apply changes.
-2. Review the proposed paths and global catalogue impact. For each blocking
-   conflict, choose **Keep local**, **Take upstream**, or **Abort import**, then
-   review the resulting preview. Apply remains disabled while conflicts remain.
-3. Choose **Apply Library** explicitly. A stale preview is rejected without
-   applying its changes; the page retains the uploaded draft and offers a new
-   preview to review. Revoked permissions are also checked again when applying.
-4. Open the Library detail page to export its **Original release**, an
-   **Effective snapshot**, or a fork into a new namespace. Original release
-   data remains immutable. An effective snapshot contains the current local
-   definition state separately from the accepted upstream source. A fork needs
-   a distinct namespace. Acknowledge retained historical definitions when the
-   selected export requires it.
-
-Keeping a local value during an upstream update does not rewrite the original
-source. Reimporting the already accepted document is a no-op: it does not erase
-local overrides or create another release. Library documents never include
-Tenant Asset observations, assignments, audit/policy state, or installation
-policy.
-
-The corresponding REST entry points are:
-
-| Operation | Endpoint |
-|---|---|
-| Validate and preview | `POST /api/assets/type-libraries/preview/` |
-| Apply the signed preview | `POST /api/assets/type-libraries/apply/` |
-| Export | `POST /api/assets/type-libraries/export/` |
-
-Use the generated API schema for request/response fields, export modes, and
-required preconditions. REST and the browser workflow use the same Library
-commands and authorization rules.
+The in-app Type Library (library import, release history, snapshots and forks)
+has been removed. Reusable Asset Type models are shared through the community
+catalogue instead: one short YAML file per model, imported through the regular
+bulk import ([epic #772](https://github.com/itambox-community/itambox-webapp/issues/772)).
+The specification model described on this page is unchanged: managed core
+fieldsets, quantity kinds and units, ordered specifications with history, and
+the core vocabulary.
 
 ### Source-qualified specification consumers
 
@@ -332,13 +300,3 @@ unresolved references are not silently redirected to another Field.
 : Check the Asset's Type and its explicit Fieldset selection first, then the
   members' targets, activation and lifecycle. Target binding alone does not
   select a Fieldset. An explicitly empty composition remains empty.
-
-### Library export confirmation
-
-`POST /api/assets/type-libraries/export/` takes `namespace`, `mode` and an explicit
-`acknowledge_retained_history` flag. For an effective snapshot that contains retained
-history, pass `acknowledge_retained_history: true`. Omission and `false` do not consent
-and the request is refused. Selecting `effective_snapshot` alone is not consent.
-Confirmation does not bypass permissions or make unknown or structurally invalid
-historical content exportable. Exports that do not require confirmation keep their
-existing behavior. GraphQL no longer exposes library export or any other write.

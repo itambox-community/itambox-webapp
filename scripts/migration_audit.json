@@ -1611,6 +1611,49 @@
     },
     {
       "dependencies": [
+        "assets.0125_unique_open_loan_per_maintenance",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "assets.0126_remove_type_library_identity",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 1,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/assets/migrations/0126_remove_type_library_identity.py",
+      "replaces": [],
+      "reviewed_disposition": {
+        "disposition": "required-fresh",
+        "rationale": "Recreates the Asset Type identity guard on the retained connector identity before the Type Library columns are dropped, so connector provenance stays immutable and core and library Asset Types stay protected against hard deletion; fully reversible."
+      },
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": false,
+          "RunSQL": true,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
         "extras.0100_issue88_shard_05_extras_history_1"
       ],
       "id": "compliance.0100_issue88_shard_06_compliance_schema",
@@ -3816,6 +3859,52 @@
           "BtreeGistExtension": false,
           "RunPython": false,
           "RunSQL": false,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
+        "assets.0126_remove_type_library_identity",
+        "auth.0012_alter_user_first_name_max_length",
+        "extras.0128_tenant_archive_leaf_markers",
+        "organization.0104_tenant_archive_leaf_markers",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "extras.0129_remove_type_library",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 1,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 2,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/extras/migrations/0129_remove_type_library.py",
+      "replaces": [],
+      "reviewed_disposition": {
+        "disposition": "required-fresh",
+        "rationale": "Recreates the reusable-definition identity guards without the Library link before it is dropped, removes the Library-only guards with their tables, and strips the retired Library permissions from the permission table and from role grants; the role rewrite touches only roles carrying a retired string and is a no-op on a fresh install."
+      },
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": true,
+          "RunSQL": true,
           "SeparateDatabaseAndState": false
         }
       }
@@ -6160,6 +6249,7 @@
     "assets.0123_asset_archive_leaf_markers",
     "assets.0124_tenant_archive_leaf_markers",
     "assets.0125_unique_open_loan_per_maintenance",
+    "assets.0126_remove_type_library_identity",
     "compliance.0101_alter_custodyreceipt_signed_at",
     "compliance.0102_clear_unsigned_receipt_timestamps",
     "compliance.0103_alter_custodyreceipt_options",
@@ -6191,6 +6281,7 @@
     "extras.0126_scheduledreport_last_run_archive",
     "extras.0127_retire_report_designer_legacy",
     "extras.0128_tenant_archive_leaf_markers",
+    "extras.0129_remove_type_library",
     "inventory.0101_alter_accessoryassignment_options_and_more",
     "inventory.0102_kititem_leaf_deleted_at",
     "inventory.0103_stock_leaf_deleted_at",
@@ -6229,8 +6320,10 @@
       "assets.0101_seed_canonical_missing_status",
       "assets.0104_asset_type_core_vocabulary",
       "assets.0107_asset_type_specification_guards",
+      "assets.0126_remove_type_library_identity",
       "extras.0108_alertlog_delivery_outcome",
-      "extras.0117_asset_type_definition_guards"
+      "extras.0117_asset_type_definition_guards",
+      "extras.0129_remove_type_library"
     ],
     "review_blocker": [],
     "safely_replaced_by_final_schema": [],
@@ -6288,7 +6381,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 68,
+    "post_transition_migrations": 70,
     "replacement_shards": 62,
     "replacement_targets": 262
   }

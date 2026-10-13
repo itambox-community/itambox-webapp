@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from core.templatetags.helpers import bulk_action_context
-from extras.models import CustomField, CustomFieldset, SpecificationLibrary
+from extras.models import CustomField, CustomFieldset
 from extras.tables import CustomFieldsetTable, CustomFieldTable, TagTable
 
 
@@ -21,13 +21,11 @@ def admin_client(client, django_user_model):
 @pytest.fixture
 def custom_field(request):
     kind = request.param
-    library = SpecificationLibrary.objects.create(namespace="action-test") if kind == "library" else None
     return CustomField.objects.create(
         name="action_test",
         label="Action Test",
-        namespace=library.namespace if library else kind,
+        namespace="action-test" if kind == "library" else kind,
         management_kind=kind,
-        library=library,
         field_type="text",
         activation="composed",
     )

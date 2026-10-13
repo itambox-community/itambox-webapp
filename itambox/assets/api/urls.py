@@ -1,8 +1,5 @@
-from django.urls import path
-
 from itambox.api.routers import ITAMBoxRouter
 
-from .type_library import TypeLibraryApplyAPIView, TypeLibraryExportAPIView, TypeLibraryPreviewAPIView
 from .views import (
     AssetAssignmentViewSet,
     AssetDisposalViewSet,
@@ -38,8 +35,4 @@ router.register(r"asset-disposals", AssetDisposalViewSet)
 router.register(r"warranties", WarrantyViewSet)
 router.register(r"asset-reservations", AssetReservationViewSet)
 
-urlpatterns = [
-    path("type-libraries/preview/", TypeLibraryPreviewAPIView.as_view(), name="type-library-preview"),
-    path("type-libraries/apply/", TypeLibraryApplyAPIView.as_view(), name="type-library-apply"),
-    path("type-libraries/export/", TypeLibraryExportAPIView.as_view(), name="type-library-export"),
-] + router.urls
+urlpatterns = router.urls

@@ -151,7 +151,7 @@ class CustomDefinitionFormTests(TestCase):
 
         for field_name in CustomField.immutable_fields:
             form_name = "choice_set" if field_name == "choice_set_id" else field_name
-            if field_name in {"library_id", "connector_identity"}:
+            if field_name == "connector_identity":
                 self.assertNotIn(form_name, form.fields)
             else:
                 self.assertTrue(form.fields[form_name].disabled, form_name)
@@ -177,7 +177,7 @@ class CustomDefinitionFormTests(TestCase):
         )
         for form_class, instance, data in cases:
             with self.subTest(form=form_class.__name__):
-                original_identity = (instance.library_id, instance.connector_identity)
+                original_identity = instance.connector_identity
                 data.update(library_id="999999", connector_identity="forged")
                 form = form_class(instance=instance, data=data)
                 self.assertNotIn("library_id", form.fields)
@@ -186,7 +186,7 @@ class CustomDefinitionFormTests(TestCase):
                 self.assertTrue(form.is_valid(), form.errors)
                 form.save()
                 instance.refresh_from_db()
-                self.assertEqual((instance.library_id, instance.connector_identity), original_identity)
+                self.assertEqual(instance.connector_identity, original_identity)
 
     def test_local_fieldset_identity_is_read_only_with_tamper_error(self):
         fieldset = CustomFieldset.objects.create(namespace="local", slug="immutable-form", label="Immutable Form")

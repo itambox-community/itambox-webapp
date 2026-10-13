@@ -219,7 +219,6 @@ MODULE_LAYER_OVERRIDES = {
     "core.graphql_utils": "presentation",
     "core.otp_middleware": "framework",
     "core.paginator": "presentation",
-    "extras.canonicalization": "domain-model",
     "extras.customfields": "domain-service",
     "extras.definition_contract": "domain-model",
     "extras.dashboard.utils": "presentation",

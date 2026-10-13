@@ -48,12 +48,6 @@ class ScopeModeEnum(Enum):
     ALL_ACCESSIBLE = "all_accessible"
 
 
-@strawberry.enum(name="LibraryExportMode")
-class LibraryExportModeEnum(Enum):
-    ORIGINAL_RELEASE = "original_release"
-    EFFECTIVE_SNAPSHOT = "effective_snapshot"
-
-
 @strawberry.enum(name="SpecificationFieldType")
 class SpecificationFieldTypeEnum(Enum):
     TEXT = "text"
@@ -83,14 +77,6 @@ class SpecificationEntryStateEnum(Enum):
     HISTORICAL = "historical"
     INVALID = "invalid"
     UNKNOWN = "unknown"
-
-
-@strawberry.enum(name="LibraryReconciliationState")
-class LibraryReconciliationStateEnum(Enum):
-    UNCHANGED = "unchanged"
-    LOCALLY_MODIFIED = "locally_modified"
-    UNRECONCILED = "unreconciled"
-    RETAINED_HISTORY = "retained_history"
 
 
 @strawberry.type(name="Choice")
@@ -301,20 +287,6 @@ class SpecificationEntryType:
         return _value_type_for(specification_value_for_entry(self))  # type: ignore[arg-type]
 
 
-@dataclass(frozen=True)
-class LibraryOriginView:
-    identity: str
-    accepted_release: int | None
-    state: str
-
-
-@strawberry.type(name="LibraryOrigin")
-class LibraryOriginType:
-    identity: str
-    accepted_release: SafeInteger | None
-    state: LibraryReconciliationStateEnum
-
-
 @strawberry.type(name="UserError")
 class UserErrorType:
     code: str
@@ -383,10 +355,6 @@ __all__ = [
     "IntegerSpecificationValue",
     "IntegerSpecificationValueType",
     "JSONScalar",
-    "LibraryExportModeEnum",
-    "LibraryOriginType",
-    "LibraryOriginView",
-    "LibraryReconciliationStateEnum",
     "MultiChoiceSpecificationValue",
     "MultiChoiceSpecificationValueType",
     "NullSpecificationValue",

@@ -24,7 +24,6 @@ from .graphql_specifications.integration import (
     decode_cursor,
     fieldsets_for_type,
     has_global_permission,
-    library_origin_for,
     owner_resource_revision,
     owner_user_errors,
     page_size,
@@ -38,7 +37,6 @@ from .graphql_specifications.loaders import request_loader_for_info
 from .graphql_specifications.scalars import CursorScalar
 from .graphql_specifications.types import (
     ChoiceSetType,
-    LibraryOriginType,
     PageInfoType,
     SpecificationDefinitionType,
     SpecificationEntryType,
@@ -191,10 +189,6 @@ class AssetTypeNode:
         loader = request_loader_for_info(info)
         return list(owner_user_errors(loader, self, "asset_type"))
 
-    @strawberry.field
-    def library(self) -> LibraryOriginType | None:
-        return library_origin_for(self)
-
 
 @strawberry_django.type(
     Asset,
@@ -332,7 +326,7 @@ class Query:
     def asset_type(self, info: strawberry.Info, id: strawberry.ID) -> AssetTypeNode | None:
         require_global_permission(info, "assets.view_assettype")
         try:
-            asset_type = AssetType.objects.select_related("library", "library__accepted_release").get(pk=id)
+            asset_type = AssetType.objects.get(pk=id)
         except AssetType.DoesNotExist:
             return None
         prepare_type_graph(request_loader_for_info(info), (asset_type,))
@@ -344,7 +338,7 @@ class Query:
     ) -> AssetTypeConnectionType:
         require_global_permission(info, "assets.view_assettype")
         size = page_size(first)
-        asset_types_qs = AssetType.objects.select_related("library", "library__accepted_release").order_by("slug", "pk")
+        asset_types_qs = AssetType.objects.order_by("slug", "pk")
         if after:
             after_slug, after_id = decode_cursor(after, prefix="asset-type")
             asset_types_qs = asset_types_qs.filter(Q(slug__gt=after_slug) | Q(slug=after_slug, pk__gt=after_id))

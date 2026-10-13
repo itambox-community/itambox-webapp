@@ -3,16 +3,12 @@ from django.views.generic import RedirectView
 
 from . import views
 from .urls_audits import urlpatterns as audit_urls
-from .views import library_views, request_views
+from .views import request_views
 from .views.disposal_views import AssetDisposalCancelView
 
 app_name = "assets"
 
 urlpatterns = [
-    path("type-libraries/", library_views.TypeLibraryListView.as_view(), name="type_library_list"),
-    path("type-libraries/import/", library_views.TypeLibraryImportView.as_view(), name="type_library_import"),
-    path("type-libraries/<int:pk>/", library_views.TypeLibraryDetailView.as_view(), name="type_library_detail"),
-    path("type-libraries/<int:pk>/export/", library_views.TypeLibraryExportView.as_view(), name="type_library_export"),
     # Dashboard path removed, handled in core.urls
     path("assets/bulk-print-labels/", views.bulk_print_labels, name="asset_bulk_print_labels"),
     # Scanner-driven bulk check-in / check-out / disposal (scan basket)

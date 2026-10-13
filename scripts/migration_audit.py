@@ -32,6 +32,7 @@ POST_TRANSITION_MIGRATIONS = {
     "assets.0123_asset_archive_leaf_markers",
     "assets.0124_tenant_archive_leaf_markers",
     "assets.0125_unique_open_loan_per_maintenance",
+    "assets.0126_remove_type_library_identity",
     "compliance.0101_alter_custodyreceipt_signed_at",
     "compliance.0102_clear_unsigned_receipt_timestamps",
     "compliance.0103_alter_custodyreceipt_options",
@@ -79,6 +80,7 @@ POST_TRANSITION_MIGRATIONS = {
     "subscriptions.0103_unified_vendor_cutover",
     "software.0101_asset_archive_leaf_markers",
     "extras.0128_tenant_archive_leaf_markers",
+    "extras.0129_remove_type_library",
     "subscriptions.0104_subscriptionassignment_leaf_deleted_at",
     "subscriptions.0105_subscription_renewal_reminder_cycle_date_and_more",
     "users.0101_user_scim_id_usergroup_external_id_usergroup_scim_id_and_more",
@@ -165,6 +167,29 @@ SEMANTIC_DISPOSITIONS = {
         ),
         {
             "extras.0117_asset_type_definition_guards",
+        },
+    ),
+    **_dispositions(
+        "required-fresh",
+        (
+            "Recreates the Asset Type identity guard on the retained connector identity before the Type Library "
+            "columns are dropped, so connector provenance stays immutable and core and library Asset Types stay "
+            "protected against hard deletion; fully reversible."
+        ),
+        {
+            "assets.0126_remove_type_library_identity",
+        },
+    ),
+    **_dispositions(
+        "required-fresh",
+        (
+            "Recreates the reusable-definition identity guards without the Library link before it is dropped, "
+            "removes the Library-only guards with their tables, and strips the retired Library permissions from "
+            "the permission table and from role grants; the role rewrite touches only roles carrying a retired "
+            "string and is a no-op on a fresh install."
+        ),
+        {
+            "extras.0129_remove_type_library",
         },
     ),
     **_dispositions(

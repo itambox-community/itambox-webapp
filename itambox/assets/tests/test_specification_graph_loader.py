@@ -130,8 +130,6 @@ def _choice_set(*choices, slug="device-state"):
         management_kind="local",
         connector_identity=None,
         replaced_by=None,
-        library=None,
-        library_id=None,
         choices=list(choices),
     )
 
@@ -183,8 +181,6 @@ def _field(
         management_kind="local",
         connector_identity=None,
         replaced_by=None,
-        library=None,
-        library_id=None,
         choice_set=choice_set,
         object_types=[_content_type(model) for model in object_types],
     )
@@ -202,8 +198,6 @@ def _fieldset(slug, *, pk, lifecycle="active"):
         management_kind="local",
         connector_identity=None,
         replaced_by=None,
-        library=None,
-        library_id=None,
     )
 
 

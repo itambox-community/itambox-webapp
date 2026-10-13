@@ -164,7 +164,6 @@ class AssetTypeSerializer(CanonicalSpecificationSerializerMixin, BaseModelSerial
     specification_state = serializers.JSONField(read_only=True, default=dict)
     resource_revision = serializers.CharField(read_only=True, default=None)
     definition_revision = serializers.CharField(read_only=True, default=None)
-    library = serializers.JSONField(read_only=True, default=None, source="library_contract")
 
     class Meta:
         model = AssetType
@@ -190,7 +189,6 @@ class AssetTypeSerializer(CanonicalSpecificationSerializerMixin, BaseModelSerial
             "specification_state",
             "resource_revision",
             "definition_revision",
-            "library",
             "image",
             "requestable",
             "description",
@@ -233,7 +231,6 @@ class AssetTypeSerializer(CanonicalSpecificationSerializerMixin, BaseModelSerial
             "specification_state",
             "resource_revision",
             "definition_revision",
-            "library",
         }
         view = self.context.get("view") if hasattr(self, "context") else None
         if getattr(view, "action", None) != "list" and wanted.intersection(self.fields):

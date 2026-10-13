@@ -152,15 +152,6 @@ DECLARATIONS = {
     "extras.scheduledreport": _deny(R_CONFIG, "UI-only configuration"),
     "extras.scheduledreportfire": _deny(R_SYSTEM, "generated schedule record"),
     "extras.scheduledreportscopeauthorization": _deny(R_AUTHZ, "approval metadata"),
-    "extras.specificationlibrary": _deny(
-        R_DEDICATED, "the specification-library export surface, gated by manage_specification_library, is authoritative"
-    ),
-    "extras.specificationlibrarylegacyprovenance": _deny(
-        R_DEDICATED, "the specification-library export surface, gated by manage_specification_library, is authoritative"
-    ),
-    "extras.specificationlibraryrelease": _deny(
-        R_DEDICATED, "the specification-library export surface, gated by manage_specification_library, is authoritative"
-    ),
     "extras.tag": _allow(SCOPE_GLOBAL),
     "extras.webhookdelivery": _deny(R_SYSTEM, "generated delivery log"),
     "extras.webhookendpoint": _deny(R_SECRET, "endpoint configuration holds signing secrets"),

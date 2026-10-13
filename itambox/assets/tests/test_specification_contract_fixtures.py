@@ -3,8 +3,8 @@
 This module validates a language-neutral JSON fixture corpus that encodes
 expected outcomes sourced from the exact contract paragraphs of the
 specification architecture (sections 3, 4, 8.2 and 16). The corpus covers
-scalar presence and normalization, deterministic composition, historical
-validity, and the five B/L/R reconciliation outcomes.
+scalar presence and normalization, deterministic composition and historical
+validity.
 
 The oracle is independent of any implementation by construction: this module
 imports only the Python standard library and never imports, instantiates or
@@ -48,20 +48,7 @@ DOMAIN_ISSUE_CODES = frozenset(
     }
 )
 
-# Allowed three-way decisions from section 8.2.
-DECISIONS = frozenset(
-    {
-        "unchanged",
-        "upstream_safe",
-        "local_override",
-        "converged",
-        "conflict_keep_local",
-        "conflict_take_upstream",
-        "conflict_abort",
-    }
-)
-
-CASE_ID_PATTERN = re.compile(r"^T02-(SCALAR|COMP|HIST|REC)-\d{3}$")
+CASE_ID_PATTERN = re.compile(r"^T02-(SCALAR|COMP|HIST)-\d{3}$")
 
 
 def _load() -> dict:
@@ -70,19 +57,6 @@ def _load() -> dict:
     for name in manifest["corpus_files"]:
         documents[name] = json.loads((FIXTURE_ROOT / name).read_text(encoding="utf-8"))
     return manifest, documents
-
-
-def _truth_table_decision(baseline, local, remote):
-    """Section 8.2 decision for a managed path given B, L and R."""
-    if local == baseline and remote == baseline:
-        return "unchanged"
-    if local == baseline and remote != baseline:
-        return "upstream_safe"
-    if local != baseline and remote == baseline:
-        return "local_override"
-    if local == remote:
-        return "converged"
-    return "conflict"
 
 
 def _coverage_ids(coverage):
@@ -173,62 +147,6 @@ class SpecificationContractFixtureCorpusTest(unittest.TestCase):
                         value,
                         f"{case_id}: expected_unchanged[{key!r}] diverges from initial_state",
                     )
-
-    def test_reconciliation_truth_table_matches_section_8_2(self):
-        compared = []
-        for case_id, (_name, case) in self.cases.items():
-            if case["operation"].get("kind") != "three_way_compare":
-                continue
-            state = case["initial_state"]
-            for key in ("B", "L", "R"):
-                self.assertIn(key, state, case_id)
-                self.assertIsInstance(state[key], dict, case_id)
-            result = case["expected_result"]
-            if result.get("outcome") == "unmanaged":
-                # Unmanaged paths (for example tenant_id) are never reconciled.
-                self.assertNotIn("decision", result, case_id)
-                self.assertIs(result.get("managed_path"), False, case_id)
-                continue
-            declared = result["decision"]
-            self.assertIn(declared, DECISIONS, case_id)
-            expected = _truth_table_decision(state["B"], state["L"], state["R"])
-            if expected == "conflict":
-                self.assertTrue(declared.startswith("conflict"), case_id)
-            else:
-                self.assertEqual(declared, expected, case_id)
-            if declared == "upstream_safe" and "proposed" in result:
-                self.assertIs(result["proposed"], True, case_id)
-            if declared == "local_override" and "proposed" in result:
-                self.assertIs(result["proposed"], False, case_id)
-            compared.append(declared)
-        for required in ("unchanged", "upstream_safe", "local_override", "converged"):
-            self.assertIn(required, compared, f"missing B/L/R outcome {required}")
-        self.assertTrue(
-            any(label.startswith("conflict") for label in compared),
-            "no explicit conflict outcome in corpus",
-        )
-
-    def test_atomic_list_paths_are_never_index_merged(self):
-        for case_id, (_name, case) in self.cases.items():
-            operation = case["operation"]
-            if operation.get("kind") != "three_way_compare":
-                continue
-            path = operation.get("path")
-            if path in ("composition", "multi_select_value"):
-                result = case["expected_result"]
-                self.assertIs(result.get("atomic"), True, case_id)
-                if "merged_arrays" in result:
-                    self.assertIs(result["merged_arrays"], False, case_id)
-
-    def test_keep_local_advances_baseline_to_r(self):
-        cases = [case for _, case in self.cases.values() if case["initial_state"].get("chosen") == "keep_local"]
-        self.assertGreaterEqual(len(cases), 1, "no keep-local resolution case in corpus")
-        for case in cases:
-            self.assertEqual(
-                case["expected_result"].get("new_baseline_is"),
-                "R",
-                f"{case['id']}: after keep local the new baseline must be R, not L",
-            )
 
     def test_duplicate_field_renders_once_with_four_unique_fields_and_all_sources(self):
         case = self.cases["T02-COMP-003"][1]

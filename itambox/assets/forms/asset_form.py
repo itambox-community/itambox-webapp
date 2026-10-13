@@ -665,9 +665,6 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
     def _fieldset_source(self, fieldset):
         if fieldset is None:
             return "Local"
-        library = getattr(fieldset, "library", None)
-        if library is not None:
-            return getattr(library, "namespace", None) or str(library)
         return str(getattr(fieldset, "management_kind", "local")).capitalize()
 
     def _build_t15_model_specification_fields(self, selected_asset_type):

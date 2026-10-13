@@ -16,6 +16,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.context import get_current_request_id, get_current_tenant, get_current_user
 from core.data_transfer import policy_for
+from core.managers import Scope
 from core.mixins import AutoSlugMixin
 from core.slugs import generate_unique_slug
 
@@ -437,7 +438,10 @@ class BulkImportForm(forms.Form):
             if attname not in mapped:
                 return None
             lookup[attname] = mapped[attname]
-        matches = list(self.model.objects.filter(**lookup)[:2])
+        queryset = self.model.objects
+        if hasattr(queryset, "for_scope"):
+            queryset = queryset.for_scope(Scope.current())
+        matches = list(queryset.filter(**lookup)[:2])
         if len(matches) > 1:
             raise ValidationError(_("More than one existing object matches the update key."))
         return matches[0] if matches else None
@@ -490,5 +494,9 @@ class BulkImportForm(forms.Form):
                 raise ValidationError(_('Row %(row)s: "%(field)s" is required.') % {"row": row_number, "field": name})
 
     def _create_instance(self, mapped_data):
-        """Create a model instance from mapped data. Override in subclass."""
+        """Bind a new tenant-owned row to the active import tenant before validation."""
+        tenant = get_current_tenant()
+        tenant_field = next((field for field in self.model._meta.fields if field.name == "tenant"), None)
+        if tenant is not None and tenant_field is not None:
+            mapped_data = {**mapped_data, tenant_field.attname: tenant.pk}
         return self.model(**mapped_data)

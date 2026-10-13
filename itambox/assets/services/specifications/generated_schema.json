@@ -1,0 +1,469 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "enum": [
+        "access-points",
+        "desktops",
+        "firewalls",
+        "laptops",
+        "mobile-phones",
+        "monitors",
+        "printers",
+        "routers",
+        "servers",
+        "switches",
+        "tablets",
+        "ups",
+        "virtual-machines"
+      ]
+    },
+    "description": {
+      "type": "string"
+    },
+    "ean": {
+      "maxLength": 14,
+      "type": "string"
+    },
+    "manufacturer": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "part_number": {
+      "maxLength": 100,
+      "type": "string"
+    },
+    "specs": {
+      "additionalProperties": false,
+      "properties": {
+        "acoustic_level": {
+          "description": "Value in dBA",
+          "pattern": "^[0-9]+(\\.[0-9]+)? dBA$",
+          "type": "string"
+        },
+        "analog_input_count": {
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "apparent_power": {
+          "description": "Value in VA",
+          "pattern": "^[0-9]+(\\.[0-9]+)? VA$",
+          "type": "string"
+        },
+        "battery_capacity": {
+          "description": "Value in Wh",
+          "pattern": "^[0-9]+(\\.[0-9]+)? Wh$",
+          "type": "string"
+        },
+        "battery_runtime": {
+          "description": "Value in min",
+          "pattern": "^[0-9]+ min$",
+          "type": "string"
+        },
+        "battery_runtime_load": {
+          "description": "Value in W",
+          "pattern": "^[0-9]+(\\.[0-9]+)? W$",
+          "type": "string"
+        },
+        "camera_resolution": {
+          "description": "Value in MP",
+          "pattern": "^[0-9]+(\\.[0-9]+)? MP$",
+          "type": "string"
+        },
+        "color_supported": {
+          "type": "boolean"
+        },
+        "core_count": {
+          "maximum": 1048576,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "country_of_origin": {
+          "maxLength": 2,
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+        },
+        "digital_input_count": {
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "display_resolution": {
+          "maxLength": 11,
+          "pattern": "^[1-9][0-9]{1,4}x[1-9][0-9]{1,4}$",
+          "type": "string"
+        },
+        "display_size": {
+          "description": "Value in in",
+          "pattern": "^[0-9]+(\\.[0-9]+)? in$",
+          "type": "string"
+        },
+        "drive_bay_count": {
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "duplex_supported": {
+          "type": "boolean"
+        },
+        "energy_certifications": {
+          "items": {
+            "enum": [
+              "80plus",
+              "80plus_bronze",
+              "80plus_gold",
+              "80plus_platinum",
+              "80plus_silver",
+              "80plus_titanium",
+              "energy_star",
+              "epeat_bronze",
+              "epeat_gold",
+              "epeat_silver",
+              "other"
+            ]
+          },
+          "maxItems": 16,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "ethernet_port_count": {
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ethernet_speeds": {
+          "items": {
+            "enum": [
+              "100g",
+              "100m",
+              "10g",
+              "10m",
+              "1g",
+              "200g",
+              "25g",
+              "2_5g",
+              "400g",
+              "40g",
+              "50g",
+              "5g"
+            ]
+          },
+          "maxItems": 16,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "firmware_version": {
+          "maxLength": 255,
+          "type": "string"
+        },
+        "form_factor": {
+          "enum": [
+            "appliance",
+            "blade",
+            "desktop",
+            "module",
+            "notebook",
+            "other",
+            "peripheral",
+            "phone",
+            "rack",
+            "tablet",
+            "tower"
+          ]
+        },
+        "hostname": {
+          "maxLength": 253,
+          "type": "string"
+        },
+        "hot_swap_supported": {
+          "type": "boolean"
+        },
+        "industrial_protocols": {
+          "items": {
+            "enum": [
+              "bacnet_ip",
+              "canopen",
+              "ethercat",
+              "ethernet_ip",
+              "modbus_rtu",
+              "modbus_tcp",
+              "opc_ua",
+              "other",
+              "profibus",
+              "profinet"
+            ]
+          },
+          "maxItems": 16,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "input_voltage_max": {
+          "description": "Value in V",
+          "pattern": "^[0-9]+(\\.[0-9]+)? V$",
+          "type": "string"
+        },
+        "input_voltage_min": {
+          "description": "Value in V",
+          "pattern": "^[0-9]+(\\.[0-9]+)? V$",
+          "type": "string"
+        },
+        "ip_rating": {
+          "maxLength": 8,
+          "pattern": "^IP[0-6X][0-9X]K?$",
+          "type": "string"
+        },
+        "management_protocols": {
+          "items": {
+            "enum": [
+              "graphql",
+              "https",
+              "ipmi",
+              "other",
+              "redfish",
+              "rest",
+              "snmpv1",
+              "snmpv2c",
+              "snmpv3",
+              "ssh",
+              "wsman"
+            ]
+          },
+          "maxItems": 16,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "memory_capacity": {
+          "description": "Value in GiB",
+          "pattern": "^[0-9]+(\\.[0-9]+)? GiB$",
+          "type": "string"
+        },
+        "memory_type": {
+          "enum": [
+            "ddr3",
+            "ddr4",
+            "ddr5",
+            "hbm2",
+            "hbm3",
+            "lpddr4x",
+            "lpddr5",
+            "lpddr5x",
+            "other"
+          ]
+        },
+        "network_functions": {
+          "items": {
+            "enum": [
+              "bridge",
+              "firewall",
+              "gateway",
+              "load_balancer",
+              "modem",
+              "router",
+              "switch",
+              "vpn_gateway",
+              "wlan_ap",
+              "wlan_controller"
+            ]
+          },
+          "maxItems": 10,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "operating_system_family": {
+          "enum": [
+            "android",
+            "bsd",
+            "chromeos",
+            "embedded",
+            "ios",
+            "ipados",
+            "linux",
+            "macos",
+            "network_os",
+            "other",
+            "windows",
+            "windows_server"
+          ]
+        },
+        "operating_temperature_max": {
+          "description": "Value in °C",
+          "pattern": "^-?[0-9]+(\\.[0-9]+)? °C$",
+          "type": "string"
+        },
+        "operating_temperature_min": {
+          "description": "Value in °C",
+          "pattern": "^-?[0-9]+(\\.[0-9]+)? °C$",
+          "type": "string"
+        },
+        "outdoor_rated": {
+          "type": "boolean"
+        },
+        "poe_budget": {
+          "description": "Value in W",
+          "pattern": "^[0-9]+(\\.[0-9]+)? W$",
+          "type": "string"
+        },
+        "poe_port_count": {
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "power_consumption_max": {
+          "description": "Value in W",
+          "pattern": "^[0-9]+(\\.[0-9]+)? W$",
+          "type": "string"
+        },
+        "power_output": {
+          "description": "Value in W",
+          "pattern": "^[0-9]+(\\.[0-9]+)? W$",
+          "type": "string"
+        },
+        "print_speed": {
+          "description": "Value in pages_per_minute",
+          "pattern": "^[0-9]+(\\.[0-9]+)? pages_per_minute$",
+          "type": "string"
+        },
+        "print_technology": {
+          "enum": [
+            "dot_matrix",
+            "dye_sublimation",
+            "inkjet",
+            "laser",
+            "other",
+            "solid_ink",
+            "thermal"
+          ]
+        },
+        "processor_model": {
+          "maxLength": 255,
+          "type": "string"
+        },
+        "rack_units": {
+          "description": "Value in U",
+          "pattern": "^[0-9]+(\\.[0-9]+)? U$",
+          "type": "string"
+        },
+        "regulatory_certifications": {
+          "items": {
+            "enum": [
+              "ce",
+              "csa",
+              "eac",
+              "fcc",
+              "other",
+              "rcm",
+              "ukca",
+              "ul",
+              "vcci"
+            ]
+          },
+          "maxItems": 16,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "rohs_compliant": {
+          "type": "boolean"
+        },
+        "sensor_types": {
+          "items": {
+            "enum": [
+              "current",
+              "energy",
+              "flow",
+              "gas",
+              "humidity",
+              "level",
+              "light",
+              "motion",
+              "other",
+              "position",
+              "power",
+              "pressure",
+              "smoke",
+              "temperature",
+              "vibration",
+              "voltage"
+            ]
+          },
+          "maxItems": 32,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "storage_capacity": {
+          "description": "Value in GiB",
+          "pattern": "^[0-9]+(\\.[0-9]+)? GiB$",
+          "type": "string"
+        },
+        "storage_interface": {
+          "enum": [
+            "emmc",
+            "nvme",
+            "other",
+            "sas",
+            "sata",
+            "ufs",
+            "usb",
+            "virtual"
+          ]
+        },
+        "storage_medium": {
+          "enum": [
+            "flash",
+            "hdd",
+            "hybrid",
+            "optical",
+            "other",
+            "ssd",
+            "tape"
+          ]
+        },
+        "switching_capacity": {
+          "description": "Value in Gbit/s",
+          "pattern": "^[0-9]+(\\.[0-9]+)? Gbit/s$",
+          "type": "string"
+        },
+        "touch_supported": {
+          "type": "boolean"
+        },
+        "usb_port_count": {
+          "maximum": 1024,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "vcpu_count": {
+          "maximum": 1048576,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "weight": {
+          "description": "Value in kg",
+          "pattern": "^[0-9]+(\\.[0-9]+)? kg$",
+          "type": "string"
+        },
+        "wifi_standards": {
+          "items": {
+            "enum": [
+              "802_11a",
+              "802_11ac",
+              "802_11ax",
+              "802_11b",
+              "802_11be",
+              "802_11g",
+              "802_11n"
+            ]
+          },
+          "maxItems": 8,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "type": "object"
+    }
+  },
+  "title": "ITAMbox catalogue asset type",
+  "type": "object"
+}
