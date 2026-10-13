@@ -184,6 +184,13 @@ def resolve_related(related_model, value):
         obj = queryset.filter(pk=int(value)).first()
         if obj:
             return obj.pk
+        # unscoped: existence probe only, to explain an out-of-scope reference instead of a generic
+        # choice error; the object itself is never resolved or exposed from this query
+        if related_model._base_manager.filter(pk=int(value)).exists():
+            raise ValidationError(
+                _("Selected %(model)s belongs to a different tenant or is no longer available.")
+                % {"model": related_model._meta.verbose_name}
+            )
     obj = _find_related_by_natural_key(related_model, queryset, value)
     if obj:
         return obj.pk
