@@ -1,22 +1,25 @@
-from typing import cast
+import json
+from functools import lru_cache
+from typing import NamedTuple
 
-from django.core.exceptions import ValidationError
+import jsonschema
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.utils.translation import gettext as _
 
-from assets.models import Asset, AssetType, Manufacturer
+from assets.models import Asset, AssetRole, AssetType, Category, Manufacturer
+from assets.services.specifications.catalogue_schema import build_catalogue_schema
 from assets.services.specifications.commands import create_asset_type, preview_asset_type_create
-from assets.services.specifications.contracts import (
-    AssetTypePreviewDTO,
-    FieldsetSelectionDTO,
-    SpecificationPatchDTO,
-)
+from assets.services.specifications.contracts import FieldsetSelectionDTO, SpecificationPatchDTO
+from assets.services.specifications.core_vocabulary import get_core_vocabulary
 from assets.services.specifications.messages import specification_message
 from assets.specification_adapters import (
     actor_context_for_user,
+    create_fieldset_selection,
     native_asset_type_create_input,
-    owner_id_from_result,
     require_command_success,
 )
-from core.importers.bulk_forms import BulkImportForm, register_import_form
+from core.importers.bulk_forms import BulkImportForm, RowSkipped, register_import_form
+from core.slugs import generate_unique_slug
 from inventory.models import Accessory, Consumable
 from licenses.models import License
 from organization.models import AssetHolder, Location
@@ -52,58 +55,241 @@ class AssetBulkImportForm(BulkImportForm):
     ]
 
 
+@lru_cache(maxsize=1)
+def _specs_validator():
+    """Validator over the same generated schema the community catalogue uses."""
+    return jsonschema.Draft202012Validator(build_catalogue_schema()["properties"]["specs"])
+
+
+@lru_cache(maxsize=1)
+def _spec_field_meta():
+    fields = get_core_vocabulary()["active_fields"]
+    return {f["key"]: (f["field_type"], f["canonical_unit"]) for f in fields}
+
+
+def _parse_specs(raw):
+    """Return the specs mapping of a row (YAML mapping or JSON text), or raise."""
+    if raw in (None, "", {}):
+        return {}
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            raise ValidationError(_("specs: must be a mapping of specification keys to values.")) from None
+    if not isinstance(raw, dict):
+        raise ValidationError(_("specs: must be a mapping of specification keys to values."))
+    return raw
+
+
+def _validate_specs(specs):
+    errors = sorted(_specs_validator().iter_errors(specs), key=lambda e: [str(p) for p in e.absolute_path])
+    if errors:
+        messages = []
+        for error in errors:
+            path = ".".join(["specs", *(str(p) for p in error.absolute_path)])
+            messages.append(f"{path}: {error.message}")
+        raise ValidationError(messages)
+
+
+def _strip_unit(key, value):
+    """Turn a schema-valid quantity string ("50.5 Wh") into the codec's bare value."""
+    field_type, unit = _spec_field_meta().get(key, (None, None))
+    if unit and isinstance(value, str) and value.endswith(f" {unit}"):
+        bare = value[: -len(unit) - 1]
+        return int(bare) if field_type == "integer" else bare
+    return value
+
+
+def _spec_patch_values(raw):
+    specs = _parse_specs(raw)
+    _validate_specs(specs)
+    return {key: _strip_unit(key, value) for key, value in specs.items()}
+
+
+class _TypeRowPlan(NamedTuple):
+    manufacturer: Manufacturer | None
+    manufacturer_name: str
+    model: str
+    category: Category | None
+    asset_role: AssetRole | None
+    values: dict
+    patch_values: dict
+
+
 @register_import_form
 class AssetTypeBulkImportForm(BulkImportForm):
+    """Catalogue-style asset type import.
+
+    Rows are created through the specification commands (never ``model(**row)``).
+    An existing type (same manufacturer and model) is skipped and reported, a
+    missing manufacturer is created for actors holding ``add_manufacturer``, and
+    an unknown category is an error. ``specs`` is validated against the same
+    generated schema as the community catalogue.
+    """
+
     model = AssetType
+    structured_fields = ("specs",)
     required_fields = ["manufacturer", "model"]
-    optional_fields = ["slug", "part_number", "category", "asset_role", "description", "comments"]
+    optional_fields = [
+        "slug",
+        "part_number",
+        "ean",
+        "category",
+        "asset_role",
+        "description",
+        "comments",
+        "specs",
+    ]
 
-    @classmethod
-    def can_import(cls, actor: object) -> bool:
-        return has_provider_catalogue_permission(actor, "assets.add_assettype")
+    def clean(self):
+        cleaned_data = super().clean()
+        if not self._rows_data:
+            return cleaned_data
+        errors, notes = [], []
+        for number, row in enumerate(self._rows_data, start=2):
+            try:
+                plan = self._plan_row(row)
+                self._dry_run(plan)
+                if plan.manufacturer is None:
+                    notes.append(
+                        _("Row %(row)s: manufacturer '%(name)s' will be created.")
+                        % {"row": number, "name": plan.manufacturer_name}
+                    )
+            except RowSkipped as skip:
+                notes.append(_("Row %(row)s: %(reason)s") % {"row": number, "reason": skip})
+            except ValidationError as exc:
+                errors.extend(f"Row {number}: {message}" for message in exc.messages)
+        self.row_notes = notes
+        if errors:
+            raise ValidationError(errors)
+        return cleaned_data
 
-    def _import_row(self, row, row_number):
-        mapped = self.map_row(row)
-        self._validate_row(mapped, row_number)
-        instance = self._create_instance(mapped)
-        self._populate_generated_slug(instance)
-        instance.full_clean()
+    # -- planning ---------------------------------------------------------
 
-        actor = actor_context_for_user(self.actor)
+    def _plan_row(self, row):
+        name = str(row.get("manufacturer") or "").strip()
+        model_name = str(row.get("model") or "").strip()
+        if not name or not model_name:
+            raise ValidationError(_('"manufacturer" and "model" are required.'))
+        manufacturer = self._find_manufacturer(name)
+        if manufacturer is None:
+            self._require_manufacturer_permission()
+        elif AssetType.objects.filter(manufacturer=manufacturer, model__iexact=model_name).exists():
+            raise RowSkipped(
+                _("asset type '%(manufacturer)s %(model)s' already exists; skipped.")
+                % {"manufacturer": manufacturer.name, "model": model_name}
+            )
+        category = self._find_category(row.get("category"))
+        asset_role = self._find_asset_role(row.get("asset_role"))
+        patch_values = _spec_patch_values(row.get("specs"))
+        values = {
+            "model": model_name,
+            "slug": str(row.get("slug") or "").strip() or None,
+            "part_number": str(row.get("part_number") or "").strip(),
+            "ean": str(row.get("ean") or "").strip(),
+            "description": str(row.get("description") or "").strip(),
+            "comments": str(row.get("comments") or "").strip(),
+        }
+        return _TypeRowPlan(manufacturer, name, model_name, category, asset_role, values, patch_values)
+
+    @staticmethod
+    def _find_manufacturer(name):
+        queryset = Manufacturer.objects
+        return (
+            queryset.filter(name=name).first()
+            or queryset.filter(name__iexact=name).first()
+            or queryset.filter(slug=name).first()
+        )
+
+    @staticmethod
+    def _find_category(raw):
+        slug = str(raw or "").strip()
+        if not slug:
+            return None
+        category = Category.objects.filter(slug=slug).first()
+        if category is None:
+            raise ValidationError(
+                _("category: unknown category '%(slug)s'. Categories are never created by an import.") % {"slug": slug}
+            )
+        return category
+
+    @staticmethod
+    def _find_asset_role(raw):
+        value = str(raw or "").strip()
+        if not value:
+            return None
+        role = AssetRole.objects.filter(slug=value).first() or AssetRole.objects.filter(name__iexact=value).first()
+        if role is None:
+            raise ValidationError(_("asset_role: unknown asset role '%(value)s'.") % {"value": value})
+        return role
+
+    def _require_manufacturer_permission(self):
+        actor = self.actor
+        if actor is None or not actor.has_perm("assets.add_manufacturer"):
+            raise ValidationError(
+                _("The manufacturer does not exist and you do not have permission to create manufacturers.")
+            )
+
+    # -- command construction --------------------------------------------
+
+    def _actor_context(self):
+        try:
+            return actor_context_for_user(self.actor)
+        except PermissionDenied:
+            raise ValidationError(_("An authenticated actor is required for this import.")) from None
+
+    @staticmethod
+    def _fieldset_selection(plan):
+        """Category defaults compose the Fieldsets; without a category, use the sections that own the keys."""
+        if plan.category is not None or not plan.patch_values:
+            return create_fieldset_selection((), omitted=True)
+        identities = []
+        for field in get_core_vocabulary()["active_fields"]:
+            if field["key"] in plan.patch_values:
+                for membership in field["memberships"]:
+                    if membership["section"] not in identities:
+                        identities.append(membership["section"])
+        return FieldsetSelectionDTO(presence="explicit", identities=tuple(identities))
+
+    def _preview_command(self, plan, manufacturer):
+        actor = self._actor_context()
         native = native_asset_type_create_input(
             {
-                "manufacturer": instance.manufacturer,
-                "model": instance.model,
-                "slug": instance.slug,
-                "part_number": instance.part_number,
-                "ean": instance.ean,
-                "region": instance.region,
-                "configuration": instance.configuration,
-                "eol_months": instance.eol_months,
-                "category": instance.category,
-                "asset_role": instance.asset_role,
-                "depreciation": instance.depreciation,
-                "description": instance.description,
-                "comments": instance.comments,
-                "requestable": instance.requestable,
-                "tags": (),
+                **plan.values,
+                "manufacturer": manufacturer,
+                "category": plan.category,
+                "asset_role": plan.asset_role,
             }
         )
-        fieldsets = FieldsetSelectionDTO(presence="omitted", identities=())
-        patch = SpecificationPatchDTO(set_values={}, clear_keys=())
-        preview = cast(
-            AssetTypePreviewDTO,
-            require_command_success(
-                preview_asset_type_create(
-                    actor=actor,
-                    native=native,
-                    fieldsets=fieldsets,
-                    patch=patch,
-                )
-            ),
+        fieldsets = self._fieldset_selection(plan)
+        patch = SpecificationPatchDTO(set_values=plan.patch_values, clear_keys=())
+        preview = require_command_success(
+            preview_asset_type_create(actor=actor, native=native, fieldsets=fieldsets, patch=patch)
         )
-        if preview.issues:
-            raise ValidationError("; ".join(specification_message(issue.message_key) for issue in preview.issues))
+        issues = getattr(preview, "issues", ())
+        if issues:
+            raise ValidationError("; ".join(specification_message(issue.message_key) for issue in issues))
+        return actor, native, fieldsets, patch, preview
+
+    def _dry_run(self, plan):
+        """Run the command's read-only preview during the form preview."""
+        if self.actor is not None and plan.manufacturer is not None:
+            self._preview_command(plan, plan.manufacturer)
+
+    # -- persistence ------------------------------------------------------
+
+    @staticmethod
+    def _create_manufacturer(name):
+        manufacturer = Manufacturer(name=name)
+        generate_unique_slug(manufacturer, "name")
+        manufacturer.full_clean()
+        manufacturer.save()
+        return manufacturer
+
+    def _import_row(self, row, row_number):
+        plan = self._plan_row(row)
+        manufacturer = plan.manufacturer or self._create_manufacturer(plan.manufacturer_name)
+        actor, native, fieldsets, patch, preview = self._preview_command(plan, manufacturer)
         result = create_asset_type(
             actor=actor,
             native=native,
@@ -113,7 +299,11 @@ class AssetTypeBulkImportForm(BulkImportForm):
             expected_definition_revision=preview.expected_definition_revision,
             expected_category_default_snapshot_revision=preview.expected_category_default_snapshot_revision,
         )
-        owner_id_from_result(result)
+        require_command_success(result)
+
+    @classmethod
+    def can_import(cls, actor: object) -> bool:
+        return has_provider_catalogue_permission(actor, "assets.add_assettype")
 
 
 @register_import_form

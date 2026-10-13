@@ -174,13 +174,15 @@ class TestAutoSlugImport(TenantTestMixin):
             model_name="assettype",
             rows=[
                 {"manufacturer": "Fairphone", "model": "Fairphone 5"},
-                {"manufacturer": "Fairphone", "model": "Fairphone 5"},
+                {"manufacturer": "Fairphone", "model": "Fairphone-5"},
             ],
             provider=True,
         )
 
         assert job.result == {"imported": 2, "failed": 0, "total": 2}
-        assert set(AssetType.objects.filter(model="Fairphone 5").values_list("slug", flat=True)) == {
+        assert set(
+            AssetType.objects.filter(model__in=["Fairphone 5", "Fairphone-5"]).values_list("slug", flat=True)
+        ) == {
             "fairphone-fairphone-5",
             "fairphone-fairphone-5-1",
         }

@@ -15304,3 +15304,35 @@ msgstr "verwaltete Mandanten"
 
 msgid "A consumable with this manufacturer and name already exists for this tenant."
 msgstr "Ein Verbrauchsmaterial mit diesem Hersteller und diesem Namen existiert für diesen Mandanten bereits."
+
+msgid "\"manufacturer\" and \"model\" are required."
+msgstr "„manufacturer“ und „model“ sind erforderlich."
+
+msgid "An authenticated actor is required for this import."
+msgstr "Für diesen Import ist ein angemeldeter Benutzer erforderlich."
+
+msgid "Row %(row)s: %(reason)s"
+msgstr "Zeile %(row)s: %(reason)s"
+
+msgid "Row %(row)s: manufacturer '%(name)s' will be created."
+msgstr "Zeile %(row)s: Hersteller „%(name)s“ wird angelegt."
+
+msgid "The manufacturer does not exist and you do not have permission to create manufacturers."
+msgstr "Der Hersteller existiert nicht und Sie haben keine Berechtigung, Hersteller anzulegen."
+
+msgid "asset type '%(manufacturer)s %(model)s' already exists; skipped."
+msgstr "Gerätetyp „%(manufacturer)s %(model)s“ existiert bereits; übersprungen."
+
+msgid "asset_role: unknown asset role '%(value)s'."
+msgstr "asset_role: unbekannte Geräterolle „%(value)s“."
+
+msgid "category: unknown category '%(slug)s'. Categories are never created by an import."
+msgstr "category: unbekannte Kategorie „%(slug)s“. Kategorien werden durch einen Import nie angelegt."
+
+msgid "specs: must be a mapping of specification keys to values."
+msgstr "specs: muss eine Zuordnung von Spezifikationsschlüsseln zu Werten sein."
+
+msgid "Skipped %(count)s existing record:"
+msgid_plural "Skipped %(count)s existing records:"
+msgstr[0] "%(count)s vorhandener Datensatz übersprungen:"
+msgstr[1] "%(count)s vorhandene Datensätze übersprungen:"

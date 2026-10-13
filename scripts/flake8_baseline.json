@@ -294,7 +294,7 @@
     {
       "path": "itambox/core/importers/bulk_forms.py",
       "code": "C901",
-      "message": "'BulkImportForm.clean' is too complex (32)",
+      "message": "'BulkImportForm.clean' is too complex (29)",
       "source": "    def clean(self):",
       "context": "Module:body/ClassDef:BulkImportForm:body/FunctionDef:clean:self",
       "count": 1
