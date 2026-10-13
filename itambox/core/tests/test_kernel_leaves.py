@@ -703,7 +703,8 @@ class KernelImportLeafTests(SimpleTestCase):
         self.assertEqual(resolve_related(related_model, "7"), 99)
         self.assertEqual(resolve_related(related_model, "Asset"), 99)
         self.assertEqual(resolve_related(related_model, "ASSET"), 99)
-        self.assertEqual(resolve_related(related_model, "unknown"), "unknown")
+        with self.assertRaises(ValidationError):
+            resolve_related(related_model, "unknown")
 
     def test_slug_source_tuple_and_empty_source_have_safe_fallbacks(self):
         obj = _SlugModel(slug="")
