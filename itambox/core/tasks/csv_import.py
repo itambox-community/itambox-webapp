@@ -1,9 +1,11 @@
 import logging
 from collections.abc import Mapping, Sequence
+from typing import cast
 
+from django import forms
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
@@ -29,6 +31,14 @@ def _task_log_extra(*, operation, tenant_id, actor_id, exception_type=None):
     if exception_type is not None:
         context["exception_type"] = exception_type
     return {"import_context": context}
+
+
+def _authorized_import_form_class(model: type[models.Model], actor: object) -> type[forms.Form]:
+    form_class = cast(type[forms.Form], get_import_form_class(model))
+    can_import = getattr(form_class, "can_import", None)
+    if can_import is not None and not can_import(actor):
+        raise PermissionDenied("The actor is not authorized to import this model.")
+    return form_class
 
 
 def _log_skipped(job, form):
@@ -78,7 +88,7 @@ def import_csv_task(
                         % {"app_label": app_label, "model_name": model_name}
                     )
 
-                ImportFormClass = get_import_form_class(model)
+                ImportFormClass = _authorized_import_form_class(model, ctx.user)
 
                 form = ImportFormClass()
                 form._rows_data = rows_data

@@ -158,27 +158,43 @@ def _model_has_concrete_field(model, name):
         return False
 
 
-def resolve_related(related_model, value):
-    """Resolve a raw import cell to a related-object PK by id, then slug/name/
-    model/username/upn (case-sensitive then case-insensitive). Returns the PK, or
-    the original value (so model validation surfaces a clear per-row error)."""
-    obj = None
-    if value.isdigit():
-        obj = related_model.objects.filter(pk=int(value)).first()
+def _find_related_by_natural_key(related_model, queryset, value):
+    """Match a visible related object by its curated natural-key fields."""
     lookup_fields = ["slug", "name", "model", "username", "upn"]
-    if not obj:
-        for lookup in lookup_fields:
-            if _model_has_concrete_field(related_model, lookup):
-                obj = related_model.objects.filter(**{lookup: value}).first()
-                if obj:
-                    break
-    if not obj:
-        for lookup in lookup_fields:
-            if _model_has_concrete_field(related_model, lookup):
-                obj = related_model.objects.filter(**{f"{lookup}__iexact": value}).first()
-                if obj:
-                    break
-    return obj.pk if obj else value
+    for lookup in lookup_fields:
+        if _model_has_concrete_field(related_model, lookup):
+            obj = queryset.filter(**{lookup: value}).first()
+            if obj:
+                return obj
+    for lookup in lookup_fields:
+        if _model_has_concrete_field(related_model, lookup):
+            obj = queryset.filter(**{f"{lookup}__iexact": value}).first()
+            if obj:
+                return obj
+    return None
+
+
+def resolve_related(related_model, value):
+    """Resolve a raw cell by id, then natural key, within the actor's live scope."""
+    queryset = related_model.objects
+    if hasattr(queryset, "for_scope"):
+        queryset = queryset.for_scope(Scope.current())
+
+    if value.isdigit():
+        obj = queryset.filter(pk=int(value)).first()
+        if obj:
+            return obj.pk
+        # unscoped: existence probe only, to explain an out-of-scope reference instead of a generic
+        # choice error; the object itself is never resolved or exposed from this query
+        if related_model._base_manager.filter(pk=int(value)).exists():
+            raise ValidationError(
+                _("Selected %(model)s belongs to a different tenant or is no longer available.")
+                % {"model": related_model._meta.verbose_name}
+            )
+    obj = _find_related_by_natural_key(related_model, queryset, value)
+    if obj:
+        return obj.pk
+    raise ValidationError(_("Select a valid choice."))
 
 
 class BulkImportForm(forms.Form):

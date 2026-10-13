@@ -23,6 +23,7 @@ from core.slugs import generate_unique_slug
 from inventory.models import Accessory, Consumable
 from licenses.models import License
 from organization.models import AssetHolder, Location
+from organization.services.catalogue_authorization import has_provider_catalogue_permission
 
 # These forms are declarative: the base BulkImportForm.map_row maps scalar
 # columns and resolves ForeignKey columns (by id / slug / name) automatically.
@@ -299,6 +300,10 @@ class AssetTypeBulkImportForm(BulkImportForm):
             expected_category_default_snapshot_revision=preview.expected_category_default_snapshot_revision,
         )
         require_command_success(result)
+
+    @classmethod
+    def can_import(cls, actor: object) -> bool:
+        return has_provider_catalogue_permission(actor, "assets.add_assettype")
 
 
 @register_import_form

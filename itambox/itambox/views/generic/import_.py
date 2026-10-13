@@ -36,6 +36,10 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
 
     def has_permission(self):
         model = self._get_model()
+        form_class = self.get_form_class() if model else None
+        can_import = getattr(form_class, "can_import", None)
+        if can_import is not None and not can_import(self.request.user):
+            return False
         # Imports currently bind the background job and task to active_tenant;
         # never expose that write path from an aggregate or tenant-group scope.
         if not self.request.user.is_superuser and getattr(self.request, "active_tenant", None) is None:

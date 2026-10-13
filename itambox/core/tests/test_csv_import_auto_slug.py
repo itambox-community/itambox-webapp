@@ -18,6 +18,7 @@ from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 
 from assets.forms.import_forms import LocationBulkImportForm, ManufacturerBulkImportForm
 from assets.models import Asset, AssetType, Manufacturer
+from assets.models.catalog import AssetTypeFieldset
 from core.importers.bulk_forms import _row_error_messages
 from core.managers import Scope
 from core.models import Job, ObjectChange
@@ -39,14 +40,15 @@ IMPORT_PERMISSIONS = (
 
 @pytest.mark.django_db
 class TestAutoSlugImport(TenantTestMixin):
-    def _import(self, *, app_label, model_name, rows):
+    def _import(self, *, app_label, model_name, rows, provider=False):
         self.setup_tenant_context(
             name="Auto Slug Tenant",
             slug="auto-slug-tenant",
             permissions=list(IMPORT_PERMISSIONS),
         )
-        self.tenant.is_provider = True
-        self.tenant.save(update_fields=["is_provider"])
+        if provider:
+            self.tenant.is_provider = True
+            self.tenant.save(update_fields=["is_provider"])
         self.set_active_tenant(self.tenant, self.tenant_membership)
         if model_name == "location":
             Site.objects.create(name="Import Site", slug="import-site", tenant=self.tenant)
@@ -74,11 +76,71 @@ class TestAutoSlugImport(TenantTestMixin):
             app_label="assets",
             model_name="assettype",
             rows=[{"manufacturer": "Fairphone", "model": "Fairphone 5"}],
+            provider=True,
         )
 
         assert job.status == Job.STATUS_COMPLETED
         assert job.result == {"imported": 1, "failed": 0, "total": 1}
         assert AssetType.objects.get(model="Fairphone 5").slug == "fairphone-fairphone-5"
+
+    def test_customer_add_grant_cannot_create_asset_type_in_worker(self):
+        self._manufacturer()
+        content_type = ContentType.objects.get_for_model(AssetType)
+        before_types = AssetType.objects.count()
+        before_memberships = AssetTypeFieldset.objects.count()
+        before_changes = ObjectChange.objects.filter(changed_object_type=content_type).count()
+
+        job = self._import(
+            app_label="assets",
+            model_name="assettype",
+            rows=[{"manufacturer": "Fairphone", "model": "Customer-created type"}],
+        )
+
+        assert job.status == Job.STATUS_FAILED
+        assert AssetType.objects.count() == before_types
+        assert AssetTypeFieldset.objects.count() == before_memberships
+        assert ObjectChange.objects.filter(changed_object_type=content_type).count() == before_changes
+
+    def test_provider_grant_outside_active_provider_tenant_cannot_create_asset_type(self):
+        self._manufacturer()
+        self.setup_tenant_context(
+            name="Granted Provider",
+            slug="granted-provider",
+            permissions=["assets.add_assettype"],
+        )
+        self.tenant.is_provider = True
+        self.tenant.save(update_fields=["is_provider"])
+        active_provider = Tenant.objects.create(
+            name="Active Provider",
+            slug="active-provider",
+            is_provider=True,
+        )
+        active_role = Role.objects.create(
+            tenant=active_provider,
+            name="Active Provider Member",
+            permissions=[],
+        )
+        self.grant(self.tenant_user, active_provider, active_role)
+        job = Job.objects.create(name="Bulk Import", tenant=active_provider, status=Job.STATUS_PENDING)
+        content_type = ContentType.objects.get_for_model(AssetType)
+        before_types = AssetType.objects.count()
+        before_memberships = AssetTypeFieldset.objects.count()
+        before_changes = ObjectChange.objects.filter(changed_object_type=content_type).count()
+
+        import_csv_task(
+            job_id=job.pk,
+            rows_data=[{"manufacturer": "Fairphone", "model": "Wrong-provider type"}],
+            app_label="assets",
+            model_name="assettype",
+            user_id=self.tenant_user.pk,
+            tenant_id=active_provider.pk,
+        )
+
+        job.refresh_from_db()
+        assert job.status == Job.STATUS_FAILED
+        assert AssetType.objects.count() == before_types
+        assert AssetTypeFieldset.objects.count() == before_memberships
+        assert ObjectChange.objects.filter(changed_object_type=content_type).count() == before_changes
 
     def test_accessory_row_without_slug_imports_with_the_generated_slug(self):
         self._manufacturer()
@@ -114,6 +176,7 @@ class TestAutoSlugImport(TenantTestMixin):
                 {"manufacturer": "Fairphone", "model": "Fairphone 5"},
                 {"manufacturer": "Fairphone", "model": "Fairphone-5"},
             ],
+            provider=True,
         )
 
         assert job.result == {"imported": 2, "failed": 0, "total": 2}
@@ -131,6 +194,7 @@ class TestAutoSlugImport(TenantTestMixin):
             app_label="assets",
             model_name="assettype",
             rows=[{"manufacturer": "Fairphone", "model": "Fairphone 5", "slug": "fp5-custom"}],
+            provider=True,
         )
 
         assert job.result == {"imported": 1, "failed": 0, "total": 1}
