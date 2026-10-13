@@ -1,6 +1,6 @@
 [project]
 name = "itambox"
-version = "1.0.0-beta.3"
+version = "1.0.0-beta.4"
 description = "IT Asset Management System inspired by NetBox"
 requires-python = ">=3.12"
 # NOTE: ITAMbox is NOT pip-installable and does not ship wheels/sdists. The apps
