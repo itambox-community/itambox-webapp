@@ -142,6 +142,28 @@ python manage.py compile_locales de
 
 ---
 
+### `export_catalogue_schema`
+
+Write the JSON Schema that describes a community catalogue asset type, generated from the core specification vocabulary. The community catalogue repository [type-library](https://github.com/itambox-community/type-library) keeps a copy of this file as `schema/generated_schema.json` and validates every model file against it.
+
+| | |
+|---|---|
+| **Usage** | `python manage.py export_catalogue_schema [--output PATH]` |
+| **Production-safe** | Yes (reads the vocabulary only; writes a single file) |
+| **When to use** | Refreshing the schema copy in the catalogue repository after the vocabulary changed in a release. Never edit the copy by hand. |
+
+**Examples**
+
+```bash
+# Regenerate the committed copy
+python manage.py export_catalogue_schema
+
+# Write to a file for the catalogue repository
+python manage.py export_catalogue_schema --output /tmp/generated_schema.json
+```
+
+---
+
 ### `export_datamodel`
 
 Export the ITAMbox domain model and their direct relations as a Graphviz DOT graph. Useful for documentation, architecture reviews, and onboarding.
