@@ -262,6 +262,10 @@ class PullRequestSuiteScopeTests(unittest.TestCase):
         self.assertNotIn("paths:", before_jobs)
         self.assertNotIn("paths-ignore:", before_jobs)
 
+    def test_the_merge_group_trigger_is_present(self):
+        before_jobs = WORKFLOW_PATH.read_text(encoding="utf-8").split("jobs:", 1)[0]
+        self.assertIn("merge_group:", before_jobs)
+
 
 class GateSuiteDiscoveryTests(unittest.TestCase):
     """A hand-written list of test modules is a list that goes stale silently."""
