@@ -1,6 +1,6 @@
 # Tenant Roles
 
-A **Role** is a named permission set owned by a Tenant. A `RoleGrant` assigns it to exactly one Membership or UserGroup, and child `RoleGrantScope` rows define where that grant applies. See [API Tokens, SCIM Provisioning & RBAC](../../usage/api-tokens-and-scim.md#rbac-basics).
+A **Tenant Role** (model name `Role`) is a named permission set owned by a Tenant. A `RoleGrant` assigns it to exactly one Membership or UserGroup, and child `RoleGrantScope` rows define where that grant applies. See [API Tokens, SCIM Provisioning & RBAC](../../usage/api-tokens-and-scim.md#rbac-basics).
 
 ---
 

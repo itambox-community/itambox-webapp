@@ -6,7 +6,7 @@ A **Custody Receipt** records acceptance evidence for one asset assignment, incl
 
 ## Acceptance States
 
-When checkout selects a matching category-specific template with **Require Acceptance**, it creates a **Pending** receipt linked to that assignment. Checkout and assignment are already recorded; signature is a separate acceptance step.
+A receipt is created only when checkout resolves a matching active template for the AssetHolder's tenant and the asset's category and that template has **Require Acceptance** set; the resolution order is documented on [Custody Templates](custodytemplate.md). The receipt is created in the **Pending** state and linked to that assignment. Checkout and assignment are already recorded; signature is a separate acceptance step.
 
 - **Pending**: Awaiting acceptance from the intended holder. Assignment remains active.
 - **Accepted**: The intended holder accepted the snapshotted terms for this assignment.
@@ -49,4 +49,4 @@ The verification hash is `hashlib.sha256(f"{holder.upn}|{asset.asset_tag}|{signe
 
 An operator with the custody-receipt preparation permission can prepare a signing session for a **pending** receipt and its intended holder. From the receipt detail view, the available handoff options include a link, QR code, and email. The recipient must authenticate as the intended holder before signing; the session is single-use and expires (30 minutes by default). A session is only valid while it has not been cancelled, not been consumed and not expired. Do not treat forwarding the link to another person as a transfer of signing authority. Exact button labels and navigation can vary with the deployed UI; use the actions shown on the receipt detail page.
 
-Accepting or declining consumes the session. Declining changes the receipt state only; it does not check the asset in. After the device is returned, an operator must check it in through the normal assignment workflow. Accepted receipts cannot be signed again, and check-in or reassignment supersedes a still-pending receipt for that assignment. The receipt detail page exposes JSON and PDF export routes for the receipt.
+Accepting or declining consumes the session. Declining changes the receipt state only; it does not check the asset in. After the device is returned, an operator must check it in through the normal assignment workflow. Accepted receipts cannot be signed again, and check-in or reassignment supersedes a still-pending receipt for that assignment. An operator holding the custody-receipt export permission can export an **accepted** receipt as JSON or PDF; other receipt states are not exportable through those routes.

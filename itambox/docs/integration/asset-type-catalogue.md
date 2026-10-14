@@ -1,6 +1,6 @@
 # Asset Type YAML Authoring
 
-Use this guide to import a hardware model and its specifications into the current ITAMbox deployment. This is a special YAML import, not the generic importer format used for most other models.
+Use this guide to import a hardware model and its specifications into the current ITAMbox deployment. This is a specialised YAML import. The generic bulk importer also accepts CSV and YAML, but this page documents the Asset Type-specific fields and the nested `specs` mapping.
 
 ## Before you start
 
@@ -103,7 +103,7 @@ For the full generated JSON Schema, including numeric bounds, patterns, and acce
 
 ## 3. Use a supported category
 
-The importer accepts these existing category slugs:
+The built-in seed ships these category slugs as defaults:
 
 `access-points`, `desktops`, `firewalls`, `laptops`, `mobile-phones`, `monitors`, `printers`, `routers`, `servers`, `switches`, `tablets`, `ups`, `virtual-machines`.
 
@@ -117,13 +117,13 @@ Any category that already exists in your deployment is accepted, including local
 4. Confirm the import, then inspect the resulting job for row outcomes. An existing Asset Type for the same Manufacturer and case-insensitive Model name is **skipped**, not updated. Correct an existing Type through its edit workflow; re-importing is not an update mechanism.
 5. Open the imported Type and review its selected specification sections and model-level values. Section composition controls which fields are available. See [Asset Types](../models/assets/assettype.md) and [Custom Fields](../usage/custom-fields.md) for editing fields, sections, and per-asset observations.
 
-The importer validates model-level values through the same specification command used by the application. A schema-valid file is not proof that a database import succeeded: the category/default composition, permissions, and current application validation still apply.
+The import passes through the application's own model-level validation and composition rules. A schema-valid file is not proof that a database import succeeded: the category/default composition, the permissions above, and current application validation all still apply.
 
 ## Do not confuse these formats
 
-- **Community catalogue files:** the separate type-library repository validates one file per model, with its own required `category` and file path conventions. Follow its contributor guide when contributing upstream.
+- **Community catalogue files:** the separate type-library repository follows its own repository conventions and additionally requires `category` for every entry. Its contributor guide, not this page, governs submissions there.
 - **App Asset Type import:** uses the supported keys above, allows an omitted category, performs a preview, and skips existing Manufacturer/Model pairs. Use `/import/assets/assettype/`.
-- **Specification API writes:** use the versioned specification patch and composition contracts documented in [Custom Fields](../usage/custom-fields.md). These are not YAML catalogue files.
+- **Specification API writes:** `specification_patch` and the composition-preview contract documented in [Custom Fields](../usage/custom-fields.md) are the JSON write path. They do not accept these YAML catalogue files.
 - **Custom fields and fieldsets:** define and compose fields; they do not expand the core `specs` YAML allowlist. To author local fields and add them to a Type, follow the [Custom Fields guide](../usage/custom-fields.md).
 
 ## Common errors

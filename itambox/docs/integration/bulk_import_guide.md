@@ -162,8 +162,9 @@ specs:
   memory_type: ddr5
 ```
 
-The Asset Type importer requires `manufacturer` and `model`. Existing types
-with the same manufacturer and model are skipped, not updated. A missing
+The Asset Type importer requires `manufacturer` and `model`. An existing type is
+identified by the same Manufacturer plus a case-insensitive Model name, and such a
+row is skipped, not updated. A missing
 manufacturer is created only when the importer actor has
 `assets.add_manufacturer`; an unknown category or asset role is an error and
 the importer does not create either. Category should be an existing category
@@ -213,7 +214,7 @@ fields or fieldsets.
 | `min_qty` | No | Integer | Minimum quantity threshold |
 | `notes` | No | Text | Additional notes |
 
-> **Note**: The `qty` (current quantity in stock) field is managed through the **AccessoryStock** model and is **not** directly importable on the catalog item. `AccessoryStock` is not supported by the generic bulk importer. Use the stock-management workflow or `POST/PATCH /api/inventory/accessory-stocks/`, with the required permissions.
+> **Note**: The `qty` (current quantity in stock) field is managed through the **AccessoryStock** model and is **not** directly importable on the catalogue item. `AccessoryStock` is not supported by the generic bulk importer. Use the stock-management workflow or `POST/PATCH /api/inventory/accessory-stocks/`, with the required permissions.
 
 ### Consumable
 
@@ -227,7 +228,7 @@ fields or fieldsets.
 | `min_qty` | No | Integer | Minimum quantity threshold |
 | `notes` | No | Text | Additional notes |
 
-> **Note**: The `qty` (current quantity in stock) field is managed through the **ConsumableStock** model and is **not** directly importable on the catalog item. `ConsumableStock` is not supported by the generic bulk importer. Use the stock-management workflow or `POST/PATCH /api/inventory/consumable-stocks/`, with the required permissions.
+> **Note**: The `qty` (current quantity in stock) field is managed through the **ConsumableStock** model and is **not** directly importable on the catalogue item. `ConsumableStock` is not supported by the generic bulk importer. Use the stock-management workflow or `POST/PATCH /api/inventory/consumable-stocks/`, with the required permissions.
 
 ### License
 

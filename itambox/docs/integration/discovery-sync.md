@@ -71,10 +71,11 @@ Multiple tenants are supported by adding additional top-level keys:
 python manage.py sync_intune --tenant acme --now
 ```
 
-`--dry-run` simulates the sync without writing. The command requires a configured
-tenant and a superuser for change attribution. Without `--now`, it creates a Job
-and enqueues the sync with django-q2; `--now` runs it inline and blocks until
-finished.
+`--dry-run` simulates the sync without writing. The command requires a
+tenant slug that exists, a matching `ITAMBOX_TENANT_INTUNE_CONFIGS` entry, and an
+existing superuser to attribute the resulting changes to. Without `--now` it
+creates a Job and enqueues the sync with django-q2; `--now` runs it inline and
+blocks until finished.
 
 **Schedule nightly:**
 
@@ -82,7 +83,7 @@ Use your host/container scheduler to run the synchronous command once per
 night, for example at 03:00:
 
 ```cron
-0 3 * * * cd /app/itambox && python manage.py sync_intune --tenant acme --now
+0 3 * * * cd /path/to/itambox && python manage.py sync_intune --tenant acme --now
 ```
 
 The command creates and updates its own Job. Do not schedule
@@ -105,7 +106,7 @@ and Job IDs established by the command. Monitor the resulting Job in ITAMbox.
 5. **Software** (when `sync_software: true`) — detected apps are upserted into
    `InstalledSoftware` with `discovered_by_agent="Intune"` and a refreshed
    `last_seen_date`, keyed by asset, software, and detected version. Optional
-   app discovery/persistence failures can be reported as degraded without
+   app discovery or persistence failures are recorded on the Job instead of
    aborting the device sync.
 
 Results are stored in a `Job` record visible in the Jobs UI.
@@ -163,7 +164,7 @@ def get_or_create_asset(serial: str, name: str, asset_type_id: int, status_id: i
     return r.json()
 
 def push_installed_software(asset_id: int, software_id: int, version: str, agent: str):
-    """Create an InstalledSoftware record; handle duplicates in the client."""
+    """Create an InstalledSoftware record. A duplicate is raised to the caller."""
     r = requests.post(
         f"{ITAMBOX_URL}/api/software/installed-software/",
         json={
@@ -178,8 +179,9 @@ def push_installed_software(asset_id: int, software_id: int, version: str, agent
     r.raise_for_status()
 
 # Example: push one device
+# Resolve both IDs inside the target tenant before the call.
 asset = get_or_create_asset(serial="SN99999", name="MY-LAPTOP-001",
-                            asset_type_id=123, status_id=2)
+                            asset_type_id=ASSET_TYPE_ID, status_id=STATUS_ID)
 push_installed_software(
     asset_id=asset["id"],
     software_id=42,   # look up via /api/software/software/?name=...
@@ -189,7 +191,7 @@ push_installed_software(
 ```
 
 This template needs tenant-valid IDs and appropriate create/change
-permissions. A POST creates a resource; it is not an UPSERT. The client-side
+permissions. A POST creates a resource; it is not an upsert. The client-side
 GET-then-POST sequence can race, so handle conflicts and retry/reconcile by
 reading the resource again where appropriate. Key endpoints are:
 

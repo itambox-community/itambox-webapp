@@ -112,7 +112,6 @@ nav:
               - Asset Roles: 'models/assets/assetrole.md'
               - Status Labels: 'models/assets/statuslabel.md'
               - Asset Types: 'models/assets/assettype.md'
-              - Asset Type YAML Authoring: 'integration/asset-type-catalogue.md'
               - Manufacturers: 'models/assets/manufacturer.md'
               - Categories: 'models/assets/category.md'
               - Depreciation Profiles: 'models/assets/depreciation.md'

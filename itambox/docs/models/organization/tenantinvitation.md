@@ -1,8 +1,8 @@
-# Tenant Invitations — deprecated
+# Tenant Invitations — removed
 
-> **Deprecated reference:** `TenantInvitation` and its email acceptance workflow
-> have been removed. This page remains in the documentation for old links only;
-> it does not describe a supported model or onboarding process.
+> **Removed feature:** `TenantInvitation` and its email acceptance workflow have
+> been removed from the application. This page remains only so that existing
+> links resolve; it does not describe a supported model or onboarding process.
 
 ## Current onboarding
 

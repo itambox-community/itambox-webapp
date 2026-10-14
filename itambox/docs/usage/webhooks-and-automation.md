@@ -80,7 +80,7 @@ headers, HTTP method, signing secret, and retry policy.
 | **URL** | Yes | The destination URL. Must be a public, external URL — internal/private addresses are blocked by the SSRF guard. |
 | **HTTP Method** | Yes | `POST` (default), `PUT`, `PATCH`, or `GET` |
 | **Enabled** | — | Toggle to temporarily pause deliveries without deleting the endpoint |
-| **Secret** | No | Shared secret for HMAC-SHA256 payload signing (see [HMAC signature verification](#hmac-signature-verification)) |
+| **Secret** | No | Shared secret for HMAC-SHA256 payload signing (see [HMAC signature verification](#hmac-signature-verification)). It is snapshotted per delivery, and those retained snapshots are not re-encrypted by `rotate_encryption_keys`. |
 | **Payload Preset** | No | UI selector (`Custom`, `Slack Block Kit`, `Microsoft Teams (Adaptive Card)`). It does not change the delivered body: delivery uses the fixed target-kind payload described under [Payload format](#payload-format). |
 | **Headers** | No | JSON object of custom HTTP headers (e.g. `{"Authorization": "Bearer xxx"}`) |
 | **Retry Count** | No | Maximum retry attempts on delivery failure (default: `3`) |
@@ -385,8 +385,9 @@ A standard webhook payload (non-Slack, non-Teams) looks like:
 Slack and Teams webhooks use fixed platform-specific payloads: Slack receives
 the envelope plus a `text` summary; Teams receives a legacy MessageCard-shaped
 payload. Neither is a configurable Block Kit or Adaptive Card template. These
-platform-specific sends do **not** include the HMAC signature header; their
-webhook URLs provide authentication. Do not assume they have the generic v1
+platform-specific sends do **not** include the HMAC signature header. Access
+relies on protecting the provider-issued webhook URL and on the provider's own
+controls, so treat that URL as a credential. Do not assume they have the generic v1
 envelope's complete field set.
 
 ### Envelope version and compatibility

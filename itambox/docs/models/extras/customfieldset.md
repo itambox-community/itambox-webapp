@@ -9,8 +9,8 @@ A **Custom Fieldset** is an ordered group of custom field definitions. For Asset
 | **Namespace** | Part of the stable identity, paired with `slug`; defaults to `local`. | String | Yes |
 | **Slug** | Stable machine identifier paired with `namespace`. Identity is immutable after creation. | String | Yes |
 | **Label** | Section heading shown to users. This may change without changing the fieldset identity. | String | No |
-| **Description** | Notes about the fieldset. | Text | No |
-| **Fields** | Selected custom fields. Their membership and display position are stored separately. | Many-to-Many | No |
+| **Description** | Free text shown as help in the composition UI; not part of the identity. | Text | No |
+| **Fields** | The member field definitions. Membership carries its own stored position, so the same field can sit at different positions in different fieldsets. | Many-to-Many | No |
 | **Field Positions** | Optional JSON map from stable Field keys to unique positive positions; omitted members follow selection order. | JSON | No |
 
 ## Features & Validation

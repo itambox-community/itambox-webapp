@@ -26,13 +26,13 @@ Record subscriptions, suppliers, renewal details and seat assignments. Subscript
 
 ### Procurement
 
-Record purchase orders, contracts and fulfillment links. Approval, receiving and request workflows depend on the configured roles and capability status.
+Record purchase orders, contracts and fulfilment links. Approval, receiving and request workflows depend on the configured roles and capability status.
 
 ### Compliance
 
 ITAMbox records custody acknowledgements and signature evidence, asset audits and maintenance history. These records support operational evidence; legal effect depends on the applicable process and jurisdiction. The stored verification hash is not a tamper-proof guarantee.
 
-### Customization and automation
+### Customisation and automation
 
 Configure custom fields, reports, alerts, webhooks and event rules. These features do not create rules, endpoints or schedules automatically. Administrators must configure and enable the relevant records; activation requirements are listed in the [Capability Maturity](operations/capability-maturity.md) guide.
 
