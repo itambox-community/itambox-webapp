@@ -22,6 +22,34 @@ from users.api.authentication import TokenAuthentication
 MAX_OPERATION_TOKENS = 2000
 MAX_OPERATION_ALIASES = 50
 MAX_QUERY_DEPTH = 10
+# Schema introspection (``__schema`` / ``__type``) walks the static type system,
+# not tenant data, so its selections are not charged per field. Each
+# introspection root field is instead charged this flat cost and zeroes the
+# multiplier of its subtree, which keeps GraphiQL's startup query well under the
+# budget while repeating introspection under many aliases still exhausts it.
+INTROSPECTION_ROOT_COST = 50
+_INTROSPECTION_ROOTS = frozenset({"__schema", "__type"})
+
+
+def _in_introspection(node, parent_type):
+    """True for an introspection root field or a field selected on an introspection type.
+
+    Fragments on ``__Type`` / ``__Field`` ... (as GraphiQL's query uses) are
+    walked at the document top level, so the parent type is checked as well.
+    """
+    return node.name.value in _INTROSPECTION_ROOTS or getattr(parent_type, "name", "").startswith("__")
+
+
+def _field_cost(node, parent_type, multiplier):
+    """Cost of one selected field: its multiplier, the flat root cost, or 0 below a root."""
+    if node.name.value in _INTROSPECTION_ROOTS:
+        return INTROSPECTION_ROOT_COST
+    return 0 if _in_introspection(node, parent_type) else multiplier
+
+
+def _subtree_scale(node, parent_type):
+    """0 for introspection fields (already charged flat), 1 for every other field."""
+    return int(not _in_introspection(node, parent_type))
 
 
 def query_complexity_validator(max_complexity=1000, fan_out=10):
@@ -90,11 +118,11 @@ def query_complexity_validator(max_complexity=1000, fan_out=10):
         def enter_field(self, node, *_args):
             multiplier = self._multipliers[-1]
             # Each selected field instance costs its enclosing multiplier.
-            self._cost += multiplier
+            self._cost += _field_cost(node, self.context.get_parent_type(), multiplier)
             self._report_if_over(node)
             # A list-returning field amplifies everything nested beneath it.
             output_type = self.context.get_type()
-            child_multiplier = multiplier
+            child_multiplier = multiplier * _subtree_scale(node, self.context.get_parent_type())
             if _returns_list(output_type):
                 child_multiplier *= fan_out
             self._multipliers.append(child_multiplier)
@@ -142,10 +170,10 @@ def query_complexity_validator(max_complexity=1000, fan_out=10):
 
                 def enter_field(self, node, *_a):
                     multiplier = self._stack[-1]
-                    outer._cost += multiplier
+                    outer._cost += _field_cost(node, type_info.get_parent_type(), multiplier)
                     outer._report_if_over(node)
                     output_type = type_info.get_type()
-                    child_multiplier = multiplier
+                    child_multiplier = multiplier * _subtree_scale(node, type_info.get_parent_type())
                     if _returns_list(output_type):
                         child_multiplier *= fan_out
                     self._stack.append(child_multiplier)
