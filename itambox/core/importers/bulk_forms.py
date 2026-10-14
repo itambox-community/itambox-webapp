@@ -103,6 +103,10 @@ IMPORT_EXCLUDED_FIELDS = frozenset(
 )
 
 
+ROW_CREATED = "created"
+ROW_UPDATED = "updated"
+
+
 class RowSkipped(Exception):
     """A row was recognised as already present and deliberately left untouched."""
 
@@ -260,6 +264,7 @@ class BulkImportForm(forms.Form):
         self.imported_count = 0
         self.errors_list = []
         self.skipped_list = []
+        self.updated_list = []
         self.row_notes = []
         self._rows_data = []
 
@@ -398,12 +403,16 @@ class BulkImportForm(forms.Form):
         imported = 0
         errors = []
         skipped = []
+        updated = []
 
         for i, row in enumerate(self._rows_data, start=2):
             try:
                 with transaction.atomic():
-                    self._import_row(row, i)
-                imported += 1
+                    outcome = self._import_row(row, i)
+                if outcome == ROW_UPDATED:
+                    updated.append(f"Row {i}: {_('existing record updated.')}")
+                else:
+                    imported += 1
             except RowSkipped as skip:
                 skipped.append(f"Row {i}: {skip}")
             except ValidationError as e:
@@ -421,6 +430,7 @@ class BulkImportForm(forms.Form):
         self.imported_count = imported
         self.errors_list = errors
         self.skipped_list = skipped
+        self.updated_list = updated
         return ImportResult(imported, errors)
 
     def _import_row(self, row, row_number):
@@ -430,17 +440,22 @@ class BulkImportForm(forms.Form):
         instance = self._find_existing(mapped)
         if instance is not None:
             self._authorize_update(instance)
+            if not any(str(getattr(instance, key, None)) != str(val) for key, val in mapped.items()):
+                raise RowSkipped(_("record already exists and is unchanged; skipped."))
             if hasattr(instance, "snapshot"):
                 instance.snapshot()
             for key, val in mapped.items():
                 setattr(instance, key, val)
+            outcome = ROW_UPDATED
         else:
             instance = self._create_instance(mapped)
+            outcome = ROW_CREATED
 
         self._populate_generated_slug(instance)
         if hasattr(instance, "full_clean"):
             instance.full_clean()
         instance.save()
+        return outcome
 
     def _populate_generated_slug(self, instance):
         """Fill in a configured model slug before row validation.

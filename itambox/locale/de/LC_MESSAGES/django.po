@@ -15350,3 +15350,14 @@ msgstr "Das Löschen ist nicht möglich, solange es noch referenziert wird von:"
 msgid "Unable to delete %(object)s. Objects are protected: %(error)s"
 msgstr ""
 "%(object)s kann nicht gelöscht werden. Objekte sind geschützt: %(error)s"
+
+msgid "Updated %(count)s existing record:"
+msgid_plural "Updated %(count)s existing records:"
+msgstr[0] "%(count)s vorhandener Datensatz aktualisiert:"
+msgstr[1] "%(count)s vorhandene Datensätze aktualisiert:"
+
+msgid "existing record updated."
+msgstr "vorhandener Datensatz aktualisiert."
+
+msgid "record already exists and is unchanged; skipped."
+msgstr "Datensatz existiert bereits und ist unverändert; übersprungen."
