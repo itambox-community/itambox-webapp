@@ -15345,3 +15345,8 @@ msgstr "%(line)s (%(hidden)s archiviert oder außerhalb Ihres Bereichs)"
 
 msgid "This cannot be deleted while it is still referenced by:"
 msgstr "Das Löschen ist nicht möglich, solange es noch referenziert wird von:"
+
+#, python-format
+msgid "Unable to delete %(object)s. Objects are protected: %(error)s"
+msgstr ""
+"%(object)s kann nicht gelöscht werden. Objekte sind geschützt: %(error)s"
