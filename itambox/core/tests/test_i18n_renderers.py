@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
+from django.utils.html import strip_tags
 from django.utils.translation import override
 
 from assets.models import Asset, AssetType
@@ -35,6 +36,9 @@ from subscriptions.tables import SubscriptionAssignmentTable, SubscriptionTable
 
 
 class ChangedTableRendererTests(SimpleTestCase):
+    def assert_empty_placeholder(self, rendered):
+        self.assertEqual(strip_tags(str(rendered)).strip(), "-")
+
     def test_asset_renderers_cover_empty_status_and_quantity_copy(self):
         table = AssetTable([])
         status = SimpleNamespace(color="#00ff00", name="Ready")
@@ -45,16 +49,16 @@ class ChangedTableRendererTests(SimpleTestCase):
         explicit = SimpleNamespace(is_requestable=False, requestable=False)
 
         with override("de"):
-            self.assertIn("–", str(table.render_serial_number(None)))
+            self.assert_empty_placeholder(table.render_serial_number(None))
             self.assertIn("badge-status", table.render_status(status))
             status_table = StatusLabelTable([])
             self.assertEqual(status_table.render_type("deployable", status_record), "Einsatzbereit")
-            self.assertIn("–", str(status_table.render_type(None, None)))
-            self.assertIn("–", str(table.render_status(None)))
+            self.assert_empty_placeholder(status_table.render_type(None, None))
+            self.assert_empty_placeholder(table.render_status(None))
             self.assertIn('title="Überfällig"', table.render_audit_due_date(overdue))
             self.assertEqual(table.render_audit_due_date(current), "2026-08-30")
-            self.assertIn("–", str(table.render_audit_due_date(SimpleNamespace(audit_due_date=None))))
-            self.assertIn("–", str(table.render_salvage_value(None)))
+            self.assert_empty_placeholder(table.render_audit_due_date(SimpleNamespace(audit_due_date=None)))
+            self.assert_empty_placeholder(table.render_salvage_value(None))
             self.assertIn("12.50", table.render_salvage_value(12.5))
             self.assertIn("Vom Asset-Typ übernommen", table.render_requestable(inherited))
             self.assertIn("Auf diesem Asset gesetzt", table.render_requestable(explicit))
@@ -89,13 +93,10 @@ class ChangedTableRendererTests(SimpleTestCase):
                         SimpleNamespace(assigned_holder=None, assigned_location=None, assigned_asset=asset)
                     ),
                 )
-                self.assertIn(
-                    "–",
-                    str(
-                        table.render_assigned_to(
-                            SimpleNamespace(assigned_holder=None, assigned_location=None, assigned_asset=None)
-                        )
-                    ),
+                self.assert_empty_placeholder(
+                    table.render_assigned_to(
+                        SimpleNamespace(assigned_holder=None, assigned_location=None, assigned_asset=None)
+                    )
                 )
 
             component = ComponentAllocationTable([])
@@ -111,33 +112,29 @@ class ChangedTableRendererTests(SimpleTestCase):
                     SimpleNamespace(assigned_holder=None, assigned_location=None, assigned_asset=asset)
                 ),
             )
-            self.assertIn(
-                "–",
-                str(
-                    component.render_assigned_to(
-                        SimpleNamespace(assigned_holder=None, assigned_location=None, assigned_asset=None)
-                    )
-                ),
+            self.assert_empty_placeholder(
+                component.render_assigned_to(
+                    SimpleNamespace(assigned_holder=None, assigned_location=None, assigned_asset=None)
+                )
             )
 
     def test_subscription_and_license_renderers_use_localized_quantities(self):
         table = SubscriptionTable([])
         record = SimpleNamespace(status="active", get_status_display=lambda: "Active")
         with override("de"):
-            self.assertIn("–", str(table.render_status(None, None)))
+            self.assert_empty_placeholder(table.render_status(None, None))
             self.assertIn("badge-status", table.render_status("active", record))
-            self.assertIn("–", str(table.render_renewal_cost(None, SimpleNamespace(currency="EUR"))))
+            self.assert_empty_placeholder(table.render_renewal_cost(None, SimpleNamespace(currency="EUR")))
             self.assertIn("12.50 EUR", table.render_renewal_cost(12.5, SimpleNamespace(currency="EUR")))
-            self.assertIn("–", str(table.render_days_until_renewal(None)))
+            self.assert_empty_placeholder(table.render_days_until_renewal(None))
             self.assertIn("1 Tag überfällig", table.render_days_until_renewal(-1))
             self.assertIn("2 Tage überfällig", table.render_days_until_renewal(-2))
             self.assertIn("Heute", table.render_days_until_renewal(0))
             self.assertIn("1 Tag", table.render_days_until_renewal(1))
             self.assertIn("31 Tage", table.render_days_until_renewal(31))
             assignment_table = SubscriptionAssignmentTable([])
-            self.assertIn(
-                "–",
-                str(assignment_table.render_assigned_object(None, SimpleNamespace(tenant_safe_assigned_object=None))),
+            self.assert_empty_placeholder(
+                assignment_table.render_assigned_object(None, SimpleNamespace(tenant_safe_assigned_object=None))
             )
             self.assertEqual(
                 assignment_table.render_assigned_object(None, SimpleNamespace(tenant_safe_assigned_object="Asset")),
@@ -150,7 +147,7 @@ class ChangedTableRendererTests(SimpleTestCase):
         via_asset = SimpleNamespace(assigned_holder=None, asset_id=1, asset=SimpleNamespace(assigned_to=direct_holder))
         with patch("licenses.tables.reverse", return_value="/holder/"):
             with override("de"):
-                self.assertIn("–", str(license_table.render_assigned_holder(no_holder)))
+                self.assert_empty_placeholder(license_table.render_assigned_holder(no_holder))
                 self.assertIn("über Asset", license_table.render_assigned_holder(via_asset))
                 self.assertIn(
                     "holder@example.test",
@@ -159,16 +156,16 @@ class ChangedTableRendererTests(SimpleTestCase):
 
     def test_shared_tables_cover_localized_empty_and_action_labels(self):
         with override("de"), patch("extras.tables.reverse", return_value="/target/"):
-            self.assertIn("–", str(TagTable([]).render_color(None)))
+            self.assert_empty_placeholder(TagTable([]).render_color(None))
             self.assertIn("Global", SavedFilterTable([]).render_tenant(None))
             journal = JournalEntryTable([])
-            self.assertIn("–", journal.render_content_object(None))
+            self.assert_empty_placeholder(journal.render_content_object(None))
             webhook = WebhookDeliveryTable([])
-            self.assertIn("–", webhook.render_delivery_id(None))
+            self.assert_empty_placeholder(webhook.render_delivery_id(None))
             self.assertIn("Test-Webhook", str(webhook.render_event(None, SimpleNamespace(test_send=True))))
-            self.assertIn("–", webhook.render_event(None, SimpleNamespace(test_send=False)))
-            self.assertIn("–", webhook.render_response_code(None))
-            self.assertIn("–", webhook.render_error_message(None))
+            self.assert_empty_placeholder(webhook.render_event(None, SimpleNamespace(test_send=False)))
+            self.assert_empty_placeholder(webhook.render_response_code(None))
+            self.assert_empty_placeholder(webhook.render_error_message(None))
             self.assertIn("Nein", webhook.render_test_send(False))
             self.assertIn("Test", webhook.render_test_send(True))
             self.assertIn(
@@ -180,15 +177,15 @@ class ChangedTableRendererTests(SimpleTestCase):
 
     def test_organization_and_audit_empty_renderers_are_localized(self):
         with override("de"), patch("organization.tables.reverse", return_value="/target/"):
-            self.assertIn("–", str(SiteTable([]).render_status(None, None)))
-            self.assertIn("–", str(LocationTable([]).render_status(None, None)))
+            self.assert_empty_placeholder(SiteTable([]).render_status(None, None))
+            self.assert_empty_placeholder(LocationTable([]).render_status(None, None))
             self.assertIn("Keine Rolle", str(AssetAssignmentTable([]).render_asset_role(None)))
             self.assertIn(
                 "Nicht verfügbar", AssetAssignmentTable([]).render_checkin_btn(SimpleNamespace(asset=SimpleNamespace()))
             )
-            self.assertIn("–", str(RoleTable([]).render_tenant(None, SimpleNamespace(tenant=None))))
+            self.assert_empty_placeholder(RoleTable([]).render_tenant(None, SimpleNamespace(tenant=None)))
             self.assertIn("Nein", str(RoleTable([]).render_shared(None, SimpleNamespace())))
-            self.assertIn("–", str(CostCenterTable([]).render_parent(None)))
+            self.assert_empty_placeholder(CostCenterTable([]).render_parent(None))
             self.assertIn(
                 "FIN: Finance",
                 CostCenterTable([]).render_parent(
@@ -293,12 +290,15 @@ class ChangedTableRendererTests(SimpleTestCase):
                         consumable=None,
                         qty=1,
                     ),
-                    "–",
+                    "-",
                 ),
             ]
             for record, expected in cases:
                 with self.subTest(expected=expected):
-                    self.assertIn(expected, str(table.render_item(record)))
+                    rendered = str(table.render_item(record))
+                    self.assertIn(expected, rendered)
+                    if expected == "-":
+                        self.assertEqual(rendered, "-")
 
     def test_asset_and_warranty_table_fallbacks_are_rendered(self):
         with override("de"):
@@ -312,14 +312,14 @@ class ChangedTableRendererTests(SimpleTestCase):
             self.assertIn("Nicht festgelegt", str(Asset(purchase_date=None, asset_type=None).time_to_eol))
             with patch.object(Asset, "eol_date", new=property(lambda self: date.today() + timedelta(days=1))):
                 self.assertIn("Weniger als ein Monat", str(Asset().time_to_eol))
-            self.assertIn("–", str(AssetMaintenanceTable([]).render_cost(None)))
+            self.assert_empty_placeholder(AssetMaintenanceTable([]).render_cost(None))
             self.assertIn("Am selben Tag", str(AssetMaintenanceTable([]).render_downtime_days(0)))
             self.assertIn("2 Tage", str(AssetMaintenanceTable([]).render_downtime_days(2)))
-            self.assertIn("–", str(AssetMaintenanceTable([]).render_downtime_days(None)))
-            self.assertIn("–", str(AssetDisposalTable([]).render_recipient(None)))
-            self.assertIn("–", str(AssetDisposalTable([]).render_proceeds(None, SimpleNamespace())))
-            self.assertIn("–", str(CategoryTable([]).render_color(None)))
-            self.assertIn("–", str(WarrantyTable([]).render_cost(None, SimpleNamespace())))
+            self.assert_empty_placeholder(AssetMaintenanceTable([]).render_downtime_days(None))
+            self.assert_empty_placeholder(AssetDisposalTable([]).render_recipient(None))
+            self.assert_empty_placeholder(AssetDisposalTable([]).render_proceeds(None, SimpleNamespace()))
+            self.assert_empty_placeholder(CategoryTable([]).render_color(None))
+            self.assert_empty_placeholder(WarrantyTable([]).render_cost(None, SimpleNamespace()))
 
     def test_assignee_and_utility_fallbacks_are_rendered(self):
         table = SimpleNamespace(data=[])

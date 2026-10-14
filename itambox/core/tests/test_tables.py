@@ -7,6 +7,7 @@ import django_tables2 as tables
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.utils import translation
+from django.utils.html import strip_tags
 from model_bakery import baker
 
 from assets.models import (
@@ -32,7 +33,7 @@ User = get_user_model()
 
 
 class BaseTableEmptyValueTest(SimpleTestCase):
-    def test_empty_cells_render_an_en_dash_default(self):
+    def test_empty_cells_render_a_hyphen_default(self):
         class EmptyValueTable(BaseTable):
             value = tables.Column()
 
@@ -43,7 +44,7 @@ class BaseTableEmptyValueTest(SimpleTestCase):
         request = RequestFactory().get("/")
         rendered = table.as_html(request)
 
-        self.assertIn("–", rendered)
+        self.assertIn(">-</td>", rendered)
         self.assertNotIn("Not set", rendered)
         self.assertNotIn("—", rendered)
 
@@ -53,9 +54,9 @@ class TableLocalizationTests(SimpleTestCase):
         column = BooleanColumn()
 
         with translation.override("de"):
-            self.assertIn("–", str(column.render(None)))
+            self.assertEqual(strip_tags(str(column.render(None))), "-")
         with translation.override("en"):
-            self.assertIn("–", str(column.render(None)))
+            self.assertEqual(strip_tags(str(column.render(None))), "-")
 
     def test_action_color_uses_choice_metadata(self):
         action = ObjectChangeActionChoices.ACTION_CREATE
@@ -287,7 +288,7 @@ class CoreTablesTestCase(TestCase):
 
         with translation.override("de"):
             rendered_2 = column.render(asset_available.pk, asset_available, col_bound, table)
-        self.assertIn("–", rendered_2)
+        self.assertIn(">-</span>", rendered_2)
         self.assertNotIn("Nicht festgelegt", rendered_2)
 
     def test_table_optimizations(self):

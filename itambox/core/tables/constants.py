@@ -1,3 +1,3 @@
 """Shared presentation constants for table rendering."""
 
-TABLE_EMPTY_VALUE = "–"
+TABLE_EMPTY_VALUE = "-"
