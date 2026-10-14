@@ -1,6 +1,4 @@
-from django.contrib import messages
 from django.db.models import Count, Q
-from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
@@ -166,21 +164,3 @@ class ManufacturerDeleteView(ObjectDeleteView):
     model = Manufacturer
     template_name = "generic/object_confirm_delete.html"
     success_url = reverse_lazy("assets:manufacturer_list")
-
-    def post(self, request, *args, **kwargs):
-        manufacturer = self.get_object()
-        asset_type_count = manufacturer.asset_types.count()
-
-        if asset_type_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete manufacturer '%(name)s': It is associated with %(count)s asset type%(suffix)s.")
-                % {
-                    "name": manufacturer.name,
-                    "count": asset_type_count,
-                    "suffix": "s" if asset_type_count != 1 else "",
-                },
-            )
-            return redirect(manufacturer.get_absolute_url())
-
-        return super().post(request, *args, **kwargs)

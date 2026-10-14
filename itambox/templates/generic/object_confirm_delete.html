@@ -32,6 +32,14 @@
           {% if extra_warning %}
             <div class="alert alert-warning" role="alert">{{ extra_warning }}</div>
           {% endif %}
+          {% if blockers %}
+            <div class="alert alert-danger" role="alert">
+              <p class="mb-2">{% translate "This cannot be deleted while it is still referenced by:" %}</p>
+              <ul class="mb-0">
+                {% for line in blockers %}<li>{{ line }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
           <form method="post" hx-boost="false">
             {% csrf_token %}
             {# Render the form if provided (e.g., ConfirmationForm from base view) #}
@@ -54,7 +62,7 @@
               {% endfor %}
             {% endif %}
             {# Buttons always shown now #}
-            <button type="submit" class="btn btn-danger">
+            <button type="submit" class="btn btn-danger"{% if blockers %} disabled{% endif %}>
               <i class="mdi mdi-trash-can-outline"></i>
               {% translate "Confirm Deletion" %}
             </button>

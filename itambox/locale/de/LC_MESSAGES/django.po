@@ -1259,14 +1259,6 @@ msgstr "Wartungsdetails"
 msgid "Manufacturer Details"
 msgstr "Herstellerdetails"
 
-#, python-format
-msgid ""
-"Cannot delete manufacturer '%(name)s': It is associated with %(count)s asset"
-" type%(suffix)s."
-msgstr ""
-"Hersteller '%(name)s' kann nicht gelöscht werden: Er ist mit %(count)s "
-"Asset-Typ%(suffix)s verknüpft."
-
 msgid "Only pending requests can be approved."
 msgstr "Nur ausstehende Anforderungen können genehmigt werden."
 
@@ -5349,11 +5341,6 @@ msgstr "Löschen (%(count)s)"
 #, python-format
 msgid "Deleted %(model)s %(object)s."
 msgstr "%(model)s %(object)s gelöscht."
-
-#, python-format
-msgid "Unable to delete %(object)s. Objects are protected: %(error)s"
-msgstr ""
-"%(object)s kann nicht gelöscht werden. Objekte sind geschützt: %(error)s"
 
 #, python-brace-format
 msgid "Delete {verbose_name}: {object}"
@@ -15339,3 +15326,22 @@ msgid "Skipped %(count)s existing record:"
 msgid_plural "Skipped %(count)s existing records:"
 msgstr[0] "%(count)s vorhandener Datensatz übersprungen:"
 msgstr[1] "%(count)s vorhandene Datensätze übersprungen:"
+
+#, python-format
+msgid "%(count)s %(model)s"
+msgstr "%(count)s %(model)s"
+
+#, python-format
+msgid "%(line)s: %(names)s"
+msgstr "%(line)s: %(names)s"
+
+#, python-format
+msgid "%(line)s and more"
+msgstr "%(line)s und weitere"
+
+#, python-format
+msgid "%(line)s (%(hidden)s archived or outside your scope)"
+msgstr "%(line)s (%(hidden)s archiviert oder außerhalb Ihres Bereichs)"
+
+msgid "This cannot be deleted while it is still referenced by:"
+msgstr "Das Löschen ist nicht möglich, solange es noch referenziert wird von:"
