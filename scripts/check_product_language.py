@@ -48,6 +48,8 @@ JS_DOM_ATTRIBUTE_ASSIGNMENT = re.compile(
     r"(?P<expression>[^;\n]+)"
 )
 EXCLUDED_PARTS = {"tests", "migrations", "docs", "static", "locale"}
+TABLE_EMPTY_VALUE_PATH = "itambox/core/tables/constants.py"
+TABLE_EMPTY_VALUE_NAME = "TABLE_EMPTY_VALUE"
 
 # These exact current-main identities are persisted migration or API schema
 # contracts. Their visible form help text is overridden in the presentation
@@ -202,12 +204,38 @@ def tracked_files() -> list[str]:
     return output.splitlines()
 
 
+def scan_table_empty_value(tree: ast.AST, relative: str) -> list[Finding]:
+    if relative != TABLE_EMPTY_VALUE_PATH or not isinstance(tree, ast.Module):
+        return []
+
+    findings = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value_node = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+            value_node = node.value
+        else:
+            continue
+
+        if not any(isinstance(target, ast.Name) and target.id == TABLE_EMPTY_VALUE_NAME for target in targets):
+            continue
+
+        value = constant_text(value_node) if value_node is not None else None
+        tokens = forbidden_tokens(value) if value is not None else ()
+        if tokens:
+            findings.append(Finding(relative, node.lineno, TABLE_EMPTY_VALUE_NAME, tokens))
+    return findings
+
+
 def scan_python(path: Path, relative: str) -> list[Finding]:
     if set(Path(relative).parts) & EXCLUDED_PARTS or relative.startswith("scripts/"):
         return []
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=relative)
     findings = scan_python_calls(tree, relative)
     findings.extend(scan_python_direct_ui_literals(tree, relative))
+    findings.extend(scan_table_empty_value(tree, relative))
     if relative == "itambox/itambox/api/pagination.py":
         findings.extend(scan_api_descriptions(tree, relative))
     unique = []

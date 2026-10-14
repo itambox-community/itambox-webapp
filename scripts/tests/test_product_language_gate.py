@@ -186,6 +186,18 @@ class ProductLanguageGateTests(unittest.TestCase):
             self.assertEqual(MODULE.scan_python(path, relative), [])
             self.assertTrue(MODULE.scan_python(path, "itambox/other/models.py"))
 
+    def test_python_scan_checks_the_table_empty_value_constant(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "constants.py"
+            for expression, token in (("'–'", "en dash"), ("'—'", "em dash"), ("chr(0x2013)", "en dash")):
+                with self.subTest(expression=expression):
+                    path.write_text(f"TABLE_EMPTY_VALUE = {expression}\n", encoding="utf-8")
+                    findings = MODULE.scan_python(path, "itambox/core/tables/constants.py")
+                    self.assertEqual(
+                        [(finding.line, finding.field, finding.tokens) for finding in findings],
+                        [(1, "TABLE_EMPTY_VALUE", (token,))],
+                    )
+
     def test_current_repository_passes_product_language_gate(self):
         self.assertEqual(MODULE.main(), 0)
 

@@ -17,6 +17,7 @@ from django.http import Http404
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import strip_tags
 from django_q.models import Schedule
 
 from core.tables.constants import TABLE_EMPTY_VALUE
@@ -301,5 +302,5 @@ class ScheduledReportTableRenderTests(TestCase):
         rendered = str(table.render_next_run(registered))
         self.assertRegex(rendered, r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
 
-        dashed = str(table.render_next_run(dormant))
-        self.assertIn(TABLE_EMPTY_VALUE, dashed)
+        rendered_empty = str(table.render_next_run(dormant))
+        self.assertEqual(strip_tags(rendered_empty).strip(), TABLE_EMPTY_VALUE)
