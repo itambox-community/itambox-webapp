@@ -136,7 +136,19 @@ class ObjectDeleteView(
             # a redirect plus an auto-hiding toast is easy to miss entirely.
             pks_by_model = {}
             for row in e.protected_objects:
-                pks_by_model.setdefault(row.__class__, []).append(row.pk)
+                if row is not self.object and row != self.object:
+                    pks_by_model.setdefault(row.__class__, []).append(row.pk)
+            if not pks_by_model:
+                # The object itself refuses deletion (permanent identity): there is no
+                # dependent to list, so the exception text is the explanation.
+                messages.error(
+                    self.request,
+                    _("Unable to delete %(object)s. Objects are protected: %(error)s")
+                    % {"object": obj_repr, "error": e},
+                )
+                if hasattr(self.object, "get_absolute_url"):
+                    return redirect(self.object.get_absolute_url())
+                return redirect(self.get_success_url())
             context = self.get_context_data(form=form, blockers=summarize_blockers(pks_by_model))
             return self.render_to_response(context, status=409)
 

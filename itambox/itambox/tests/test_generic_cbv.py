@@ -35,6 +35,7 @@ Restore/purge use core URL names:
   object_purge    -> /object/<content_type_id>/<object_id>/purge/
 """
 
+import re
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -371,8 +372,9 @@ class ObjectDeleteViewTests(TestCase):
         body = response.content.decode()
         self.assertIn("Blocker Model GCBV", body)
         self.assertIn("still referenced by", body)
-        button = body[body.index('<button type="submit" class="btn btn-danger"') :]
-        self.assertIn("disabled", button[: button.index(">")])
+        match = re.search(r'<button type="submit"[^>]*btn-danger[^>]*>', body)
+        self.assertIsNotNone(match)
+        self.assertIn("disabled", match.group(0))
 
     def test_refused_delete_renders_message_naming_blocker(self):
         """A refused delete re-renders the page with an alert naming the blocker; the record survives (#817)."""
