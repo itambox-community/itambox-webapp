@@ -101,7 +101,7 @@ class AssetTypeFurtherStoredValuesTests(TestCase):
     def test_empty_historical_value_renders_dash(self):
         content = self._detail(old_spec="")
         self.assertIn("Further stored values", content)
-        self.assertIn("<div>-</div>", content)
+        self.assertRegex(content, r"<div>\s*-\s*</div>")
 
     def test_type_without_composition_but_legacy_values_renders_panel(self):
         content = self._detail(mystery_key="only-legacy")

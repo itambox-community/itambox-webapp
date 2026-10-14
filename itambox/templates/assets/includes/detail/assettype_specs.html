@@ -14,6 +14,10 @@
                 <div class="text-muted small">{{ field.label }}</div>
                 <div class="fw-semibold">{{ val }}</div>
               </div>
+            {% endif %}
+          {% endwith %}
+        {% endfor %}
+      </div>
       {% if specification_extra_values %}
         <hr class="my-3">
         <h5 class="h5 card-title text-muted small mb-2">{% translate "Further stored values" %}</h5>
@@ -21,25 +25,25 @@
           {% for item in specification_extra_values %}
             <div class="col-md-6">
               <div class="small">
-                {% if item.known %}{{ item.label }}{% else %}<code>{{ item.key }}</code>{% endif %}
                 {% if item.known %}
+                  {{ item.label }}
                   <span class="badge bg-secondary-lt ms-1">{% translate "Not in current specification" %}</span>
                 {% else %}
+                  <code>{{ item.key }}</code>
                   <span class="badge bg-warning-lt ms-1">{% translate "Unknown field" %}</span>
                 {% endif %}
               </div>
-              <div>{% if item.value is None or item.value == "" %}-{% else %}{{ item.value }}{% endif %}</div>
+              <div>
+                {% if item.value is None or item.value == "" %}
+                  -
+                {% else %}
+                  {{ item.value }}
+                {% endif %}
+              </div>
             </div>
           {% endfor %}
         </div>
       {% endif %}
-            {% endif %}
-          {% endwith %}
-        {% endfor %}
-      </div>
-          {% endif %}
-        {% endfor %}
-      </div>
     </div>
   </div>
 {% endif %}
