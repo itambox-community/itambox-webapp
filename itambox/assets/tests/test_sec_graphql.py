@@ -136,3 +136,51 @@ class GraphQLSecurityTestCase(TestCase):
         self.assertNotIn("errors", res_data)
         names = [a["name"] for a in res_data["data"]["assets"]]
         self.assertIn("SecGQL Laptop", names)
+
+    # --- #813: GraphiQL's own introspection query must load ---------------
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_graphiql_introspection_query_succeeds(self):
+        # GraphiQL's startup IntrospectionQuery (fragments, four ofType levels)
+        # costs far more than a data query of the same size and used to be
+        # rejected with "Query exceeds the maximum complexity of 2000".
+        from graphql import get_introspection_query
+
+        query = get_introspection_query(
+            descriptions=True, specified_by_url=True, directive_is_repeatable=True, schema_description=True
+        )
+        response = self._post(query)
+        self.assertEqual(response.status_code, 200, response.content[:300])
+        res_data = response.json()
+        self.assertNotIn("errors", res_data)
+        type_names = {t["name"] for t in res_data["data"]["__schema"]["types"]}
+        self.assertIn("Query", type_names)
+        self.assertIsNone(res_data["data"]["__schema"]["mutationType"])
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_repeated_introspection_still_bounded_by_complexity_rule(self):
+        # The introspection exemption is a flat per-root cost, not free: many
+        # aliased copies of a full introspection still exhaust the budget.
+        aliased = " ".join(f"a{i}: __schema {{ types {{ name }} }}" for i in range(45))
+        response = self._post("{" + aliased + "}")
+        self.assertEqual(response.status_code, 400)
+        combined = " ".join(e.get("message", "") for e in response.json()["errors"]).lower()
+        self.assertIn("complexity", combined)
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_introspection_alias_does_not_hide_data_fan_out(self):
+        # Mixing an introspection root with an expensive data query must not
+        # discount the data part.
+        block = (
+            "assets(requestedScope: {mode: TENANT, tenantId: %s}) { assetType { manufacturer { softwareProducts { name slug } } } }"
+            % (json.dumps(str(self.tenant.pk)))
+        )
+        aliased = "\n".join(f"a{i}: {block}" for i in range(12))
+        response = self._post("{ __schema { queryType { name } } " + aliased + "}")
+        self.assertEqual(response.status_code, 400)
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_mutation_still_rejected(self):
+        response = self._post("mutation { __typename }")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("mutation", response.content.decode().lower())
