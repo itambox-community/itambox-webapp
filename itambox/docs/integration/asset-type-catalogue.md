@@ -34,7 +34,7 @@ The built-in core vocabulary contains 54 active specification fields. The table 
 
 For the full generated JSON Schema, including numeric bounds, patterns, and accepted choices, run `python manage.py export_catalogue_schema --output <path>` in your deployment. The committed copy is `itambox/assets/services/specifications/generated_schema.json` in the source tree; it is not part of this documentation site. The community contribution rules (one file per model, required category, and filename/path conventions) are in the [type-library contributor guide](https://github.com/itambox-community/type-library/blob/fd93a8be10a910f363f27ce6f327a32d790678ea/CONTRIBUTING.md). That contributor guide is for submitting catalogue files; it is not the app import format or the REST API contract.
 
-## All built-in specification fields
+### All built-in specification fields
 
 | Key | Label | Targets | YAML value/type | Validation | Fieldsets |
 |---|---|---|---|---|---|

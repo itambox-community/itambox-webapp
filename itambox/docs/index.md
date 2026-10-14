@@ -76,7 +76,7 @@ closes any active assignment in one operation. An erroneous disposal is
 the asset returns to `pending`.
 
 ### Context-Sensitive Help
-Every list, detail, and editing view in ITAMbox features an embedded help icon (`mdi-help-circle`) on the breadcrumb header. Clicking it opens a context-specific static page explaining that specific model's fields, business logic rules, and import/export layouts.
+Views that resolve a documentation page show a help icon (`mdi-help-circle`) in the breadcrumb header. Following it opens the corresponding page of this documentation, for example the model reference for the current list or detail view. Where no page resolves, the icon links to this overview instead. The link is a convenience, not a guarantee that every view has its own page.
 
 ### Capability Maturity
 Maturity is declared per capability rather than per module, so this overview grades individual capabilities rather than whole modules. The public grades — Stable, Beta, Experimental — and the activation modes of every capability are defined in the [Capability Maturity](operations/capability-maturity.md) guide.
