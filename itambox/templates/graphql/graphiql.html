@@ -23,11 +23,6 @@ with "Accept: application/json" (or append "&raw") to receive plain JSON.
   <body>
     <div id="editor"></div>
     {% csrf_token %}
-    <script type="application/javascript" nonce="{{ request.csp_nonce }}">
-      window.GRAPHIQL_SETTINGS = {
-        subscriptionPath: "{{ request.path }}",
-      };
-    </script>
     <script src="{% static 'dist/vendor/graphiql/graphiql-ui.js' %}"
             nonce="{{ request.csp_nonce }}"></script>
   </body>
