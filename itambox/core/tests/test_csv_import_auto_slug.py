@@ -37,14 +37,22 @@ IMPORT_PERMISSIONS = (
     "organization.add_location",
 )
 
+UPDATE_PERMISSIONS = (
+    *IMPORT_PERMISSIONS,
+    "assets.add_asset",
+    "assets.change_asset",
+    "assets.change_manufacturer",
+    "assets.change_assettype",
+)
+
 
 @pytest.mark.django_db
 class TestAutoSlugImport(TenantTestMixin):
-    def _import(self, *, app_label, model_name, rows, provider=False):
+    def _setup_import_tenant(self, *, model_name="", provider=False, permissions=IMPORT_PERMISSIONS):
         self.setup_tenant_context(
             name="Auto Slug Tenant",
             slug="auto-slug-tenant",
-            permissions=list(IMPORT_PERMISSIONS),
+            permissions=list(permissions),
         )
         if provider:
             self.tenant.is_provider = True
@@ -52,6 +60,12 @@ class TestAutoSlugImport(TenantTestMixin):
         self.set_active_tenant(self.tenant, self.tenant_membership)
         if model_name == "location":
             Site.objects.create(name="Import Site", slug="import-site", tenant=self.tenant)
+
+    def _import(self, *, app_label, model_name, rows, provider=False):
+        self._setup_import_tenant(model_name=model_name, provider=provider)
+        return self._run_import(app_label=app_label, model_name=model_name, rows=rows)
+
+    def _run_import(self, *, app_label, model_name, rows):
         job = Job.objects.create(name="Bulk Import", tenant=self.tenant, status=Job.STATUS_PENDING)
 
         import_csv_task(
@@ -199,6 +213,44 @@ class TestAutoSlugImport(TenantTestMixin):
 
         assert job.result == {"imported": 1, "failed": 0, "total": 1}
         assert AssetType.objects.get(model="Fairphone 5").slug == "fp5-custom"
+
+    def test_reimporting_an_unchanged_row_is_skipped_with_a_message_on_every_path(self):
+        """#815: the duplicate-row outcome is the same for manufacturer, asset type and asset."""
+        self._setup_import_tenant(provider=True, permissions=UPDATE_PERMISSIONS)
+        self._manufacturer()
+        paths = [
+            ("assets", "manufacturer", Manufacturer, [{"name": "Dupe Maker"}], False),
+            (
+                "assets",
+                "assettype",
+                AssetType,
+                [{"manufacturer": "Fairphone", "model": "Dupe Phone"}],
+                True,
+            ),
+            ("assets", "asset", Asset, [{"name": "Dupe Asset", "asset_tag": "DUPE-815"}], False),
+        ]
+        for app_label, model_name, model, rows, _provider in paths:
+            first = self._run_import(app_label=app_label, model_name=model_name, rows=rows)
+            count = model.objects.count()
+            second = self._run_import(app_label=app_label, model_name=model_name, rows=rows)
+
+            assert first.result["imported"] == 1, (model_name, first.logs)
+            assert second.status == Job.STATUS_COMPLETED, (model_name, second.logs)
+            assert second.result == {"imported": 0, "failed": 0, "total": 1, "skipped": 1}, (model_name, second.logs)
+            assert "already exists" in second.logs, model_name
+            assert model.objects.count() == count, model_name
+
+    def test_reimporting_a_changed_asset_row_reports_an_update_not_an_import(self):
+        self._setup_import_tenant(permissions=UPDATE_PERMISSIONS)
+        self._run_import(app_label="assets", model_name="asset", rows=[{"name": "Before", "asset_tag": "UPD-815"}])
+        count = Asset.objects.count()
+
+        job = self._run_import(app_label="assets", model_name="asset", rows=[{"name": "After", "asset_tag": "UPD-815"}])
+
+        assert job.result == {"imported": 0, "failed": 0, "total": 1, "updated": 1}, job.logs
+        assert "Updated 1 existing record" in job.logs
+        assert Asset.objects.count() == count
+        assert Asset.objects.get(asset_tag="UPD-815").name == "After"
 
     def test_manufacturer_row_with_an_explicit_slug_keeps_it(self):
         job = self._import(

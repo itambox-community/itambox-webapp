@@ -54,6 +54,19 @@ def _log_skipped(job, form):
     return skipped
 
 
+def _log_updated(job, form):
+    """Report existing records the import changed (as opposed to created) in the job log."""
+    updated = list(getattr(form, "updated_list", ()))
+    if updated:
+        job.append_log(
+            ngettext("Updated %(count)s existing record:", "Updated %(count)s existing records:", len(updated))
+            % {"count": len(updated)}
+        )
+        for note in updated:
+            job.append_log(f" - {note}")
+    return updated
+
+
 def import_csv_task(
     job_id: int,
     rows_data: Sequence[Mapping[str, object]],
@@ -110,6 +123,7 @@ def import_csv_task(
                 )
 
                 skipped = _log_skipped(job, form)
+                updated = _log_updated(job, form)
 
                 if errors:
                     job.append_log(
@@ -123,7 +137,7 @@ def import_csv_task(
                     for err in errors:
                         job.append_log(f" - {err}")
 
-                    if imported_count == 0:
+                    if imported_count == 0 and not updated:
                         job.mark_failed("All records failed to import due to validation errors.")
                         Notification.objects.create(
                             user=ctx.user,
@@ -137,6 +151,7 @@ def import_csv_task(
 
                 result = {"imported": imported_count, "failed": len(errors), "total": len(rows_data)}
                 result.update({"skipped": len(skipped)} if skipped else {})
+                result.update({"updated": len(updated)} if updated else {})
                 job.mark_completed(result=result)
 
                 Notification.objects.create(
