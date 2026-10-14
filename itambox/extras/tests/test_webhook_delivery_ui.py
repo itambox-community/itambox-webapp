@@ -299,5 +299,5 @@ class WebhookDeliveryUITests(TenantTestMixin, TestCase):
         self.assertContains(response, "Test webhook")
         self.assertContains(
             response,
-            'data-label="Delivery ID"><span class="text-muted">–</span>',
+            'data-label="Delivery ID"><span class="text-muted">-</span>',
         )

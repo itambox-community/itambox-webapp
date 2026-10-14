@@ -487,6 +487,11 @@ class KitAvailabilityPresentationTests(KitOwnerScopeBase):
                 return row
         return ""
 
+    @staticmethod
+    def _has_empty_placeholder(row):
+        pattern = rf">{re.escape(TABLE_EMPTY_VALUE)}\s*</(?:span|td)>"
+        return re.search(pattern, row) is not None
+
     def test_known_available_kit_renders_the_verified_action(self):
         item = KitItem.objects.create(kit=self.kit, asset_type=self.asset_type)
         self.make_asset("KO-PRESENT-OK")
@@ -498,7 +503,7 @@ class KitAvailabilityPresentationTests(KitOwnerScopeBase):
         self.assertTrue(response.context["all_available"])
         self.assertFalse(response.context["availability_needs_target"])
         self.assertIn("btn btn-success", self._checkout_action_classes(content))
-        self.assertEqual(self._row_html(content, "KO 14").count(TABLE_EMPTY_VALUE), 0)
+        self.assertFalse(self._has_empty_placeholder(self._row_html(content, "KO 14")))
         self.assertEqual(response.context["items_with_availability"][0]["item"].pk, item.pk)
 
     def test_known_unavailable_kit_renders_out_of_stock(self):
@@ -533,7 +538,7 @@ class KitAvailabilityPresentationTests(KitOwnerScopeBase):
         row = self._row_html(content, "KO Foreign Seat")
         self.assertIn("Unknown", row)
         # Unknown is not a fabricated zero: the count stays the neutral marker.
-        self.assertIn(TABLE_EMPTY_VALUE, row)
+        self.assertTrue(self._has_empty_placeholder(row))
         self.assertNotIn("<td>0</td>", row)
 
     def test_tenantless_kit_unknown_state_keeps_the_target_selection_action(self):
@@ -572,7 +577,7 @@ class KitAvailabilityPresentationTests(KitOwnerScopeBase):
         self.assertIsNone(self._checkout_action_classes(content))
         unknown_row = self._row_html(content, "KO Foreign Seat Mix")
         self.assertIn("Unknown", unknown_row)
-        self.assertIn(TABLE_EMPTY_VALUE, unknown_row)
+        self.assertTrue(self._has_empty_placeholder(unknown_row))
         self.assertNotIn("<td>0</td>", unknown_row)
         self.assertIn("<td>0</td>", self._row_html(content, "KO Missing Cradle"))
 
