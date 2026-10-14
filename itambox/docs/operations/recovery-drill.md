@@ -486,14 +486,17 @@ test -z "$(upgrade_compose ps -q app worker)"
 Select the already-built candidate image by rewriting only the upgrade project's
 image override. Keep the restored database, media, and recovery secrets
 unchanged. Never use `migrate --fake` or edit an applied migration to make the
-drill pass.
+drill pass. `scripts/migration_audit.py` is a repository-root audit tool, not a
+runtime management command: the minimal runtime image does not contain the
+repository-root `scripts/` directory. Run it from the exact candidate checkout
+on the host (or in a separately prepared audit environment that has that exact
+checkout and its Git metadata), not with `docker compose run ... app`.
 
 ```bash
 write_image_override "$UPGRADE_OVERRIDE" "$CANDIDATE_IMAGE"
 upgrade_compose config --images > evidence/upgrade-images.txt
 grep -Fx "$CANDIDATE_IMAGE" evidence/upgrade-images.txt
-upgrade_compose run --rm -T --no-deps --no-build \
-  app python scripts/migration_audit.py --check
+(cd "$CANDIDATE_CHECKOUT" && python scripts/migration_audit.py --check)
 upgrade_compose run --rm -T --no-deps --no-build \
   app python manage.py migrate --plan \
   > evidence/candidate-migrate-plan.txt
@@ -566,8 +569,7 @@ published, so its base `8000` mapping cannot collide with the upgrade project:
 
 ```bash
 fresh_compose up -d --no-build db valkey
-fresh_compose run --rm -T --no-deps --no-build \
-  app python scripts/migration_audit.py --check
+(cd "$CANDIDATE_CHECKOUT" && python scripts/migration_audit.py --check)
 fresh_compose run --rm -T --no-deps --no-build \
   app python manage.py migrate --noinput
 fresh_compose run --rm -T --no-deps --no-build \
@@ -662,8 +664,7 @@ test -z "$(rollback_compose ps -q app worker)"
 write_image_override "$ROLLBACK_OVERRIDE" "$CANDIDATE_IMAGE"
 rollback_compose config --images > evidence/rollback-upgrade-images.txt
 grep -Fx "$CANDIDATE_IMAGE" evidence/rollback-upgrade-images.txt
-rollback_compose run --rm -T --no-deps --no-build \
-  app python scripts/migration_audit.py --check
+(cd "$CANDIDATE_CHECKOUT" && python scripts/migration_audit.py --check)
 rollback_compose run --rm -T --no-deps --no-build \
   app python manage.py migrate --plan \
   > evidence/rollback-candidate-migrate-plan.txt

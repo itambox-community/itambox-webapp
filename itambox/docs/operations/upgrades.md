@@ -24,11 +24,53 @@ predecessor resolver.
    not use the new table.
 3. Deploy the candidate application code only after the schema migration has
    completed successfully.
-4. Validate the exact configured issuer and subject, then run the explicit
-   `bind_oidc_identity --confirm` command for each approved User. Use `--dry-run`
-   first and keep the command output sanitized.
+4. For every approved existing OIDC user, follow the complete identity-binding
+   procedure below. Do not admit OIDC traffic until its dry-run and confirmed
+   binding have both been reviewed.
 5. Admit OIDC traffic only after the required bindings and a login verification
    have been completed. Unbound legacy users continue to fail closed.
+
+### Bind each existing OIDC identity
+
+Create an operator-reviewed mapping of the intended ITAMbox User primary key to
+the exact identity pair `(issuer, subject)`. Obtain the issuer from the active
+tenant's `ITAMBOX_TENANT_OIDC_CONFIGS` entry (`OIDC_OP_ISSUER`) or the global
+OIDC configuration actually used by the deployment; it must exactly match a
+configured issuer. Obtain `sub` from a successfully verified authentication
+response for that user from that issuer, using a trusted IdP/admin source. Do
+not infer or match identity by email, username, UPN, tenant label, or an
+AssetHolder value, and do not treat unverified token claims as evidence.
+Independently confirm that the User primary key identifies the intended
+account, and have a second operator review the mapping before applying it.
+
+For each reviewed row, set these shell variables to the exact values from that
+approved mapping (quote values so shell metacharacters are not interpreted),
+then run the dry-run from the candidate checkout's `itambox/` directory:
+
+```bash
+OIDC_USER_ID='<internal-user-primary-key>'
+OIDC_ISSUER='<exact-configured-issuer>'
+OIDC_SUBJECT='<exact-verified-subject>'
+OIDC_OPERATOR_ID='<distinct-operator-user-primary-key>'
+
+python manage.py bind_oidc_identity \
+  --user "$OIDC_USER_ID" \
+  --issuer "$OIDC_ISSUER" \
+  --subject "$OIDC_SUBJECT" \
+  --operator "$OIDC_OPERATOR_ID" \
+  --dry-run
+```
+
+Review the sanitized result and confirm the reviewed mapping still identifies
+the intended account. Then repeat the same invocation with `--confirm` instead
+of `--dry-run`. The command requires `--user`, `--issuer`, `--subject`, and
+exactly one of those modes; the configured issuer is checked, an identity
+already bound to another User is rejected, and the optional operator must be a
+different User from the target. Do not put raw tokens or secrets in command
+arguments or retained logs. Verify the resulting binding and perform an OIDC
+login check for the intended account before admitting traffic. Repeat the
+reviewed dry-run/confirm process separately for each user; never automate
+email-based matching.
 
 ### Rollback and irreversible data loss
 

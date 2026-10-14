@@ -3,15 +3,14 @@
 ITAMbox tracks both the software your organisation uses and the maintenance
 history of your physical assets. The **Software Catalog** is the canonical
 registry of approved applications and operating systems. **Asset Maintenance**
-logs every repair, upgrade, calibration, and support event — building a
-complete service history for each asset.
+records repair, upgrade, calibration, and support events entered by staff.
 
 ---
 
 ## Software Catalog
 
-The **Software Catalog** is the authoritative list of software titles approved
-for use in your organisation. It serves as a template registry — each entry
+The **Software Catalog** is the list of software titles tracked by your
+organisation. It serves as a template registry — each entry
 defines what the software is, not how many licenses you own. Actual license
 tracking happens through the **Licenses** module, which references these
 catalogue entries.
@@ -49,9 +48,7 @@ Navigate to **Software → Add**:
 | **Design** | `design` | Adobe Creative Cloud, Figma, CAD tools |
 | **Other** | `other` | Anything that doesn't fit above |
 
-Categories help organise the catalogue and power filtered reports. Use them
-consistently — the SAM (Software Asset Management) compliance dashboard groups
-results by category.
+Categories organise catalogue entries and can be used to filter the catalogue.
 
 ### License Types
 
@@ -79,8 +76,9 @@ This lets you compare:
 | `Software.version` | Manually maintained catalogue entry | `16.0` |
 | `InstalledSoftware.version_detected` | Discovery agent on the actual asset | `16.78.1` |
 
-Use the **Software Compliance Dashboard** to identify assets running outdated
-or unauthorised versions.
+The catalogue version and discovered version are stored separately. Recording
+both does not itself enforce a version policy or identify outdated or unauthorised
+installations; review discovered versions against your organisation's policy.
 
 ### Installed Software
 
@@ -102,23 +100,29 @@ version of the same software cannot be recorded twice on the same asset.
 
 ### SAM Compliance
 
-The Software Catalog integrates with ITAMbox's **SAM reconciliation engine**:
+License reconciliation compares installed-software counts with license seats.
+It does not evaluate whether a particular version is authorised or current. In
+Python integrations, the helper is `licenses.reconciliation.reconcile_software(software)` (not a `Software` model method):
 
 ```python
-software.reconcile()
+from licenses.reconciliation import reconcile_software
+
+result = reconcile_software(software)
 # Returns:
 {
     "software_id": 42,
     "software_name": "Microsoft Visio Professional 2021",
     "installed_count": 15,
     "entitled_seats": 12,
-    "delta": +3,
+    "delta": -3,
     "compliant": False,
     "status": "over_deployed",
 }
 ```
 
-Each software entry can be reconciled to show:
+The result's `delta` is `entitled_seats - installed_count`; a negative value
+means installations exceed seats. The helper returns status values including
+`compliant`, `over_deployed`, and `unlicensed`.
 
 | Status | Meaning | Action |
 |---|---|---|
@@ -126,8 +130,9 @@ Each software entry can be reconciled to show:
 | **over_deployed** | More installations than licenses | Purchase additional seats or uninstall |
 | **unlicensed** | No licenses at all | True-up immediately |
 
-The compliance dashboard (under **Software → Compliance**) visualises this
-across your entire catalogue.
+This helper is an API/model-side integration surface, not a documented
+**Software → Compliance** dashboard. Use the available license and installed
+software views to inspect the underlying records.
 
 ### Global vs. Tenant-Scoped Software
 
@@ -366,10 +371,9 @@ the Procurement module:
 
 **License count doesn't match what I expect**
 
-: Run `software.reconcile()` or check the **Software Compliance** dashboard.
-  The `license_count` property only counts non-soft-deleted licenses. If you
-  recently deleted licenses, verify they're not soft-deleted (soft-deleted
-  licenses are excluded from counts but still exist in the database).
+: In a Python integration, call `reconcile_software(software)` from
+  `licenses.reconciliation`. Its `delta` is entitled seats minus installations;
+  it does not check version policy. `license_count` counts non-soft-deleted licenses.
 
 **Can I have both a global and a tenant-scoped entry for the same software?**
 

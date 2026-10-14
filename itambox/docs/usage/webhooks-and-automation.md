@@ -81,7 +81,7 @@ headers, HTTP method, signing secret, and retry policy.
 | **HTTP Method** | Yes | `POST` (default), `PUT`, `PATCH`, or `GET` |
 | **Enabled** | — | Toggle to temporarily pause deliveries without deleting the endpoint |
 | **Secret** | No | Shared secret for HMAC-SHA256 payload signing (see [HMAC signature verification](#hmac-signature-verification)) |
-| **Payload Preset** | No | Pre-fill the payload with Slack Block Kit or Teams Adaptive Card templates |
+| **Payload Preset** | No | UI selector (`Custom`, `Slack Block Kit`, `Microsoft Teams (Adaptive Card)`). It does not change the delivered body: delivery uses the fixed target-kind payload described under [Payload format](#payload-format). |
 | **Headers** | No | JSON object of custom HTTP headers (e.g. `{"Authorization": "Bearer xxx"}`) |
 | **Retry Count** | No | Maximum retry attempts on delivery failure (default: `3`) |
 | **Retry Backoff** | No | Seconds to wait between retries (default: `60`) |
@@ -230,13 +230,16 @@ webhook or an in-app notification.
 | **Action Type** | Yes | `Webhook` (calls an endpoint) or `Notification` (in-app alert) |
 | **Webhook** | Cond. | The Webhook Endpoint to call. Required when action type is `Webhook`. |
 | **Conditions** | No | Preserved JSON conditions; authored conditions are read-only and withdrawn for 1.0 (see below) |
-| **Action Config** | No | Advanced JSON overrides — custom headers, payload templates |
+| **Action Config** | No | Legacy fallback target settings (`url`, `method`, `headers`, `secret`) when no Webhook Endpoint is linked; it does not define a custom payload template |
+| **Payload Preset** | No | UI selector (`Custom`, `Slack Block Kit`, `Microsoft Teams (Adaptive Card)`). It does not define or override the outbound body. |
 | **Enabled** | — | Toggle to temporarily pause the rule |
 | **Tenant** | Admin only | Scope the rule to events from a specific tenant, or leave blank for system-wide |
 
 > [!IMPORTANT]
 > When the action type is `Webhook`, the `Webhook` field takes precedence over
-> any `url` in `action_config`. If the linked endpoint is disabled, the rule
+> any `url` in `action_config`. Endpoint URL, method, headers, secret and retry
+> settings are snapshotted for each delivery; linked endpoint settings take
+> precedence. If the linked endpoint is disabled, the rule
 > silently skips firing. Always link to an endpoint — it gives you secret
 > encryption, retry policy, and a single place to manage the connection.
 
@@ -379,11 +382,12 @@ A standard webhook payload (non-Slack, non-Teams) looks like:
 | `timestamp` | ISO 8601 timestamp of when the event was created |
 | `data` | The `event.data` JSON blob (includes at minimum `app_label` and `model_name`) |
 
-Slack and Teams webhooks use platform-specific payloads (Slack Block Kit /
-Teams Adaptive Card) and do **not** include the HMAC signature header — those
-platforms handle authentication through their own webhook URL tokens. They
-still carry the same `schema_version`, `event_id`, `delivery_id`, `attempt`, and
-`tenant` fields at the top level alongside their existing vendor fields.
+Slack and Teams webhooks use fixed platform-specific payloads: Slack receives
+the envelope plus a `text` summary; Teams receives a legacy MessageCard-shaped
+payload. Neither is a configurable Block Kit or Adaptive Card template. These
+platform-specific sends do **not** include the HMAC signature header; their
+webhook URLs provide authentication. Do not assume they have the generic v1
+envelope's complete field set.
 
 ### Envelope version and compatibility
 
@@ -394,8 +398,8 @@ published and open: a minor release may add a value, and consumers must treat
 an unrecognized value as opaque rather than failing. `data` carries at minimum
 `app_label` and `model_name` — that minimal metadata is the explicit V1
 promise; v1 promises no other member and no object snapshot, additional members
-may appear, and consumers must tolerate them. Slack and Teams keep the five
-identity/version fields listed above but use reduced vendor-specific bodies.
+may appear, and consumers must tolerate them. Slack and Teams use fixed,
+vendor-specific bodies and do not promise the generic envelope's full field set.
 Consumers must select a decoder by `schema_version` and reject versions they do
 not support rather than interpreting them as v1.
 
@@ -521,7 +525,7 @@ python manage.py eventrule_withdrawn_report
 
 **Slack / Teams payload looks wrong or is missing fields**
 
-: Slack and Teams webhooks use fixed-format payloads that are deliberately
-  simple. For richer payloads, target a **generic webhook** (any URL not
-  matching `hooks.slack.com` or `*.office.com/webhook`) and use the
-  `action_config` field on the Event Rule to customise the template.
+: Slack and Teams webhooks use fixed-format payloads: Slack gets a text summary
+  and Teams gets a MessageCard-shaped body. `action_config` does not customise
+  the payload template. For a different body, use an integration or receiver
+  that transforms the generic v1 envelope.

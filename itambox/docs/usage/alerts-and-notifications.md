@@ -78,12 +78,15 @@ optionally dispatching notifications to its attached channels.
 | License Expiry Alert | `license_expiry` | Days before expiry | Alert 30 days before a software license expires |
 | Renewal Due Alert | `renewal_due` | Days before renewal date | Remind 14 days before a SaaS contract renews |
 | Warranty Expiry Alert | `warranty_expiry` | Days before expiry | Flag devices whose warranty lapses in 60 days |
-| Audit Overdue | `audit_overdue` | Days past due date | Escalate audit campaigns that are 7 days overdue |
+| Audit Overdue | `audit_overdue` | Fallback number of days since an asset's last audit | Flag assets overdue for a physical audit |
 
 > [!IMPORTANT]
 > For date-horizon alert types (`upcoming_eol`, `license_expiry`, `renewal_due`,
 > `warranty_expiry`), the threshold is **days before the event**. For
-> `audit_overdue`, the threshold is **days past the scheduled end date**.
+> `audit_overdue`, the threshold is a fallback audit interval in days for assets
+> whose category has no audit cadence. A category's `audit_interval_months`
+> takes precedence; assets never audited are included when overdue (using their
+> creation date for a category cadence).
 > `low_stock` is an absolute quantity threshold.
 
 For `low_stock`, an item's own minimum quantity (`min_qty`) takes precedence
@@ -250,7 +253,9 @@ many-to-many relationship.
 
 1. Go to **Extras → Notification Channels** and click **Add**.
 2. Set **Channel Type** to `Email`.
-3. Fill in the **Config** JSON with the recipient addresses:
+3. Enter the addresses in **Recipient email addresses** (comma- or
+   newline-separated). This UI form does not ask you to enter Config JSON.
+   The following shows the channel's stored configuration shape, not a form field:
 
 ```json
 {
@@ -271,7 +276,8 @@ config only contributes the recipient list.
 1. Create an **Incoming Webhook** in your Slack workspace (Slack Admin → Apps → Incoming Webhooks).
 2. Copy the webhook URL.
 3. In ITAMbox, create a new Notification Channel with **Channel Type** = `Slack`.
-4. Paste the webhook URL into the config:
+4. Paste the URL into **Incoming webhook URL**. This UI form builds the
+   stored channel configuration for you; it does not expose a Config JSON field.
 
 ```json
 {
@@ -284,7 +290,9 @@ config only contributes the recipient list.
 1. In your Teams channel, add a **Workflows** → **Post to a channel when a webhook request is received** connector.
 2. Copy the webhook URL.
 3. In ITAMbox, create a channel with **Channel Type** = `Microsoft Teams`.
-4. Paste the webhook URL:
+4. Paste the URL into **Incoming webhook URL**. The UI builds the stored
+   configuration; it does not expose a Config JSON field. This is the stored
+   configuration shape, not a form field:
 
 ```json
 {
@@ -409,7 +417,7 @@ procurement can re-order before you run out.
    |---|---|
    | Name | `Procurement Email` |
    | Channel Type | `Email` |
-   | Config | `{"recipients": ["buyer@example.com"]}` |
+   | Recipient email addresses | `buyer@example.com` |
 
 2. Create an Alert Rule:
 
@@ -469,8 +477,8 @@ daily critical alert until the license is renewed.
 
 **I receive no email notifications**
 
-: Verify the Notification Channel is `enabled` (disabled channels are never
-  contacted by dispatch) and that the SMTP config is
+: Verify the Notification Channel is enabled (disabled channels are never
+  contacted by dispatch) and that the global SMTP settings are
   correct (host, port, credentials, TLS setting). Check the `delivery_status`
   field on the `AlertLog` — it records per-channel outcomes including error
   messages. Also confirm the rule is not muted (`is_muted = false`).

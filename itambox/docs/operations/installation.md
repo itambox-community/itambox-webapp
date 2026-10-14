@@ -186,7 +186,7 @@ PostgreSQL 15+ is required. The `btree_gist` extension must be available (see [s
 | `ITAMBOX_CACHE_BACKEND` | Recommended (prod) | `locmem` | Cache backend. `locmem` (per-process in-memory, not shared across workers) or `redis`. Use a Redis-protocol server in production (Valkey recommended — BSD-licensed fork of Redis) so throttles and rate-limit counters are shared across gunicorn workers. |
 | `ITAMBOX_REDIS_URL` | Conditional | `redis://127.0.0.1:6379/1` | Redis connection URL. Required when `ITAMBOX_CACHE_BACKEND=redis`. |
 | `ITAMBOX_CACHE_TIMEOUT` | Optional | `300` | Default cache TTL in seconds. |
-| `RATELIMIT_CACHE` | Optional | `default` | Cache alias used for the login/invite rate limiter. Point at `redis` in production to share rate-limit state across workers. |
+| `RATELIMIT_CACHE` | Optional | `default` | Cache alias used for the login/invite rate limiter. Keep this set to the defined `default` alias; configure a shared Redis/Valkey backend with `ITAMBOX_CACHE_BACKEND=redis` and `ITAMBOX_REDIS_URL`. |
 
 ---
 
@@ -298,7 +298,7 @@ Each variable accepts a JSON object keyed by tenant slug. These configure per-te
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ITAMBOX_TENANT_INTUNE_CONFIGS` | Optional | *(empty)* | Per-tenant Microsoft Intune device discovery configuration. JSON object keyed by tenant slug. Each value requires `TENANT_ID`, `CLIENT_ID`, and `CLIENT_SECRET` for Microsoft Graph API access. See [discovery-sync.md](../integration/discovery-sync.md) for the full discovery workflow. |
+| `ITAMBOX_TENANT_INTUNE_CONFIGS` | Optional | *(empty)* | Per-tenant Microsoft Intune device discovery configuration. JSON object keyed by tenant slug. Each value requires `azure_tenant_id`, `client_id`, and `client_secret` for Microsoft Graph API access. Optional keys use the parser's lowercase contract (including `create_missing`, `default_status`, and `sync_software`). See [discovery-sync.md](../integration/discovery-sync.md) for the full configuration and discovery workflow. |
 
 ---
 

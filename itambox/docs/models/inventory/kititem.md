@@ -1,6 +1,6 @@
 # Kit Items
 
-A **Kit Item** represents an individual slot inside a parent `Kit` template. Each line item points to exactly one target — an Asset Type, Accessory, Software License, Consumable, or Component — and specifies a quantity to be checked out when the kit is fulfilled.
+A **Kit Item** is one slot in a `Kit` template. It references exactly one target: an Asset Type, Accessory, License, Consumable, or Component. Hardware slots identify the type of device required; during checkout the operator must select a concrete eligible asset for each slot. See the [Kits & Components workflow](../../usage/kits-and-components.md#checking-out-a-kit).
 
 ---
 
@@ -25,7 +25,7 @@ A database-level check constraint (`chk_kit_item_single_target`) enforces that *
 Python-level validation in `clean()` provides the same guard with descriptive error messages.
 
 When a kit is checked out:
-- **Asset Type** slots trigger a stock allocation from available assets matching that model.
+- **Asset Type** slots require an explicitly selected, distinct deployable asset matching that type; the system does not choose an arbitrary device for the operator.
 - **Accessory** and **Component** slots deduct from inventory stock and create assignment records.
 - **Consumable** slots decrement on-hand stock.
 - **License** slots reserve a seat from the linked license pool.

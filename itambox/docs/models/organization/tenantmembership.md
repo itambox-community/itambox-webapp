@@ -1,6 +1,6 @@
 # Tenant Memberships
 
-A **Tenant Membership** links a standard User account to a specific Tenant and assigns them a Tenant Role. This model is the core bridge for enforcing multi-tenant isolation, granting users the appropriate permissions to view or edit resources owned by that specific Tenant.
+A **Membership** binds one User to one Tenant. It is the tenant-membership and active-status anchor; it has no role field. Access is granted separately through `RoleGrant` rows on the Membership or on a `UserGroup` the member belongs to. See [API Tokens, SCIM Provisioning & RBAC](../../usage/api-tokens-and-scim.md#rbac-basics) for permission and scope resolution.
 
 ---
 
@@ -8,10 +8,11 @@ A **Tenant Membership** links a standard User account to a specific Tenant and a
 
 | Field | Description | Type | Required |
 | --- | --- | --- | --- |
+| **Active** | Whether this membership's grants are currently effective. Deactivation retains the membership and grant history. | Boolean | Yes |
+| **External ID** | SCIM identifier scoped to the provisioning domain. | String | No |
 | **Joined At** | The timestamp when the membership was created. | DateTime | Yes (Auto) |
-| **Role** | The Tenant Role mapping permissions to the user. | Foreign Key | Yes |
-| **Tenant** | The Tenant the user is becoming a member of. | Foreign Key | Yes |
-| **User** | The User account being granted access. | Foreign Key | Yes |
+| **Tenant** | The tenant this membership belongs to. | Foreign Key | Yes |
+| **User** | The user account bound to this tenant. | Foreign Key | Yes |
 
 ## Multi-Tenancy Scope
-A user can hold multiple memberships across different tenants. When making API or GraphQL queries, the system scopes the active data visibility and allowed operations based on the tenant context specified in the query/session header and the corresponding user's `TenantMembership` role permissions.
+A user can hold memberships in multiple tenants. A membership has no direct permissions: effective permissions are the additive union of direct grants and eligible UserGroup grants whose `RoleGrantScope` covers the active tenant. Managed-tenant reach must be granted explicitly. API tokens remain bound to one tenant; GraphQL's built-in schema is read-only. See the linked RBAC guide for the full contract.

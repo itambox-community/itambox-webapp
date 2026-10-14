@@ -1,8 +1,8 @@
 # Custody Templates
 
-A **Custody Template** defines the terms of service, End User License Agreements (EULAs), disclaimer statements, and digital signature requirements when checking out assets to holders (users).
+A **Custody Template** supplies the acceptance terms and signature settings used when an asset is checked out to an AssetHolder. A receipt snapshots the selected template's text and references the assignment for that custody period.
 
-Custody Templates can be scoped globally, to specific Tenant Groups (e.g. parent conglomerate scope), or to individual Tenants (e.g. division-specific scope). Additionally, a template can be restricted to override terms for a specific asset **Category** (e.g., restricting a strict EULA to Category: `High-Risk Production Laptops` within Tenant: `R&D`).
+Templates may be scoped to a tenant, a tenant group, or globally. Checkout selects an active template for the AssetHolder's tenant and the asset's category. The category is required for this selection; a category's static EULA text is not a fallback.
 
 ---
 
@@ -18,15 +18,13 @@ Custody Templates can be scoped globally, to specific Tenant Groups (e.g. parent
 | **Logo** | Custom corporate logo printed on the receipt. | Image | No |
 | **Name** | Descriptive name for this template (e.g. *Standard Laptop EULA*). | String | Yes |
 | **QMS Reference** | Reference ID mapping to an internal Quality Management System document. | String | No |
-| **Require Acceptance** | If checked, checkout blocks/restricts asset status until signed. | Boolean | Yes |
+| **Require Acceptance** | If checked, checkout creates a pending receipt; it does not delay checkout or assignment until signature. | Boolean | Yes |
 | **Signature Provider** | The service handling the signature process (e.g., `local` for on-platform canvas, or plugin integrations like `docusign`). | String | Yes |
 | **Tenant** | The specific Tenant scope that this template applies to. | Foreign Key | No |
 | **Tenant Group** | The Tenant Group scope that this template applies to. | Foreign Key | No |
 
 ## EULA Overrides & Precedence
 
-When checking out an asset governed by category-level acceptance rules, ITAMbox resolves the active EULA template using the following fallback precedence:
-1. **Category + Tenant Match**: A Custody Template targeted at the asset's specific Category and Tenant.
-2. **Tenant Match**: A Custody Template targeted globally at the asset's Tenant.
-3. **Tenant Group Match**: A template targeted at the Tenant's parent group.
-4. **Global Category Fallback**: If no scope-specific template is found, it falls back to the static `EULA Text` defined on the asset's Category model.
+At checkout, ITAMbox looks for an active template matching the AssetHolder's tenant and the asset's category, then that tenant's group and the same category, then a global template for that category when `ALLOW_GLOBAL_CUSTODY_TEMPLATES` is enabled. There is no category-less tenant fallback and no fallback to EULA text stored on the Category. If no matching template requiring acceptance is found, this checkout does not create a custody receipt.
+
+Checkout records the asset assignment before the holder accepts the receipt. A pending or declined receipt does not itself return the asset; operators must arrange and record check-in when the device is physically returned. See [Custody Receipts](custodyreceipt.md) for the signing and handoff lifecycle.

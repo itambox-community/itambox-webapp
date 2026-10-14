@@ -1,9 +1,7 @@
 # Kits & Components
 
-ITAMbox tracks hardware at two levels of granularity: **Kits** bundle items
-together for rapid deployment, and **Components** track modular sub-assemblies
-(RAM, SSDs, CPUs) that are allocated into parent assets. Together they give you
-control over both turnkey provisioning and granular hardware lifecycle management.
+**Kits** group items for checkout. **Components** track pooled modular parts
+(such as RAM or SSDs) allocated to assets, holders, or locations.
 
 ---
 
@@ -432,10 +430,11 @@ The dashboard highlights these with a warning badge.
 
 **Component appears on wrong asset**
 
-: The allocation was created with the wrong `assigned_asset`. Edit the
-  allocation record and change the target asset. Stock is rebalanced
-  automatically — the original asset loses the component and the new asset
-  gains it, with no net stock change (unless the source location differs).
+: Allocation targets are immutable after creation. Check in or otherwise end
+  the incorrect allocation using its supported workflow, then create a new
+  allocation for the correct asset. A source-backed allocation returns its
+  quantity to the source stock location when ended; a target-only allocation
+  does not change a stock row.
 
 **Low-stock alert not firing**
 

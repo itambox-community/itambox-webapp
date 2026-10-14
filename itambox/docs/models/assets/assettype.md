@@ -23,6 +23,8 @@ An **Asset Type** represents a specific model of hardware manufactured by a vend
 
 ## Specifications
 
-Asset Types compose reusable specification **Custom Fieldsets** into an explicit, ordered list of sections (see [Custom Fieldsets](../extras/customfieldset.md)). New types can start from their category's default sections; the composition stays fully editable afterwards.
+Asset Types compose reusable specification **fieldsets** into an explicit, ordered list of sections. A Type can start with its category's default sections, but the resulting composition can be edited. A fieldset is a group of field definitions; choosing a fieldset does not define the YAML keys or allowed values. See [Custom Fieldsets](../extras/customfieldset.md) for local field composition and [Custom Fields](../../usage/custom-fields.md) for field definitions and model/asset value behavior.
 
-The composed sections define the specification form of the model: model-level values are stored on the Asset Type and are not copied to its assets. Each asset records its own observed values per specification field, and values that become historical are retained. See [Custom Fields](../../usage/custom-fields.md) for composition semantics, empty-versus-omitted behavior, and the API contract.
+To add a model to the shared catalogue, follow the [Asset Type YAML authoring and import guide](../../integration/asset-type-catalogue.md). It lists the allowed specification keys, choice values, units, category slugs, preview requirements and skip behavior. This special catalogue importer is separate from local custom fields and REST specification writes.
+
+The composed sections define the specification form of the model: model-level values are stored on the Asset Type and are not copied to its assets. Each asset records its own observed values per specification field, and values that become historical are retained.

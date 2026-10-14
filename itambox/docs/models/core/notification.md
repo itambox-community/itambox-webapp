@@ -1,6 +1,6 @@
 # Notifications
 
-A **Notification** represents an in-app alert delivered to a specific user or broadcast globally. Notifications carry a subject, message body, severity level, and an optional click-through target URL. They support read/unread tracking and are ordered by recency.
+A **Notification** is an in-app message addressed to one user. It has a subject, message, level, optional target URL, and read state. The UI inbox is scoped to the signed-in user; a null `user` value is not a broadcast mechanism.
 
 ---
 
@@ -8,7 +8,7 @@ A **Notification** represents an in-app alert delivered to a specific user or br
 
 | Field | Description | Type | Required |
 | --- | --- | --- | --- |
-| **User** | The target user for the notification. A null user represents a global broadcast alert visible to all users. | Foreign Key | No |
+| **User** | The recipient whose inbox contains this notification. Application fan-out creates recipient-specific rows; null does not make a row visible to everyone. | Foreign Key | No |
 | **Subject** | Short title or heading for the notification. | String (255) | Yes |
 | **Message** | Full body text of the notification. | Text | Yes |
 | **Level** | Severity / visual style: `Info`, `Warning`, `Success`, or `Danger`. | Choice | Yes |
@@ -21,6 +21,6 @@ A **Notification** represents an in-app alert delivered to a specific user or br
 ## Usage Patterns
 
 - **User-scoped**: When `user` is set, the notification is delivered to that specific user's inbox.
-- **Global broadcast**: When `user` is null, the notification is visible to all users (e.g. system maintenance announcements).
+- **Multiple recipients**: Create or dispatch a separate notification for each authorized recipient. Do not use a null-user row as a broadcast; the inbox, polling, and detail views filter by the current user.
 - **Read tracking**: The `is_read` flag and the composite index on `(user, is_read)` enable efficient querying of unread notifications per user.
 - **Click-through**: The optional `target_url` provides deep-linking — clicking the notification can navigate directly to the relevant object or page.
