@@ -1,9 +1,8 @@
 # Asset Requests & Reservations
 
-ITAMbox provides a self-service portal for users to request hardware and a
-reservation system to book specific assets for future use. Together they eliminate
-spreadsheet-driven procurement and calendar conflicts — every request is traceable,
-every reservation is collision-proof at the database level.
+ITAMbox lets users request hardware and reserve a specific asset for a date
+window. Application validation and a PostgreSQL exclusion constraint reject
+overlapping pending or active reservations for the same asset.
 
 ---
 
@@ -257,33 +256,24 @@ Navigate to the asset's detail page and click **Reserve**, or go to
 | **Reserved For** | No | The AssetHolder who will use the asset |
 | **Start Date** | Yes | First day of the reservation (inclusive) |
 | **End Date** | Yes | Last day of the reservation (inclusive) |
+| **Status** | Yes | Editable reservation status; date changes and checkout/check-in do not update it automatically |
 | **Purpose** | No | Brief reason (e.g. "Q3 video editing project") |
 | **Notes** | No | Additional terms or conditions |
 
 ### Reservation Lifecycle
 
-```mermaid
-stateDiagram-v2
-    [*] --> Pending : Created (awaiting confirmation)
-    Pending --> Active : Confirmed / checked out
-    Pending --> Cancelled : Cancelled before start
-    Active --> Fulfilled : Asset returned / checked in
-    Active --> Cancelled : Cancelled mid-reservation
-    Fulfilled --> [*]
-    Cancelled --> [*]
-
-    note left of Active : Asset is held exclusively\\nfor the reserved holder
-    note right of Pending : Counts as occupied for\\noverlap checks
-```
+Reservation status is an editable record field, not an automated lifecycle.
+Changing dates, checking out an asset, or checking it in does not transition the
+reservation status. Update it separately to match the operational outcome.
 
 #### Status Reference
 
 | Status | Meaning |
 |---|---|
-| **Pending** | Reserved but not yet active — blocks the calendar but hasn't started |
-| **Active** | Currently in effect — the asset is held exclusively |
-| **Fulfilled** | Completed successfully — asset has been returned |
-| **Cancelled** | Cancelled before or during the reservation |
+| **Pending** | Counts as occupied for overlap checks. Status is not automatically changed when dates arrive. |
+| **Active** | Counts as occupied for overlap checks. Checkout does not automatically set this status. |
+| **Fulfilled** | Does not participate in the overlap constraint. Check-in does not automatically set this status. |
+| **Cancelled** | Does not participate in the overlap constraint. Set by an operator. |
 
 ### Double-Booking Prevention (btree_gist)
 
@@ -330,29 +320,26 @@ rejects the write.
 
 ### Checking for Conflicts
 
-Before creating a reservation, use the asset's detail page to see its
-**Reservation Calendar** — a visual timeline showing all existing bookings.
-The API also exposes an overlap check endpoint:
-
-```
-GET /api/assets/reservations/check_overlap/?asset=<id>&start=<date>&end=<date>
-```
-
-Returns `{"overlap": true, "conflicting": [...]}` or `{"overlap": false}`.
+Use the reservation form and its validation to check for conflicts. The REST
+API exposes the reservation collection and standard filtering; it does not
+provide a separate `check_overlap` action or endpoint. Both form validation and
+the database constraint check overlaps when a reservation is saved.
 
 ### Checkout Integration
 
 Reservations integrate with ITAMbox's checkout workflow:
 
-1. **Reserve the asset** (status = `pending`).
-2. When the reservation's `start_date` arrives, check out the asset to the
-   reserved holder. The reservation transitions to `active`.
-3. When the asset is returned (checked in), the reservation transitions to
-   `fulfilled`.
+1. Create the reservation with the intended asset, holder and dates.
+2. If your workflow uses statuses such as `active`, update the reservation
+   status explicitly; arrival of the start date and checkout do not change it.
+3. When the device is returned, check it in through the assignment workflow.
+   Update the reservation status separately; check-in does not fulfill it.
 
-You can also **check out an asset directly from the reservation detail page**
-— ITAMbox prefills the checkout form with the reservation's holder, dates,
-and asset.
+A pending or active reservation for the same asset blocks checkout to any other
+holder, location or asset target. Checkout to the reservation's designated holder
+is allowed through, and a reservation without a holder blocks nobody by that
+exception. The guard cannot guarantee that a future loan window will be covered
+by an assignment.
 
 ### Reservation Calendar View
 

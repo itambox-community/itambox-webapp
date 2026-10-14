@@ -28,6 +28,7 @@ Inherit from `itambox.plugins.views.PluginTemplateContent` and override any of t
 Create `itambox_esign/template_content.py`:
 
 ```python
+from django.utils.html import format_html
 from itambox.plugins.views import PluginTemplateContent
 
 class AssetDocuSignContent(PluginTemplateContent):
@@ -36,14 +37,22 @@ class AssetDocuSignContent(PluginTemplateContent):
 
     def left_panel(self):
         asset = self.context['object']
-        # Return HTML card content
-        return f"""
-        <div class="card mb-3">
-            <div class="card-header"><h3 class="card-title">DocuSign Status</h3></div>
-            <div class="card-body">No pending envelopes for {asset.name}.</div>
-        </div>
-        """
+        # format_html escapes interpolated values and marks only this
+        # application-authored HTML structure as safe.
+        return format_html(
+            '<div class="card mb-3">'
+            '<div class="card-header"><h3 class="card-title">DocuSign Status</h3></div>'
+            '<div class="card-body">No pending envelopes for {}.</div>'
+            '</div>',
+            asset.name,
+        )
 ```
+
+The plugin hook's result is rendered as trusted HTML. Keep markup static and
+escape every value derived from an asset, user, or other data with
+`format_html()` placeholders (or render an autoescaped Django template). Do not
+interpolate data into an f-string or mark an interpolated string safe: doing so
+can inject attacker-controlled HTML into the page.
 
 Register this injector in `__init__.py`:
 

@@ -1,12 +1,12 @@
 # Event Rules
 
-An **Event Rule** matches database lifecycle changes (e.g. object creation, updates, deletions) and triggers corresponding actions like executing webhooks or triggering notifications.
+An **Event Rule** matches supported lifecycle events for a selected model and triggers a webhook or in-app notification. This is a model/API reference; see [Webhooks & Automation](../../usage/webhooks-and-automation.md) for the supported workflow and fixed payload contracts.
 
 ## Attributes
 
 | Field | Description | Type | Required |
 | --- | --- | --- | --- |
-| **Action Config** | Advanced JSON configurations (custom payload overrides, header mappings, etc.). | JSON | No |
+| **Action Config** | Fallback webhook target settings (`url`, `method`, `headers`, `secret`) used only when no Webhook Endpoint is linked. It does not template or override the outbound payload. | JSON | No |
 | **Action Type** | Type of action to trigger (e.g., Webhook). | Choice | Yes |
 | **Conditions** | Preserved authored conditions; withdrawn and read-only for 1.0. Authored values fail closed and do not dispatch the rule. | JSON | No |
 | **Enabled** | Flag indicating if this rule is actively monitored. | Boolean | Yes |
@@ -19,4 +19,4 @@ An **Event Rule** matches database lifecycle changes (e.g. object creation, upda
 ## Features & Validation
 
 * **Condition Preservation**: Existing condition JSON remains readable, but authored conditions are not evaluated in 1.0 and fail closed.
-* **Webhook Mapping**: Webhooks mapped under `webhook` take precedence over generic configs.
+* **Webhook Mapping**: A linked Webhook Endpoint takes precedence over `action_config` target settings. Its URL, method, headers, secret and retry policy are snapshotted for the delivery.

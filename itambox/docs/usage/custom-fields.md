@@ -8,8 +8,9 @@ Asset Types and Assets use **specifications**: an explicitly selected, ordered
 composition of Fieldsets. A Field's target says where it is applicable; it does
 not automatically add that Field or its Fieldset to every Asset Type.
 
-Unlike hard-coded model fields which require a developer, custom fields are
-created and managed entirely through the UI by administrators.
+Unlike hard-coded model fields, custom fields are definitions managed in
+ITAMbox. Available actions depend on the user's permissions; core-managed
+definitions are not editable as local definitions.
 
 ---
 
@@ -120,25 +121,34 @@ not selection. Both the order of Fieldsets and the order of their members matter
 
 ### Creating a Fieldset
 
-Navigate to **Extras → Custom Fieldsets** and click **Add**:
+Create the Field definitions first, then create a local fieldset from **Extras →
+Custom Fieldsets**. The form separates stable identity, presentation, and
+membership:
 
 | Attribute | Description |
 |-----------|-------------|
-| **Fieldset Name** | Section heading displayed in the form (e.g. "Network Configuration", "Financial Details") |
-| **Custom Fields** | The fields to include in this group |
+| **Namespace** | Stable identity namespace; local fieldsets normally use `local`. |
+| **Slug** | Stable machine identifier within the namespace (for example `network_details`). It cannot be changed after creation. |
+| **Label** | Section heading displayed in the form (for example "Network Configuration"). This is presentation text, not the identity. |
+| **Description** | Optional explanation of the section. |
+| **Fields** | Select the custom fields to include. |
+| **Field Positions** | Optional JSON object mapping stable Field keys to unique positive positions. Omitted keys use selection order. |
 
 ### Selecting an Asset Type composition
 
-Add the Fieldsets that belong to the Type, in the intended order. A Fieldset
-appears in that composition because it was selected, not because one of its
-Fields targets Assets. Applicable active members form the specification. If a
-Field occurs in more than one selected Fieldset, its first placement determines
-where it appears; repeated membership does not create a second value.
+After saving the fieldset, edit or create an Asset Type and explicitly add the
+fieldset to its **sections** composition, in the intended order. In the Type
+editor, selected and available sections are distinct; adding a definition to a
+fieldset does not activate it on every Type. Member targets determine whether a
+field contributes to the Type specification, the Asset specification, or both.
+If a field occurs in more than one selected fieldset, its first placement
+determines where it appears; it has one value, not a duplicate per membership.
 
 When creating a Type, omitting the composition uses the selected Category's
 defaults. Selecting an explicit empty composition means no Fieldsets; it does
 not request defaults. The copied composition is independent of later changes to
-Category defaults.
+Category defaults. Core- and library-managed fieldsets are read-only; use them
+as supplied rather than attempting to edit their identity or member definitions.
 
 Removing a Fieldset or changing an Asset's Type does not erase observed values
 that stop being active. Those values remain history. Model-level Type values
@@ -148,16 +158,17 @@ new state instead of replaying stale revisions.
 
 ### Example
 
-```
-Fieldset: "Network Details"
-  ├─ IPv4 Address (Text, bound to Asset)
-  ├─ VLAN ID (Number, bound to Asset)
-  └─ PoE Enabled (Boolean, bound to Asset Type)
+```text
+Fieldset identity: local.network_details
+Label: Network Details
+Members (ordered): ipv4_address, vlan_id, poe_enabled
+Type composition: network_details selected in the intended position
 ```
 
-If the Type explicitly includes this Fieldset, its Asset-targeted Fields
-contribute to the Asset specification and its Type-targeted Fields contribute
-to the Type specification. Merely creating the Fieldset activates neither.
+For this example, bind `ipv4_address` and `vlan_id` to Asset and `poe_enabled`
+to Asset Type. If the Type explicitly includes the Fieldset, the applicable
+Asset fields can hold per-device observations and `poe_enabled` holds the
+model-level Type value. Creating the field and fieldset alone activates neither.
 
 ---
 

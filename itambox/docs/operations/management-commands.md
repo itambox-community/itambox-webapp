@@ -410,13 +410,13 @@ are never closed by the command.
 
 ### `rotate_encryption_keys`
 
-Re-encrypt every encrypted database field with the current primary Fernet key. Used when rotating `ITAMBOX_FIELD_ENCRYPTION_KEYS`.
+Re-encrypt the fields inventoried below with the current primary Fernet key. Used when rotating `ITAMBOX_FIELD_ENCRYPTION_KEYS`. This command does **not** rotate `WebhookDelivery.target_secret`.
 
 | | |
 |---|---|
 | **Usage** | `python manage.py rotate_encryption_keys [--dry-run]` |
 | **Production-safe** | **With caution.** Mutates encrypted data in-place. Back up the database first. |
-| **When to use** | After appending a new primary key to `ITAMBOX_FIELD_ENCRYPTION_KEYS` and before removing the old key. Until rotation completes, the old key must remain in the keyring so existing ciphertexts can be decrypted. |
+| **When to use** | After configuring a new primary key first and retaining the old key as a decryption key. Do not remove the old key after this command: it does not rotate retained `WebhookDelivery.target_secret` snapshots or backups. |
 
 **Encrypted fields covered**
 
@@ -426,7 +426,7 @@ Re-encrypt every encrypted database field with the current primary Fernet key. U
 | `core.EmailSettings` | `smtp_password` | Outbound SMTP credentials |
 | `extras.WebhookEndpoint` | `secret` | Webhook signing secrets |
 
-The command reads every row (including soft-deleted rows, across all tenants), decrypts each value with the full keyring, re-encrypts with the current primary key, and saves the new ciphertext via `update()` (bypassing model `save()` to avoid double-encryption).
+The command reads every row (including soft-deleted rows, across all tenants) for the three fields listed above, decrypts each value with the full keyring, re-encrypts with the current primary key, and saves the new ciphertext via `update()` (bypassing model `save()` to avoid double-encryption). It does **not** include the durable `WebhookDelivery.target_secret` snapshot used for delivery retries. Keep the old key configured while any such retained snapshot or backup may need it; this command does not re-encrypt those snapshots.
 
 **Options**
 
@@ -444,8 +444,8 @@ python manage.py rotate_encryption_keys --dry-run
 python manage.py rotate_encryption_keys
 ```
 
-!!! danger "Back up before rotating"
-    Key rotation rewrites every encrypted field in the database. If the process is interrupted or the new key is lost before the rotation completes, encrypted values may become unreadable. Take a full database backup immediately before running this command. Keep every retired key in the keyring until rotation completes successfully — the command needs the old key to decrypt existing rows.
+!!! danger "Back up before rotating; do not drop the old key"
+    Configure the new key first (`NEW,OLD`), restart all app/worker processes, run `--dry-run`, then execute the rotation and verify decryption. The first key encrypts. The command's inventory is limited to the three fields above: retained webhook-delivery snapshots are encrypted separately and are not re-encrypted here. Keep the old key for those snapshots and any backups that may be restored; command completion alone does not make removing it safe.
 
 !!! warning "Plaintext fallback adoption"
     If a field contains a value that is **not** `enc$`-prefixed (a plaintext fallback from before encryption was enabled), the command treats it as cleartext and encrypts it under the current key. This is intentional: it brings legacy plaintext values into the encryption regime. Review any such rows in the output to ensure they are expected.
@@ -454,27 +454,20 @@ python manage.py rotate_encryption_keys
 
 ### `run_jobs`
 
-Process pending background jobs from the database job queue (`core.Job` model). This is distinct from the django-q2 task cluster — it operates on ITAMbox's own job queue.
+This command attempts to process pending background jobs from the database job queue (`core.Job` model). It is distinct from the django-q2 task cluster. **Do not use it for production recovery or to drain the queue:** the current implementation may mark a job successful even when no handler ran.
 
 | | |
 |---|---|
 | **Usage** | `python manage.py run_jobs` |
-| **Production-safe** | Yes (runs jobs that are already queued and ready; no new work is scheduled) |
-| **When to use** | Manually draining the job queue after a worker outage, testing job handlers, or running jobs synchronously when the background worker is unavailable. |
+| **Production-safe** | No — unsafe for queue recovery while the missing-handler behaviour remains. |
+| **When to use** | None recommended until the missing-handler behaviour is fixed and verified. |
 
 **Options**
 
 This command takes no arguments or options.
 
-**Examples**
-
-```bash
-# Process all pending jobs
-python manage.py run_jobs
-```
-
-!!! note "Job handler dispatch"
-    The command dispatches jobs to handler methods named `_run_<job_name>` on the command class. Job names are normalised by replacing `:` and spaces with underscores and lowercasing. Jobs without a matching handler are silently skipped.
+!!! danger "Known unsafe behaviour — not fixed by this documentation"
+    The command looks for `_run_<job_name>` on the command class (normalising `:` and spaces to underscores and lowercasing). If no handler exists, `_execute_job()` does nothing, but the caller still marks the job completed with a success result. Do not invoke this command to recover pending work or treat its output as proof of execution. Reconcile affected work using the owning feature's documented recovery procedure; there is no safe generic dispatch recommendation here until the application behaviour is fixed and verified. This warning documents the current behaviour and does not claim the application defect has been fixed.
 
 ---
 

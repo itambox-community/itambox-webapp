@@ -45,11 +45,12 @@ A token is always scoped to one tenant:
 - **Customer tenant token** — operates within that single tenant's data
   boundary. Used for tenant-local automation (asset imports, custom scripts,
   CI/CD pipelines).
-- **Provider tenant token** — operates within the provider tenant's boundary.
-  Provider-scoped tokens can access managed-tenant data when the token owner
-  has appropriate managed reach (via RoleGrant scopes). This is how SCIM
-  provisioning for managed tenants works — the SCIM service account's token
-  is scoped to the provider tenant.
+- **Provider tenant token** — still bound to exactly the provider tenant. It
+  can authenticate to that provider's provider-SCIM mount; it is not a
+  multi-customer credential and its tenant binding is not widened by a
+  managed-tenant RoleGrant. Customer tenant SCIM authentication requires a
+  token bound to the exact tenant named in `/api/tenants/<slug>/scim/v2/`.
+  Provider RoleGrant reach and token tenant binding are separate checks.
 
 ### Write-Enabled vs Read-Only
 
@@ -360,12 +361,12 @@ container type (Tenant), one permission vocabulary, and additive grants.
 | Concept | Description |
 |---|---|
 | **Tenant** | The data-isolation boundary. Every object lives in one tenant. |
-| **Membership** | A user's binding to one tenant — the "person belongs here" anchor. |
-| **Role** | A named set of permission codenames (e.g. `assets.view_asset`, `assets.add_asset`). Owned by one tenant. |
-| **RoleGrant** | Assigns a role to a membership or UserGroup, with scopes defining where the role applies. |
-| **RoleGrantScope** | Child of RoleGrant defining the reach: own-tenant, specific managed tenants, tenant groups, or all managed tenants. |
+| **Membership** | A user's active/inactive binding to one tenant. It has no role field; access is granted separately. |
+| **Role** | A tenant-owned named permission set. Permission values use `app_label.codename`, for example `assets.view_asset`. Provider roles can be shared with managed tenants when configured. |
+| **RoleGrant** | Assigns one role to exactly one Membership or one tenant-owned UserGroup. It records the grantor, reason, and optional `valid_until`. |
+| **RoleGrantScope** | Child row(s) that define grant reach: `own`, one specific `tenant`, one `tenant_group` (including descendants), or `all_managed`. Multiple scopes add reach; there is no deny scope. |
 | **UserGroup** | A flat application group owned by one tenant. Memberships are added via `GroupMembership` rows. |
-| **GroupMembership** | Links a tenant membership to a UserGroup, making the user inherit all role grants on that group. |
+| **GroupMembership** | Links a tenant membership to a UserGroup, making the user inherit role grants on that group. |
 
 ### Permission Resolution
 
@@ -379,8 +380,10 @@ When checking `user.has_perm('assets.view_asset')`, the system:
    - Direct `RoleGrant` rows on the user's Membership in the target tenant.
    - `RoleGrant` rows on any UserGroup the user belongs to in that tenant.
    - Each grant's permissions are additive; deny is unsupported.
-5. **Checks scope coverage** — the grant's `RoleGrantScope` rows must include
-   the target tenant.
+5. **Checks scope coverage** — at least one live `RoleGrantScope` row on a
+   grant must cover the target tenant. A managed scope only applies when the
+   principal and role belong to the managing provider and that provider's
+   live management relationship covers the target.
 
 Permissions are cached per-tenant on the user object for the duration of the
 request (`_perms_tenant_<pk>`), so repeated `has_perm` calls in a single
@@ -390,16 +393,18 @@ request cost at most three database queries.
 
 | Scope Type | Meaning |
 |---|---|
-| `own` | The role applies only in the principal's own tenant. |
-| `tenant` | The role applies in one specific managed tenant. |
-| `tenant_group` | The role applies in all tenants under a specific TenantGroup (and its descendants). |
-| `all_managed` | The role applies in every tenant managed by the role's owning provider. |
+| `own` | The grant applies in the principal's own tenant (no tenant/group target on the scope row). |
+| `tenant` | The grant applies in one specific tenant managed by the provider (scope row names that tenant). |
+| `tenant_group` | The grant applies to managed tenants in the selected TenantGroup and descendant groups. |
+| `all_managed` | The grant applies in every tenant currently managed by the role-owning provider (no explicit target on the scope row). |
 
 > [!WARNING]
 > Managed scopes (`tenant`, `tenant_group`, `all_managed`) require that the
-> principal tenant **is** the role's owning provider and that the role owner
-> has `is_provider=True`. Cross-tenant access is explicitly modelled — there
-> is no implicit propagation.
+> grant principal tenant **is** the role's owning provider, the role owner has
+> `is_provider=True`, and the target remains managed by that provider. For
+> `tenant` scope, the named tenant must be managed by the provider; group scope
+> reaches its managed descendants. Cross-tenant access is explicit, never
+> implied by a provider token.
 
 ### Provider (MSP) Mode
 
@@ -428,7 +433,7 @@ A User Group:
 2. **Use groups for shared access** — grant roles to User Groups rather than
    individual memberships for teams. Add/remove people from the group instead
    of managing individual grants.
-3. **Expire privileged grants** — direct grants of Admin/Manager roles require
+3. **Expire privileged grants** — direct membership grants of elevated roles require
    a `valid_until` date and a `reason`. The system enforces this at the model
    level.
 4. **Audit regularly** — review role grants (Organization → Memberships →

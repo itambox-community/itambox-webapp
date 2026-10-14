@@ -37,7 +37,7 @@ A tenant-owned software product can only be installed on assets of the same tena
 
 ## SAM Reconciliation
 
-The `reconcile()` method returns a compliance posture snapshot comparing installed instances against entitled seats, producing per-software delta and status indicators (`compliant`, `over_deployed`, or `unlicensed`).
+License reconciliation is provided by the module-level helper `licenses.reconciliation.reconcile_software(software)`; there is no `Software.reconcile()` model method. It compares installed `InstalledSoftware` counts with entitled license seats and returns a per-software `delta` (`entitled_seats - installed_count`) plus a status of `compliant`, `over_deployed`, or `unlicensed`. The helper does not evaluate version policy or whether an installation is authorised. See [Software Catalog & Maintenance](../../usage/software-catalog-and-maintenance.md).
 
 ## Relationship to Licenses
 

@@ -1,16 +1,16 @@
 # Custody Receipts
 
-A **Custody Receipt** is a materialized legal record documenting a user's acceptance of terms and custody for a specific physical asset. It acts as an audit trail detailing who signed for the hardware, when they signed, what specific version of the terms (EULA) they agreed to, and the technical metadata surrounding the transaction.
+A **Custody Receipt** records acceptance evidence for one asset assignment, including the holder, snapshotted terms and signature data. It is an application record; its presence does not establish legal validity in every jurisdiction or make the record tamper-proof.
 
 ---
 
 ## Acceptance States
 
-When an asset is checked out with **Require Acceptance** active, a Custody Receipt is generated in the **Pending** state. The receipt progresses through the following states:
+A receipt is created only when checkout resolves a matching active template for the AssetHolder's tenant and the asset's category and that template has **Require Acceptance** set; the resolution order is documented on [Custody Templates](custodytemplate.md). The receipt is created in the **Pending** state and linked to that assignment. Checkout and assignment are already recorded; signature is a separate acceptance step.
 
-- **Pending**: Awaiting user signature. The asset's assignment status is held in check.
-- **Accepted**: The user has successfully signed the receipt. The asset is now officially in their custody.
-- **Declined**: The user rejected the terms. Custody is returned, and administrative action is flagged.
+- **Pending**: Awaiting acceptance from the intended holder. Assignment remains active.
+- **Accepted**: The intended holder accepted the snapshotted terms for this assignment.
+- **Declined**: The intended holder rejected the terms. The assignment remains active until an operator records a check-in or other appropriate action.
 - **Superseded**: The custody period the receipt covers ended (check-in or reassignment) before the holder decided. The receipt can no longer be signed. Accepted and declined receipts are never changed by a check-in.
 
 ---
@@ -40,7 +40,13 @@ When an asset is checked out with **Require Acceptance** active, a Custody Recei
 | **Signed At** | The timestamp when the digital signature occurred. | DateTime | Yes |
 | **Token** | The token of the custody receipt. | String | Yes |
 | **User Agent** | Browser header info logged at the time of signing. | Text | No |
-| **Verification Hash** | Unique tracking verification string printed on audit exports. | String | No |
+| **Verification Hash** | SHA-256 digest of holder UPN, asset tag, signing timestamp, and submitted signature data. It is a consistency check, not a keyed integrity guarantee. | String | No |
 
 ## Verification & Audit Trails
-Each receipt generates a **Verification Hash**. This hash can be verified by internal auditors to match the recorded IP, timestamp, user agent, and signature canvas vector directly back to the database record, ensuring tamper-proof compliance checks.
+The verification hash is `hashlib.sha256(f"{holder.upn}|{asset.asset_tag}|{signed_at.isoformat()}|{signature_data}".encode("utf-8")).hexdigest()`, so the timestamp enters the input in its full ISO-8601 form. IP address and user agent are stored separately and are not inputs to that digest. A plain SHA-256 digest can help detect an inconsistency with the recorded inputs, but does not prevent a privileged database editor from changing both the record and digest. Treat the receipt as electronic acceptance evidence and assess legal sufficiency with your organisation's legal advisers.
+
+### Operator-prepared signing handoff
+
+An operator with the custody-receipt preparation permission can prepare a signing session for a **pending** receipt and its intended holder. From the receipt detail view, the available handoff options include a link, QR code, and email. The recipient must authenticate as the intended holder before signing; the session is single-use and expires (30 minutes by default). A session is only valid while it has not been cancelled, not been consumed and not expired. Do not treat forwarding the link to another person as a transfer of signing authority. Exact button labels and navigation can vary with the deployed UI; use the actions shown on the receipt detail page.
+
+Accepting or declining consumes the session. Declining changes the receipt state only; it does not check the asset in. After the device is returned, an operator must check it in through the normal assignment workflow. Accepted receipts cannot be signed again, and check-in or reassignment supersedes a still-pending receipt for that assignment. An operator holding the custody-receipt export permission can export an **accepted** receipt as JSON or PDF; other receipt states are not exportable through those routes.

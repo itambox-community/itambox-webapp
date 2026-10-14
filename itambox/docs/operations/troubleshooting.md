@@ -55,9 +55,15 @@ error is raised anywhere.
 For a one-shot summary of worker, scheduler, queue and failure state run
 `python manage.py operational_health` (see [Operational health](operational-health.md)).
 
-If a worker was down, jobs that should have run are not replayed — run the
-underlying management command ad hoc if the effect matters (for example
-`python manage.py prune_changelog`).
+If a worker was down, distinguish registered scheduler occurrences from other
+work. The configured django-q2 scheduler has `catch_up=True`: it replays missed
+occurrences for registered schedules until it catches up. Check the schedule's `next_run`/status and allow that replay to
+proceed before considering manual execution; an ad hoc invocation can duplicate
+the effect. Catch-up does not replay arbitrary queued tasks or work that was
+never registered as a schedule. For an unscheduled operation, first verify its
+own idempotency and current state, then use its documented recovery procedure.
+Do not use `run_jobs` to drain work; its current missing-handler path can mark
+jobs successful without executing a handler (see [Management Commands](management-commands.md#run_jobs)).
 
 ## 3. A capability is "off" or a Beta/Experimental badge is missing
 
@@ -119,8 +125,9 @@ proposed for repair as `TenantResourceGrant` payloads via `--proposals`.
 - 429s that should not exist in a direct deployment — keep
   `ITAMBOX_RATELIMIT_USE_X_FORWARDED_FOR=False`; a spoofed `X-Forwarded-For`
   would otherwise bypass per-IP limits.
-- Limits resetting on every restart — the `locmem` cache is per-process; point
-  `RATELIMIT_CACHE` at the shared Redis/Valkey backend. See
+- Limits resetting on every restart — the `locmem` cache is per-process; keep
+  `RATELIMIT_CACHE=default` and configure the shared backend with
+  `ITAMBOX_CACHE_BACKEND=redis` and `ITAMBOX_REDIS_URL`. See
   [Deployment Security](../security/deployment-security.md).
 
 ## 7. After an upgrade or restore

@@ -1,6 +1,7 @@
 # mkdocs.yml (ITAMbox Root)
 site_name: ITAMbox End-User Documentation
-site_url: https://docs.itambox.local/
+# The docs are served beneath the application at a deployment-specific URL. Do not
+# set a fixed local site_url here; the build must not publish a .local canonical.
 site_dir: static/docs  # Outputs compiled files directly into Django's static folder
 use_directory_urls: false
 
@@ -172,6 +173,7 @@ nav:
               - Event Rules: 'models/extras/eventrule.md'
   - Integrations:
       - Bulk CSV Import Guide: 'integration/bulk_import_guide.md'
+      - Asset Type YAML Authoring: 'integration/asset-type-catalogue.md'
       - Migrate from Snipe-IT: 'integration/migrate-from-snipe-it.md'
       - Discovery Sync (Intune): 'integration/discovery-sync.md'
       - SCIM Provisioning: 'integration/scim.md'

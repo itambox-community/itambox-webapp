@@ -26,18 +26,30 @@ encrypted fields and invalidated tokens.
 ## Field-encryption key rotation
 
 Rotation is supported by the keyring design: the **first** key encrypts, **all**
-listed keys decrypt.
+listed keys decrypt. The rotation command covers `License.product_key`,
+`EmailSettings.smtp_password`, and `WebhookEndpoint.secret`; it does **not**
+rotate `WebhookDelivery.target_secret`, an encrypted snapshot retained for
+delivery retries. Keep the old key available for those rows and for backups
+until they are no longer needed. The command does not currently provide a way
+to re-encrypt those snapshots.
 
-1. Append the new key as a new entry (or move it to the front after
-   `rotate_encryption_keys` completed).
-2. Run `python manage.py rotate_encryption_keys` (preview first with
-   `--dry-run`) to re-encrypt every encrypted field with the current primary
-   key.
-3. Only then remove the old key from the keyring.
+1. Take and verify a full database backup. Put the **new** key first and retain
+   the old key after it: `ITAMBOX_FIELD_ENCRYPTION_KEYS=<NEW>,<OLD>`. Do not use
+   `<OLD>,<NEW>`: the first key remains the encryption key.
+2. Restart every application and worker process so all use the same keyring.
+   Run `python manage.py rotate_encryption_keys --dry-run`, review its output,
+   then run `python manage.py rotate_encryption_keys` to re-encrypt the fields
+   listed above with the new primary key.
+3. Verify the rotated values can be decrypted while both keys are configured.
+   **Do not remove the old key merely because the command completed.** Retained
+   `WebhookDelivery.target_secret` snapshots are not in the command's rotation
+   inventory and still require their original key. Keep that key until those
+   snapshots are no longer retained (and all backups requiring it have expired),
+   or until a future supported process explicitly re-encrypts them.
 
-Take a full database backup immediately before rotating; until rotation
-completes, every retired key must remain in the keyring or existing ciphertexts
-become unreadable. Command details: [Management Commands](../operations/management-commands.md).
+Keep both keys configured through verification. Removing an old key too early
+can make retained delivery snapshots or restored backups unreadable. Command
+details: [Management Commands](../operations/management-commands.md).
 
 ## API-token pepper rotation
 
@@ -85,8 +97,10 @@ lives in the cache:
 
 - With `ITAMBOX_CACHE_BACKEND=locmem` (development default) limits are
   per-process and reset on restart — acceptable for single-worker setups only.
-- In production point `RATELIMIT_CACHE` (or the default cache) at the shared
-  Redis/Valkey backend so limits hold across all gunicorn workers.
+- Keep `RATELIMIT_CACHE=default`; `default` is the configured cache alias. In
+  production set `ITAMBOX_CACHE_BACKEND=redis` and configure
+  `ITAMBOX_REDIS_URL` so that alias uses shared Redis/Valkey and limits hold
+  across all gunicorn workers.
 
 ## SSO security expectations
 

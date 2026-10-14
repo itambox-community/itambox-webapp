@@ -186,7 +186,7 @@ PostgreSQL 15+ is required. The `btree_gist` extension must be available (see [s
 | `ITAMBOX_CACHE_BACKEND` | Recommended (prod) | `locmem` | Cache backend. `locmem` (per-process in-memory, not shared across workers) or `redis`. Use a Redis-protocol server in production (Valkey recommended — BSD-licensed fork of Redis) so throttles and rate-limit counters are shared across gunicorn workers. |
 | `ITAMBOX_REDIS_URL` | Conditional | `redis://127.0.0.1:6379/1` | Redis connection URL. Required when `ITAMBOX_CACHE_BACKEND=redis`. |
 | `ITAMBOX_CACHE_TIMEOUT` | Optional | `300` | Default cache TTL in seconds. |
-| `RATELIMIT_CACHE` | Optional | `default` | Cache alias used for the login/invite rate limiter. Point at `redis` in production to share rate-limit state across workers. |
+| `RATELIMIT_CACHE` | Optional | `default` | Cache alias used for the authentication rate limiter. Keep this set to the defined `default` alias; configure a shared Redis/Valkey backend with `ITAMBOX_CACHE_BACKEND=redis` and `ITAMBOX_REDIS_URL`. |
 
 ---
 
@@ -216,7 +216,7 @@ In development, the app uses a local SMTP catcher automatically. In production, 
 | `ITAMBOX_DEFAULT_CURRENCY` | Optional | `EUR` | ISO 4217 currency code used as the fallback for money display. Each tenant can override its own currency. |
 | `ITAMBOX_PAGINATOR_COUNT_CAP` | Optional | `100000` | Upper bound for list-view row counters. Below the cap, exact counts are shown; above, displays `100000+`. Set to `0` for unbounded `COUNT(*)` on every list view — slow at large scale. |
 | `ITAMBOX_SESSION_COOKIE_AGE` | Optional | `28800` (8 h) in prod; `1209600` (2 weeks) in dev | Interactive session lifetime in seconds. Production overrides the Django default to 8 hours; after this duration of inactivity, users must re-authenticate. |
-| `ITAMBOX_DOCS_ROOT` | Optional | `BASE_DIR/docs` | Filesystem path to compiled MkDocs output. Override to serve documentation from an external volume. |
+| `ITAMBOX_DOCS_ROOT` | Optional | `BASE_DIR/docs` | Accepted setting for the documentation root. It is currently read into `DOCS_ROOT` only; the in-app help links resolve against the compiled MkDocs output under `BASE_DIR/static/docs`, so changing this variable does not relocate the served help pages. |
 | `ITAMBOX_REQUIRE_MFA` | Optional | `True` (in prod) | Enforce TOTP multi-factor authentication for local-password logins by superusers and owner-admin roles. SSO/LDAP/SAML/OIDC logins always delegate MFA to the identity provider regardless of this setting. Set to `False` to disable for local accounts. |
 | `ITAMBOX_REQUISITION_AUTO_APPROVAL_THRESHOLDS` | Optional | *(unset)* | Opt-in auto-approval for low-risk asset requests. JSON object with the supported keys `accessory` and/or `consumable`; each value is a non-negative integer quantity threshold. Example: `{"accessory": 3, "consumable": 5}`. When unset, no request is auto-approved and requests remain pending for manual approval. Invalid JSON, unknown keys, or non-integer/bool thresholds abort startup with an error; the deprecated `REQUISITION_AUTO_APPROVAL_THRESHOLDS` name is still accepted through 1.x with a startup deprecation warning and is removed in ITAMbox 2.0. |
 
@@ -298,7 +298,7 @@ Each variable accepts a JSON object keyed by tenant slug. These configure per-te
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ITAMBOX_TENANT_INTUNE_CONFIGS` | Optional | *(empty)* | Per-tenant Microsoft Intune device discovery configuration. JSON object keyed by tenant slug. Each value requires `TENANT_ID`, `CLIENT_ID`, and `CLIENT_SECRET` for Microsoft Graph API access. See [discovery-sync.md](../integration/discovery-sync.md) for the full discovery workflow. |
+| `ITAMBOX_TENANT_INTUNE_CONFIGS` | Optional | *(empty)* | Per-tenant Microsoft Intune device discovery configuration. JSON object keyed by tenant slug. Each value requires `azure_tenant_id`, `client_id`, and `client_secret` for Microsoft Graph API access. Optional keys use the parser's lowercase contract (including `create_missing`, `default_status`, and `sync_software`). See [discovery-sync.md](../integration/discovery-sync.md) for the full configuration and discovery workflow. |
 
 ---
 

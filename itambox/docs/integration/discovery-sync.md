@@ -1,7 +1,8 @@
 # Discovery sync
 
-ITAMbox can pull device inventory from Microsoft Intune and is extensible to any
-source (SCCM, Jamf, Lansweeper, custom scripts) via its REST API.
+ITAMbox can pull device inventory from Microsoft Intune. Other discovery systems
+can integrate through the REST resources documented below; the example is a
+lookup-then-create workflow, not a server-side upsert.
 
 ---
 
@@ -29,26 +30,29 @@ slug**:
 ```json
 {
   "acme": {
-    "TENANT_ID":      "<Directory tenant ID from Azure>",
-    "CLIENT_ID":      "<Application client ID from Azure>",
-    "CLIENT_SECRET":  "<Client secret value>",
-    "CREATE_MISSING": true,
-    "DEFAULT_STATUS": "deployable",
-    "SYNC_SOFTWARE":  true
+    "azure_tenant_id": "<Directory tenant ID from Azure>",
+    "client_id": "<Application client ID from Azure>",
+    "client_secret": "<Client secret value>",
+    "create_missing": true,
+    "default_status": "deployable",
+    "sync_software": true
   }
 }
 ```
 
 | Key | Type | Default | Purpose |
 |-----|------|---------|---------|
-| `TENANT_ID` | string | required | Azure Directory (tenant) ID |
-| `CLIENT_ID` | string | required | Azure Application (client) ID |
-| `CLIENT_SECRET` | string | required | Azure client secret value |
-| `CREATE_MISSING` | bool | `false` | Create an Asset for every device not already in ITAMbox |
-| `DEFAULT_STATUS` | string | `"deployable"` | StatusLabel slug assigned to auto-created assets |
-| `SYNC_SOFTWARE` | bool | `true` | Upsert InstalledSoftware records from detected apps |
+| `azure_tenant_id` | string | required | Azure Directory (tenant) ID |
+| `client_id` | string | required | Azure Application (client) ID |
+| `client_secret` | string | required | Azure client secret value |
+| `create_missing` | bool | `false` | Create an Asset when no tenant-local serial-number match exists |
+| `default_status` | string | `"deployable"` | StatusLabel slug assigned to newly created assets |
+| `sync_software` | bool | `true` | Process detected apps into InstalledSoftware records |
 
-Secrets stay in the environment — never store them in the database.
+Secrets stay in the environment — never store them in the database. The keys
+are lowercase and case-sensitive; uppercase variants are not aliases. The
+`globex` example below is a separate tenant configuration, not a provider token
+that can cross tenant boundaries.
 
 Multiple tenants are supported by adding additional top-level keys:
 
@@ -61,49 +65,30 @@ Multiple tenants are supported by adding additional top-level keys:
 
 ### 1.3  Running a sync
 
-**Ad-hoc / one-off:**
+**Run synchronously (for example from an OS scheduler):**
 
 ```bash
 python manage.py sync_intune --tenant acme --now
 ```
 
-Add `--dry-run` to simulate without writing anything.
+`--dry-run` simulates the sync without writing. The command requires a
+tenant slug that exists, a matching `ITAMBOX_TENANT_INTUNE_CONFIGS` entry, and an
+existing superuser to attribute the resulting changes to. Without `--now` it
+creates a Job and enqueues the sync with django-q2; `--now` runs it inline and
+blocks until finished.
 
-**Enqueue into django-q2 (returns immediately):**
+**Schedule nightly:**
 
-```bash
-python manage.py sync_intune --tenant acme
+Use your host/container scheduler to run the synchronous command once per
+night, for example at 03:00:
+
+```cron
+0 3 * * * cd /path/to/itambox && python manage.py sync_intune --tenant acme --now
 ```
 
-**Nightly schedule via django-q2:**
-
-Run this once in a Django shell (or a data migration) to schedule nightly runs:
-
-```python
-from django_q.models import Schedule
-from organization.models import Tenant
-from django.contrib.auth import get_user_model
-from core.models import Job
-
-User = get_user_model()
-tenant = Tenant.objects.get(slug="acme")
-admin  = User.objects.filter(is_superuser=True).order_by("pk").first()
-
-# Create a placeholder job; the task will update it on each run.
-# In practice, sync_intune creates its own Job — just schedule the task directly:
-Schedule.objects.get_or_create(
-    name=f"intune-sync-{tenant.slug}",
-    defaults=dict(
-        func="core.management.commands.sync_intune.Command.handle",
-        # Simpler: wrap the management command:
-        func="django.core.management.call_command",
-        args=repr(("sync_intune",)),
-        kwargs=repr({"tenant": tenant.slug, "now": True}),
-        schedule_type=Schedule.CRON,
-        cron="0 3 * * *",
-    ),
-)
-```
+The command creates and updates its own Job. Do not schedule
+`Command.handle` or call the task directly: the task requires the tenant, actor,
+and Job IDs established by the command. Monitor the resulting Job in ITAMbox.
 
 ### 1.4  What the sync does
 
@@ -114,13 +99,15 @@ Schedule.objects.get_or_create(
 3. **Create** (when `create_missing: true`) — unmatched devices get a new
    `Manufacturer`, `AssetType`, and `Asset`. The asset's status is set to the
    configured `default_status`.
-4. **Holder hint** — if the device's `userPrincipalName` matches an
-   `AssetHolder.upn` in the tenant, that UPN is recorded as
-   `intune_primary_user` in `custom_field_data`. No automatic checkout is
-   performed; *discovery proposes, humans dispose*.
+4. **Holder hint** — if `userPrincipalName` is present, it is recorded as
+   `intune_primary_user`; on matched assets, `intune_primary_user_matched` also
+   records whether a tenant-local `AssetHolder.upn` matched. This is discovery
+   metadata only: it does not create an assignment or check out the asset.
 5. **Software** (when `sync_software: true`) — detected apps are upserted into
-   `InstalledSoftware` with `discovered_by_agent="Intune"`. Re-running is safe;
-   the unique constraint `(asset, software, version_detected)` is respected.
+   `InstalledSoftware` with `discovered_by_agent="Intune"` and a refreshed
+   `last_seen_date`, keyed by asset, software, and detected version. Optional
+   app discovery or persistence failures are recorded on the Job instead of
+   aborting the device sync.
 
 Results are stored in a `Job` record visible in the Jobs UI.
 
@@ -128,9 +115,9 @@ Results are stored in a `Job` record visible in the Jobs UI.
 
 ## 2  Generic "push from anything" recipe
 
-Any system that can make HTTP requests can feed inventory into ITAMbox via the
-REST API. The recipe below uses plain Python + `requests`; adapt it for
-SCCM, Jamf, Lansweeper, or custom agents.
+Any system with HTTP access can use the REST API, subject to the token owner's
+permissions and the tenant boundary. Adapt the pattern for your discovery
+source, after mapping its records to ITAMbox IDs and writable fields.
 
 ### 2.1  Obtain an API token
 
@@ -151,8 +138,8 @@ HEADERS = {
     "Content-Type":  "application/json",
 }
 
-def get_or_create_asset(serial: str, name: str, status_slug: str = "deployable") -> dict:
-    """Look up an asset by serial; create it if missing."""
+def get_or_create_asset(serial: str, name: str, asset_type_id: int, status_id: int) -> dict:
+    """Look up an asset by serial; create it if missing (not atomic upsert)."""
     r = requests.get(
         f"{ITAMBOX_URL}/api/assets/assets/",
         params={"serial_number": serial},
@@ -164,10 +151,12 @@ def get_or_create_asset(serial: str, name: str, status_slug: str = "deployable")
     if results:
         return results[0]
 
-    # Create
+    # Resolve these IDs beforehand from the same tenant: asset_type_id and
+    # status_id are writable PK fields. `status` is read-only.
     r = requests.post(
         f"{ITAMBOX_URL}/api/assets/assets/",
-        json={"name": name, "serial_number": serial, "status": status_slug},
+        json={"name": name, "serial_number": serial,
+              "asset_type_id": asset_type_id, "status_id": status_id},
         headers=HEADERS,
         timeout=30,
     )
@@ -175,24 +164,24 @@ def get_or_create_asset(serial: str, name: str, status_slug: str = "deployable")
     return r.json()
 
 def push_installed_software(asset_id: int, software_id: int, version: str, agent: str):
-    """Upsert an InstalledSoftware record."""
+    """Create an InstalledSoftware record. A duplicate is raised to the caller."""
     r = requests.post(
-        f"{ITAMBOX_URL}/api/software/installed/",
+        f"{ITAMBOX_URL}/api/software/installed-software/",
         json={
-            "asset":               asset_id,
-            "software":            software_id,
+            "asset_id":            asset_id,
+            "software_id":         software_id,
             "version_detected":    version,
             "discovered_by_agent": agent,
         },
         headers=HEADERS,
         timeout=30,
     )
-    if r.status_code == 400 and "unique" in r.text.lower():
-        return  # Already exists — safe to ignore
     r.raise_for_status()
 
 # Example: push one device
-asset = get_or_create_asset(serial="SN99999", name="MY-LAPTOP-001")
+# Resolve both IDs inside the target tenant before the call.
+asset = get_or_create_asset(serial="SN99999", name="MY-LAPTOP-001",
+                            asset_type_id=ASSET_TYPE_ID, status_id=STATUS_ID)
 push_installed_software(
     asset_id=asset["id"],
     software_id=42,   # look up via /api/software/software/?name=...
@@ -201,8 +190,10 @@ push_installed_software(
 )
 ```
 
-This template is the starting point for any custom discovery source.  The key
-endpoints are:
+This template needs tenant-valid IDs and appropriate create/change
+permissions. A POST creates a resource; it is not an upsert. The client-side
+GET-then-POST sequence can race, so handle conflicts and retry/reconcile by
+reading the resource again where appropriate. Key endpoints are:
 
 | Endpoint | Purpose |
 |----------|---------|
@@ -211,4 +202,4 @@ endpoints are:
 | `PATCH /api/assets/assets/{id}/` | Update asset fields |
 | `GET  /api/software/software/?name=…` | Find software catalogue entry |
 | `POST /api/software/software/` | Create software catalogue entry |
-| `POST /api/software/installed/` | Record installed software on an asset |
+| `POST /api/software/installed-software/` | Create installed software record |

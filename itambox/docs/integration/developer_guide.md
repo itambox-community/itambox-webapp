@@ -2,10 +2,15 @@
 
 ## Introduction
 
-ITAMbox exposes REST APIs across its application modules and a narrower GraphQL schema for assets, software, licenses, inventory, and subscriptions. Check the generated REST schema and the source-backed GraphQL fields for the revision you deploy; this is a prerelease interface and may change.
+ITAMbox exposes REST APIs across its application modules and a narrower,
+read-only GraphQL query schema for assets, software, licenses, inventory, and
+subscriptions. Core GraphQL has no mutation root. Check the generated REST
+schema and the schema fields for the revision you deploy; this prerelease
+interface may change.
 
 - **REST API**: A traditional, resource-oriented API with namespaced routes, pagination, and filtering.
-- **GraphQL API**: Queries and mutations for assets, software, licenses, inventory, subscriptions, and registered plugin extensions.
+- **GraphQL API**: Read-only queries for core resources. An installed plugin
+  may contribute query fields or a mutation root; core writes use REST.
 
 Both APIs enforce the authenticated user's active tenant and permissions. Integrations should use least-privilege service accounts and test against a pinned ITAMbox revision.
 
@@ -22,9 +27,12 @@ ITAMbox uses token-based authentication for API access. All API requests must in
   Authorization: Token ***
   ```
 
-### Session Authentication (Fallback)
+### Session Authentication
 
-For users accessing the API via the same browser session as the ITAMbox UI, session authentication is also supported. This is primarily intended for internal integrations or testing.
+For users accessing the API via the same browser session as the ITAMbox UI,
+session authentication may also be available. It is intended for browser-based
+use, not as a service credential; verify the deployed endpoint's authentication
+requirements in its OpenAPI schema.
 
 > **Note**: For production integrations, always use token authentication.
 
@@ -238,9 +246,15 @@ query {
 }
 ```
 
-### Writes are REST-only
+### Core GraphQL is read-only
 
-The GraphQL schema is read-only: the built-in schema publishes no mutation root, and every former write mutation (assets, inventory, licenses, software, subscriptions and asset specifications) was removed in favor of REST. Create, update and delete assets through `POST/PATCH/DELETE /api/assets/assets/`; the other domains have the same REST resources, and choice sets and choices are available under `/api/extras/custom-field-choice-sets/` and `/api/extras/custom-field-choices/`. Plugins may still contribute their own mutation root.
+The built-in schema publishes no mutation root. Use the matching REST resource
+for writes, including `POST/PATCH/DELETE /api/assets/assets/`; the other domains
+have REST resources, and custom-field choice sets and choices are available
+under `/api/extras/custom-field-choice-sets/` and
+`/api/extras/custom-field-choices/`. A registered plugin may contribute its
+own mutation root, so inspect the schema for the deployed installation before
+assuming plugin behavior.
 
 ## Destructive workflow safety
 
