@@ -62,7 +62,9 @@
               {% endfor %}
             {% endif %}
             {# Buttons always shown now #}
-            <button type="submit" class="btn btn-danger"{% if blockers %} disabled{% endif %}>
+            <button type="submit"
+                    class="btn btn-danger"
+                    {% if blockers %} disabled{% endif %}>
               <i class="mdi mdi-trash-can-outline"></i>
               {% translate "Confirm Deletion" %}
             </button>
