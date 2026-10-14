@@ -5,7 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from core.tenant_scope import accessible_tenant_ids, tenant_model
 from itambox.capabilities import registry
 
-from . import Menu, MenuGroup, MenuItem, MenuItemButton, get_model_item
+from . import Menu, MenuGroup, MenuItem, MenuItemButton, get_model_buttons, get_model_item
 
 
 def _msp_layer_active(user):
@@ -197,12 +197,8 @@ INVENTORY_MENU = Menu(
                             icon_class="mdi mdi-plus-thick",
                             permissions=["inventory.add_component"],
                         ),
-                        MenuItemButton(
-                            link="/import/inventory/component/",
-                            title=_("Import Components"),
-                            icon_class="mdi mdi-upload",
-                            permissions=["inventory.add_component"],
-                            color="outline text-success",
+                        *get_model_buttons(
+                            "inventory", "component", actions=("import",), import_title=_("Import Components")
                         ),
                     ),
                 ),
@@ -217,12 +213,8 @@ INVENTORY_MENU = Menu(
                             icon_class="mdi mdi-plus-thick",
                             permissions=["inventory.add_accessory"],
                         ),
-                        MenuItemButton(
-                            link="/import/inventory/accessory/",
-                            title=_("Import Accessories"),
-                            icon_class="mdi mdi-upload",
-                            permissions=["inventory.add_accessory"],
-                            color="outline text-success",
+                        *get_model_buttons(
+                            "inventory", "accessory", actions=("import",), import_title=_("Import Accessories")
                         ),
                     ),
                 ),
@@ -237,12 +229,8 @@ INVENTORY_MENU = Menu(
                             icon_class="mdi mdi-plus-thick",
                             permissions=["inventory.add_consumable"],
                         ),
-                        MenuItemButton(
-                            link="/import/inventory/consumable/",
-                            title=_("Import Consumables"),
-                            icon_class="mdi mdi-upload",
-                            permissions=["inventory.add_consumable"],
-                            color="outline text-success",
+                        *get_model_buttons(
+                            "inventory", "consumable", actions=("import",), import_title=_("Import Consumables")
                         ),
                     ),
                 ),
@@ -291,13 +279,7 @@ OPERATIONS_MENU = Menu(
                             icon_class="mdi mdi-plus-thick",
                             permissions=["procurement.add_purchaseorder"],
                         ),
-                        MenuItemButton(
-                            link="/import/procurement/purchaseorder/",
-                            title=_("Import"),
-                            icon_class="mdi mdi-upload",
-                            permissions=["procurement.add_purchaseorder"],
-                            color="outline text-success",
-                        ),
+                        *get_model_buttons("procurement", "purchaseorder", actions=("import",)),
                     ),
                 ),
                 MenuItem(
@@ -311,13 +293,7 @@ OPERATIONS_MENU = Menu(
                             icon_class="mdi mdi-plus-thick",
                             permissions=["assets.add_assetrequest"],
                         ),
-                        MenuItemButton(
-                            link="/import/assets/assetrequest/",
-                            title=_("Import"),
-                            icon_class="mdi mdi-upload",
-                            permissions=["assets.add_assetrequest"],
-                            color="outline text-success",
-                        ),
+                        *get_model_buttons("assets", "assetrequest", actions=("import",)),
                     ),
                 ),
                 get_model_item("assets", "supplier", _("Suppliers")),
@@ -345,13 +321,7 @@ OPERATIONS_MENU = Menu(
                             icon_class="mdi mdi-plus-thick",
                             permissions=["compliance.add_auditsession"],
                         ),
-                        MenuItemButton(
-                            link="/import/compliance/auditsession/",
-                            title=_("Import"),
-                            icon_class="mdi mdi-upload",
-                            permissions=["compliance.add_auditsession"],
-                            color="outline text-success",
-                        ),
+                        *get_model_buttons("compliance", "auditsession", actions=("import",)),
                     ),
                 ),
                 get_model_item("compliance", "custodytemplate", _("Custody Templates")),
@@ -497,13 +467,7 @@ EXTRAS_MENU = Menu(
                             icon_class="mdi mdi-plus-thick",
                             permissions=["assets.add_assettagsequence"],
                         ),
-                        MenuItemButton(
-                            link="/import/assets/assettagsequence/",
-                            title=_("Import"),
-                            icon_class="mdi mdi-upload",
-                            permissions=["assets.add_assettagsequence"],
-                            color="outline text-success",
-                        ),
+                        *get_model_buttons("assets", "assettagsequence", actions=("import",)),
                     ),
                 ),
             ),
