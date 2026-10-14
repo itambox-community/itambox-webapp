@@ -267,7 +267,9 @@ def fieldset_group_labels(fieldsets) -> dict[str, str]:
     return {f"{fs.namespace}/{fs.slug}": (fs.label or fs.slug) for fs in fieldsets}
 
 
-def build_spec_panel(resolved_fields, stored_values, fieldsets, definitions_loader=None) -> SpecPanel:
+def build_spec_panel(
+    resolved_fields, stored_values, fieldsets, definitions_loader=None, include_further=True
+) -> SpecPanel:
     """Build the grouped values plus the completeness block for one object.
 
     ``definitions_loader`` receives the unresolved stored keys and returns a
@@ -276,7 +278,7 @@ def build_spec_panel(resolved_fields, stored_values, fieldsets, definitions_load
     stored_values = dict(stored_values or {})
     groups = build_spec_groups(resolved_fields, stored_values, fieldset_group_labels(fieldsets))
     resolved_names = {resolved.definition.name for resolved in resolved_fields}
-    rest = [key for key in stored_values if key not in resolved_names]
+    rest = [key for key in stored_values if key not in resolved_names] if include_further else []
     definitions = definitions_loader(rest) if rest and definitions_loader else {}
-    further = build_further_values(resolved_fields, stored_values, definitions)
+    further = build_further_values(resolved_fields, stored_values, definitions) if include_further else []
     return SpecPanel(groups=tuple(groups), further=tuple(further))
