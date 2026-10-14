@@ -2,12 +2,14 @@
 
 from types import SimpleNamespace
 
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
+from core.forms.import_forms import is_model_importable
 from core.navigation.menu import _msp_layer_active, _user_provider_tenants
 from core.tasks.context import TaskContext
 from core.templatetags.navigation import nav
@@ -20,6 +22,18 @@ User = get_user_model()
 def _visible_links(user):
     context = nav({"request": SimpleNamespace(user=user)})
     return [item.link for _menu, groups in context["nav_items"] for _group, items in groups for item, _buttons in items]
+
+
+def _visible_import_links(user):
+    context = nav({"request": SimpleNamespace(user=user)})
+    return {
+        button.link
+        for _menu, groups in context["nav_items"]
+        for _group, items in groups
+        for _item, buttons in items
+        for button in buttons
+        if button.link.startswith("/import/")
+    }
 
 
 class TenantNavigationTests(TestCase):
@@ -149,3 +163,50 @@ class TenantNavigationTests(TestCase):
                 "admin:index",
             ],
         )
+
+    def test_visible_import_buttons_match_importability_contract(self):
+        Tenant.objects.create(name="Import Menu Provider", slug="import-menu-provider", is_provider=True)
+        superuser = User.objects.create_superuser(
+            username="import-navigation-root",
+            email="import-root@example.com",
+            password="pw",
+        )
+
+        visible_imports = _visible_import_links(superuser)
+        importable_models = (
+            ("assets", "asset"),
+            ("assets", "assettype"),
+            ("assets", "manufacturer"),
+            ("inventory", "accessory"),
+            ("inventory", "consumable"),
+            ("licenses", "license"),
+            ("organization", "assetholder"),
+            ("organization", "location"),
+            ("subscriptions", "subscription"),
+        )
+        non_importable_models = (
+            ("inventory", "component"),
+            ("procurement", "purchaseorder"),
+            ("assets", "assetrequest"),
+            ("compliance", "auditsession"),
+            ("assets", "assettagsequence"),
+        )
+
+        for app_label, model_name in importable_models:
+            with self.subTest(importable=(app_label, model_name)):
+                model = apps.get_model(app_label, model_name)
+                link = f"/import/{app_label}/{model_name}/"
+                self.assertTrue(is_model_importable(model))
+                self.assertIn(link, visible_imports)
+
+        for app_label, model_name in non_importable_models:
+            with self.subTest(non_importable=(app_label, model_name)):
+                model = apps.get_model(app_label, model_name)
+                link = f"/import/{app_label}/{model_name}/"
+                self.assertFalse(is_model_importable(model))
+                self.assertNotIn(link, visible_imports)
+
+        for link in visible_imports:
+            app_label, model_name = link.removeprefix("/import/").rstrip("/").split("/")
+            with self.subTest(visible_import=link):
+                self.assertTrue(is_model_importable(apps.get_model(app_label, model_name)))
