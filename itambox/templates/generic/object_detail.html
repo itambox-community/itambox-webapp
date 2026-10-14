@@ -292,7 +292,9 @@
               </div>
             {% endif %}
             {# --- Generic Custom Fields Card --- #}
-            {% include 'extras/includes/custom_fields_panel.html' %}
+            {% if not hide_generic_custom_fields %}
+              {% include 'extras/includes/custom_fields_panel.html' %}
+            {% endif %}
             {# --- Tags Card --- #}
             {% if object.tags.all %}
               <div class="card mb-3 shadow-sm">

@@ -1,5 +1,5 @@
 {% load i18n utility_tags %}
-{% if specification_fields %}
+{% if specification_fields or specification_extra_values %}
   <div class="card border-0 specs-container shadow-none">
     <div class="card-body">
       <h4 class="card-title text-secondary mb-3 d-flex align-items-center">
@@ -16,6 +16,14 @@
               </div>
             {% endif %}
           {% endwith %}
+        {% endfor %}
+        {% for label, val in specification_extra_values %}
+          {% if val is not None and val != "" %}
+            <div class="col-md-6">
+              <div class="text-muted small">{{ label }}</div>
+              <div class="fw-semibold">{{ val }}</div>
+            </div>
+          {% endif %}
         {% endfor %}
       </div>
     </div>
