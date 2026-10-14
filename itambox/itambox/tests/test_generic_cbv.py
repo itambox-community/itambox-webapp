@@ -35,6 +35,7 @@ Restore/purge use core URL names:
   object_purge    -> /object/<content_type_id>/<object_id>/purge/
 """
 
+import re
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -43,7 +44,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import NoReverseMatch, reverse
 
-from assets.models import Asset, AssetRole, Manufacturer, StatusLabel
+from assets.models import Asset, AssetRole, AssetType, Manufacturer, StatusLabel
 from core.forms.mixins import ConfirmationForm, SlugModelForm
 from core.tests.mixins import TenantTestMixin
 from organization.models import Tenant
@@ -362,6 +363,40 @@ class ObjectDeleteViewTests(TestCase):
         response = self.client.post(reverse("assets:manufacturer_delete", kwargs={"pk": self.mfr.pk}))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("assets:manufacturer_list"))
+
+    def test_confirmation_page_lists_blockers_and_disables_confirm(self):
+        """Before submission the page names the referencing rows and disables the confirm control (#817)."""
+        AssetType.objects.create(manufacturer=self.mfr, model="Blocker Model GCBV", slug="blocker-model-gcbv")
+        response = self.client.get(reverse("assets:manufacturer_delete", kwargs={"pk": self.mfr.pk}))
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn("Blocker Model GCBV", body)
+        self.assertIn("still referenced by", body)
+        match = re.search(r'<button type="submit"[^>]*btn-danger[^>]*>', body)
+        self.assertIsNotNone(match)
+        self.assertIn("disabled", match.group(0))
+
+    def test_refused_delete_renders_message_naming_blocker(self):
+        """A refused delete re-renders the page with an alert naming the blocker; the record survives (#817)."""
+        AssetType.objects.create(manufacturer=self.mfr, model="Blocker Model GCBV", slug="blocker-model-gcbv")
+        response = self.client.post(reverse("assets:manufacturer_delete", kwargs={"pk": self.mfr.pk}))
+        self.assertEqual(response.status_code, 409)
+        body = response.content.decode()
+        self.assertIn('class="alert alert-danger"', body)
+        self.assertIn("Blocker Model GCBV", body)
+        self.assertTrue(Manufacturer.objects.filter(pk=self.mfr.pk).exists())
+
+    def test_archived_dependent_blocks_and_is_reported_by_count(self):
+        """An archived asset type still blocks the delete; it is counted, not named (#817)."""
+        asset_type = AssetType.objects.create(manufacturer=self.mfr, model="Archived GCBV", slug="archived-gcbv")
+        asset_type.delete()
+        self.assertFalse(AssetType.objects.filter(pk=asset_type.pk).exists())
+        response = self.client.post(reverse("assets:manufacturer_delete", kwargs={"pk": self.mfr.pk}))
+        self.assertEqual(response.status_code, 409)
+        body = response.content.decode()
+        self.assertIn("1 archived or outside your scope", body)
+        self.assertNotIn("Archived GCBV", body)
+        self.assertTrue(Manufacturer.objects.filter(pk=self.mfr.pk).exists())
 
 
 # ---------------------------------------------------------------------------
