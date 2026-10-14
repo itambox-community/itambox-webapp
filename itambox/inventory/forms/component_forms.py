@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, Category, Manufacturer, Supplier
-from core.forms import FilterForm, SlugModelForm, TenantScopedFormMixin
+from core.forms import CrispyFormMixin, FilterForm, SlugModelForm, TenantScopedFormMixin, cancel_button
 from core.managers import Scope
 from extras.customfields import CustomFieldModelFormMixin
 from extras.models import Tag
@@ -145,7 +145,7 @@ class ComponentStockForm(TenantScopedFormMixin, forms.ModelForm):
         )
 
 
-class ComponentAllocationForm(TenantScopedFormMixin, forms.ModelForm):
+class ComponentAllocationForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
     # from_location is rebuilt below from the including-deleted manager (the
     # recorded source of a historical allocation), so it stays non-scoped.
     tenant_scoped_choice_exclusions = ("from_location",)
@@ -257,7 +257,7 @@ class ComponentAllocationForm(TenantScopedFormMixin, forms.ModelForm):
             "notes",
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(format_html('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>', cancel_url, _("Cancel"))),
+            cancel_button(cancel_url, dismiss=self.quick_add_dismiss),
             HTML("</div>"),
         )
         if not is_update:

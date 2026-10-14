@@ -3,7 +3,7 @@ from crispy_forms.layout import Div, Layout
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from core.forms import FilterForm, TenantScopedFormMixin
+from core.forms import CrispyFormMixin, FilterForm, TenantScopedFormMixin
 from extras.customfields import CustomFieldModelFormMixin
 from extras.models import Tag
 
@@ -12,7 +12,7 @@ from ..models import Location, Site, Tenant
 from .helpers import add_standard_buttons
 
 
-class LocationForm(TenantScopedFormMixin, CustomFieldModelFormMixin, forms.ModelForm):
+class LocationForm(TenantScopedFormMixin, CrispyFormMixin, CustomFieldModelFormMixin, forms.ModelForm):
     tenant_required = True
     tenant_autoset_when_single = True
 
@@ -66,7 +66,7 @@ class LocationForm(TenantScopedFormMixin, CustomFieldModelFormMixin, forms.Model
         )
         self.append_custom_fields_to_layout()
 
-        add_standard_buttons(self.helper, self.instance, "organization:location_list")
+        add_standard_buttons(self.helper, self.instance, "organization:location_list", dismiss=self.quick_add_dismiss)
 
     def clean_parent(self):
         parent = self.cleaned_data.get("parent")

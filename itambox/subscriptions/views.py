@@ -451,7 +451,12 @@ class SubscriptionAssignmentCreateView(LoginRequiredMixin, PermissionRequiredMix
         content_type = get_object_or_404(ContentType, id=content_type_id)
         target_obj = get_object_or_404(content_type.model_class().objects.all(), id=object_id)
 
-        form = forms.SubscriptionAssignmentForm(content_type=content_type, object_id=object_id)
+        form = forms.SubscriptionAssignmentForm(
+            content_type=content_type,
+            object_id=object_id,
+            cancel_url=target_obj.get_absolute_url(),
+            quick_add_dismiss=self._is_quickadd(),
+        )
         if self._is_quickadd():
             return self._render_quickadd(request, form)
         context = {
@@ -473,7 +478,13 @@ class SubscriptionAssignmentCreateView(LoginRequiredMixin, PermissionRequiredMix
         content_type = get_object_or_404(ContentType, id=content_type_id)
         target_obj = get_object_or_404(content_type.model_class().objects.all(), id=object_id)
 
-        form = forms.SubscriptionAssignmentForm(request.POST, content_type=content_type, object_id=object_id)
+        form = forms.SubscriptionAssignmentForm(
+            request.POST,
+            content_type=content_type,
+            object_id=object_id,
+            cancel_url=target_obj.get_absolute_url(),
+            quick_add_dismiss=self._is_quickadd(),
+        )
         if form.is_valid():
             assignment = form.save(commit=False)
             assignment.assigned_by = request.user

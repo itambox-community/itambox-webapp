@@ -5,11 +5,11 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Supplier, Warranty
-from core.forms import TenantScopedFormMixin
+from core.forms import CrispyFormMixin, TenantScopedFormMixin, cancel_button
 from core.managers import Scope
 
 
-class WarrantyForm(TenantScopedFormMixin, forms.ModelForm):
+class WarrantyForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
     start_date = forms.DateField(
         widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         required=True,
@@ -88,6 +88,6 @@ class WarrantyForm(TenantScopedFormMixin, forms.ModelForm):
             "notes",
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href={cancel_url!r} class="btn btn-outline-secondary ms-2">Cancel</a>'),
+            cancel_button(cancel_url, dismiss=self.quick_add_dismiss),
             HTML("</div>"),
         )

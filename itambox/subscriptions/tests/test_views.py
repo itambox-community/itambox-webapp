@@ -2,6 +2,7 @@ import re
 from datetime import date
 from decimal import Decimal
 
+import html5lib
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
@@ -314,6 +315,43 @@ class SubscriptionAssignmentViewTests(TestCase):
         resp = self.client.get(f"{url}?content_type={self.asset_ct.pk}&object_id={self.asset.pk}")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Assign Subscription")
+
+    def test_assignment_create_view_cancel_remains_a_navigation_link(self):
+        url = reverse("subscriptions:subscriptionassignment_create")
+        resp = self.client.get(f"{url}?content_type={self.asset_ct.pk}&object_id={self.asset.pk}")
+        document = html5lib.parse(resp.content, namespaceHTMLElements=False)
+        cancel_links = [
+            link for link in document.iter("a") if "Cancel" in "".join(link.itertext()) and link.attrib.get("href")
+        ]
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(cancel_links), 1)
+        self.assertEqual(cancel_links[0].attrib["href"], self.asset.get_absolute_url())
+        self.assertNotIn("data-bs-dismiss", cancel_links[0].attrib)
+
+    def test_assignment_quick_add_cancel_dismisses_and_fragments_have_no_scripts(self):
+        url = (
+            f"{reverse('subscriptions:subscriptionassignment_create')}?"
+            f"content_type={self.asset_ct.pk}&object_id={self.asset.pk}&_quickadd=1"
+        )
+        responses = (
+            self.client.get(url),
+            self.client.post(url, data={}, HTTP_HX_REQUEST="true"),
+        )
+
+        for response in responses:
+            self.assertEqual(response.status_code, 200)
+            self.assertTemplateUsed(response, "generic/includes/quick_add_modal.html")
+            document = html5lib.parse(response.content, namespaceHTMLElements=False)
+            self.assertFalse(list(document.iter("script")), "quick-add fragments must not include script elements")
+            self.assertFalse(
+                [link for link in document.iter("a") if "Cancel" in "".join(link.itertext())],
+                "quick-add Cancel must not be a navigable anchor",
+            )
+            cancel_buttons = [button for button in document.iter("button") if "Cancel" in "".join(button.itertext())]
+            self.assertEqual(len(cancel_buttons), 1)
+            self.assertEqual(cancel_buttons[0].attrib.get("type"), "button")
+            self.assertEqual(cancel_buttons[0].attrib.get("data-bs-dismiss"), "modal")
 
     def test_assignment_create_view_post(self):
         url = reverse("subscriptions:subscriptionassignment_create")

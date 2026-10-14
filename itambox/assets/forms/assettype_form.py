@@ -7,11 +7,10 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.urls import reverse
-from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from assets.customfields import resolve_effective_custom_fields
-from core.forms import SlugModelForm, TenantScopedFormMixin
+from core.forms import SlugModelForm, TenantScopedFormMixin, cancel_button
 from extras.customfields import (
     CustomFieldModelFormMixin,
     build_custom_field_form_field,
@@ -486,7 +485,7 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
                 Fieldset(_("Additional Information"), "comments", Row(Column("tags", css_class="col-md-8"))),
                 HTML('<div class="mt-3">'),
                 Submit("submit", button_text, css_class="btn btn-primary"),
-                HTML(format_html('<a href="{}" class="btn btn-outline-secondary ms-2">Cancel</a>', cancel_url)),
+                cancel_button(cancel_url, dismiss=self.quick_add_dismiss),
                 HTML("</div>"),
             ]
         )

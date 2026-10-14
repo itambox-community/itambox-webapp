@@ -10,7 +10,8 @@
             action="{{ request.get_full_path }}"
             hx-post="{{ request.get_full_path }}"
             hx-target="#quick-add-modal-content"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            hx-boost="false">
         {% csrf_token %}
         <div class="modal-header">
           <h5 class="modal-title">{% translate "Add" %} {{ model_label }}</h5>

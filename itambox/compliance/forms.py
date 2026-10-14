@@ -14,7 +14,14 @@ from assets.services import (
     issue_repair_loaner,
 )
 from compliance.registry import signature_providers
-from core.forms import FilterForm, TenantScopedFormMixin, scope_tenant_field, scope_tenant_group_field
+from core.forms import (
+    CrispyFormMixin,
+    FilterForm,
+    TenantScopedFormMixin,
+    cancel_button,
+    scope_tenant_field,
+    scope_tenant_group_field,
+)
 from core.managers import Scope
 from extras.models import Tag
 from organization.models import Tenant, TenantGroup
@@ -28,7 +35,7 @@ class AssetMaintenanceFilterForm(FilterForm):
     filterset_class = AssetMaintenanceFilterSet
 
 
-class AssetMaintenanceForm(TenantScopedFormMixin, forms.ModelForm):
+class AssetMaintenanceForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
     """Record a maintenance and, for a repair, its loaner story in one step (#644).
 
     A repair maintenance is the anchor: the optional **Issue loaner** section
@@ -177,7 +184,7 @@ class AssetMaintenanceForm(TenantScopedFormMixin, forms.ModelForm):
             [
                 HTML('<div class="mt-3">'),
                 Submit("submit", button_text, css_class="btn btn-primary"),
-                HTML(f'<a href={cancel_url!r} class="btn btn-outline-secondary ms-2">{_("Cancel")}</a>'),
+                cancel_button(cancel_url, dismiss=self.quick_add_dismiss),
                 HTML("</div>"),
             ]
         )
