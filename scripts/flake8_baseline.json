@@ -12,14 +12,6 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/forms/assetrole_form.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            Fieldset(\n                \"\",\n                Row(\n                    Column(\"name\", css_class=\"col-md-6\"),\n                    Column(\"slug\", css_class=\"col-md-6\"),\n                ),\n                \"description\",\n                Row(\n                    Column(\"color\", css_class=\"col-md-4\"),\n                    Column(\"allows_components\", css_class=\"col-md-4 mt-4\"),\n                ),\n                \"tags\",\n            ),\n            Row(\n                Column(Submit(\"submit\", _(\"Save\"), css_class=\"btn btn-primary\"), css_class=\"col\"),\n                Column(\n                    HTML(\n                        f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\" data-no-dirty-track=\"true\">Cancel</a>'\n                    ),\n                    css_class=\"col text-end\",\n                ),\n            ),\n        )",
-      "context": "Module:body/ClassDef:AssetRoleForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/forms/category_form.py",
       "code": "B907",
       "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
@@ -265,14 +257,6 @@
       "message": "'BaseFilterSet.__init__' is too complex (13)",
       "source": "    def __init__(self, *args, **kwargs):",
       "context": "Module:body/ClassDef:BaseFilterSet:body/FunctionDef:__init__:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/forms/mixins.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return [\n            HTML('<div class=\"mt-4\"></div>'),\n            Submit(\"submit\", label, css_class=\"btn btn-primary\"),\n            HTML(\n                f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\" '\n                f'data-no-dirty-track=\"true\">{_(\"Cancel\")}</a>'\n            ),\n        ]",
-      "context": "Module:body/ClassDef:CrispyFormMixin:body/FunctionDef:action_buttons:body",
       "count": 1
     },
     {
