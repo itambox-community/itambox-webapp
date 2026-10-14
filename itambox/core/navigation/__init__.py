@@ -97,7 +97,7 @@ def get_model_item(app_label, model_name, label, actions=("add", "import")):
     )
 
 
-def get_model_buttons(app_label, model_name, actions=("add", "import")):
+def get_model_buttons(app_label, model_name, actions=("add", "import"), import_title=None):
     buttons = []
 
     if "add" in actions:
@@ -124,7 +124,7 @@ def get_model_buttons(app_label, model_name, actions=("add", "import")):
             buttons.append(
                 MenuItemButton(
                     link=f"/import/{app_label}/{model_name}/",
-                    title=_("Import"),
+                    title=import_title or _("Import"),
                     icon_class="mdi mdi-upload",
                     permissions=[f"{app_label}.add_{model_name}"],
                     color="outline text-success",
