@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 
-from assets.models import Asset, AssetType, Manufacturer, StatusLabel
+from assets.models import Asset, AssetType, Manufacturer, StatusLabel, Supplier
 from extras.models import CustomField
 
 CARD_HEADING = "mdi-form-textbox"
@@ -52,11 +52,16 @@ class AssetTypeDetailCustomFieldsCardTests(TestCase):
         self.assertIn("kept visible", content)
 
     def test_other_custom_field_model_keeps_generic_card(self):
-        response = self.client.get(reverse("assets:asset_detail", kwargs={"pk": self.asset.pk}))
+        field = CustomField.objects.create(
+            name="vendor_code", label="Vendor Code", activation=CustomField.ACTIVATION_GLOBAL
+        )
+        field.object_types.add(ContentType.objects.get_for_model(Supplier))
+        supplier = Supplier.objects.create(name="CF827 Supplier", custom_field_data={"vendor_code": "V9"})
+        response = self.client.get(reverse("assets:supplier_detail", kwargs={"pk": supplier.pk}))
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
         self.assertIn(CARD_HEADING, content)
-        self.assertIn("Rack Code", content)
+        self.assertIn("Vendor Code", content)
 
 
 class AssetTypeFurtherStoredValuesTests(TestCase):
