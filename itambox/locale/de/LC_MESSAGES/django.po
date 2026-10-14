@@ -7493,6 +7493,15 @@ msgstr "Aktive physische Assets dieses Typs"
 msgid "System Hardware Specifications"
 msgstr "System-Hardware-Spezifikationen"
 
+msgid "Further stored values"
+msgstr "Weitere gespeicherte Werte"
+
+msgid "Not in current specification"
+msgstr "Nicht in der aktuellen Spezifikation"
+
+msgid "Unknown field"
+msgstr "Unbekanntes Feld"
+
 msgid "Color:"
 msgstr "Farbe:"
 

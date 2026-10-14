@@ -33,13 +33,20 @@ class AssetTypeListView(ObjectListView):
 
 
 def _unresolved_custom_values(assettype, specification_fields):
-    """Stored values outside the resolved specification set, as (label, value) pairs."""
+    """Stored values outside the resolved specification set (historical or unknown keys).
+
+    Each entry carries the key, the definition label when a definition exists, and the raw value.
+    A later type-aware renderer replaces this block without touching the resolved-field block.
+    """
     covered = {resolved.definition.name for resolved in specification_fields}
     stored = {name: value for name, value in (assettype.custom_field_data or {}).items() if name not in covered}
     if not stored:
         return []
     labels = dict(CustomField.objects.filter(name__in=stored).values_list("name", "label"))
-    return [(labels.get(name) or name, value) for name, value in sorted(stored.items())]
+    return [
+        {"key": name, "label": labels.get(name), "known": name in labels, "value": value}
+        for name, value in sorted(stored.items())
+    ]
 
 
 class AssetTypeDetailView(ObjectDetailView):
