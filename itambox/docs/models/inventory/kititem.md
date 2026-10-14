@@ -25,7 +25,7 @@ A database-level check constraint (`chk_kit_item_single_target`) enforces that *
 Python-level validation in `clean()` provides the same guard with descriptive error messages.
 
 When a kit is checked out:
-- **Asset Type** slots require an explicitly selected, distinct deployable asset matching that type; the system does not choose an arbitrary device for the operator.
+- **Asset Type** slots require the operator to select an eligible concrete asset for each hardware slot, and each selected asset must be distinct. The former implicit "first matching asset" substitution was removed; the system does not choose a device for the operator.
 - **Accessory** and **Component** slots deduct from inventory stock and create assignment records.
 - **Consumable** slots decrement on-hand stock.
 - **License** slots reserve a seat from the linked license pool.

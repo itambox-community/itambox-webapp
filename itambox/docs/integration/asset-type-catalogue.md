@@ -1,6 +1,14 @@
-# Author Asset Type YAML
+# Asset Type YAML Authoring
 
-Use this guide to add a hardware model and its manufacturer specifications to the shared Asset Type catalogue. This is a special YAML import, not the generic importer format for most other models.
+Use this guide to import a hardware model and its specifications into the current ITAMbox deployment. This is a special YAML import, not the generic importer format used for most other models.
+
+## Before you start
+
+- You need an account with the asset-type import permission (`assets.add_assettype`) and provider catalogue access. Without it the import page and `can_import` refuse the actor.
+- To let the import create a missing Manufacturer, you also need `assets.add_manufacturer`.
+- Any `category` you supply must already exist in your deployment. The importer never creates a category.
+- An `asset_role`, if you supply one, must already exist.
+- The Manufacturer and Model you name must not already exist as an Asset Type: an existing pair is skipped, not updated.
 
 ## 1. Start with an example
 
@@ -28,7 +36,7 @@ A record needs `manufacturer` and `model`. Other supported top-level keys are `s
 
 ## 2. Choose valid specification keys and values
 
-The built-in core vocabulary contains 54 active specification fields. The table below lists their stable YAML keys, value types or choices, units and fieldset memberships. Use the key exactly as written; labels are for display and are not accepted as substitutes. Quantity values are strings with a space before the canonical unit, for example `16 GiB` or `14 in`; quote them in YAML. Multi-select values are lists. Choice values are lowercase stable keys.
+The built-in core vocabulary contains 54 active specification fields. The table below lists the keys this application revision accepts, with their value types or choices, units and fieldset memberships. It is derived from that vocabulary and from the generated schema `itambox/assets/services/specifications/generated_schema.json` at the revision this page documents; re-derive it after any vocabulary change. Use the key exactly as written; labels are for display and are not accepted as substitutes. Quantity values are strings with a space before the canonical unit, for example `16 GiB` or `14 in`; quote them in YAML. Multi-select values are lists. Choice values are lowercase stable keys.
 
 `Targets` distinguishes model-level `asset_type` values from device-level `asset` observations. A field whose target is only `asset` describes an individual device and cannot be supplied as a model specification.
 
@@ -99,12 +107,12 @@ The importer accepts these existing category slugs:
 
 `access-points`, `desktops`, `firewalls`, `laptops`, `mobile-phones`, `monitors`, `printers`, `routers`, `servers`, `switches`, `tablets`, `ups`, `virtual-machines`.
 
-The category must already exist in ITAMbox. Imports do not create categories. With a category, its current default specification sections are used. If you omit the category and provide `specs`, sections are derived from the fields submitted. Review the resulting Type composition after import.
+Any category that already exists in your deployment is accepted, including locally created ones; the built-in slugs above are only the common defaults. The importer never creates a category. With a category, its current default specification sections are used. If you omit the category and provide `specs`, sections are derived from the fields submitted. Review the resulting Type composition after import.
 
 ## 4. Import and review
 
-1. Open the Asset Type import page at `/import/assets/assettype/`. This importer is available to an authenticated actor with provider catalogue access and `assets.add_assettype`.
-2. Paste or upload YAML, then review the preview. It validates the schema and previews the Type creation before starting a job. An unknown category, unsupported key, malformed quantity, or missing permission is reported before confirmation.
+1. Open the Asset Type import page at `/import/assets/assettype/`. Page access itself already requires the permissions listed under [Before you start](#before-you-start); a missing permission stops the request before any preview is shown.
+2. Paste or upload YAML, then review the preview. It validates the schema and previews the Type creation before starting a job. An unknown category, unsupported key, malformed quantity, or a row that would need a Manufacturer you may not create is reported during preview, before confirmation.
 3. If the named Manufacturer does not exist, it can be created only when the actor also has `assets.add_manufacturer`. An existing Manufacturer is matched by exact name, case-insensitive name, or slug. An `asset_role`, if supplied, must match an existing role by slug or case-insensitive name.
 4. Confirm the import, then inspect the resulting job for row outcomes. An existing Asset Type for the same Manufacturer and case-insensitive Model name is **skipped**, not updated. Correct an existing Type through its edit workflow; re-importing is not an update mechanism.
 5. Open the imported Type and review its selected specification sections and model-level values. Section composition controls which fields are available. See [Asset Types](../models/assets/assettype.md) and [Custom Fields](../usage/custom-fields.md) for editing fields, sections, and per-asset observations.
@@ -130,4 +138,4 @@ The importer validates model-level values through the same specification command
 | Existing Type is reported as skipped | Imports do not update existing Manufacturer/Model pairs. Edit the Type directly. |
 | Category is unknown | Use an existing category slug from the list; category creation is not part of this import. |
 
-The schema is generated from the application's core vocabulary by `manage.py export_catalogue_schema`. Do not hand-edit the generated schema or copy the vocabulary into another hand-maintained key list.
+The schema is generated from the application's core vocabulary by `manage.py export_catalogue_schema`, which writes the committed `generated_schema.json` by default and accepts `--output`. The field table above is a rendered view of that schema and is kept in step with it; treat the generated schema as the authority and re-render the table rather than editing either copy by hand.

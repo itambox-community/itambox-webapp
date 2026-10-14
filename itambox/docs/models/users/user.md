@@ -11,7 +11,7 @@ permissions. See [API Tokens, SCIM Provisioning & RBAC](../../usage/api-tokens-a
 | **Date Joined** | The date and time when the account was registered. | Date Time | Yes |
 | **Email Address** | Email contact address for notifications. | String | No |
 | **First Name** | User's first name. | String | No |
-| **Can Login** | Allows or blocks interactive password and SSO login. This is separate from `is_active` and API-token access; setting it false does not revoke API tokens. | Boolean | Yes (default true) |
+| **Can Login** | Controls whether the account may perform an interactive login. This is separate from `is_active` and from API-token access; setting it false does not revoke existing API tokens. | Boolean | Yes (default true) |
 | **Groups** | Django auth groups. Application RBAC uses tenant `UserGroup` and `GroupMembership` records instead. | Many-to-Many | No |
 | **Active** | Flag specifying if the account is active. Accounts should be deactivated instead of deleted to preserve audit trails. | Boolean | Yes |
 | **Staff Status** | Designates whether the user can access administrative portals. | Boolean | Yes |
@@ -24,6 +24,6 @@ permissions. See [API Tokens, SCIM Provisioning & RBAC](../../usage/api-tokens-a
 
 ## Features & Validation
 
-* **Login control**: `can_login` is editable only by superusers and controls interactive login, not API-token revocation.
+* **Privilege fields**: `can_login`, `is_staff` and `is_superuser` are editable only by superusers. Disabling `can_login` does not revoke API tokens.
 * **Account status**: `is_active` is distinct from `can_login`; memberships are independently active/inactive.
 * **Audit Trails**: Changes are recorded in the system changelog where change logging applies.

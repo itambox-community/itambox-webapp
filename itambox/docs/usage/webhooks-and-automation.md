@@ -228,7 +228,7 @@ webhook or an in-app notification.
 | **Model** | Yes | The Django model to watch. Only models that emit events are listed (anything inheriting `ChangeLoggingMixin`). |
 | **Events** | Yes | The change types that trigger the rule: any of `create`, `update`, `delete`, `restore`, `checkout`, `checkin`. |
 | **Action Type** | Yes | `Webhook` (calls an endpoint) or `Notification` (in-app alert) |
-| **Webhook** | Cond. | The Webhook Endpoint to call. Required when action type is `Webhook`. |
+| **Webhook** | Cond. | The Webhook Endpoint to call. The form requires a linked endpoint for a `Webhook` rule and offers `action_config` only as a legacy fallback target. |
 | **Conditions** | No | Preserved JSON conditions; authored conditions are read-only and withdrawn for 1.0 (see below) |
 | **Action Config** | No | Legacy fallback target settings (`url`, `method`, `headers`, `secret`) when no Webhook Endpoint is linked; it does not define a custom payload template |
 | **Payload Preset** | No | UI selector (`Custom`, `Slack Block Kit`, `Microsoft Teams (Adaptive Card)`). It does not define or override the outbound body. |

@@ -335,9 +335,11 @@ Reservations integrate with ITAMbox's checkout workflow:
 3. When the device is returned, check it in through the assignment workflow.
    Update the reservation status separately; check-in does not fulfill it.
 
-The checkout guard checks for a conflicting pending or active reservation
-against the current checkout target. It does not guarantee that a future loan
-window is reserved by an assignment.
+A pending or active reservation for the same asset blocks checkout to any other
+holder, location or asset target. Checkout to the reservation's designated holder
+is allowed through, and a reservation without a holder blocks nobody by that
+exception. The guard cannot guarantee that a future loan window will be covered
+by an assignment.
 
 ### Reservation Calendar View
 

@@ -25,6 +25,6 @@ Templates may be scoped to a tenant, a tenant group, or globally. Checkout selec
 
 ## EULA Overrides & Precedence
 
-At checkout, ITAMbox looks for an active template matching the AssetHolder's tenant and the asset's category, then that tenant's group and the same category, then a global template for that category when `ALLOW_GLOBAL_CUSTODY_TEMPLATES` is enabled. There is no category-less tenant fallback and no fallback to EULA text stored on the Category. If no matching template requiring acceptance is found, this checkout does not create a custody receipt.
+At checkout, ITAMbox looks for an active template matching the AssetHolder's tenant and the asset's category, then that tenant's group and the same category, then a global template for that category when `ALLOW_GLOBAL_CUSTODY_TEMPLATES` is enabled. There is no category-less tenant fallback and no fallback to EULA text stored on the Category. If no template resolves at all, or if the resolved template does not require acceptance, this checkout creates no custody receipt. Resolution selects the highest-priority matching template and then checks that one; it does not continue down the scope list looking for a template that requires acceptance.
 
 Checkout records the asset assignment before the holder accepts the receipt. A pending or declined receipt does not itself return the asset; operators must arrange and record check-in when the device is physically returned. See [Custody Receipts](custodyreceipt.md) for the signing and handoff lifecycle.

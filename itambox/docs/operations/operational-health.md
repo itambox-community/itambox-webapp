@@ -50,8 +50,7 @@ which is distinct from an empty or healthy state.
 ## Catch-up versus a stall
 
 The configured django-q2 scheduler uses `catch_up=True`: after downtime it
-replays missed occurrences for **registered schedules**, one occurrence per
-scheduler pass, until it catches up. This does not replay arbitrary queued
+replays missed occurrences for **registered schedules** until it catches up. This does not replay arbitrary queued
 tasks or work that was never registered as a schedule. During catch-up,
 `next_run` advances and a replay within the grace period is not flagged. A
 schedule that remains overdue beyond the grace period is a stall. The

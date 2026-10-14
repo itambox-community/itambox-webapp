@@ -254,7 +254,7 @@ many-to-many relationship.
 1. Go to **Extras → Notification Channels** and click **Add**.
 2. Set **Channel Type** to `Email`.
 3. Enter the addresses in **Recipient email addresses** (comma- or
-   newline-separated). This UI form does not ask you to enter Config JSON.
+   newline-separated). The form builds the stored configuration for you.
    The following shows the channel's stored configuration shape, not a form field:
 
 ```json

@@ -132,7 +132,7 @@ The import process follows a two-phase UI flow to ensure data integrity and prov
 | `order_number` | No | String | Purchase order number |
 | `notes` | No | Text | Additional notes |
 
-### Asset Type (specialized type importer)
+### Asset Type (specialised type importer)
 
 | Column | Required | Type | Description |
 |--------|----------|------|-------------|
@@ -169,7 +169,8 @@ manufacturer is created only when the importer actor has
 the importer does not create either. Category should be an existing category
 slug. With a category, its configured fieldset defaults are applied; without
 one, the importer derives sections from supplied specification keys. The
-preview validates the record before confirmation. `specs` keys, choices, and
+preview validates the record before confirmation. Any category slug that already
+exists in the deployment is accepted. `specs` keys, choices, and
 canonical units are listed in the [Asset Type YAML authoring
 guide](asset-type-catalogue.md); the upstream community contribution rules are
 in the [type-library contributor
@@ -261,7 +262,7 @@ fields or fieldsets.
 | Model | Required Fields | Optional Fields |
 |-------|----------------|-----------------|
 | **Asset** | `name` | `asset_tag`, `serial_number`, `purchase_date`, `purchase_cost`, `order_number`, `notes` |
-| **Asset Type** | `manufacturer`, `model` | `part_number`, `ean`, `category`, `asset_role`, `description`, `comments`, specialized `specs` mapping |
+| **Asset Type** | `manufacturer`, `model` | `slug`, `part_number`, `ean`, `category`, `asset_role`, `description`, `comments`, specialised `specs` mapping |
 | **Manufacturer** | `name` | `slug`, `description` |
 | **Location** | `name`, `site` | `slug`, `status`, `parent`, `facility`, `description` |
 | **Accessory** | `name`, `manufacturer` | `category`, `slug`, `part_number`, `min_qty`, `notes` |

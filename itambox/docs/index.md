@@ -1,6 +1,6 @@
 # ITAMbox
 
-ITAMbox records hardware assets, inventory, software licenses, SaaS subscriptions, procurement and related operational data. Access to records is scoped through the application's tenant and role controls. This documentation describes the interfaces and behaviors available in the application; the [Capability Maturity](operations/capability-maturity.md) guide lists feature status and prerequisites.
+ITAMbox records hardware assets, inventory, software licenses, SaaS subscriptions, procurement and related operational data. Access to records is scoped through the application's tenant and role controls. This documentation describes the interfaces and behaviour available in the application; the [Capability Maturity](operations/capability-maturity.md) guide lists feature status and prerequisites.
 
 ## Main areas
 

@@ -57,8 +57,7 @@ For a one-shot summary of worker, scheduler, queue and failure state run
 
 If a worker was down, distinguish registered scheduler occurrences from other
 work. The configured django-q2 scheduler has `catch_up=True`: it replays missed
-occurrences for registered schedules, one occurrence per scheduler pass, until
-it catches up. Check the schedule's `next_run`/status and allow that replay to
+occurrences for registered schedules until it catches up. Check the schedule's `next_run`/status and allow that replay to
 proceed before considering manual execution; an ad hoc invocation can duplicate
 the effect. Catch-up does not replay arbitrary queued tasks or work that was
 never registered as a schedule. For an unscheduled operation, first verify its
