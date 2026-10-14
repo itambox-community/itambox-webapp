@@ -283,13 +283,13 @@
         </div>
       </div>
       {# 3. Hardware Specifications Card (Conditional Check) #}
-      {% if asset_type_specification_fields or object.component_allocations.all %}
+      {% if asset_type_spec_panel or object.component_allocations.all %}
         <div class="card mb-3 shadow-sm">
           <div class="card-body">{% include 'assets/includes/detail/asset_specs.html' %}</div>
         </div>
       {% endif %}
       {# 4. Custom Specifications Card (Conditional Check) #}
-      {% if object.custom_field_data %}
+      {% if asset_spec_panel %}
         <div class="card mb-3 shadow-sm">
           <div class="card-body">{% include 'assets/includes/detail/asset_custom_fields.html' %}</div>
         </div>

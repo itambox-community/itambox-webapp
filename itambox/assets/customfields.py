@@ -174,3 +174,17 @@ def asset_type_custom_field_definitions(asset_type):
 def asset_custom_field_definitions(asset):
     """Resolve Asset definitions for the shared value-data validator."""
     return resolve_asset_custom_fields(asset.asset_type, asset.custom_field_data)
+
+
+def composed_fieldsets(asset_type):
+    """Return the ordered fieldsets composed on an Asset Type (prefetch aware)."""
+    return _composed_fieldsets(asset_type) if asset_type is not None else []
+
+
+def fetch_definitions_by_name(names):
+    """Load definitions (with all choices) for stored keys the composition does not resolve."""
+    found = {}
+    queryset = CustomField.objects.filter(name__in=list(names)).prefetch_related("choice_set__choices")
+    for definition in queryset.order_by("namespace", "name"):
+        found.setdefault(definition.name, definition)
+    return found

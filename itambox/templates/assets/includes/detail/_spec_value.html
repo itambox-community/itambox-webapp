@@ -1,0 +1,23 @@
+{% load i18n %}
+{% comment %}Renders ONE SpecDisplayEntry (assets/spec_display.py). Each surface keeps its own layout.{% endcomment %}
+{% if entry.kind == 'boolean' %}
+  {% if entry.flag %}<span class="badge bg-green">{% translate "Yes" %}</span>{% else %}<span class="badge bg-secondary">{% translate "No" %}</span>{% endif %}
+{% elif entry.kind == 'number' %}
+  <span{% if entry.raw %} title="{{ entry.raw }}"{% endif %}>{{ entry.text }}{% if entry.unit %} {{ entry.unit }}{% endif %}</span>
+{% elif entry.kind == 'chips' %}
+  <span class="d-inline-flex flex-wrap gap-1"{% if entry.raw %} title="{{ entry.raw }}"{% endif %}>
+    {% for item in entry.items %}
+      <span class="badge bg-secondary-lt" title="{{ item.key }}">{{ item.text }}{% if item.state == 'deprecated' %} <small class="text-muted">({% translate "Deprecated" %})</small>{% elif item.state == 'unknown_value' %} <small class="text-warning">({% translate "unknown value" %})</small>{% elif item.state == 'invalid' %} <small class="text-warning">({% translate "invalid" %})</small>{% endif %}</span>
+    {% endfor %}
+  </span>
+{% elif entry.kind == 'choice' %}
+  {% if entry.state == 'unknown_value' %}
+    <code title="{{ entry.raw }}">{{ entry.text }}</code> <small class="text-warning">({% translate "unknown value" %})</small>
+  {% else %}
+    <span title="{{ entry.raw }}">{{ entry.text }}</span>{% if entry.state == 'deprecated' %} <small class="text-muted">({% translate "Deprecated" %})</small>{% endif %}
+  {% endif %}
+{% elif entry.kind == 'unknown' %}
+  <code>{{ entry.text }}</code>
+{% else %}
+  <span class="text-break"{% if entry.raw %} title="{{ entry.raw }}"{% endif %}>{{ entry.text }}</span>{% if entry.state == 'invalid' %} <small class="text-warning">({% translate "invalid" %})</small>{% endif %}
+{% endif %}

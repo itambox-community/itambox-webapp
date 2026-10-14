@@ -1,49 +1,12 @@
-{% load i18n utility_tags %}
-{% if specification_fields or specification_extra_values %}
+{% load i18n %}
+{% if spec_panel %}
   <div class="card border-0 specs-container shadow-none">
     <div class="card-body">
       <h4 class="card-title text-secondary mb-3 d-flex align-items-center">
         <i class="mdi mdi-information-outline me-2 text-primary"></i>
         {% translate "System Hardware Specifications" %}
       </h4>
-      <div class="row g-3">
-        {% for resolved in specification_fields %}
-          {% with field=resolved.definition val=object.custom_field_data|lookup:resolved.definition.name %}
-            {% if val is not None and val != "" %}
-              <div class="col-md-6">
-                <div class="text-muted small">{{ field.label }}</div>
-                <div class="fw-semibold">{{ val }}</div>
-              </div>
-            {% endif %}
-          {% endwith %}
-        {% endfor %}
-      </div>
-      {% if specification_extra_values %}
-        <hr class="my-3">
-        <h5 class="h5 card-title text-muted small mb-2">{% translate "Further stored values" %}</h5>
-        <div class="row g-2 text-muted">
-          {% for item in specification_extra_values %}
-            <div class="col-md-6">
-              <div class="small">
-                {% if item.known %}
-                  {{ item.label }}
-                  <span class="badge bg-secondary-lt ms-1">{% translate "Not in current specification" %}</span>
-                {% else %}
-                  <code>{{ item.key }}</code>
-                  <span class="badge bg-warning-lt ms-1">{% translate "Unknown field" %}</span>
-                {% endif %}
-              </div>
-              <div>
-                {% if item.value is None or item.value == "" %}
-                  -
-                {% else %}
-                  {{ item.value }}
-                {% endif %}
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
+      {% include 'assets/includes/detail/_spec_panel_body.html' with panel=spec_panel %}
     </div>
   </div>
 {% endif %}

@@ -1,29 +1,9 @@
 {% load i18n %}
 {# Panel: Custom field values #}
-{% load utility_tags %}
-{% if object.custom_field_data %}
+{% if asset_spec_panel %}
   <h4 class="card-title text-secondary mb-3 d-flex align-items-center">
     <i class="mdi mdi-package-variant me-2 text-primary"></i>
     {% translate "Custom Specifications" %}
   </h4>
-  <div class="row g-3">
-    {% for key, val in object.custom_field_data.items %}
-      {% if val is not None and val != "" %}
-        <div class="col-md-6">
-          <div class="d-flex align-items-center mb-1">
-            <strong class="text-secondary small uppercase">{{ key|humanize_key }}</strong>
-          </div>
-          <div class="ms-0 font-weight-medium">
-            {% if val == True or val == "True" %}
-              <span class="badge bg-success-lt">{% translate "Yes" %}</span>
-            {% elif val == False or val == "False" %}
-              <span class="badge bg-danger-lt">{% translate "No" %}</span>
-            {% else %}
-              {{ val }}
-            {% endif %}
-          </div>
-        </div>
-      {% endif %}
-    {% endfor %}
-  </div>
+  {% include 'assets/includes/detail/_spec_panel_body.html' with panel=asset_spec_panel %}
 {% endif %}

@@ -1,41 +1,17 @@
 {% load i18n %}
 {% load utility_tags %}
 {# Panel: Hardware specs #}
-{% if asset_type_specification_fields or object.component_allocations.all %}
+{% if asset_type_spec_panel or object.component_allocations.all %}
   <h4 class="h4 card-title text-secondary mb-3 d-flex align-items-center">
     <i class="mdi mdi-information-outline me-2 text-primary"></i>
     {% translate "Assigned System Hardware Specifications" %}
   </h4>
-  {% if asset_type_specification_fields %}
+  {% if asset_type_spec_panel %}
     <div class="mb-3 text-muted small">{% translate "Values inherited from the selected Asset Type" %}</div>
-    <div class="row g-3">
-      {% for resolved in asset_type_specification_fields %}
-        {% with field=resolved.definition val=object.asset_type.custom_field_data|lookup:resolved.definition.name %}
-          {% if val is not None and val != "" %}
-            <div class="col-md-6">
-              <div class="d-flex align-items-center mb-1">
-                <span class="badge bg-blue-lt me-2 p-1.5"><i class="mdi mdi-chip"></i></span>
-                <strong class="text-secondary small uppercase">{{ field.label }}</strong>
-              </div>
-              <div class="ms-7 font-weight-medium">
-                {% if field.field_type == 'boolean' %}
-                  {% if val %}
-                    <span class="badge bg-green">{% translate "Yes" %}</span>
-                  {% else %}
-                    <span class="badge bg-secondary">{% translate "No" %}</span>
-                  {% endif %}
-                {% else %}
-                  {{ val }}
-                {% endif %}
-              </div>
-            </div>
-          {% endif %}
-        {% endwith %}
-      {% endfor %}
-    </div>
+    {% include 'assets/includes/detail/_spec_panel_body.html' with panel=asset_type_spec_panel %}
   {% endif %}
   {% if object.component_allocations.all %}
-    {% if asset_type_specification_fields %}
+    {% if asset_type_spec_panel %}
       <hr class="my-4">
     {% endif %}
     <h5 class="h5 text-secondary uppercase mb-3 d-flex align-items-center">

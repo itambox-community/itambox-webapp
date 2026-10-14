@@ -16,9 +16,15 @@ from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
 from assets.choices import RequestStatusChoices
-from assets.customfields import resolve_asset_custom_fields, resolve_asset_type_custom_fields
+from assets.customfields import (
+    composed_fieldsets,
+    fetch_definitions_by_name,
+    resolve_asset_custom_fields,
+    resolve_asset_type_custom_fields,
+)
 from assets.services.request_authorization import can_asset_request_action, is_self_service_claim
 from assets.services.timeline import build_asset_timeline
+from assets.spec_display import build_spec_panel
 from assets.tasks.labels import _default_label_card, generate_base64_barcode, render_labels_pdf
 from compliance.audit_services import audit_asset_from_form
 from compliance.models import CustodyReceipt
@@ -127,10 +133,20 @@ class AssetDetailView(ObjectDetailView):
 
         active_assignment = asset.active_assignment
         context["assignment"] = active_assignment
-        context["asset_type_specification_fields"] = (
-            resolve_asset_type_custom_fields(asset.asset_type) if asset.asset_type else []
+        type_fields = resolve_asset_type_custom_fields(asset.asset_type) if asset.asset_type else []
+        context["asset_type_specification_fields"] = type_fields
+        fieldsets = composed_fieldsets(asset.asset_type)
+        context["asset_type_spec_panel"] = build_spec_panel(
+            type_fields,
+            asset.asset_type.custom_field_data if asset.asset_type else {},
+            fieldsets,
+            include_further=False,
         )
-        context["asset_specification_fields"] = resolve_asset_custom_fields(asset.asset_type, asset.custom_field_data)
+        own_fields = resolve_asset_custom_fields(asset.asset_type, asset.custom_field_data)
+        context["asset_specification_fields"] = own_fields
+        context["asset_spec_panel"] = build_spec_panel(
+            own_fields, asset.custom_field_data, fieldsets, definitions_loader=fetch_definitions_by_name
+        )
 
         sw_qs = (
             InstalledSoftware.objects.for_scope(Scope.current())
