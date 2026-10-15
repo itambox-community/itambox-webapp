@@ -43,11 +43,6 @@ Built for both internal IT departments and MSPs, ITAMbox combines a broad asset-
   <img src="assets/readme/hero-tour.webp" width="900" alt="Product tour: asset search, check-out basket, license seats and tenant switching">
 </p>
 
-<p align="center">
-  <strong>Mobile dashboard</strong><br>
-  <img src="assets/readme/dashboard-mobile.webp" width="390" alt="ITAMbox mobile dashboard with operations overview, stock alerts, and subscription renewals">
-</p>
-
 ## ITAMbox's Role
 
 ITAMbox serves as the operational system of record for IT assets and the decisions around them. It records what exists, where it is, who is responsible for it, how it was acquired, what it costs, which software, licenses, subscriptions, suppliers, and contracts relate to it, and what happened throughout its lifecycle.
@@ -153,6 +148,11 @@ Architecture boundaries, implementation conventions, test lanes, and contributor
 <p align="center">
   <strong>Audit campaigns</strong><br>
   <img src="assets/readme/audit.webp" width="900" alt="ITAMbox audit campaign with expected assets and scan results">
+</p>
+
+<p align="center">
+  <strong>Mobile dashboard</strong><br>
+  <img src="assets/readme/dashboard-mobile.webp" width="390" alt="ITAMbox mobile dashboard with operations overview, stock alerts, and subscription renewals">
 </p>
 
 ## Documentation
