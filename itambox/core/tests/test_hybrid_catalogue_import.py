@@ -5,6 +5,8 @@ import writes into the active tenant only, never creates, matches or changes a
 shared entry, resolves references by natural key, and never writes stock.
 """
 
+import json
+
 import pytest
 from django.test import RequestFactory
 
@@ -203,6 +205,74 @@ class TestHybridCatalogueImport(TenantTestMixin):
         other = Tenant.objects.create(name="Foreign", slug="foreign")
         self._run("software", "software", [{"name": "Editor", "manufacturer": "Acme", "tenant": other.slug}])
         assert not Software.all_objects.filter(name="Editor").exists()
+
+    def _preview(self, model_name, rows, permissions=None):
+        model = Software if model_name == "software" else Component
+        form = get_registered_import_form(model)(
+            data={"import_format": "yaml", "active_tab": "editor", "import_text": json.dumps(rows)}
+        )
+        form.actor = self.tenant_user
+        return form
+
+    def test_preview_accepts_valid_rows_without_writing_anything(self):
+        self._setup()
+        form = self._preview("software", [{"name": "Editor", "manufacturer": "Acme"}])
+        assert form.is_valid(), form.errors
+        assert not Software.all_objects.filter(name="Editor").exists()
+
+    def test_preview_errors_are_per_row_and_name_the_column(self):
+        self._setup()
+        form = self._preview(
+            "software",
+            [{"name": "Good", "manufacturer": "Acme"}, {"name": "Bad", "manufacturer": "Nobody"}],
+        )
+        assert not form.is_valid()
+        message = " | ".join(form.errors["__all__"])
+        assert "Row 3" in message and "manufacturer" in message
+        assert "Row 2" not in message
+
+    def test_preview_rejects_the_tenant_column_for_the_file(self):
+        self._setup()
+        form = self._preview("software", [{"name": "Editor", "manufacturer": "Acme", "tenant": "x"}])
+        assert not form.is_valid()
+        assert "tenant column" in " ".join(form.errors["__all__"])
+
+    def test_preview_refuses_a_shared_entry(self):
+        self._setup()
+        Software.objects.create(name="Shared Suite", manufacturer=self.maker, tenant=None)
+        form = self._preview("software", [{"name": "Shared Suite", "manufacturer": "Acme"}])
+        assert not form.is_valid()
+        assert "shared entries are not changed by an import" in " ".join(form.errors["__all__"])
+
+    def test_preview_reports_a_row_without_change_permission_as_a_note(self):
+        self._setup(permissions=["software.add_software"])
+        Software.objects.create(name="Editor", manufacturer=self.maker, version="1", tenant=self.tenant)
+        form = self._preview("software", [{"name": "Editor", "manufacturer": "Acme", "version": "2"}])
+        assert form.is_valid(), form.errors
+        assert any("do not have permission" in note for note in form.row_notes)
+        assert Software.objects.get(name="Editor").version == "1"
+
+    def test_ambiguous_reference_fails_the_row(self):
+        self._setup()
+        Manufacturer.objects.create(name="Twin Corp", slug="twin-a")
+        Manufacturer.objects.create(name="TWIN CORP", slug="twin-b")
+        form = self._preview("software", [{"name": "Editor", "manufacturer": "twin corp"}])
+        assert not form.is_valid()
+        assert "more than one" in " ".join(form.errors["__all__"])
+
+    def test_preview_requires_an_active_tenant(self):
+        self._setup()
+        form = self._preview("software", [{"name": "Editor", "manufacturer": "Acme"}])
+        self.set_active_tenant(None, None)
+        assert not form.is_valid()
+        assert "active tenant" in " ".join(form.errors["__all__"])
+
+    def test_import_data_rejects_a_file_with_a_tenant_column(self):
+        self._setup()
+        form = self._preview("software", [{"name": "Editor", "manufacturer": "Acme", "tenant": "x"}])
+        form._rows_data = [{"name": "Editor", "manufacturer": "Acme", "tenant": "x"}]
+        result = form.import_data()
+        assert result.imported == 0 and result.errors
 
     def test_import_view_is_denied_in_the_all_accessible_scope(self):
         self._setup()
