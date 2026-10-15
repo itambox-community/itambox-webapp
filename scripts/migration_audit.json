@@ -3911,6 +3911,46 @@
     },
     {
       "dependencies": [
+        "extras.0129_remove_type_library",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "extras.0130_definition_translations",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/extras/migrations/0130_definition_translations.py",
+      "replaces": [],
+      "reviewed_disposition": null,
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": false,
+          "RunSQL": false,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
         "licenses.0100_issue88_shard_11_licenses_schema"
       ],
       "id": "inventory.0100_issue88_shard_12_inventory_schema",
@@ -6282,6 +6322,7 @@
     "extras.0127_retire_report_designer_legacy",
     "extras.0128_tenant_archive_leaf_markers",
     "extras.0129_remove_type_library",
+    "extras.0130_definition_translations",
     "inventory.0101_alter_accessoryassignment_options_and_more",
     "inventory.0102_kititem_leaf_deleted_at",
     "inventory.0103_stock_leaf_deleted_at",
@@ -6381,7 +6422,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 70,
+    "post_transition_migrations": 71,
     "replacement_shards": 62,
     "replacement_targets": 262
   }
