@@ -15382,6 +15382,7 @@ msgstr "unbekannter Wert"
 #: templates/assets/includes/detail/_spec_value.html
 msgid "invalid"
 msgstr "ungültig"
+
 msgid "Locale"
 msgstr "Sprache"
 
