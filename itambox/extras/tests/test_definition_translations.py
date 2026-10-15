@@ -23,7 +23,9 @@ class DefinitionTranslationRowTests(TestCase):
             namespace="local",
             label="Print speed",
             help_text="Pages per minute",
-            field_type=CustomField.FIELD_TYPE_INTEGER,
+            field_type=CustomField.FIELD_TYPE_DECIMAL,
+            decimal_scale=2,
+            quantity_kind="rate",
             activation=CustomField.ACTIVATION_COMPOSED,
             canonical_unit="pages_per_minute",
         )
