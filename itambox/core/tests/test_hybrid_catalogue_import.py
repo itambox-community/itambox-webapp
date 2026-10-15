@@ -272,7 +272,7 @@ class TestHybridCatalogueImport(TenantTestMixin):
         form = self._preview("software", [{"name": "Editor", "manufacturer": "Acme", "tenant": "x"}])
         form._rows_data = [{"name": "Editor", "manufacturer": "Acme", "tenant": "x"}]
         result = form.import_data()
-        assert result.imported == 0 and result.errors
+        assert result.imported_count == 0 and result.errors
 
     def test_import_view_is_denied_in_the_all_accessible_scope(self):
         self._setup()
