@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 from types import MappingProxyType, SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from django.core.exceptions import ValidationError
@@ -614,6 +615,35 @@ def test_registered_core_definition_may_use_the_cross_field_rule():
 
 
 @pytest.mark.parametrize(
+    ("rule", "name"),
+    [
+        ("voltage_max_gte_min", "input_voltage_max"),
+        ("runtime_requires_load", "battery_runtime_load"),
+    ],
+)
+def test_registered_core_voltage_and_runtime_rules_are_reserved(rule, name):
+    assert (
+        validate_custom_field_definition_contract(
+            field_type="decimal",
+            decimal_scale=3,
+            validation_rule=rule,
+            name=name,
+            namespace="itambox",
+            management_kind="core",
+        )
+        is None
+    )
+    assert custom_field_definition_contract_errors(
+        field_type="decimal",
+        decimal_scale=3,
+        validation_rule=rule,
+        name="user_defined",
+        namespace="local",
+        management_kind="local",
+    ) == {"validation_rule": "This cross-field rule is reserved for its registered Core definition."}
+
+
+@pytest.mark.parametrize(
     ("overrides", "expected"),
     [
         (
@@ -701,3 +731,76 @@ def test_definition_contract_validation_raises_with_per_field_errors():
         validate_custom_field_definition_contract(field_type="multi-select")
 
     assert set(excinfo.value.message_dict) == {"choice_set", "max_values"}
+
+
+def _core_vocabulary_contract_kwargs(row):
+    validation = row.get("validation", {})
+    return {
+        "field_type": row["field_type"],
+        "activation": row["activation"],
+        "quantity_kind": row["quantity_kind"],
+        "canonical_unit": row["canonical_unit"],
+        "minimum_value": Decimal(validation["minimum"]) if validation.get("minimum") is not None else None,
+        "maximum_value": Decimal(validation["maximum"]) if validation.get("maximum") is not None else None,
+        "regex": validation.get("regex"),
+        "decimal_scale": validation.get("scale"),
+        "max_values": validation.get("max_values"),
+        "text_max_length": validation.get("max_length"),
+        "validation_rule": validation.get("rule"),
+        "mappings": [],
+        "choice_set": row["choice_set"],
+        "object_types": row["targets"],
+        "management_kind": "core",
+        "lifecycle": row["lifecycle"],
+        "required": row["required"],
+        "nullable": row["nullable"],
+        "name": row["key"],
+        "namespace": row["namespace"],
+    }
+
+
+def test_apparent_power_contract_accepts_only_the_vocabulary_unit():
+    from extras.definition_contract import QUANTITY_UNITS
+
+    assert QUANTITY_UNITS["apparent_power"] == frozenset({"VA"})
+    assert (
+        validate_custom_field_definition_contract(
+            field_type="decimal",
+            quantity_kind="apparent_power",
+            canonical_unit="VA",
+            decimal_scale=3,
+        )
+        is None
+    )
+
+
+def test_active_core_vocabulary_definitions_pass_definition_contract():
+    from assets.services.specifications.core_vocabulary import get_core_vocabulary
+
+    active_fields = get_core_vocabulary()["active_fields"]
+    assert isinstance(active_fields, list)
+    for row in active_fields:
+        try:
+            validate_custom_field_definition_contract(**_core_vocabulary_contract_kwargs(row))
+        except ValidationError as exc:
+            pytest.fail(f"Core vocabulary field {row['identity']} violates its definition contract: {exc.message_dict}")
+
+
+def test_core_field_seed_rejects_invalid_definition_before_bulk_insert():
+    from assets.services.specifications.core_vocabulary import get_core_vocabulary
+    from core.management.commands._seed.catalog import _reconcile_core_fields
+    from extras.models import CustomField
+
+    active_fields = get_core_vocabulary()["active_fields"]
+    assert isinstance(active_fields, list)
+    apparent_power = next(row for row in active_fields if row["key"] == "apparent_power")
+    invalid_row = {**apparent_power, "quantity_kind": "unsupported_kind"}
+
+    with (
+        patch.object(CustomField.objects, "filter", return_value=[]),
+        patch.object(CustomField.objects, "bulk_create", side_effect=RuntimeError("bulk_create reached")) as create,
+    ):
+        with pytest.raises(ValidationError, match="Unsupported quantity kind"):
+            _reconcile_core_fields([invalid_row], {}, SimpleNamespace(), SimpleNamespace(), 1)
+
+    create.assert_not_called()

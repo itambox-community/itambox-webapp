@@ -199,11 +199,12 @@ def _reconcile_core_fields(field_rows, choice_sets, asset_ct, assettype_ct, vers
         target_content_types = _core_field_target_types(row, content_types)
         matches = list(CustomField.objects.filter(name=row["key"]))
         _validate_core_field_identity(matches, row["key"], row["lifecycle"])
-        field = matches[0] if matches else CustomField(name=row["key"], **options)
+        definition = CustomField(name=row["key"], **options)
+        definition.validate_definition_contract(object_types=target_content_types)
+        field = matches[0] if matches else definition
         if not matches:
-            # The normalized release is already the validated source of truth.
-            # Bulk insertion is intentional here: the generic pre-save signal
-            # still reflects older definition rules than this release.
+            # The explicit contract check above guards this bulk path; the
+            # generic pre-save signal still reflects older definition rules.
             CustomField.objects.bulk_create([field])
         else:
             _update_existing_core_field(field, row, options)

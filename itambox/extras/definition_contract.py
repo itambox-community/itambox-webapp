@@ -24,7 +24,14 @@ ACTIVATIONS = frozenset({"composed", "global"})
 MANAGEMENT_KINDS = frozenset({"core", "library", "local"})
 VALIDATION_RULE_TYPES = {
     "rfc1123_hostname": "text",
+    "runtime_requires_load": "decimal",
     "temperature_max_gte_min": "decimal",
+    "voltage_max_gte_min": "decimal",
+}
+CORE_VALIDATION_RULE_IDENTITIES = {
+    "runtime_requires_load": ("itambox", "battery_runtime_load"),
+    "temperature_max_gte_min": ("itambox", "operating_temperature_max"),
+    "voltage_max_gte_min": ("itambox", "input_voltage_max"),
 }
 QUANTITY_UNITS = {
     "length": frozenset({"U", "m", "cm", "mm", "in", "ft"}),
@@ -33,6 +40,7 @@ QUANTITY_UNITS = {
     "digital_information": frozenset({"B", "KiB", "MiB", "GiB", "TiB"}),
     "data_rate": frozenset({"bit/s", "Kbit/s", "Mbit/s", "Gbit/s", "Tbit/s"}),
     "power": frozenset({"W", "kW"}),
+    "apparent_power": frozenset({"VA"}),
     "voltage": frozenset({"V", "mV", "kV"}),
     "energy": frozenset({"Wh", "kWh"}),
     "duration": frozenset({"s", "min", "h", "d"}),
@@ -276,9 +284,8 @@ def _rule_definition_errors(field_type, validation_rule, name, namespace, manage
         return {"validation_rule": "Unsupported validation rule."}
     if field_type != expected_type:
         return {"validation_rule": "The validation rule does not match the field type."}
-    if validation_rule == "temperature_max_gte_min" and (
-        name != "operating_temperature_max" or namespace != "itambox" or management_kind != "core"
-    ):
+    registered_identity = CORE_VALIDATION_RULE_IDENTITIES.get(validation_rule)
+    if registered_identity and ((namespace, name) != registered_identity or management_kind != "core"):
         return {"validation_rule": "This cross-field rule is reserved for its registered Core definition."}
     return {}
 
