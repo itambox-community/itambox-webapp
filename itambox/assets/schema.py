@@ -11,10 +11,12 @@ from assets.services.specifications._command_support import load_prospective_def
 from core.graphql_choice_enums import choice_enum
 from core.graphql_scalars import JSONString
 from core.graphql_utils import paginate_queryset
+from core.managers import Scope
 from organization.models import Location, Tenant
 
 from .graphql_specifications.inputs import RequestedScopeSelectorInput
 from .graphql_specifications.integration import (
+    SCOPED_SOFTWARE_ATTR,
     asset_queryset_for_scope,
     asset_type_connection,
     authenticated_user,
@@ -89,7 +91,16 @@ class AssetRoleNode:
     fields=["id", "name", "slug", "description", "created_at", "updated_at"],
 )
 class ManufacturerNode:
-    software_products: list[Annotated["SoftwareNode", strawberry.lazy("software.schema")]]
+    @strawberry.field
+    def software_products(self) -> list[Annotated["SoftwareNode", strawberry.lazy("software.schema")]]:
+        # The related manager applies no ambient scope (Software uses an
+        # explicit-scope manager), so scope here exactly like the flat
+        # ``softwareList`` resolver does. A request-scoped prefetch (see
+        # ``scoped_software_prefetch``) is reused when present.
+        prefetched = getattr(self, SCOPED_SOFTWARE_ATTR, None)
+        if prefetched is not None:
+            return prefetched
+        return list(self.software_products.for_scope(Scope.current()))
 
 
 @strawberry_django.type(

@@ -311,13 +311,13 @@ type LocationNode {
 }
 
 type ManufacturerNode {
-  softwareProducts: [SoftwareNode!]!
   id: ID!
   createdAt: DateTime!
   updatedAt: DateTime!
   name: String!
   slug: String!
   description: String!
+  softwareProducts: [SoftwareNode!]!
 }
 
 type MultiChoiceSpecificationValue {

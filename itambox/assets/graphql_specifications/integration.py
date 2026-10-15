@@ -12,8 +12,10 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from django.apps import apps
 from django.core.exceptions import PermissionDenied
 from django.db import router
+from django.db.models import Prefetch, Q
 from django.db.models.query import QuerySet
 from graphql import GraphQLError
 
@@ -164,6 +166,24 @@ def bind_scope(loader: RequestScopedSpecificationLoader, scope: ScopeReadView | 
         loader.bind_scope(scope.fingerprint)
 
 
+SCOPED_SOFTWARE_ATTR = "_scoped_software_products"
+
+
+def scoped_software_prefetch(scope: ScopeReadView) -> Prefetch:
+    """Prefetch a manufacturer's software through the request scope.
+
+    ``Software`` uses an explicit-scope manager, so a plain
+    ``prefetch_related("...software_products")`` would load tenant-private
+    rows of other tenants. Django uses the given queryset as-is, so scope it.
+    """
+    software = apps.get_model("software", "Software")
+    return Prefetch(
+        "asset_type__manufacturer__software_products",
+        queryset=software.objects.filter(Q(tenant_id__in=scope.tenant_ids) | Q(tenant__isnull=True)),
+        to_attr=SCOPED_SOFTWARE_ATTR,
+    )
+
+
 def asset_queryset_for_scope(scope: ScopeReadView) -> QuerySet:
     """Create an explicitly scoped read queryset without ambient tenant state."""
     queryset = QuerySet(model=Asset, using=router.db_for_read(Asset))
@@ -182,7 +202,7 @@ def asset_queryset_for_scope(scope: ScopeReadView) -> QuerySet:
             "tenant",
             "supplier",
         )
-        .prefetch_related("asset_type__manufacturer__software_products")
+        .prefetch_related(scoped_software_prefetch(scope))
         .order_by("pk")
     )
 
@@ -432,6 +452,7 @@ __all__ = [
     "ScopeReadView",
     "SpecificationFieldConnectionView",
     "SpecificationFieldEdgeView",
+    "SCOPED_SOFTWARE_ATTR",
     "asset_queryset_for_scope",
     "asset_type_connection",
     "authenticated_user",
