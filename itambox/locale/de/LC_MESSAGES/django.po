@@ -2322,6 +2322,23 @@ msgstr "Fehlende erforderliche Felder: {fields}"
 msgid "No data to import."
 msgstr "Keine Daten zum Importieren vorhanden."
 
+msgid "A concrete active tenant is required to import contacts."
+msgstr "Für den Kontaktimport ist ein konkreter aktiver Mandant erforderlich."
+
+msgid "The import always writes into the active tenant; remove the tenant column."
+msgstr "Der Import schreibt immer in den aktiven Mandanten; entfernen Sie die Mandantenspalte."
+
+#, python-format
+msgid "%(field)s: \"%(value)s\" matches more than one %(model)s."
+msgstr "%(field)s: \"%(value)s\" entspricht mehr als einem %(model)s."
+
+#, python-format
+msgid "%(field)s: unknown %(model)s \"%(value)s\"."
+msgstr "%(field)s: unbekannte %(model)s \"%(value)s\"."
+
+msgid "role assignments are not importable."
+msgstr "Rollenzuordnungen können nicht importiert werden."
+
 msgid "More than one existing object matches the update key."
 msgstr "Mehr als ein vorhandenes Objekt entspricht dem Aktualisierungsschlüssel."
 
@@ -5375,6 +5392,10 @@ msgstr "Keine Importdaten gefunden. Bitte laden Sie zuerst eine Datei hoch."
 #, python-brace-format
 msgid "Relation to {model_name} (resolves by ID, Slug or Name)."
 msgstr "Verknüpfung mit {model_name} (Auflösung über ID, Slug oder Name)."
+
+#, python-brace-format
+msgid "Relation to {model_name} (resolves by Slug or Name)."
+msgstr "Verknüpfung mit {model_name} (Auflösung über Slug oder Name)."
 
 #, python-brace-format
 msgid "Import {verbose_name_plural}"

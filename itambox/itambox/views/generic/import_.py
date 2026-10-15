@@ -30,6 +30,14 @@ from itambox.views.htmx import BaseHTMXView
 logger = logging.getLogger(__name__)
 
 
+def _relation_description(form_cls, name, related_model):
+    if name in getattr(form_cls, "natural_key_only_fields", ()):
+        description = _("Relation to {model_name} (resolves by Slug or Name).")
+    else:
+        description = _("Relation to {model_name} (resolves by ID, Slug or Name).")
+    return description.format(model_name=str(related_model._meta.verbose_name))
+
+
 class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView, TemplateView):
     model_form = None
     template_name = "generic/object_import.html"
@@ -186,7 +194,9 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
                 )
                 continue
 
-            accessor, description, choices = self._get_field_details(field, name, field_descriptions, field_choices)
+            accessor, description, choices = self._get_field_details(
+                field, name, field_descriptions, field_choices, form_cls
+            )
             accessor = field_accessors.get(name, accessor)
 
             fields_info.append(
@@ -201,7 +211,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
         return fields_info
 
     @staticmethod
-    def _get_field_details(field, name, field_descriptions, field_choices=None):
+    def _get_field_details(field, name, field_descriptions, field_choices, form_cls):
         description = field.help_text or field.verbose_name or ""
         description = str(description) if description else ""
         accessor = ""
@@ -209,9 +219,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
         if field.is_relation and field.many_to_one:
             related_model = field.related_model
             accessor = "slug" if _model_has_concrete_field(related_model, "slug") else "name"
-            description = _("Relation to {model_name} (resolves by ID, Slug or Name).").format(
-                model_name=str(related_model._meta.verbose_name)
-            )
+            description = _relation_description(form_cls, name, related_model)
         field_choices = field_choices or {}
         if name in field_choices:
             choices = field_choices[name]

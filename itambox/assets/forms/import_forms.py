@@ -4,6 +4,7 @@ from typing import NamedTuple
 
 import jsonschema
 from django.core.exceptions import NON_FIELD_ERRORS, PermissionDenied, ValidationError
+from django.db import models
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy as _lazy
 
@@ -36,17 +37,19 @@ from core.importers.bulk_forms import (
     BulkImportForm,
     HybridCatalogueImportForm,
     RowSkipped,
+    _row_error_messages,
     register_import_form,
 )
 from core.managers import Scope
 from core.slugs import generate_unique_slug
 from inventory.models import Accessory, Component, Consumable
 from licenses.models import License
-from organization.models import AssetHolder, Location
+from organization.models import AssetHolder, Contact, ContactRole, Location, Region, SiteGroup
 from organization.services.catalogue_authorization import has_provider_catalogue_permission
 
 # These forms are declarative: the base BulkImportForm.map_row maps scalar
-# columns and resolves ForeignKey columns (by id / slug / name) automatically.
+# columns and resolves ForeignKey columns by id / slug / name unless a curated
+# form explicitly narrows a reference contract to natural keys.
 # required_fields/optional_fields drive validation and the Field Options help
 # table. Do not list non-model columns here — they are silently skipped.
 # @register_import_form wires each form to the centralized GenericObjectImportView
@@ -333,6 +336,157 @@ class ManufacturerBulkImportForm(BulkImportForm):
     generated_slug_source = "name"
     required_fields = ["name"]
     optional_fields = ["slug", "description"]
+
+
+def _resolve_natural_key_reference(model, value, *, field):
+    """Resolve a curated reference by slug/name without accepting numeric IDs."""
+    for lookup in ("slug", "name", "slug__iexact", "name__iexact"):
+        matches = list(model.objects.filter(**{lookup: value})[:2])
+        if len(matches) > 1:
+            raise ValidationError(
+                _('%(field)s: "%(value)s" matches more than one %(model)s.')
+                % {"field": field, "value": value, "model": model._meta.verbose_name}
+            )
+        if matches:
+            return matches[0].pk
+    raise ValidationError(
+        _('%(field)s: unknown %(model)s "%(value)s".')
+        % {"field": field, "value": value, "model": model._meta.verbose_name}
+    )
+
+
+class _ReferenceDataBulkImportForm(BulkImportForm):
+    """Small curated reference-data forms with row-level preview and safe skips."""
+
+    model: type[models.Model]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if any(column.casefold() in {"tenant", "tenant_id"} for row in self._rows_data for column in row):
+            raise ValidationError(_("The import always writes into the active tenant; remove the tenant column."))
+        errors, notes = [], []
+        for number, row in enumerate(self._rows_data, start=2):
+            try:
+                mapped = self.map_row(row)
+                self._validate_row(mapped, number)
+                instance = self._find_existing(mapped)
+                if instance is not None:
+                    self._authorize_update(instance)
+                    if not any(str(getattr(instance, key, None)) != str(value) for key, value in mapped.items()):
+                        notes.append(
+                            _("Row %(row)s: %(reason)s")
+                            % {"row": number, "reason": _("record already exists and is unchanged; skipped.")}
+                        )
+                        continue
+                    for key, value in mapped.items():
+                        setattr(instance, key, value)
+                else:
+                    instance = self._create_instance(mapped)
+                self._populate_generated_slug(instance)
+                instance.full_clean()
+            except RowSkipped as skip:
+                notes.append(_("Row %(row)s: %(reason)s") % {"row": number, "reason": skip})
+            except ValidationError as exc:
+                errors.extend(f"Row {number}: {message}" for message in _row_error_messages(exc))
+        self.row_notes = notes
+        if errors:
+            raise ValidationError(errors)
+        return cleaned_data
+
+    def _authorize_update(self, instance):
+        meta = self.model._meta
+        permission = f"{meta.app_label}.change_{meta.model_name}"
+        if self.actor is None or not self.actor.has_perm(permission, instance):
+            raise RowSkipped(_("You do not have permission to update existing objects."))
+
+
+class _ParentedReferenceDataBulkImportForm(_ReferenceDataBulkImportForm):
+    parent_model = None
+    natural_key_only_fields = ("parent",)
+
+    def map_row(self, row):
+        parent = str(row.get("parent") or "").strip()
+        mapped = super().map_row({key: value for key, value in row.items() if key != "parent"})
+        if parent:
+            mapped["parent_id"] = _resolve_natural_key_reference(self.parent_model, parent, field="parent")
+        return mapped
+
+
+@register_import_form
+class CategoryBulkImportForm(_ReferenceDataBulkImportForm):
+    model = Category
+    update_key = ("name",)
+    required_fields = ["name"]
+    optional_fields = ["slug"]
+
+
+@register_import_form
+class AssetRoleBulkImportForm(_ReferenceDataBulkImportForm):
+    model = AssetRole
+    update_key = ("name",)
+    generated_slug_source = "name"
+    required_fields = ["name"]
+    optional_fields = ["slug", "description", "color", "allows_components"]
+
+
+@register_import_form
+class RegionBulkImportForm(_ParentedReferenceDataBulkImportForm):
+    model = Region
+    parent_model = Region
+    update_key = ("name",)
+    generated_slug_source = "name"
+    required_fields = ["name"]
+    optional_fields = ["slug", "parent", "description"]
+
+
+@register_import_form
+class SiteGroupBulkImportForm(_ParentedReferenceDataBulkImportForm):
+    model = SiteGroup
+    parent_model = SiteGroup
+    update_key = ("name",)
+    generated_slug_source = "name"
+    required_fields = ["name"]
+    optional_fields = ["slug", "parent", "description"]
+
+
+@register_import_form
+class ContactRoleBulkImportForm(_ReferenceDataBulkImportForm):
+    model = ContactRole
+    update_key = ("name",)
+    required_fields = ["name"]
+    optional_fields = ["slug", "description"]
+
+
+@register_import_form
+class ContactBulkImportForm(_ReferenceDataBulkImportForm):
+    model = Contact
+    update_key = ("name",)
+    required_fields = ["name"]
+    optional_fields = ["title", "phone", "email", "web_url", "description", "comments"]
+
+    def map_row(self, row):
+        if any(str(column).casefold() == "role" for column in row):
+            raise ValidationError(_("role assignments are not importable."))
+        return super().map_row(row)
+
+    def _find_existing(self, mapped):
+        tenant = get_current_tenant()
+        if tenant is None:
+            raise ValidationError(_("A concrete active tenant is required to import contacts."))
+        lookup = {}
+        for attname in self._key_attnames():
+            if attname not in mapped:
+                return None
+            lookup[attname] = mapped[attname]
+        matches = list(Contact.objects.filter(tenant_id=tenant.pk, **lookup)[:2])
+        if len(matches) > 1:
+            raise ValidationError(_("More than one existing object matches the update key."))
+        return matches[0] if matches else None
+
+    def _create_instance(self, mapped_data):
+        if get_current_tenant() is None:
+            raise ValidationError(_("A concrete active tenant is required to import contacts."))
+        return super()._create_instance(mapped_data)
 
 
 @register_import_form
