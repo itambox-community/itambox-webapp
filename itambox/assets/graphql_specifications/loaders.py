@@ -11,7 +11,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import TYPE_CHECKING
 
 from graphql import GraphQLError
 
@@ -33,8 +32,7 @@ from extras.services.specifications.contracts import (
 )
 from extras.services.specifications.projection import project_specification_values
 
-if TYPE_CHECKING:
-    from .types import FieldsetView
+from .types import FieldsetView
 
 GraphLoader = Callable[[SpecificationGraphLoadRequest], LoadedSpecificationGraphDTO]
 DefinitionResolver = Callable[[SpecificationResolutionRequest], SpecificationDefinitionDTO]

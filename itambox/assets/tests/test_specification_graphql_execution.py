@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -12,6 +13,12 @@ from django.test.utils import CaptureQueriesContext
 from graphql import build_schema, parse, validate
 from graphql.validation import specified_rules
 
+from assets.graphql_specifications.integration import (
+    category_fieldsets_for,
+    category_fieldsets_for_many,
+    prepare_type_graph,
+)
+from assets.graphql_specifications.loaders import RequestScopedSpecificationLoader
 from assets.models import (
     Asset,
     AssetRole,
@@ -500,3 +507,27 @@ def test_asset_type_single_root_keeps_nested_reads_batched(asset_type_query_budg
     assert node["category"]["defaultFieldsets"] == [{"identity": "local/t13-device-specs"}]
     assert node["assetRole"]["name"] == "T13 Query Budget"
     assert {entry["key"] for entry in node["specificationEntries"]} == {"memory_gib"}
+
+
+def test_asset_type_graph_preparation_skips_an_empty_batch():
+    loader = Mock()
+
+    prepare_type_graph(loader, ())
+
+    loader.prepare_owners.assert_not_called()
+
+
+def test_category_default_fieldset_empty_paths():
+    category = Category.objects.create(name="T13 Empty Defaults", slug="t13-empty-defaults")
+
+    assert category_fieldsets_for(category) == ()
+    assert category_fieldsets_for_many(()) == {}
+
+
+def test_category_default_fieldset_fallback_is_memoized():
+    loader = RequestScopedSpecificationLoader()
+    resolver = Mock(return_value=())
+
+    assert loader.get_or_load_category_fieldsets(1, resolver) == ()
+    assert loader.get_or_load_category_fieldsets(1, resolver) == ()
+    resolver.assert_called_once_with()
