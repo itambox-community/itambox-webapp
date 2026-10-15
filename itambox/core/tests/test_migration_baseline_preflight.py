@@ -275,7 +275,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
         self.assertEqual(len(manifest["historical_ids"]), 262)
         self.assertEqual(len(manifest["replacement_ids"]), 62)
         self.assertEqual(len(manifest["replacement_target_ids"]), 262)
-        self.assertEqual(len(manifest["post_transition_ids"]), 70)
+        self.assertEqual(len(manifest["post_transition_ids"]), 71)
         self.assertTrue(
             {
                 "assets.0102_asset_type_composition_schema",
@@ -298,7 +298,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
             manifest["post_transition_leaf_ids"],
             [
                 "compliance.0107_custodyreceipt_assignment_superseded",
-                "extras.0129_remove_type_library",
+                "extras.0130_definition_translations",
                 "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
                 "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
                 "software.0101_asset_archive_leaf_markers",

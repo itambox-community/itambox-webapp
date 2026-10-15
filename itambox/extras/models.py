@@ -513,6 +513,103 @@ class CustomFieldsetField(BaseModel):
         return f"{self.fieldset}: {self.custom_field}"
 
 
+_TRANSLATION_LOCALE_VALIDATOR = RegexValidator(r"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
+
+
+class _DefinitionTranslationMixin(models.Model):
+    """Per-locale label row for shipped vocabulary.
+
+    The canonical label always stays on the base entity; a translation row only
+    overrides it for one locale. Resolution falls back from the requested
+    locale to the base label, so a missing row is never an error.
+    """
+
+    changelog_global = True  # global reference data → changelog attributed to tenant=None
+
+    locale = models.CharField(
+        max_length=16,
+        validators=[_TRANSLATION_LOCALE_VALIDATOR],
+        verbose_name=_("Locale"),
+        help_text=_("Language code, for example de or pt-br."),
+    )
+    label = models.CharField(max_length=200, verbose_name=_("Translated Label"))
+
+    class Meta:
+        abstract = True
+
+
+class CustomFieldTranslation(_DefinitionTranslationMixin, ChangeLoggingMixin, BaseModel):
+    """Translated label, help text and unit token of one field definition."""
+
+    objects = models.Manager()
+
+    custom_field = models.ForeignKey(
+        CustomField, on_delete=models.CASCADE, related_name="translations", verbose_name=_("Custom Field")
+    )
+    help_text = models.TextField(max_length=4096, blank=True, default="", verbose_name=_("Translated Help Text"))
+    unit_label = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        verbose_name=_("Translated Unit"),
+        help_text=_("Display token for a word-like canonical unit, for example ppm for pages_per_minute."),
+    )
+
+    class Meta:
+        ordering = ["custom_field__name", "locale"]
+        verbose_name = _("Custom Field Translation")
+        verbose_name_plural = _("Custom Field Translations")
+        constraints = [
+            models.UniqueConstraint(fields=["custom_field", "locale"], name="unique_customfieldtranslation_locale"),
+        ]
+
+    def __str__(self):
+        return f"{self.custom_field.name} [{self.locale}]: {self.label}"
+
+
+class CustomFieldChoiceTranslation(_DefinitionTranslationMixin, ChangeLoggingMixin, BaseModel):
+    """Translated label of one choice of a choice set."""
+
+    objects = models.Manager()
+
+    choice = models.ForeignKey(
+        CustomFieldChoice, on_delete=models.CASCADE, related_name="translations", verbose_name=_("Choice")
+    )
+
+    class Meta:
+        ordering = ["choice__choice_set_id", "choice__position", "locale"]
+        verbose_name = _("Custom Field Choice Translation")
+        verbose_name_plural = _("Custom Field Choice Translations")
+        constraints = [
+            models.UniqueConstraint(fields=["choice", "locale"], name="unique_customfieldchoicetranslation_locale"),
+        ]
+
+    def __str__(self):
+        return f"{self.choice.key} [{self.locale}]: {self.label}"
+
+
+class CustomFieldsetTranslation(_DefinitionTranslationMixin, ChangeLoggingMixin, BaseModel):
+    """Translated section (fieldset) label and description."""
+
+    objects = models.Manager()
+
+    fieldset = models.ForeignKey(
+        CustomFieldset, on_delete=models.CASCADE, related_name="translations", verbose_name=_("Custom Fieldset")
+    )
+    description = models.TextField(max_length=4096, blank=True, default="", verbose_name=_("Translated Description"))
+
+    class Meta:
+        ordering = ["fieldset__namespace", "fieldset__slug", "locale"]
+        verbose_name = _("Custom Fieldset Translation")
+        verbose_name_plural = _("Custom Fieldset Translations")
+        constraints = [
+            models.UniqueConstraint(fields=["fieldset", "locale"], name="unique_customfieldsettranslation_locale"),
+        ]
+
+    def __str__(self):
+        return f"{self.fieldset.slug} [{self.locale}]: {self.label}"
+
+
 # Machine-generated event-bus row. Intentionally NOT change-logged: it is
 # append-only, and logging it would write a second ObjectChange for every
 # tracked change (plus one more for the processed-flag flip), doubling volume.
