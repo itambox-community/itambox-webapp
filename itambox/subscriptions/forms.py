@@ -10,7 +10,7 @@ from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, Supplier
 from core.context import get_current_tenant
-from core.forms import BulkEditForm, CrispyFormMixin, FilterForm, TenantScopedFormMixin
+from core.forms import BulkEditForm, CrispyFormMixin, FilterForm, TenantScopedFormMixin, cancel_button
 from core.importers.bulk_forms import BulkImportForm, register_import_form
 from core.managers import Scope
 from extras.customfields import CustomFieldModelFormMixin
@@ -279,6 +279,8 @@ class SubscriptionAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         content_type = kwargs.pop("content_type", None)
         object_id = kwargs.pop("object_id", None)
+        cancel_url = kwargs.pop("cancel_url", reverse("subscriptions:subscription_list"))
+        quick_add_dismiss = kwargs.pop("quick_add_dismiss", False)
         super().__init__(*args, **kwargs)
         self.content_type = content_type
         self.object_id = object_id
@@ -305,9 +307,7 @@ class SubscriptionAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
         button_text = "Assign"
         self.helper.layout.append(HTML('<div class="mt-4"></div>'))
         self.helper.layout.append(Submit("submit", button_text, css_class="btn btn-primary"))
-        self.helper.layout.append(
-            HTML('<button type="button" class="btn btn-outline-secondary ms-2" data-bs-dismiss="modal">Cancel</button>')
-        )
+        self.helper.layout.append(cancel_button(cancel_url, dismiss=quick_add_dismiss))
 
     def save(self, commit=True):
         instance = super().save(commit=False)

@@ -10,6 +10,7 @@ from crispy_forms.layout import HTML, Submit
 from django import forms
 from django.apps import apps
 from django.urls import NoReverseMatch, reverse
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from core.forms.base import TenantScopedFormMixin, apply_tom_select
@@ -23,6 +24,25 @@ OBJ_TYPE_CHOICES = [
     )
     for model in sorted(SEARCH_INDEXES.keys(), key=lambda m: (m._meta.app_label, m._meta.verbose_name))
 ]
+
+
+def cancel_button(cancel_url, *, dismiss=False, no_dirty_track=False, label=None):
+    """Build a normal navigation link or a modal-only dismiss button."""
+    label = label or _("Cancel")
+    css_class = "btn btn-outline-secondary ms-2"
+    if dismiss:
+        return HTML(
+            format_html(
+                '<button type="button" class="{}" data-bs-dismiss="modal">{}</button>',
+                css_class,
+                label,
+            )
+        )
+    if no_dirty_track:
+        return HTML(
+            format_html('<a href="{}" class="{}" data-no-dirty-track="true">{}</a>', cancel_url, css_class, label)
+        )
+    return HTML(format_html('<a href="{}" class="{}">{}</a>', cancel_url, css_class, label))
 
 
 class SearchForm(TenantScopedFormMixin, forms.Form):
@@ -218,13 +238,14 @@ class CrispyFormMixin:
     """
 
     def __init__(self, *args, **kwargs):
+        self.quick_add_dismiss = kwargs.pop("quick_add_dismiss", False)
         super().__init__(*args, **kwargs)
         if not hasattr(self, "helper") or self.helper is None:
             self.helper = FormHelper(self)
             self.helper.form_method = "post"
             self.helper.form_tag = True
 
-    def action_buttons(self, cancel_url):
+    def action_buttons(self, cancel_url, dismiss=False):
         """Return the standard Submit + Cancel button row as crispy elements.
 
         Splice into a form's Layout to avoid re-implementing the same block in
@@ -241,10 +262,7 @@ class CrispyFormMixin:
         return [
             HTML('<div class="mt-4"></div>'),
             Submit("submit", label, css_class="btn btn-primary"),
-            HTML(
-                f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2" '
-                f'data-no-dirty-track="true">{_("Cancel")}</a>'
-            ),
+            cancel_button(cancel_url, dismiss=dismiss, no_dirty_track=True),
         ]
 
 

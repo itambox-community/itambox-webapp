@@ -2,11 +2,10 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Div, Fieldset, Layout, Submit
 from django import forms
 from django.urls import reverse
-from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, Supplier
-from core.forms import CrispyFormMixin, FilterForm, TenantScopedFormMixin
+from core.forms import CrispyFormMixin, FilterForm, TenantScopedFormMixin, cancel_button
 from core.managers import Scope
 from extras.customfields import CustomFieldModelFormMixin
 from extras.models import Tag
@@ -176,7 +175,7 @@ class LicenseFilterForm(FilterForm):
     filterset_class = LicenseFilterSet
 
 
-class LicenseSeatAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
+class LicenseSeatAssignmentForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
     """Assign a license seat to an asset (asset-scoped quick-add)."""
 
     class Meta:
@@ -206,12 +205,7 @@ class LicenseSeatAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
             "notes",
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(
-                format_html(
-                    '<a href="{}" class="btn btn-outline-secondary ms-2" data-no-dirty-track="true">Cancel</a>',
-                    cancel_url,
-                )
-            ),
+            cancel_button(cancel_url, dismiss=self.quick_add_dismiss, no_dirty_track=True),
             HTML("</div>"),
         )
 

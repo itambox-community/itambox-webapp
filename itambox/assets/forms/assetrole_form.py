@@ -1,16 +1,16 @@
 from crispy_forms.helper import FormHelper
-from crispy_forms.layout import HTML, Column, Fieldset, Layout, Row, Submit
+from crispy_forms.layout import Column, Fieldset, Layout, Row, Submit
 from django import forms
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from core.forms import ColorFieldFormMixin
+from core.forms import ColorFieldFormMixin, CrispyFormMixin, cancel_button
 from core.forms.base import TenantScopedFormMixin
 
 from ..models import AssetRole
 
 
-class AssetRoleForm(TenantScopedFormMixin, ColorFieldFormMixin, forms.ModelForm):
+class AssetRoleForm(TenantScopedFormMixin, ColorFieldFormMixin, CrispyFormMixin, forms.ModelForm):
     class Meta:
         model = AssetRole
         fields = ["name", "slug", "description", "color", "allows_components", "tags"]
@@ -44,9 +44,7 @@ class AssetRoleForm(TenantScopedFormMixin, ColorFieldFormMixin, forms.ModelForm)
             Row(
                 Column(Submit("submit", _("Save"), css_class="btn btn-primary"), css_class="col"),
                 Column(
-                    HTML(
-                        f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2" data-no-dirty-track="true">Cancel</a>'
-                    ),
+                    cancel_button(cancel_url, dismiss=self.quick_add_dismiss, no_dirty_track=True),
                     css_class="col text-end",
                 ),
             ),

@@ -30,6 +30,12 @@ class QuickAddMixin:
     def is_quick_add(self):
         return self.request.GET.get("_quickadd") == "1"
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if self.is_quick_add():
+            kwargs["quick_add_dismiss"] = True
+        return kwargs
+
     def get_quick_add_redirect_url(self):
         """Where to navigate after a reload-mode quick-add success.
         Default: the new object's parent asset detail, falling back to the object itself."""

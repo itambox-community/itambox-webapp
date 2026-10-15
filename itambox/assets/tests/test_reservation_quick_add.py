@@ -87,3 +87,36 @@ class AssetReservationQuickAddRegressionTest(TenantTestMixin, TestCase):
         self.assertContains(reservation_detail_response, "Ada Lovelace")
         self.assertContains(reservation_detail_response, "2030-01-10")
         self.assertContains(reservation_detail_response, "2030-01-12")
+
+    def test_quick_add_cancel_is_a_dismiss_control_and_fragments_have_no_scripts(self):
+        quick_add_url = reverse("assets:assetreservation_create") + f"?asset={self.asset.pk}&_quickadd=1"
+        responses = (
+            (self.client.get(quick_add_url), 200),
+            (self.client.post(quick_add_url, data={"asset": self.asset.pk}, HTTP_HX_REQUEST="true"), 422),
+        )
+
+        for response, expected_status in responses:
+            self.assertEqual(response.status_code, expected_status)
+            document = html5lib.parse(response.content, namespaceHTMLElements=False)
+            self.assertFalse(list(document.iter("script")), "quick-add fragments must not include script elements")
+            self.assertFalse(
+                [link for link in document.iter("a") if "Cancel" in "".join(link.itertext())],
+                "quick-add Cancel must not be a navigable anchor",
+            )
+            cancel_buttons = [button for button in document.iter("button") if "Cancel" in "".join(button.itertext())]
+            self.assertEqual(len(cancel_buttons), 1)
+            self.assertEqual(cancel_buttons[0].attrib.get("type"), "button")
+            self.assertEqual(cancel_buttons[0].attrib.get("data-bs-dismiss"), "modal")
+
+        modal_form = next(html5lib.parse(responses[0][0].content, namespaceHTMLElements=False).iter("form"))
+        self.assertEqual(modal_form.attrib.get("hx-boost"), "false")
+
+    def test_full_page_create_cancel_remains_a_navigation_link(self):
+        response = self.client.get(reverse("assets:assetreservation_create"))
+        self.assertEqual(response.status_code, 200)
+        document = html5lib.parse(response.content, namespaceHTMLElements=False)
+        cancel_links = [
+            link for link in document.iter("a") if "Cancel" in "".join(link.itertext()) and link.attrib.get("href")
+        ]
+        self.assertEqual(len(cancel_links), 1)
+        self.assertNotIn("data-bs-dismiss", cancel_links[0].attrib)
