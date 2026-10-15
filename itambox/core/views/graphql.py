@@ -1,16 +1,23 @@
 from urllib.parse import quote
 
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, resolve_url
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
+from graphql.error import GraphQLError
 from rest_framework import exceptions
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from strawberry.django.views import GraphQLView
-from strawberry.extensions import AddValidationRules, MaxAliasesLimiter, MaxTokensLimiter, QueryDepthLimiter
+from strawberry.extensions import (
+    AddValidationRules,
+    MaskErrors,
+    MaxAliasesLimiter,
+    MaxTokensLimiter,
+    QueryDepthLimiter,
+)
 
 from core.context import set_current_user
 from users.api.authentication import TokenAuthentication
@@ -27,7 +34,13 @@ MAX_QUERY_DEPTH = 10
 # introspection root field is instead charged this flat cost and zeroes the
 # multiplier of its subtree, which keeps GraphiQL's startup query well under the
 # budget while repeating introspection under many aliases still exhausts it.
-INTROSPECTION_ROOT_COST = 50
+# The flat cost is sized so at most two introspection roots fit into the
+# complexity budget (2 x 1000 = 2000; a third is rejected): one full schema
+# dump is roughly 100 KB, so an operation can no longer multiply it into
+# megabytes. Introspection nesting depth is bounded by graphql-core's default
+# ``MaxIntrospectionDepthRule`` because the depth limiter skips ``__*`` keys.
+MAX_OPERATION_COMPLEXITY = 2000
+INTROSPECTION_ROOT_COST = 1000
 _INTROSPECTION_ROOTS = frozenset({"__schema", "__type"})
 
 
@@ -213,6 +226,22 @@ def _has_pathless_errors(response_data):
     return False
 
 
+MASKED_ERROR_MESSAGE = "Unexpected error."
+
+
+def should_mask_error(error):
+    """Mask only unexpected resolver exceptions.
+
+    Parse/validation errors (no original exception) and deliberate
+    ``GraphQLError`` / ``PermissionDenied`` raises carry readable messages that
+    are part of the API contract and pass through; any other exception type
+    raised inside a resolver is replaced by a generic message so internal text
+    never reaches the client.
+    """
+    original = error.original_error
+    return original is not None and not isinstance(original, (GraphQLError, PermissionDenied))
+
+
 def schema_extensions():
     """Operation budgets applied to every request.
 
@@ -224,7 +253,8 @@ def schema_extensions():
         lambda: QueryDepthLimiter(max_depth=MAX_QUERY_DEPTH),
         lambda: MaxAliasesLimiter(max_alias_count=MAX_OPERATION_ALIASES),
         lambda: MaxTokensLimiter(max_token_count=MAX_OPERATION_TOKENS),
-        lambda: AddValidationRules([query_complexity_validator(max_complexity=2000, fan_out=10)]),
+        lambda: AddValidationRules([query_complexity_validator(max_complexity=MAX_OPERATION_COMPLEXITY, fan_out=10)]),
+        lambda: MaskErrors(should_mask_error=should_mask_error, error_message=MASKED_ERROR_MESSAGE),
     ]
 
 

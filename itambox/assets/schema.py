@@ -29,6 +29,7 @@ from .graphql_specifications.integration import (
     owner_resource_revision,
     owner_user_errors,
     page_size,
+    positive_id_or_none,
     prepare_asset_graph,
     prepare_type_graph,
     require_global_permission,
@@ -312,8 +313,8 @@ class Query:
             "name": name,
             "asset_tag": asset_tag,
             "serial_number": serial_number,
-            "status_id": status_id,
-            "location_id": location_id,
+            "status_id": positive_id_or_none(status_id, "status_id"),
+            "location_id": positive_id_or_none(location_id, "location_id"),
         }
         for key, val in filters.items():
             if val is not None:

@@ -179,6 +179,95 @@ class GraphQLSecurityTestCase(TestCase):
         response = self._post("{ __schema { queryType { name } } " + aliased + "}")
         self.assertEqual(response.status_code, 400)
 
+    # --- introspection amplification cap -----------------------------------
+
+    def _aliased_full_introspection(self, copies):
+        from graphql import get_introspection_query
+
+        stock = get_introspection_query(descriptions=True)
+        fragments = stock[stock.index("fragment ") :]
+        roots = " ".join(f"a{i}: __schema {{ types {{ ...FullType }} }}" for i in range(copies))
+        return "{ " + roots + " }\n" + fragments
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_many_aliased_full_introspections_are_rejected(self):
+        # 39 aliased copies used to fit every budget (~4 MB of output per request).
+        query = self._aliased_full_introspection(39)
+        response = self._post(query)
+        self.assertEqual(response.status_code, 400)
+        self.assertLess(len(response.content), 2000)
+        combined = " ".join(e.get("message", "") for e in response.json()["errors"]).lower()
+        self.assertIn("complexity", combined)
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_at_most_two_introspection_roots_fit_one_operation(self):
+        from core.views.graphql import INTROSPECTION_ROOT_COST, MAX_OPERATION_COMPLEXITY
+
+        self.assertEqual(MAX_OPERATION_COMPLEXITY // INTROSPECTION_ROOT_COST, 2)
+        two = self._post("{ a: __schema { queryType { name } } b: __schema { queryType { name } } }")
+        self.assertEqual(two.status_code, 200, two.content[:300])
+        self.assertNotIn("errors", two.json())
+        three = self._post(
+            '{ a: __schema { queryType { name } } b: __schema { queryType { name } } c: __type(name: "Query") { name } }'
+        )
+        self.assertEqual(three.status_code, 400)
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_deep_introspection_nesting_rejected_by_graphql_core_rule(self):
+        # The depth limiter skips ``__*`` keys, so nested introspection relies on
+        # graphql-core's MaxIntrospectionDepthRule. Pin that dependency.
+        nested = "{ __schema { types { fields { type { fields { type { fields { type { name } } } } } } } } }"
+        response = self._post(nested)
+        self.assertEqual(response.status_code, 400)
+        combined = " ".join(e.get("message", "") for e in response.json()["errors"]).lower()
+        self.assertIn("introspection", combined)
+        self.assertNotIn("complexity", combined)
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_depth_alias_and_token_guards_still_hold(self):
+        deep = "{ " + "a { " * 12 + "b" + " }" * 12 + " }"
+        self.assertEqual(self._post(deep).status_code, 400)
+        aliases = "{ " + " ".join(f"a{i}: __typename" for i in range(51)) + " }"
+        self.assertIn("alias", " ".join(e["message"] for e in self._post(aliases).json()["errors"]).lower())
+        tokens = "{ " + " ".join("__typename" for _ in range(2100)) + " }"
+        self.assertEqual(self._post(tokens).status_code, 400)
+
+    # --- resolver error masking ------------------------------------------
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_deliberate_validation_messages_stay_readable(self):
+        query = "{ assets(requestedScope: {mode: TENANT}) { name } }"
+        response = self._post(query)
+        message = response.json()["errors"][0]["message"]
+        self.assertIn("selector ids do not match scope mode", message)
+
+        bad_id = '{ assets(requestedScope: {mode: ALL_ACCESSIBLE}, statusId: "x") { name } }'
+        message = self._post(bad_id).json()["errors"][0]["message"]
+        self.assertIn("status_id must be a positive ID", message)
+        self.assertNotIn("expected a number", message)
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_unexpected_resolver_error_message_is_masked(self):
+        from unittest.mock import patch
+
+        query = "{ assets(requestedScope: {mode: ALL_ACCESSIBLE}) { name } }"
+        with patch("assets.schema.resolve_read_scope", side_effect=RuntimeError("secret internal detail /srv/x")):
+            response = self._post(query)
+        body = response.content.decode()
+        self.assertNotIn("secret internal detail", body)
+        self.assertEqual(response.json()["errors"][0]["message"], "Unexpected error.")
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_permission_denied_message_survives_masking(self):
+        from unittest.mock import patch
+
+        from django.core.exceptions import PermissionDenied
+
+        query = "{ assets(requestedScope: {mode: ALL_ACCESSIBLE}) { name } }"
+        with patch("assets.schema.resolve_read_scope", side_effect=PermissionDenied("Permission denied.")):
+            response = self._post(query)
+        self.assertEqual(response.json()["errors"][0]["message"], "Permission denied.")
+
     @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
     def test_mutation_still_rejected(self):
         response = self._post("mutation { __typename }")
