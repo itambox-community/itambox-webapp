@@ -2,8 +2,8 @@
 
 Strawberry derives enums from Django ``choices`` itself, but its generated
 names (``<App><Object><Field>Enum``) and member names differ from the contract
-this schema published before the port (``<App><Object><Field>Choices`` with
-graphene's ``to_const`` member names).  The helper below rebuilds that contract
+this schema published before the Strawberry port (``<App><Object><Field>Choices`` with
+the member names of the pre-Strawberry schema).  The helper below rebuilds that contract
 from the model field, so enum names, member names and member descriptions stay
 identical without duplicating the choice lists by hand.
 """
@@ -20,7 +20,7 @@ __all__ = ["choice_enum"]
 
 
 def _to_const(value: str) -> str:
-    """Graphene's enum member derivation: every non-word run becomes ``_``."""
+    """Member-name rule of the pre-Strawberry schema: every non-word run becomes ``_``."""
     return re.sub(r"[\W|^]+", "_", value).upper()
 
 
@@ -42,8 +42,8 @@ def choice_enum(model: type[Model], field_name: str, *, name: str | None = None)
     for value, label in field.flatchoices:
         if value in (None, ""):
             continue
-        # The member NAME is the GraphQL enum value (graphene used the raw value
-        # as the Python name and converted it with ``to_const``).
+        # The member NAME is the GraphQL enum value (the pre-Strawberry schema used
+        # the raw value as the Python name and converted it with ``_to_const``).
         member_name = _to_const(str(value))
         while member_name in members:
             member_name += "_"

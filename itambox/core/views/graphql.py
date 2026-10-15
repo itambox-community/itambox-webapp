@@ -78,7 +78,7 @@ def query_complexity_validator(max_complexity=1000, fan_out=10):
     current multiplier and a ``TypeInfo`` rooted at the fragment's type
     condition, and folds the resulting cost back in at the spread site.
 
-    Mirrors :func:`field_count_limit_validator`: a factory returning a
+    The rule is a factory returning a
     ``ValidationRule`` subclass that uses the ``enter_field`` / ``leave_field``
     visitor hooks and reports via ``self.report_error(GraphQLError(...))``. The
     base ``ValidationRule`` runs under graphql-core's ``TypeInfo`` visitor, so
@@ -200,8 +200,8 @@ def _has_pathless_errors(response_data):
     """True when the payload carries an operation error raised before execution.
 
     Parse and validation failures (including the depth, alias, document-size and
-    complexity budgets) carry no ``path``; resolver failures do. The Graphene
-    view this replaces answered the former with HTTP 400.
+    complexity budgets) carry no ``path``; resolver failures do. The endpoint
+    answers the former with HTTP 400.
     """
     entries = response_data if isinstance(response_data, list) else [response_data]
     for entry in entries:
@@ -233,10 +233,10 @@ class PrivateGraphQLView(GraphQLView):
     """Token-authenticated GraphQL endpoint with the interactive GraphiQL shell."""
 
     # Schema introspection is available to authenticated users in every
-    # environment, including production: the schema is not a secret and the
-    # endpoint stays auth-gated, and GraphiQL needs introspection for its
-    # docs explorer and autocompletion (NetBox follows the same model). The
-    # depth/alias/document/complexity budgets protect the endpoint regardless.
+    # environment, including production. The schema is not a secret and the
+    # endpoint stays auth-gated; GraphiQL's docs explorer and autocompletion
+    # need introspection to work. The depth, alias, document-size and
+    # complexity budgets limit the cost of every operation, introspection included.
     # GET authentication is enforced in dispatch(); the interactive shell
     # (templates/graphql/graphiql.html) stays available to authenticated users.
     graphql_ide = "graphiql"
@@ -298,8 +298,8 @@ class PrivateGraphQLView(GraphQLView):
         return None
 
     def create_response(self, response_data, sub_response):
-        # Keep the HTTP contract of the previous Graphene view: an operation
-        # rejected before execution answers 400 and carries no ``data`` member.
+        # An operation rejected before execution answers 400 and carries no
+        # ``data`` member, so clients can tell a rejected document from a failed resolver.
         if _has_pathless_errors(response_data):
             for entry in response_data if isinstance(response_data, list) else [response_data]:
                 if isinstance(entry, dict):

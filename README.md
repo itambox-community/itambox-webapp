@@ -134,7 +134,7 @@ The [integration guide](itambox/docs/integration/developer_guide.md) documents R
 
 ## Architecture at a glance
 
-ITAMbox is built with Django 5.2 and Python 3.12, requires PostgreSQL 15 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Graphene-Django provides the scoped GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
+ITAMbox is built with Django 5.2 and Python 3.12, requires PostgreSQL 15 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Strawberry (with strawberry-graphql-django) provides the scoped, read-only GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
 
 Architecture boundaries, implementation conventions, test lanes, and contributor quality gates are documented in [DEVELOPMENT.md](DEVELOPMENT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md).
 
