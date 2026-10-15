@@ -15424,3 +15424,33 @@ msgstr "Übersetzung des benutzerdefinierten Feldsets"
 
 msgid "Custom Fieldset Translations"
 msgstr "Übersetzungen des benutzerdefinierten Feldsets"
+
+msgid "%(column)s is required."
+msgstr "%(column)s ist erforderlich."
+
+msgid "%(column)s: enter a valid date (YYYY-MM-DD)."
+msgstr "%(column)s: Gültiges Datum eingeben (JJJJ-MM-TT)."
+
+msgid "A 'tenant' column is not allowed: rows always land in the active tenant."
+msgstr "Eine Spalte 'tenant' ist nicht erlaubt: Zeilen werden immer im aktiven Mandanten angelegt."
+
+msgid "Row %(row)s: record already exists; skipped."
+msgstr "Zeile %(row)s: Datensatz existiert bereits; übersprungen."
+
+msgid "asset_tag is required."
+msgstr "asset_tag ist erforderlich."
+
+msgid "asset_tag: no asset with this tag exists in the active tenant."
+msgstr "asset_tag: Im aktiven Mandanten existiert kein Asset mit dieser Tag-Nummer."
+
+msgid "end_date must be on or after start_date."
+msgstr "end_date muss gleich oder nach start_date liegen."
+
+msgid "record already exists; skipped."
+msgstr "Datensatz existiert bereits; übersprungen."
+
+msgid "supplier: no matching supplier in the active tenant."
+msgstr "supplier: Im aktiven Mandanten gibt es keinen passenden Lieferanten."
+
+msgid "warranty_type: select a valid choice."
+msgstr "warranty_type: Gültige Auswahl treffen."
