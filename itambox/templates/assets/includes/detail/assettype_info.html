@@ -30,9 +30,9 @@
   </dd>
   <dt class="col-sm-3">{% translate "Specification Sections:" %}</dt>
   <dd class="col-sm-9">
-    {% for membership in object.fieldset_memberships.all %}
+    {% for section in specification_section_links %}
       {% if not forloop.first %},{% endif %}
-      <a href="{% url 'extras:customfieldset_detail' pk=membership.fieldset.pk %}">{{ membership.fieldset.label }}</a>
+      <a href="{% url 'extras:customfieldset_detail' pk=section.pk %}">{{ section.label }}</a>
     {% empty %}
       <span class="text-muted"><i>{% translate "None" %}</i></span>
     {% endfor %}

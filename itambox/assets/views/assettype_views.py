@@ -3,11 +3,13 @@ from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
 from assets.customfields import composed_fieldsets, fetch_definitions_by_name, resolve_asset_type_custom_fields
 from assets.spec_display import build_spec_panel
+from extras.services.vocabulary_translations import VocabularyTranslator
 from core.managers import Scope
 from itambox.panels import Panel
 from itambox.quick_add import QuickAddMixin
@@ -77,12 +79,19 @@ class AssetTypeDetailView(ObjectDetailView):
         context["related_objects_list"] = related_objects_list
         spec_fields = resolve_asset_type_custom_fields(assettype)
         context["specification_fields"] = spec_fields
+        fieldsets = composed_fieldsets(assettype)
+        translator = VocabularyTranslator(active_locale=get_language())
         context["spec_panel"] = build_spec_panel(
             spec_fields,
             assettype.custom_field_data,
-            composed_fieldsets(assettype),
+            fieldsets,
             definitions_loader=fetch_definitions_by_name,
+            translator=translator,
         )
+        # Section names in the info panel go through the same translator.
+        context["specification_section_links"] = [
+            {"pk": fieldset.pk, "label": translator.fieldset_label(fieldset)} for fieldset in fieldsets
+        ]
         # The Hardware Specifications card is the representation of the type's custom data.
         context["hide_generic_custom_fields"] = True
 

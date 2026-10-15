@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.urls import reverse
+from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
 
 from assets.customfields import resolve_effective_custom_fields
@@ -18,6 +19,7 @@ from extras.customfields import (
     validate_custom_field_value,
 )
 from extras.models import CustomField, CustomFieldset, CustomFieldsetField, Tag
+from extras.services.vocabulary_translations import BASE_LABELS, VocabularyTranslator
 
 from ..models import AssetRole, AssetType, Category, Manufacturer
 from ..services.specifications.commands import (
@@ -57,12 +59,12 @@ def _choice_rows(definition):
     return tuple(sorted(rows, key=lambda row: (getattr(row, "position", 0), getattr(row, "key", ""))))
 
 
-def _choice_options(definition, initial_value):
+def _choice_options(definition, initial_value, translator=BASE_LABELS):
     stored = set(initial_value if isinstance(initial_value, (list, tuple)) else [initial_value])
     options = []
     for choice in _choice_rows(definition):
         if choice.lifecycle == CustomField.LIFECYCLE_ACTIVE or choice.key in stored:
-            label = str(choice.label)
+            label = translator.choice_label(choice)
             if choice.lifecycle == CustomField.LIFECYCLE_DEPRECATED:
                 label = f"{label} ({str(_('No longer offered'))})"
             options.append((choice.key, label))
@@ -77,7 +79,11 @@ def _coerce_t15_boolean(value):
     return str(value).casefold() == "true"
 
 
-def _build_t15_custom_field(definition, initial_value=None, *, has_stored_value=False, read_only=False):
+def _build_t15_custom_field(
+    definition, initial_value=None, *, has_stored_value=False, read_only=False, translator=BASE_LABELS
+):
+    label = translator.field_label(definition)
+    help_text = translator.field_help_text(definition)
     if definition.field_type == CustomField.FIELD_TYPE_BOOLEAN and (definition.required or definition.nullable):
         # Required booleans use an explicit two-choice control: Django's
         # BooleanField treats false as missing when required=True.  Keep that
@@ -99,8 +105,8 @@ def _build_t15_custom_field(definition, initial_value=None, *, has_stored_value=
         return forms.TypedChoiceField(
             choices=choices,
             coerce=_coerce_t15_boolean,
-            label=definition.label,
-            help_text=definition.help_text,
+            label=label,
+            help_text=help_text,
             required=definition.required,
             initial=initial,
             disabled=read_only,
@@ -109,9 +115,9 @@ def _build_t15_custom_field(definition, initial_value=None, *, has_stored_value=
 
     if definition.field_type == CustomField.FIELD_TYPE_SINGLE_SELECT:
         return forms.ChoiceField(
-            choices=[("", "---------"), *_choice_options(definition, initial_value)],
-            label=definition.label,
-            help_text=definition.help_text,
+            choices=[("", "---------"), *_choice_options(definition, initial_value, translator)],
+            label=label,
+            help_text=help_text,
             required=definition.required,
             initial=initial_value,
             disabled=read_only,
@@ -120,9 +126,9 @@ def _build_t15_custom_field(definition, initial_value=None, *, has_stored_value=
 
     if definition.field_type == CustomField.FIELD_TYPE_MULTI_SELECT:
         return forms.MultipleChoiceField(
-            choices=_choice_options(definition, initial_value),
-            label=definition.label,
-            help_text=definition.help_text,
+            choices=_choice_options(definition, initial_value, translator),
+            label=label,
+            help_text=help_text,
             required=definition.required,
             initial=initial_value,
             disabled=read_only,
@@ -131,6 +137,8 @@ def _build_t15_custom_field(definition, initial_value=None, *, has_stored_value=
 
     field = build_custom_field_form_field(definition, initial_value, read_only=read_only)
     if field is not None:
+        field.label = label
+        field.help_text = help_text
         field.widget.attrs.update({"data-specification-input": "1"})
     return field
 
@@ -158,22 +166,23 @@ def _build_t15_presence_field(definition):
     )
 
 
-def _display_t15_value(definition, value):
+def _display_t15_value(definition, value, translator=BASE_LABELS):
     if value is None:
         return "null"
     if definition.field_type == CustomField.FIELD_TYPE_BOOLEAN:
         return str(_("Yes")) if value is True else str(_("No"))
-    options = {choice.key: str(choice.label) for choice in _choice_rows(definition)}
+    options = {choice.key: translator.choice_label(choice) for choice in _choice_rows(definition)}
     if isinstance(value, (list, tuple)):
         return ", ".join(options.get(item, str(item)) for item in value)
     return options.get(value, str(value))
 
 
-def _history_entries(stored_values, current_definitions):
+def _history_entries(stored_values, current_definitions, translator=BASE_LABELS):
     if not stored_values:
         return []
     historical = CustomField.objects.filter(name__in=stored_values).prefetch_related("choice_set__choices")
     historical_by_name = {field.name: field for field in historical}
+    translator.load(fields=list(historical_by_name.values()))
     entries = []
     for name, value in stored_values.items():
         definition = current_definitions.get(f"cf_{name}") or historical_by_name.get(name)
@@ -209,8 +218,8 @@ def _history_entries(stored_values, current_definitions):
         entries.append(
             {
                 "key": name,
-                "label": definition.label,
-                "display_value": _display_t15_value(definition, value),
+                "label": translator.field_label(definition),
+                "display_value": _display_t15_value(definition, value, translator),
                 "state": state,
                 "reasons": tuple(reasons),
             }
@@ -427,6 +436,10 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
             self.fields["specification_fieldsets_presence"].initial = (
                 "explicit" if self._custom_fieldsets_explicit or self.instance.pk else "omitted"
             )
+        self.vocabulary_translator = VocabularyTranslator(active_locale=get_language())
+        self.vocabulary_translator.load(
+            fields=list(self.custom_field_definitions.values()), fieldsets=self._selected_fieldsets()
+        )
         self._configure_t15_custom_fields()
         self._configure_t15_draft_transport()
         self._build_t15_presentation()
@@ -554,6 +567,7 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
                 value,
                 has_stored_value=name in stored or name in drafts,
                 read_only=self.fields[key].disabled,
+                translator=self.vocabulary_translator,
             )
             self.fields[key] = field
             field.widget.attrs.update({"data-specification-key": key[3:]})
@@ -641,8 +655,8 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
                     {
                         "id": fieldset.pk,
                         "identity": f"{fieldset.namespace}/{fieldset.slug}",
-                        "label": fieldset.label or fieldset.slug,
-                        "description": fieldset.description,
+                        "label": self.vocabulary_translator.fieldset_label(fieldset),
+                        "description": self.vocabulary_translator.fieldset_description(fieldset),
                         "source": self._fieldset_source(fieldset),
                         "fields": fields,
                     }
@@ -660,7 +674,9 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
                 }
             )
         self.specification_sections = sections
-        self.specification_history = _history_entries(self._stored_custom_values(), self.custom_field_definitions)
+        self.specification_history = _history_entries(
+            self._stored_custom_values(), self.custom_field_definitions, self.vocabulary_translator
+        )
         self.specification_fieldset_options = self._fieldset_options(selected)
         self._set_render_preconditions(selected)
 
@@ -724,6 +740,8 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
             .order_by("namespace", "slug")
         )
         stored = self._stored_custom_values()
+        fieldsets = list(fieldsets)
+        translator = self.vocabulary_translator.load(fieldsets=fieldsets)
         options = []
         for fieldset in fieldsets:
             field_names = {membership.custom_field.name for membership in fieldset.field_memberships.all()}
@@ -731,8 +749,8 @@ class AssetTypeForm(TenantScopedFormMixin, CustomFieldModelFormMixin, SlugModelF
                 {
                     "id": fieldset.pk,
                     "identity": f"{fieldset.namespace}/{fieldset.slug}",
-                    "label": fieldset.label or fieldset.slug,
-                    "description": fieldset.description,
+                    "label": translator.fieldset_label(fieldset),
+                    "description": translator.fieldset_description(fieldset),
                     "source": self._fieldset_source(fieldset),
                     "selected": fieldset.pk in selected_ids,
                     "deprecated": fieldset.lifecycle == CustomFieldset.LIFECYCLE_DEPRECATED,
