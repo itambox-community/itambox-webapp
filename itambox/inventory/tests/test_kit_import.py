@@ -131,7 +131,9 @@ class TestKitImportForm(TenantTestMixin):
         self.setup_tenant_context(name="Kit Form", slug="kit-form", permissions=list(permissions))
         self.set_active_tenant(self.tenant, self.tenant_membership)
         self.vendor = Manufacturer.objects.create(name="Form Vendor", slug="form-vendor")
-        self.mouse = Accessory.objects.create(name="Form Mouse", manufacturer=self.vendor, tenant=self.tenant)
+        self.mouse = Accessory.objects.create(
+            name="Form Mouse", slug="form-mouse", manufacturer=self.vendor, tenant=self.tenant
+        )
         return self._build(text)
 
     def _build(self, text):
