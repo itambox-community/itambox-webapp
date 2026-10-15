@@ -39,7 +39,7 @@ Domain apps follow a consistent internal layout. Large apps split `models`, `for
   tables.py              # django-tables2 table classes
   filters.py             # django-filter FilterSet classes (this repo uses filters.py, NOT filtersets.py)
   api/                   # serializers.py / views.py / urls.py — bases imported from itambox.api.*
-  schema.py              # GraphQL (graphene) Query/Mutation — GraphQL-exposed apps only
+  schema.py              # GraphQL (Strawberry) Query type — GraphQL-exposed apps only
   search.py              # @register_search SearchIndex classes (global search)
   services.py            # domain/service-layer logic — only where a service layer is warranted
   tasks.py               # django-q2 task functions — only where the app enqueues work
@@ -57,7 +57,7 @@ Not every app has every file: `services.py`, `schema.py`, `tasks.py`, `signals.p
 Django + PostgreSQL (SQLite is rejected at settings load). Beyond Django itself:
 
 - **REST API** — Django REST Framework + drf-spectacular (OpenAPI schema/sidecar).
-- **GraphQL** — graphene-django (see "Architecture: GraphQL").
+- **GraphQL** — Strawberry (strawberry-graphql + strawberry-graphql-django), read-only (see "Architecture: GraphQL").
 - **Lists & filtering** — django-tables2 (tables) + django-filter (FilterSets).
 - **Forms** — django-crispy-forms + crispy-bootstrap5.
 - **Frontend interactivity** — HTMX (django-htmx); TypeScript + SCSS compiled via npm into `static/dist/`.
@@ -472,7 +472,19 @@ When you change behaviour in one of these areas, run `uv run --locked --group de
 
 ## Architecture: GraphQL
 
-GraphQL uses **graphene-django** (not Strawberry). Each exposed app declares `Query`/`Mutation` classes in `<app>/schema.py`; the root schema in `core/schema.py` combines them (currently `assets`, `inventory`, `licenses`, `software`, `subscriptions`) plus any plugin schema (a plugin opts in via a `graphql_schema` attr on its app config). The endpoint is served by `core/views/graphql.py` — a `GraphQLView` subclass wired through `TenantMiddleware`/`CurrentUserMiddleware` and token auth, with **query-complexity guards**: a depth limit plus a field/alias-count validator (`field_count_limit_validator`) that stops alias-amplification DoS (`a1: assets(...) a2: assets(...) …`). To expose a new app: add `<app>/schema.py` with `Query`/`Mutation`, then add those to the bases in `core/schema.py`. Coverage is tested by `test_graphql.py`, `test_graphql_adversarial.py`, and `test_sec_graphql.py`.
+GraphQL uses **Strawberry** (`strawberry-graphql` with `strawberry-graphql-django`). The API is **read-only**: the root schema in `core/schema.py` defines no Mutation root, so mutation operations are not accepted; writes go through the service-backed REST and UI paths (#612). Each exposed app declares a Strawberry `Query` type in `<app>/schema.py`, and `core/schema.py` merges those into the root `Query` (currently `assets`, `software`, `licenses`, `inventory`, `subscriptions`). A plugin can contribute its own `Query` (and, only for a plugin, a `Mutation`) through the `graphql_schema` attribute on its app config.
+
+The endpoint is `core/views/graphql.py` (`PrivateGraphQLView`, a Strawberry `GraphQLView`), wired through `TenantMiddleware`/`CurrentUserMiddleware`. POST accepts an API token (`Authorization: Token ...`, as in REST) or an authenticated session with CSRF. GET requires an authenticated session: a GET is redirected to login when the request is not session-authenticated, including a GET that carries only a token. GraphiQL is served to browsers that request `text/html`. The REST throttles apply to every request that executes an operation.
+
+Four operation budgets run on every request. A document that exceeds one is rejected before execution with HTTP 400 and no `data` member:
+- depth: `QueryDepthLimiter`, at most 10 levels.
+- aliases: `MaxAliasesLimiter`, at most 50 per document (stops alias amplification such as `a1: assets(...) a2: assets(...)`).
+- document size: `MaxTokensLimiter`, at most 2000 tokens.
+- estimated cost: `query_complexity_validator(max_complexity=2000, fan_out=10)` charges nested list fan-out, including fields reached through fragment spreads; introspection root fields are charged a flat cost.
+
+Introspection is available to authenticated users in every environment. The schema is not a secret, the endpoint stays auth-gated, and GraphiQL needs introspection for its docs explorer and autocompletion; the four budgets limit the cost of any operation regardless.
+
+To expose a new app: add `<app>/schema.py` with a Strawberry `Query` type, following the assets app for types and inputs, then add that class to `query_bases` in `core/schema.py`. Do not add a Mutation to a core app. Tests: per-app `tests/test_graphql*.py` modules, `assets/tests/test_graphql_adversarial.py`, `assets/tests/test_sec_graphql.py`, and `core/tests/test_graphql_throttle.py`.
 
 ## Architecture: background tasks
 

@@ -627,7 +627,7 @@ PLUGINS_CONFIG = {
 load_plugins(sys.modules[__name__])
 
 # Strawberry-Django exposes model ``help_text`` as the GraphQL field description,
-# matching the descriptions the Graphene schema published before the port.
+# keeping the descriptions the schema published before the Strawberry port.
 STRAWBERRY_DJANGO = {
     "FIELD_DESCRIPTION_FROM_HELP_TEXT": True,
 }

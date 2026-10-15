@@ -244,7 +244,7 @@ warn_redundant_casts = true
 strict_equality = true
 disallow_any_generics = true
 disallow_any_unimported = true
-# DRF, graphene, and django-q decorators are untyped. Requiring them to be typed
+# DRF and django-q decorators are untyped. Requiring them to be typed
 # would make third-party release timing decide whether this repository builds; a
 # decorated function still has to carry its own annotations, which
 # disallow_untyped_defs already enforces.
