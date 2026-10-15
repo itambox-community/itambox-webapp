@@ -177,9 +177,12 @@ class TestKitImportForm(TenantTestMixin):
 
     def test_unchanged_reimport_is_skipped(self):
         text = "name,items\nSame,accessory:form-mouse\n"
-        self._form(text).import_data()
+        first = self._form(text)
+        assert first.is_valid(), first.errors
+        first.import_data()
+        assert Kit.objects.filter(name="Same").exists()
         again = self._build(text)
-        again.is_valid()
+        assert again.is_valid(), again.errors
         again.import_data()
         assert again.skipped_list
         assert not again.updated_list
