@@ -15382,3 +15382,44 @@ msgstr "unbekannter Wert"
 #: templates/assets/includes/detail/_spec_value.html
 msgid "invalid"
 msgstr "ungültig"
+msgid "Locale"
+msgstr "Sprache"
+
+msgid "Language code, for example de or pt-br."
+msgstr "Sprachcode, zum Beispiel de oder pt-br."
+
+msgid "Translated Label"
+msgstr "Übersetztes Label"
+
+msgid "Translated Help Text"
+msgstr "Übersetzter Hilfetext"
+
+msgid "Translated Unit"
+msgstr "Übersetzte Einheit"
+
+msgid "Translated Description"
+msgstr "Übersetzte Beschreibung"
+
+msgid "Display token for a word-like canonical unit, for example ppm for pages_per_minute."
+msgstr "Anzeigetoken für eine wortartige kanonische Einheit, zum Beispiel ppm für pages_per_minute."
+
+msgid "Choice"
+msgstr "Auswahl"
+
+msgid "Custom Field Translation"
+msgstr "Übersetzung des benutzerdefinierten Felds"
+
+msgid "Custom Field Translations"
+msgstr "Übersetzungen des benutzerdefinierten Felds"
+
+msgid "Custom Field Choice Translation"
+msgstr "Übersetzung der Auswahl eines benutzerdefinierten Felds"
+
+msgid "Custom Field Choice Translations"
+msgstr "Übersetzungen der Auswahl eines benutzerdefinierten Felds"
+
+msgid "Custom Fieldset Translation"
+msgstr "Übersetzung des benutzerdefinierten Feldsets"
+
+msgid "Custom Fieldset Translations"
+msgstr "Übersetzungen des benutzerdefinierten Feldsets"
