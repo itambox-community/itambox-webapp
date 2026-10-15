@@ -133,6 +133,11 @@ DECLARATIONS = {
     "extras.bookmark": _allow(SCOPE_OWNER, owner_field="user"),
     "extras.customfield": _deny(R_CONFIG, "custom-field definition, edited through the custom-field form"),
     "extras.customfieldchoice": _deny(R_CONFIG, "custom-field definition, edited through the custom-field form"),
+    "extras.customfieldchoicetranslation": _deny(
+        R_CONFIG, "shipped vocabulary translation, seeded with the definition"
+    ),
+    "extras.customfieldtranslation": _deny(R_CONFIG, "shipped vocabulary translation, seeded with the definition"),
+    "extras.customfieldsettranslation": _deny(R_CONFIG, "shipped vocabulary translation, seeded with the definition"),
     "extras.customfieldchoiceset": _deny(R_CONFIG, "custom-field definition, edited through the custom-field form"),
     "extras.customfieldset": _deny(R_CONFIG, "custom-field definition, edited through the custom-field form"),
     "extras.customfieldsetfield": _deny(R_CONFIG, "custom-field definition, edited through the custom-field form"),
