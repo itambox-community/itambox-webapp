@@ -15538,3 +15538,51 @@ msgstr "status: Nur abgeschlossene oder abgebrochene Wartungen können importier
 #: assets/forms/import_forms.py
 msgid "supplier: '%(value)s' matches more than one supplier."
 msgstr "supplier: '%(value)s' entspricht mehreren Lieferanten."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Unknown item type '%(kind)s'."
+msgstr "Unbekannter Positionstyp '%(kind)s'."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Item of type '%(kind)s' has no reference."
+msgstr "Position vom Typ '%(kind)s' hat keine Referenz."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Item '%(ref)s' has an invalid quantity."
+msgstr "Position '%(ref)s' hat eine ungültige Menge."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Item '%(ref)s' is ambiguous."
+msgstr "Position '%(ref)s' ist nicht eindeutig."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Item '%(ref)s' was not found in this tenant's catalogue."
+msgstr "Position '%(ref)s' wurde im Katalog dieses Mandanten nicht gefunden."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "A tenant column is not allowed; kits are imported into the active tenant."
+msgstr "Eine Mandantenspalte ist nicht erlaubt; Kits werden in den aktiven Mandanten importiert."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Kits can only be imported into an active tenant."
+msgstr "Kits können nur in einen aktiven Mandanten importiert werden."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "\"name\" is required."
+msgstr "„name“ ist erforderlich."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "A kit named '%(name)s' is shared or not available and is never modified."
+msgstr "Ein Kit mit dem Namen '%(name)s' ist geteilt oder nicht verfügbar und wird nie verändert."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Item '%(ref)s' is declared more than once."
+msgstr "Position '%(ref)s' ist mehrfach angegeben."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "You do not have permission to add kit items."
+msgstr "Du hast keine Berechtigung, Kit-Positionen hinzuzufügen."
+
+#: itambox/inventory/forms/import_forms.py
+msgid "Kit '%(name)s': items not replaced; this needs change, add and delete permissions for kit items."
+msgstr "Kit '%(name)s': Positionen nicht ersetzt; dafür sind Änderungs-, Hinzufüge- und Löschrechte für Kit-Positionen nötig."
