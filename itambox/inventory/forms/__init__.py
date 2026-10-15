@@ -8,6 +8,7 @@ from .accessory_forms import (
     AccessoryStockModalForm,
 )
 from .base_forms import BaseCheckoutForm
+from .import_forms import KitBulkImportForm
 from .component_forms import (
     ComponentAllocationFilterForm,
     ComponentAllocationForm,
@@ -58,6 +59,7 @@ __all__ = [
     "ConsumableStockFilterForm",
     "ConsumableStockForm",
     "ConsumableStockModalForm",
+    "KitBulkImportForm",
     "KitCheckoutForm",
     "KitFilterForm",
     "KitForm",
