@@ -9,8 +9,8 @@ from django_tables2 import RequestConfig
 
 from assets.customfields import composed_fieldsets, fetch_definitions_by_name, resolve_asset_type_custom_fields
 from assets.spec_display import build_spec_panel
-from extras.services.vocabulary_translations import VocabularyTranslator
 from core.managers import Scope
+from extras.services.vocabulary_translations import VocabularyTranslator
 from itambox.panels import Panel
 from itambox.quick_add import QuickAddMixin
 from itambox.utils import get_paginate_count

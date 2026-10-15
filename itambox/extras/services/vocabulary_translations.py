@@ -83,16 +83,16 @@ class VocabularyTranslator:
         if self.inert:
             return self
         field_ids = {pk for pk in map(_pk, fields) if pk is not None} - self._loaded_fields
-        choice_set_ids = {
-            getattr(definition, "choice_set_id", None) for definition in fields
-        } - {None} - self._loaded_choice_sets
+        choice_set_ids = (
+            {getattr(definition, "choice_set_id", None) for definition in fields} - {None} - self._loaded_choice_sets
+        )
         fieldset_ids = {pk for pk in map(_pk, fieldsets) if pk is not None} - self._loaded_fieldsets
         if field_ids:
             self._store(
                 self._field_rows,
-                CustomFieldTranslation.objects.filter(
-                    custom_field_id__in=field_ids, locale__in=self.candidates
-                ).values("custom_field_id", "locale", "label", "help_text", "unit_label"),
+                CustomFieldTranslation.objects.filter(custom_field_id__in=field_ids, locale__in=self.candidates).values(
+                    "custom_field_id", "locale", "label", "help_text", "unit_label"
+                ),
                 "custom_field_id",
             )
             self._loaded_fields |= field_ids

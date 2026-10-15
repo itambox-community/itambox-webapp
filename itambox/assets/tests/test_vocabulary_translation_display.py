@@ -28,7 +28,13 @@ from extras.services.vocabulary_translations import BASE_LABELS, VocabularyTrans
 
 # ``>Switch<`` matches the rendered choice text only: the German label contains "Switch".
 ENGLISH_VOCABULARY = ("Device Role", ">Switch<", "Connectivity and I/O", "Print speed", "Network OS")
-GERMAN_VOCABULARY = ("Geräterolle", "Netzwerk-Switch", "Konnektivität und E/A", "Druckgeschwindigkeit", "Netzwerk-Betriebssystem")
+GERMAN_VOCABULARY = (
+    "Geräterolle",
+    "Netzwerk-Switch",
+    "Konnektivität und E/A",
+    "Druckgeschwindigkeit",
+    "Netzwerk-Betriebssystem",
+)
 
 
 class _VocabularyWorld:
@@ -40,8 +46,12 @@ class _VocabularyWorld:
         type_ct = ContentType.objects.get_for_model(AssetType)
         asset_ct = ContentType.objects.get_for_model(Asset)
         cls.choice_set = CustomFieldChoiceSet.objects.create(namespace="itambox", slug="voc832-role", label="Role")
-        cls.switch = CustomFieldChoice.objects.create(choice_set=cls.choice_set, key="switch", label="Switch", position=1)
-        cls.router = CustomFieldChoice.objects.create(choice_set=cls.choice_set, key="router", label="Router", position=2)
+        cls.switch = CustomFieldChoice.objects.create(
+            choice_set=cls.choice_set, key="switch", label="Switch", position=1
+        )
+        cls.router = CustomFieldChoice.objects.create(
+            choice_set=cls.choice_set, key="router", label="Router", position=2
+        )
         cls.role = CustomField.objects.create(
             namespace="itambox",
             name="voc832_device_role",
