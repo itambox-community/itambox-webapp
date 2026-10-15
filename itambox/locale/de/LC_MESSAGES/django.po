@@ -15424,3 +15424,18 @@ msgstr "Übersetzung des benutzerdefinierten Feldsets"
 
 msgid "Custom Fieldset Translations"
 msgstr "Übersetzungen des benutzerdefinierten Feldsets"
+
+msgid "Translate"
+msgstr "Übersetzen"
+
+msgid "Edit translation"
+msgstr "Übersetzung bearbeiten"
+
+msgid "Add translation"
+msgstr "Übersetzung hinzufügen"
+
+msgid "Source label"
+msgstr "Quellbezeichnung"
+
+msgid "The source label is not changed here. Only the translation is saved."
+msgstr "Die Quellbezeichnung wird hier nicht geändert. Es wird nur die Übersetzung gespeichert."

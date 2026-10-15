@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% load i18n %}
+{% block title %}{{ form_title }} - ITAMbox{% endblock %}
+{% block page_header %}<h2 class="page-title">{{ form_title }}</h2>{% endblock %}
+{% block content %}
+  <div class="card">
+    <div class="card-body">
+      <p class="text-muted">{% translate "Language" %}: <code>{{ object.locale }}</code> ({{ locale_name }})</p>
+      <div class="mb-3">
+        <label class="form-label">{% translate "Source label" %}</label>
+        <input type="text" class="form-control" value="{{ base_label }}" readonly disabled>
+        <div class="form-text">{% translate "The source label is not changed here. Only the translation is saved." %}</div>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form.visible_fields %}
+          <div class="mb-3">
+            {{ field.label_tag }}{{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">{% translate "Save" %}</button>
+        <a href="{{ cancel_url }}" class="btn btn-outline-secondary ms-2">{% translate "Cancel" %}</a>
+      </form>
+    </div>
+  </div>
+{% endblock content %}

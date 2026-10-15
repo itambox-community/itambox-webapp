@@ -6,9 +6,11 @@ can wire these views without changing the command or presentation contract.
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import NoReverseMatch, reverse
 from django.utils.translation import gettext_lazy as _
@@ -22,8 +24,19 @@ from extras.definition_forms import (
     ChoiceSetRetireForm,
     ChoiceSetUpdateForm,
     ChoiceUpdateForm,
+    CustomFieldChoiceTranslationForm,
+    CustomFieldsetTranslationForm,
+    CustomFieldTranslationForm,
 )
-from extras.models import CustomField, CustomFieldChoice, CustomFieldChoiceSet
+from extras.models import (
+    CustomField,
+    CustomFieldChoice,
+    CustomFieldChoiceSet,
+    CustomFieldChoiceTranslation,
+    CustomFieldset,
+    CustomFieldsetTranslation,
+    CustomFieldTranslation,
+)
 from extras.services._definition_command_support import resource_revision_for_definition
 from extras.services.definition_command_contracts import (
     CustomFieldChoiceCreateInputDTO,
@@ -186,6 +199,9 @@ class ChoiceSetDetailView(LoginRequiredMixin, _DefinitionPermissionMixin, Detail
                             "extras:definition_choice_retire",
                             choice_set_pk=self.object.pk,
                             pk=choice.pk,
+                        ),
+                        "translate_url": _safe_reverse(
+                            "extras:definition_translation_edit", kind="choice", pk=choice.pk, locale="de"
                         ),
                     }
                     for choice in self.object.choices.all()
@@ -459,3 +475,71 @@ __all__ = [
     "ChoiceSetUpdateView",
     "ChoiceUpdateView",
 ]
+
+
+# (entity model, translation model, fk name, form) per translatable kind.
+_TRANSLATION_KINDS = {
+    "field": (CustomField, CustomFieldTranslation, "custom_field", CustomFieldTranslationForm),
+    "choice": (CustomFieldChoice, CustomFieldChoiceTranslation, "choice", CustomFieldChoiceTranslationForm),
+    "fieldset": (CustomFieldset, CustomFieldsetTranslation, "fieldset", CustomFieldsetTranslationForm),
+}
+
+
+class DefinitionTranslationEditView(LoginRequiredMixin, _DefinitionPermissionMixin, UpdateView):
+    """Create or edit the translation row of one definition for one locale.
+
+    Shipped (core and library) definitions are translatable on purpose. The base
+    label is shown read-only as the source and is never written by this view.
+    """
+
+    require_global_configuration = True
+    template_name = "extras/definitions/translation_form.html"
+
+    def _resolve(self):
+        if not hasattr(self, "_resolved"):
+            try:
+                entity_model, row_model, fk_name, form_class = _TRANSLATION_KINDS[self.kwargs["kind"]]
+            except KeyError:
+                raise Http404 from None
+            locale = self.kwargs["locale"]
+            if locale not in dict(settings.LANGUAGES):
+                raise Http404
+            entity = get_object_or_404(entity_model, pk=self.kwargs["pk"])
+            row = row_model.objects.filter(**{fk_name: entity, "locale": locale}).first()
+            if row is None:
+                row = row_model(**{fk_name: entity, "locale": locale})
+            self._resolved = (entity, row, row_model, form_class)
+        return self._resolved
+
+    def get_permission_required(self):
+        _entity, row, row_model, _form = self._resolve()
+        action = "change" if row.pk else "add"
+        return (f"extras.{action}_{row_model._meta.model_name}",)
+
+    def get_object(self, queryset=None):
+        return self._resolve()[1]
+
+    def get_form_class(self):
+        return self._resolve()[3]
+
+    def get_success_url(self):
+        entity = self._resolve()[0]
+        if isinstance(entity, CustomFieldChoice):
+            return _safe_reverse("extras:definition_choice_set_detail", pk=entity.choice_set_id) or "/"
+        if isinstance(entity, CustomFieldset):
+            return _safe_reverse("extras:customfieldset_detail", pk=entity.pk) or "/"
+        return _safe_reverse("extras:customfield_detail", pk=entity.pk) or "/"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        entity, row, _model, _form = self._resolve()
+        context.update(
+            {
+                "form_title": _("Edit translation") if row.pk else _("Add translation"),
+                "entity": entity,
+                "base_label": entity.label,
+                "locale_name": dict(settings.LANGUAGES)[row.locale],
+                "cancel_url": self.get_success_url(),
+            }
+        )
+        return context
