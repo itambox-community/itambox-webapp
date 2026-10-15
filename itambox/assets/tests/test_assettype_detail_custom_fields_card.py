@@ -71,7 +71,7 @@ class AssetTypeFurtherStoredValuesTests(TestCase):
         cls.manufacturer = Manufacturer.objects.create(name="CF827B Mfr", slug="cf827b-mfr")
         cls.asset_type_ct = ContentType.objects.get_for_model(AssetType)
         cls.historical = CustomField.objects.create(
-            name="old_spec", label="Old Spec", activation=CustomField.ACTIVATION_FIELDSET
+            name="old_spec", label="Old Spec", activation=CustomField.ACTIVATION_COMPOSED
         )
         cls.historical.object_types.add(cls.asset_type_ct)
 
