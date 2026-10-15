@@ -98,7 +98,7 @@ DECLARATIONS = {
     "assets.manufacturer": _allow(SCOPE_GLOBAL, import_=True),
     "assets.statuslabel": _allow(SCOPE_GLOBAL),
     "assets.supplier": _allow(SCOPE_MANAGER),
-    "assets.warranty": _allow(SCOPE_MANAGER),
+    "assets.warranty": _allow(SCOPE_MANAGER, import_=True),
     # auth
     "auth.group": _deny(R_SYSTEM, "framework or third-party system table"),
     "auth.permission": _deny(R_SYSTEM, "framework or third-party system table"),

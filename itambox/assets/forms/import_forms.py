@@ -6,7 +6,7 @@ import jsonschema
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils.translation import gettext as _
 
-from assets.models import Asset, AssetRole, AssetType, Category, Manufacturer
+from assets.models import Asset, AssetRole, AssetType, Category, Manufacturer, Supplier, Warranty, WarrantyTypeChoices
 from assets.services.specifications.catalogue_schema import build_catalogue_schema
 from assets.services.specifications.commands import create_asset_type, preview_asset_type_create
 from assets.services.specifications.contracts import FieldsetSelectionDTO, SpecificationPatchDTO
@@ -18,7 +18,9 @@ from assets.specification_adapters import (
     native_asset_type_create_input,
     require_command_success,
 )
-from core.importers.bulk_forms import BulkImportForm, RowSkipped, register_import_form
+from core.context import get_current_tenant
+from core.importers.bulk_forms import ROW_CREATED, BulkImportForm, RowSkipped, register_import_form
+from core.managers import Scope
 from core.slugs import generate_unique_slug
 from inventory.models import Accessory, Consumable
 from licenses.models import License
@@ -360,3 +362,133 @@ class AssetHolderBulkImportForm(BulkImportForm):
     update_key = ("upn",)
     required_fields = ["first_name", "last_name", "upn"]
     optional_fields = ["email", "description", "comments"]
+
+
+@register_import_form
+class WarrantyBulkImportForm(BulkImportForm):
+    """Create-only backfill of warranty records (#829, slice 4).
+
+    The asset is referenced by its tag and resolved inside the active tenant
+    only. The supplier is referenced by slug or name and never by numeric id.
+    A row repeating a live warranty (same asset, type and dates) is skipped;
+    there is no update path, so an import never modifies an existing row.
+    A ``tenant`` column is rejected for the whole file.
+    """
+
+    model = Warranty
+    required_fields = ["asset_tag", "start_date", "end_date"]
+    optional_fields = ["warranty_type", "supplier", "cost", "currency", "reference", "terms", "notes"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._batch_keys = set()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not self._rows_data:
+            return cleaned_data
+        if any(str(key).strip().lower() == "tenant" for row in self._rows_data for key in row):
+            raise ValidationError(_("A 'tenant' column is not allowed: rows always land in the active tenant."))
+        self._batch_keys = set()
+        errors, notes = [], []
+        for number, row in enumerate(self._rows_data, start=2):
+            try:
+                mapped, key = self._prepare(row)
+                if self._is_duplicate(key):
+                    notes.append(_("Row %(row)s: record already exists; skipped.") % {"row": number})
+                else:
+                    self._batch_keys.add(key)
+            except ValidationError as exc:
+                errors.extend(f"Row {number}: {message}" for message in exc.messages)
+        self.row_notes = notes
+        if errors:
+            raise ValidationError(errors)
+        return cleaned_data
+
+    def import_data(self, request=None):
+        self._batch_keys = set()
+        return super().import_data(request)
+
+    def _import_row(self, row, row_number):
+        mapped, key = self._prepare(row)
+        if self._is_duplicate(key):
+            raise RowSkipped(_("record already exists; skipped."))
+        instance = self.model(**mapped)
+        instance.full_clean()
+        instance.save()
+        self._batch_keys.add(key)
+        return ROW_CREATED
+
+    def _is_duplicate(self, key):
+        if key in self._batch_keys:
+            return True
+        asset_id, warranty_type, start_date, end_date = key
+        return Warranty.objects.filter(
+            asset_id=asset_id, warranty_type=warranty_type, start_date=start_date, end_date=end_date
+        ).exists()
+
+    def _prepare(self, row):
+        """Validate and resolve one row; return (mapped values, duplicate key)."""
+        mapped = self.map_row(row)
+        if mapped["end_date"] < mapped["start_date"]:
+            raise ValidationError(_("end_date must be on or after start_date."))
+        key = (mapped["asset_id"], mapped["warranty_type"], mapped["start_date"], mapped["end_date"])
+        return mapped, key
+
+    def map_row(self, row):
+        mapped = {}
+        tag = str(row.get("asset_tag") or "").strip()
+        if not tag:
+            raise ValidationError(_("asset_tag is required."))
+        mapped["asset_id"] = _resolve_warranty_asset(tag).pk
+
+        for column in ("start_date", "end_date"):
+            raw = str(row.get(column) or "").strip()
+            if not raw:
+                raise ValidationError(_("%(column)s is required.") % {"column": column})
+            mapped[column] = _parse_warranty_date(column, raw)
+
+        warranty_type = str(row.get("warranty_type") or "").strip() or WarrantyTypeChoices.HARDWARE
+        if warranty_type not in WarrantyTypeChoices.values:
+            raise ValidationError(_("warranty_type: select a valid choice."))
+        mapped["warranty_type"] = warranty_type
+
+        supplier = str(row.get("supplier") or "").strip()
+        if supplier:
+            mapped["supplier_id"] = _resolve_warranty_supplier(supplier).pk
+
+        for column in ("cost", "currency", "reference", "terms", "notes"):
+            value = str(row.get(column) or "").strip()
+            if value:
+                mapped[column] = value
+        return mapped
+
+
+def _resolve_warranty_asset(tag):
+    """Return the live asset with this tag in the active tenant, or fail the row."""
+    tenant = get_current_tenant()
+    queryset = Asset.objects.for_scope(Scope.current())
+    asset = queryset.filter(asset_tag=tag, tenant=tenant).first() if tenant is not None else None
+    if asset is None:
+        raise ValidationError(_("asset_tag: no asset with this tag exists in the active tenant."))
+    return asset
+
+
+def _resolve_warranty_supplier(value):
+    """Resolve a supplier by slug or name in scope; numeric ids are not accepted."""
+    queryset = Supplier.objects.for_scope(Scope.current())
+    supplier = (
+        queryset.filter(slug=value).first()
+        or queryset.filter(name=value).first()
+        or queryset.filter(name__iexact=value).first()
+    )
+    if supplier is None:
+        raise ValidationError(_("supplier: no matching supplier in the active tenant."))
+    return supplier
+
+
+def _parse_warranty_date(column, raw):
+    try:
+        return Warranty._meta.get_field(column).to_python(raw)
+    except ValidationError:
+        raise ValidationError(_("%(column)s: enter a valid date (YYYY-MM-DD).") % {"column": column}) from None
