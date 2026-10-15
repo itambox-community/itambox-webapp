@@ -8,7 +8,6 @@ from .accessory_forms import (
     AccessoryStockModalForm,
 )
 from .base_forms import BaseCheckoutForm
-from .import_forms import KitBulkImportForm
 from .component_forms import (
     ComponentAllocationFilterForm,
     ComponentAllocationForm,
@@ -28,6 +27,7 @@ from .consumable_forms import (
     ConsumableStockForm,
     ConsumableStockModalForm,
 )
+from .import_forms import KitBulkImportForm
 from .kit_forms import (
     KitCheckoutForm,
     KitFilterForm,
