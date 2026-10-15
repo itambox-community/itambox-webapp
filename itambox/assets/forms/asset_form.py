@@ -10,7 +10,7 @@ from django.utils.html import format_html
 from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
 
-from assets.customfields import resolve_asset_custom_fields, resolve_asset_type_custom_fields
+from assets.customfields import composed_fieldsets, resolve_asset_custom_fields, resolve_asset_type_custom_fields
 from core.forms import CrispyFormMixin, TenantScopedFormMixin
 from core.managers import Scope
 from core.mixins import suppress_custom_field_data_validation
@@ -605,10 +605,12 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
             elif mode == "null":
                 cleaned_data[key] = None
 
-    @staticmethod
-    def _composed_fieldset_rows(selected_asset_type):
-        memberships = getattr(selected_asset_type, "_prefetched_objects_cache", {}).get("fieldset_memberships", ())
-        return [membership.fieldset for membership in memberships]
+    def _composed_fieldset_rows(self, selected_asset_type):
+        cached = getattr(self, "_composed_fieldset_cache", None)
+        if cached is None or cached[0] is not selected_asset_type:
+            cached = (selected_asset_type, composed_fieldsets(selected_asset_type))
+            self._composed_fieldset_cache = cached
+        return cached[1]
 
     def _asset_fieldset_context(self, selected_asset_type, resolved_fields):
         translator = self.vocabulary_translator

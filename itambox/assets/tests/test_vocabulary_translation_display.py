@@ -26,7 +26,8 @@ from extras.models import (
 )
 from extras.services.vocabulary_translations import BASE_LABELS, VocabularyTranslator, language_candidates
 
-ENGLISH_VOCABULARY = ("Device Role", "Switch", "Connectivity and I/O", "Print speed", "Network OS")
+# ``>Switch<`` matches the rendered choice text only: the German label contains "Switch".
+ENGLISH_VOCABULARY = ("Device Role", ">Switch<", "Connectivity and I/O", "Print speed", "Network OS")
 GERMAN_VOCABULARY = ("Geräterolle", "Netzwerk-Switch", "Konnektivität und E/A", "Druckgeschwindigkeit", "Netzwerk-Betriebssystem")
 
 
@@ -214,7 +215,7 @@ class GermanDetailRenderingTests(_VocabularyWorld, TestCase):
         self.assertIn("Konnektivität und E/A", content)
         self.assertIn("Geräterolle", content)
         self.assertIn("Netzwerk-Switch", content)
-        for label in ("Connectivity and I/O", "Device Role", "Switch"):
+        for label in ("Connectivity and I/O", "Device Role", ">Switch<"):
             self.assertNotIn(label, content)
 
     def test_english_ui_keeps_base_labels(self):

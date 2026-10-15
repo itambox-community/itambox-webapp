@@ -15371,10 +15371,6 @@ msgstr "vorhandener Datensatz aktualisiert."
 msgid "record already exists and is unchanged; skipped."
 msgstr "Datensatz existiert bereits und ist unverändert; übersprungen."
 
-#: assets/spec_display.py
-msgid "ppm"
-msgstr "Seiten/Min."
-
 #: templates/assets/includes/detail/_spec_value.html
 msgid "unknown value"
 msgstr "unbekannter Wert"

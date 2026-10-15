@@ -123,8 +123,10 @@ class ScalarRendererTests(SimpleTestCase):
         self.assertEqual(build_entry(_definition("a", "integer", unit="VA"), 10).unit, "VA")
         self.assertEqual(build_entry(_definition("a", "integer", unit="frobnicate"), 10).unit, "frobnicate")
         self.assertEqual(build_entry(_definition("a", "integer", unit="pages_per_minute"), 10).unit, "ppm")
-        with translation.override("de"):
-            self.assertEqual(build_entry(_definition("a", "integer", unit="pages_per_minute"), 10).unit, "Seiten/Min.")
+        # The unit token is vocabulary: a locale changes it only through a translation row.
+        translated = SimpleNamespace(unit=lambda definition: "S/min", field_label=lambda definition: definition.label)
+        entry = build_entry(_definition("a", "integer", unit="pages_per_minute"), 10, translator=translated)
+        self.assertEqual(entry.unit, "S/min")
 
 
 class ChoiceRendererTests(SimpleTestCase):
