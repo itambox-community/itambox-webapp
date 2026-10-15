@@ -32,6 +32,8 @@ from extras.services.specifications.contracts import (
 )
 from extras.services.specifications.projection import project_specification_values
 
+from .types import FieldsetView
+
 GraphLoader = Callable[[SpecificationGraphLoadRequest], LoadedSpecificationGraphDTO]
 DefinitionResolver = Callable[[SpecificationResolutionRequest], SpecificationDefinitionDTO]
 ProjectionResolver = Callable[[SpecificationProjectionRequest], SpecificationProjectionDTO]
@@ -75,6 +77,7 @@ class RequestScopedSpecificationLoader:
         self._owner_reads: dict[tuple[str, str, int], OwnerSpecificationRead] = {}
         self._global_graphs: dict[tuple[str, ...], LoadedSpecificationGraphDTO] = {}
         self._choice_sets: dict[str, ChoiceSetDTO | None] = {}
+        self._category_fieldsets: dict[int, tuple[FieldsetView, ...]] = {}
 
     @property
     def scope_fingerprint(self) -> str:
@@ -89,6 +92,22 @@ class RequestScopedSpecificationLoader:
         # Definitions are global and remain reusable.  Owner projections are
         # explicitly scope-bound and must never be reused under a new scope.
         self._owner_reads.clear()
+
+    def prime_category_fieldsets(self, fieldsets_by_category: Mapping[int, tuple[FieldsetView, ...]]) -> None:
+        """Cache an already-batched set of global Category defaults."""
+        self._category_fieldsets.update(fieldsets_by_category)
+
+    def get_or_load_category_fieldsets(
+        self,
+        category_id: int,
+        resolver: Callable[[], tuple[FieldsetView, ...]],
+    ) -> tuple[FieldsetView, ...]:
+        """Memoize one Category's defaults in this request context."""
+        cached = self._category_fieldsets.get(category_id)
+        if cached is None:
+            cached = resolver()
+            self._category_fieldsets[category_id] = cached
+        return cached
 
     def get_or_load_choice_set(
         self,
@@ -225,10 +244,17 @@ class RequestScopedSpecificationLoader:
         self._owner_reads[cache_key] = result
         return result
 
-    def prepare_owners(self, owners: Iterable[object], *, target_kind: TargetKind) -> None:
-        """Prime one graph for all owners in a root collection."""
+    def prepare_owners(
+        self,
+        owners: Iterable[object],
+        *,
+        target_kind: TargetKind,
+        graph_target_kinds: Iterable[TargetKind] | None = None,
+    ) -> None:
+        """Prime one graph and stored-key set for all owners in a root collection."""
         type_ids: set[int] = set()
         field_keys: set[FieldKey] = set()
+        graph_kinds = _canonical_target_kinds((target_kind,) if graph_target_kinds is None else graph_target_kinds)
         for owner in owners:
             _owner_id, type_id, stored_values = _owner_parts(owner, target_kind)
             if type_id is not None:
@@ -237,7 +263,7 @@ class RequestScopedSpecificationLoader:
         if type_ids:
             self.prepare_type_ids(
                 type_ids,
-                target_kind=target_kind,
+                target_kind=graph_kinds,
                 requested_field_keys=field_keys,
             )
 
@@ -321,7 +347,7 @@ def _canonical_positive_ids(values: Iterable[int]) -> tuple[int, ...]:
     return tuple(sorted(result))
 
 
-def _canonical_target_kinds(value: TargetKind | Iterable[TargetKind]) -> tuple[str, ...]:
+def _canonical_target_kinds(value: TargetKind | Iterable[TargetKind]) -> tuple[TargetKind, ...]:
     if isinstance(value, str):
         values = (value,)
     else:

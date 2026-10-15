@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
 import strawberry
 import strawberry_django
@@ -33,6 +33,7 @@ from .graphql_specifications.integration import (
     prepare_type_graph,
     require_global_permission,
     resolve_read_scope,
+    scoped_asset_type_software_prefetch,
     specification_field_connection,
 )
 from .graphql_specifications.loaders import request_loader_for_info
@@ -150,8 +151,12 @@ class CategoryNode:
         return owner_resource_revision(self)
 
     @strawberry.field
-    def default_fieldsets(self) -> list[SpecificationFieldsetType]:
-        return category_fieldsets_for(self)
+    def default_fieldsets(self, info: strawberry.Info) -> list[SpecificationFieldsetType]:
+        loader = request_loader_for_info(info)
+        return cast(
+            list[SpecificationFieldsetType],
+            list(loader.get_or_load_category_fieldsets(int(self.pk), lambda: category_fieldsets_for(self))),
+        )
 
 
 @strawberry_django.type(
@@ -249,6 +254,9 @@ class AssetNode:
         return list(owner_user_errors(loader, self, "asset"))
 
 
+ASSET_TYPE_SELECT_RELATED = ("manufacturer", "category", "depreciation", "asset_role")
+
+
 ASSET_SORTABLE_FIELDS = {
     "name",
     "-name",
@@ -337,7 +345,11 @@ class Query:
     def asset_type(self, info: strawberry.Info, id: strawberry.ID) -> AssetTypeNode | None:
         require_global_permission(info, "assets.view_assettype")
         try:
-            asset_type = AssetType.objects.get(pk=id)
+            asset_type = (
+                AssetType.objects.select_related(*ASSET_TYPE_SELECT_RELATED)
+                .prefetch_related(scoped_asset_type_software_prefetch())
+                .get(pk=id)
+            )
         except AssetType.DoesNotExist:
             return None
         prepare_type_graph(request_loader_for_info(info), (asset_type,))
@@ -349,7 +361,11 @@ class Query:
     ) -> AssetTypeConnectionType:
         require_global_permission(info, "assets.view_assettype")
         size = page_size(first)
-        asset_types_qs = AssetType.objects.order_by("slug", "pk")
+        asset_types_qs = (
+            AssetType.objects.select_related(*ASSET_TYPE_SELECT_RELATED)
+            .prefetch_related(scoped_asset_type_software_prefetch())
+            .order_by("slug", "pk")
+        )
         if after:
             after_slug, after_id = decode_cursor(after, prefix="asset-type")
             asset_types_qs = asset_types_qs.filter(Q(slug__gt=after_slug) | Q(slug=after_slug, pk__gt=after_id))
