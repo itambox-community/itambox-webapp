@@ -200,6 +200,8 @@ PLATFORM_LAYER_PREFIXES = {
 MODULE_LAYER_OVERRIDES = {
     # Shared form/REST input translation; domain code must not depend on it.
     "assets.specification_adapters": "presentation",
+    # Read-only display projection of stored specification values for templates.
+    "assets.spec_display": "presentation",
     "assets.customfields": "domain-service",
     "assets.depreciation": "domain-service",
     # GraphQL transport and DTO adapters are domain presentation, even though
