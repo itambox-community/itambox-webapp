@@ -1,0 +1,31 @@
+{% load i18n %}
+{% comment %}Grouped values plus the completeness block for one SpecPanel (context: panel).{% endcomment %}
+{% for group in panel.groups %}
+  {% if group.label %}<div class="text-secondary small fw-semibold text-uppercase mt-3 mb-2">{{ group.label }}</div>{% endif %}
+  <div class="row g-3">
+    {% for entry in group.entries %}
+      <div class="col-md-6">
+        <div class="text-muted small">{{ entry.label }}</div>
+        <div class="fw-semibold">{% include 'assets/includes/detail/_spec_value.html' %}</div>
+      </div>
+    {% endfor %}
+  </div>
+{% endfor %}
+{% if panel.further %}
+  {% if panel.groups %}<hr class="my-3">{% endif %}
+  <div class="text-secondary small fw-semibold mb-2">{% translate "Further stored values" %}</div>
+  <div class="row g-3 text-muted">
+    {% for entry in panel.further %}
+      <div class="col-md-6">
+        <div class="small">{% if entry.kind == 'unknown' %}<code>{{ entry.key }}</code>{% else %}{{ entry.label }}{% endif %}
+          {% if entry.state == 'unknown_field' %}
+            <span class="badge bg-secondary-lt ms-1">{% translate "Unknown field" %}</span>
+          {% else %}
+            <span class="badge bg-secondary-lt ms-1">{% translate "Not in current specification" %}</span>
+          {% endif %}
+        </div>
+        <div>{% include 'assets/includes/detail/_spec_value.html' %}</div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
