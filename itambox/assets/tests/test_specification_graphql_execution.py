@@ -12,11 +12,20 @@ from django.test.utils import CaptureQueriesContext
 from graphql import build_schema, parse, validate
 from graphql.validation import specified_rules
 
-from assets.models import Asset, AssetType, Manufacturer
+from assets.models import (
+    Asset,
+    AssetRole,
+    AssetType,
+    Category,
+    CategoryDefaultFieldset,
+    Depreciation,
+    Manufacturer,
+)
 from assets.models.catalog import AssetTypeFieldset
 from core.tests.mixins import grant
 from extras.models import CustomField, CustomFieldChoice, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField
 from organization.models import Role, Tenant
+from software.models import Software
 
 pytestmark = pytest.mark.django_db
 
@@ -384,3 +393,110 @@ def test_public_root_denies_missing_context():
     assert result.data is None
     assert result.errors
     assert result.errors[0].extensions["code"] == "UNAUTHENTICATED"
+
+
+@pytest.fixture
+def asset_type_query_budget_world(graphql_world):
+    manufacturer = Manufacturer.objects.get(pk=graphql_world.asset_type.manufacturer_id)
+    fieldset = CustomFieldset.objects.get(namespace="local", slug="t13-device-specs")
+    category = Category.objects.create(name="T13 Query Budget", slug="t13-query-budget")
+    CategoryDefaultFieldset.objects.create(category=category, fieldset=fieldset, position=1)
+    depreciation = Depreciation.objects.create(name="T13 Query Budget", months=36)
+    role = AssetRole.objects.create(name="T13 Query Budget", slug="t13-query-budget")
+    software = Software.objects.create(
+        name="T13 Query Budget Software",
+        manufacturer=manufacturer,
+    )
+    asset_types = tuple(
+        AssetType.objects.create(
+            manufacturer=manufacturer,
+            model=f"T13 Query Budget {index:03d}",
+            slug=f"000-t13-query-budget-{index:03d}",
+            category=category,
+            depreciation=depreciation,
+            asset_role=role,
+            custom_field_data={"memory_gib": index},
+        )
+        for index in range(101)
+    )
+    AssetTypeFieldset.objects.bulk_create(
+        [AssetTypeFieldset(asset_type=asset_type, fieldset=fieldset, position=1) for asset_type in asset_types]
+    )
+    return SimpleNamespace(
+        world=graphql_world,
+        asset_types=asset_types,
+        fieldset=fieldset,
+        category=category,
+        software=software,
+    )
+
+
+def test_asset_type_nested_query_counts_do_not_grow_with_page_size(asset_type_query_budget_world, record_property):
+    world = asset_type_query_budget_world.world
+    # Warm authorization before measuring so Django's per-user permission cache
+    # does not make the first page look more expensive than later pages.
+    assert world.user.has_perm("assets.view_assettype")
+    selections = {
+        "bare": "id",
+        "fieldsets": "fieldsets { identity }",
+        "manufacturer": "manufacturer { name }",
+        "manufacturer_software_products": "manufacturer { softwareProducts { id } }",
+        "specification_entries": "specificationEntries { key state }",
+        "category_default_fieldsets": "category { defaultFieldsets { identity } }",
+        "foreign_key_relations": "manufacturer { name } depreciation { name } category { name } assetRole { name }",
+    }
+    counts = {selection: {} for selection in selections}
+
+    for name, selection in selections.items():
+        for first in (10, 26, 100):
+            query = f"""
+            {{
+              assetTypes(first: {first}) {{
+                edges {{ node {{ {selection} }} }}
+                pageInfo {{ hasNextPage }}
+              }}
+            }}
+            """
+            with CaptureQueriesContext(connection) as queries:
+                result = world.schema.execute_sync(query, context_value=_context(world))
+            assert result.errors is None, result.errors
+            connection_data = result.data["assetTypes"]
+            assert len(connection_data["edges"]) == first
+            assert connection_data["pageInfo"]["hasNextPage"] is (first < 101)
+            counts[name][first] = len(queries)
+
+    assert all(values[10] == values[26] for values in counts.values()), counts
+    assert all(values[100] <= values[26] + 4 for values in counts.values()), counts
+    print("ASSET_TYPE_QUERY_BUDGET", counts)
+    record_property("asset_type_query_budget_counts", repr(counts))
+
+
+def test_asset_type_single_root_keeps_nested_reads_batched(asset_type_query_budget_world):
+    world = asset_type_query_budget_world.world
+    asset_type = asset_type_query_budget_world.asset_types[0]
+    query = """
+    query($assetTypeId: ID!) {
+      assetType(id: $assetTypeId) {
+        id
+        manufacturer { softwareProducts { id } }
+        depreciation { name }
+        category { defaultFieldsets { identity } }
+        assetRole { name }
+        specificationEntries { key state }
+      }
+    }
+    """
+    result = world.schema.execute_sync(
+        query,
+        variable_values={"assetTypeId": str(asset_type.pk)},
+        context_value=_context(world),
+    )
+
+    assert result.errors is None, result.errors
+    node = result.data["assetType"]
+    assert node["id"] == str(asset_type.pk)
+    assert node["manufacturer"]["softwareProducts"] == [{"id": str(asset_type_query_budget_world.software.pk)}]
+    assert node["depreciation"]["name"] == "T13 Query Budget"
+    assert node["category"]["defaultFieldsets"] == [{"identity": "local/t13-device-specs"}]
+    assert node["assetRole"]["name"] == "T13 Query Budget"
+    assert {entry["key"] for entry in node["specificationEntries"]} == {"memory_gib"}

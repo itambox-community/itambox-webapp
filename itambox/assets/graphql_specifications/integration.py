@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from django.apps import apps
@@ -19,19 +19,21 @@ from django.db.models import Prefetch, Q
 from django.db.models.query import QuerySet
 from graphql import GraphQLError
 
-from assets.models import Asset, AssetType
+from assets.models import Asset, AssetType, CategoryDefaultFieldset
 from assets.services.specifications._command_support import resource_revision_for_owner
 from assets.services.specifications.loader import (
     _assemble_current_fields,
     _assemble_fieldsets,
     _load_fieldset_memberships,
 )
+from core.managers import Scope
 from extras.models import CustomFieldChoiceSet
 from extras.services._definition_command_support import resource_revision_for_definition
 from extras.services.specifications.contracts import (
     ChoiceDTO,
     ChoiceSetDTO,
     FieldDefinitionDTO,
+    QualifiedIdentity,
     ResolvedFieldDTO,
     ResourceRevision,
     TargetKind,
@@ -184,6 +186,16 @@ def scoped_software_prefetch(scope: ScopeReadView) -> Prefetch:
     )
 
 
+def scoped_asset_type_software_prefetch() -> Prefetch:
+    """Batch Manufacturer products on AssetType roots under the active scope."""
+    software = apps.get_model("software", "Software")
+    return Prefetch(
+        "manufacturer__software_products",
+        queryset=software.objects.for_scope(Scope.current()),
+        to_attr=SCOPED_SOFTWARE_ATTR,
+    )
+
+
 def asset_queryset_for_scope(scope: ScopeReadView) -> QuerySet:
     """Create an explicitly scoped read queryset without ambient tenant state."""
     queryset = QuerySet(model=Asset, using=router.db_for_read(Asset))
@@ -220,9 +232,17 @@ def fieldsets_for_type(loader: RequestScopedSpecificationLoader, asset_type_id: 
 
 
 def prepare_type_graph(loader: RequestScopedSpecificationLoader, asset_types: Sequence[AssetType]) -> None:
-    type_ids = tuple(int(asset_type.pk) for asset_type in asset_types)
-    if type_ids:
-        loader.prepare_type_ids(type_ids, target_kind=("asset_type", "asset"))
+    if asset_types:
+        loader.prepare_owners(
+            asset_types,
+            target_kind="asset_type",
+            graph_target_kinds=("asset_type", "asset"),
+        )
+        category_ids = tuple(
+            sorted({int(asset_type.category_id) for asset_type in asset_types if asset_type.category_id is not None})
+        )
+        if category_ids:
+            loader.prime_category_fieldsets(category_fieldsets_for_many(category_ids))
 
 
 def prepare_asset_graph(loader: RequestScopedSpecificationLoader, assets: Sequence[Asset]) -> None:
@@ -231,16 +251,30 @@ def prepare_asset_graph(loader: RequestScopedSpecificationLoader, assets: Sequen
 
 def category_fieldsets_for(category: object) -> tuple[FieldsetView, ...]:
     """Read ordered Category defaults through the existing DTO assembler."""
+    category_id = int(category.pk)
+    return category_fieldsets_for_many((category_id,)).get(category_id, ())
+
+
+def category_fieldsets_for_many(category_ids: Iterable[int]) -> dict[int, tuple[FieldsetView, ...]]:
+    """Load and assemble Category defaults for a request's categories in batches."""
+    canonical_ids = tuple(sorted(set(category_ids)))
+    if not canonical_ids:
+        return {}
     memberships = tuple(
-        category.default_fieldset_memberships.select_related("fieldset").order_by(
-            "position", "fieldset__namespace", "fieldset__slug"
-        )
+        CategoryDefaultFieldset.objects.filter(category_id__in=canonical_ids)
+        .select_related("fieldset")
+        .order_by("category_id", "position", "fieldset__namespace", "fieldset__slug")
     )
-    fieldset_ids = tuple(row.fieldset_id for row in memberships)
+    memberships_by_category: dict[int, list[CategoryDefaultFieldset]] = {
+        category_id: [] for category_id in canonical_ids
+    }
+    for membership in memberships:
+        memberships_by_category[int(membership.category_id)].append(membership)
+    fieldset_ids = tuple(dict.fromkeys(int(row.fieldset_id) for row in memberships))
     if not fieldset_ids:
-        return ()
+        return {category_id: () for category_id in canonical_ids}
     rows_by_fieldset = _load_fieldset_memberships(fieldset_ids)
-    fieldsets_by_id = {row.fieldset_id: row.fieldset for row in memberships}
+    fieldsets_by_id = {int(row.fieldset_id): row.fieldset for row in memberships}
     _fields_by_key, fields_by_identity = _assemble_current_fields(rows_by_fieldset, {})
     fieldsets_by_identity = _assemble_fieldsets(
         fieldset_ids,
@@ -248,20 +282,23 @@ def category_fieldsets_for(category: object) -> tuple[FieldsetView, ...]:
         rows_by_fieldset,
         fields_by_identity,
     )
-    result: list[FieldsetView] = []
-    for membership in memberships:
-        identity = f"{membership.fieldset.namespace}/{membership.fieldset.slug}"
-        fieldset = fieldsets_by_identity[identity]
-        result.append(
-            FieldsetView(
-                definition=fieldset,
-                fields=tuple(
-                    fields_by_identity[str(field_membership.field_identity)]
-                    for field_membership in fieldset.field_memberships
+    result: dict[int, tuple[FieldsetView, ...]] = {}
+    for category_id, category_memberships in memberships_by_category.items():
+        category_fieldsets: list[FieldsetView] = []
+        for membership in category_memberships:
+            identity = QualifiedIdentity(f"{membership.fieldset.namespace}/{membership.fieldset.slug}")
+            fieldset = fieldsets_by_identity[identity]
+            category_fieldsets.append(
+                FieldsetView(
+                    definition=fieldset,
+                    fields=tuple(
+                        fields_by_identity[str(field_membership.field_identity)]
+                        for field_membership in fieldset.field_memberships
+                    ),
                 ),
             )
-        )
-    return tuple(result)
+        result[category_id] = tuple(category_fieldsets)
+    return result
 
 
 def owner_resource_revision(owner: object) -> ResourceRevision:
@@ -457,6 +494,7 @@ __all__ = [
     "asset_type_connection",
     "authenticated_user",
     "bind_scope",
+    "category_fieldsets_for_many",
     "choice_set_for_identity",
     "decode_cursor",
     "encode_cursor",
@@ -469,5 +507,6 @@ __all__ = [
     "prepare_type_graph",
     "require_global_permission",
     "resolve_read_scope",
+    "scoped_asset_type_software_prefetch",
     "specification_field_connection",
 ]
