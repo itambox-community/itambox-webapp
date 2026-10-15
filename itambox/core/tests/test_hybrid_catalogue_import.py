@@ -8,11 +8,14 @@ shared entry, resolves references by natural key, and never writes stock.
 import pytest
 
 from assets.models import Category, Manufacturer
+from core.context import set_current_all_accessible
 from core.importers.bulk_forms import get_registered_import_form, is_model_importable
 from core.models import Job
 from core.tasks.csv_import import import_csv_task
 from core.tests.mixins import TenantTestMixin
-from inventory.models import Component
+from inventory.models import Component, ComponentAllocation, ComponentStock
+from itambox.views.generic.import_ import GenericObjectImportView
+from organization.models import Tenant
 from software.models import Software
 
 PERMISSIONS = [
@@ -147,3 +150,72 @@ class TestHybridCatalogueImport(TenantTestMixin):
             "inventory", "component", [{"name": "RAM 16", "manufacturer": "Acme", "allow_overallocate": "maybe"}]
         )
         assert job.status == Job.STATUS_FAILED
+
+    def test_component_slug_column_is_ignored_and_stock_rows_are_never_written(self):
+        self._setup()
+        job = self._run(
+            "inventory", "component", [{"name": "RAM 16", "manufacturer": "Acme", "slug": "custom-from-file"}]
+        )
+        assert job.result == {"imported": 1, "failed": 0, "total": 1}
+        assert Component.objects.get(name="RAM 16").slug != "custom-from-file"
+        assert ComponentStock.objects.count() == 0
+        assert ComponentAllocation.objects.count() == 0
+
+    def test_rejected_stock_file_writes_no_stock_or_allocation_rows(self):
+        self._setup()
+        self._run("inventory", "component", [{"name": "RAM 16", "manufacturer": "Acme", "qty": "5"}])
+        assert ComponentStock.objects.count() == 0
+        assert ComponentAllocation.objects.count() == 0
+
+    def test_reimport_of_an_unchanged_row_is_reported_skipped(self):
+        self._setup()
+        row = {"name": "Editor", "manufacturer": "Acme", "version": "1"}
+        self._run("software", "software", [row])
+        second = self._run("software", "software", [row])
+        assert second.result == {"imported": 0, "failed": 0, "total": 1, "skipped": 1}
+        assert Software.objects.filter(name="Editor").count() == 1
+
+    def test_matched_row_without_change_permission_is_skipped_and_unchanged(self):
+        self._setup(permissions=["software.add_software", "inventory.add_component"])
+        self._run("software", "software", [{"name": "Editor", "manufacturer": "Acme", "version": "1"}])
+        job = self._run("software", "software", [{"name": "Editor", "manufacturer": "Acme", "version": "2"}])
+        assert job.result["skipped"] == 1
+        assert job.result["imported"] == 0
+        assert Software.objects.get(name="Editor").version == "1"
+
+    def test_another_tenants_same_key_row_is_neither_matched_nor_updated(self):
+        self._setup()
+        other = Tenant.objects.create(name="Other Tenant", slug="other-tenant")
+        foreign = Software.objects.create(name="Editor", manufacturer=self.maker, version="7", tenant=other)
+        foreign_component = Component.all_objects.create(name="RAM 16", manufacturer=self.maker, tenant=other)
+        self._run("software", "software", [{"name": "Editor", "manufacturer": "Acme", "version": "1"}])
+        self._run("inventory", "component", [{"name": "RAM 16", "manufacturer": "Acme", "notes": "mine"}])
+        foreign.refresh_from_db()
+        foreign_component.refresh_from_db()
+        assert foreign.version == "7"
+        assert foreign_component.notes == ""
+        assert Software.objects.filter(name="Editor", tenant=self.tenant).count() == 1
+        assert Component.objects.filter(name="RAM 16", tenant=self.tenant).count() == 1
+
+    def test_tenant_column_negative_control_lands_no_row_in_a_foreign_tenant(self):
+        self._setup()
+        other = Tenant.objects.create(name="Foreign", slug="foreign")
+        self._run("software", "software", [{"name": "Editor", "manufacturer": "Acme", "tenant": other.slug}])
+        assert not Software.all_objects.filter(name="Editor").exists()
+
+    def test_import_view_is_denied_in_the_all_accessible_scope(self):
+        from django.test import RequestFactory
+
+        self._setup()
+        request = RequestFactory().get("/import/software/software/")
+        request.user = self.tenant_user
+        request.active_tenant = self.tenant
+        view = GenericObjectImportView()
+        view.request = request
+        view.kwargs = {"app_label": "software", "model_name": "software"}
+        try:
+            assert view.has_permission()
+            set_current_all_accessible(True)
+            assert not view.has_permission()
+        finally:
+            set_current_all_accessible(False)
