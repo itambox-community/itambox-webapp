@@ -6,6 +6,7 @@ shared entry, resolves references by natural key, and never writes stock.
 """
 
 import pytest
+from django.test import RequestFactory
 
 from assets.models import Category, Manufacturer
 from core.context import set_current_all_accessible
@@ -204,8 +205,6 @@ class TestHybridCatalogueImport(TenantTestMixin):
         assert not Software.all_objects.filter(name="Editor").exists()
 
     def test_import_view_is_denied_in_the_all_accessible_scope(self):
-        from django.test import RequestFactory
-
         self._setup()
         request = RequestFactory().get("/import/software/software/")
         request.user = self.tenant_user
