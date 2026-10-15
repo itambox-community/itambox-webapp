@@ -131,16 +131,20 @@ def require_global_permission(info: object, permission: str) -> object:
 def resolve_read_scope(info: object, requested_scope: Mapping[str, object] | object) -> ScopeReadView | None:
     user = authenticated_user(info)
     mode = _enum_value(_input_value(requested_scope, "mode"))
-    tenant_id = _positive_id_or_none(_input_value(requested_scope, "tenant_id", "tenantId"), "tenant_id")
-    tenant_group_id = _positive_id_or_none(
+    tenant_id = positive_id_or_none(_input_value(requested_scope, "tenant_id", "tenantId"), "tenant_id")
+    tenant_group_id = positive_id_or_none(
         _input_value(requested_scope, "tenant_group_id", "tenantGroupId"),
         "tenant_group_id",
     )
-    selector = RequestedScopeSelectorDTO(
-        mode=mode,  # type: ignore[arg-type]
-        tenant_id=None if tenant_id is None else TenantId(tenant_id),
-        tenant_group_id=None if tenant_group_id is None else TenantGroupId(tenant_group_id),
-    )
+    try:
+        selector = RequestedScopeSelectorDTO(
+            mode=mode,  # type: ignore[arg-type]
+            tenant_id=None if tenant_id is None else TenantId(tenant_id),
+            tenant_group_id=None if tenant_group_id is None else TenantGroupId(tenant_group_id),
+        )
+    except ValueError as exc:
+        # Deliberate, readable validation message (not an unexpected failure).
+        raise GraphQLError(str(exc), extensions={"code": "INVALID_SCOPE"}) from None
     actor = ActorContextDTO(
         actor_id=int(user.pk),
         authentication_revision=authentication_revision_for_actor(user),
@@ -472,7 +476,7 @@ def _enum_value(value: object) -> object:
     return getattr(value, "value", value)
 
 
-def _positive_id_or_none(value: object, name: str) -> int | None:
+def positive_id_or_none(value: object, name: str) -> int | None:
     if value is None:
         return None
     if type(value) is int and value > 0:
