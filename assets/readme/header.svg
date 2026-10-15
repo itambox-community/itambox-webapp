@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-labelledby="title desc">
+  <title id="title">ITAMbox</title>
+  <desc id="desc">Open-source IT asset management. Self-hosted. Apache-2.0.</desc>
+  <rect width="1200" height="280" rx="8" fill="#171717"/>
+  <rect x="1" y="1" width="1198" height="278" rx="7" fill="none" stroke="#343434"/>
+  <g transform="translate(56 51) scale(1.2)">
+    <path d="M22 6H14a8 8 0 0 0-8 8V22M42 6H50a8 8 0 0 1 8 8V22M6 42V50a8 8 0 0 0 8 8H22M58 42V50a8 8 0 0 1-8 8H42" fill="none" stroke="#e7e5e4" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M32 16L45.2 23.5L32 31L18.8 23.5Z" fill="#818cf8"/>
+    <path d="M17.9 25L31.1 32.5V47L17.9 39.5Z" fill="#6366f1"/>
+    <path d="M46.1 25L32.9 32.5V47L46.1 39.5Z" fill="#4f46e5"/>
+  </g>
+  <text x="156" y="111" fill="#818cf8" font-family="Segoe UI,Arial,sans-serif" font-size="66" font-weight="700" letter-spacing="-2">ITAM<tspan fill="#fafaf9" font-weight="400">box</tspan></text>
+  <text x="60" y="171" fill="#d6d3d1" font-family="Segoe UI,Arial,sans-serif" font-size="28">Open-source IT asset management</text>
+  <line x1="60" y1="209" x2="1140" y2="209" stroke="#404040"/>
+  <text x="60" y="248" fill="#a8a29e" font-family="Consolas,monospace" font-size="17" letter-spacing="1">SELF-HOSTED / APACHE-2.0</text>
+  <text x="1140" y="248" text-anchor="end" fill="#a8a29e" font-family="Consolas,monospace" font-size="17">itambox.dev</text>
+</svg>

@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://itambox.dev">
-    <img src="assets/itambox-profile-banner.svg" alt="ITAMbox — modern open-source IT asset management" width="100%">
+    <img src="assets/readme/header.svg" alt="ITAMbox - open-source IT asset management" width="100%">
   </a>
 </p>
 
@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6f42c1.svg" alt="Apache-2.0 license"></a>
-  <a href="https://github.com/itambox/itambox-webapp/actions/workflows/ci.yml"><img src="https://github.com/itambox/itambox-webapp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml"><img src="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
   <img src="https://img.shields.io/badge/status-public%20beta-d97706.svg" alt="Public beta status">
   <img src="https://img.shields.io/badge/python-3.12%2B-3776ab.svg" alt="Python 3.12 or newer">
   <img src="https://img.shields.io/badge/database-PostgreSQL%2015%2B-4169e1.svg" alt="PostgreSQL 15 or newer">
@@ -40,12 +40,7 @@ Built for both internal IT departments and MSPs, ITAMbox combines a broad asset-
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/dashboard-overview.png" width="900" alt="ITAMbox dashboard showing asset, inventory, license, procurement, and compliance information">
-</p>
-
-<p align="center">
-  <strong>Mobile dashboard</strong><br>
-  <img src="assets/screenshots/mobile/dashboard-overview-mobile.png" width="390" alt="ITAMbox mobile dashboard with operations overview, stock alerts, and subscription renewals">
+  <img src="assets/readme/hero-tour.webp" width="900" alt="Product tour: asset search, check-out basket, license seats and tenant switching">
 </p>
 
 ## ITAMbox's Role
@@ -57,7 +52,7 @@ ITAMbox does **not** try to replace endpoint management, remote monitoring, a se
 For managed service providers, tenant boundaries are part of the authorization model rather than a presentation-layer filter. Individual tenants, tenant groups, delegated administration, and explicitly authorized cross-tenant resource flows can coexist without collapsing tenant isolation. Tenant visibility and application permissions remain separate authorization decisions.
 
 <p align="center">
-  <img src="assets/screenshots/asset-lifecycle.png" width="900" alt="ITAMbox asset detail showing assignment, lifecycle, cost, software, and audit history">
+  <img src="assets/readme/asset.webp" width="900" alt="Asset record showing hardware details, custody, warranty and lifecycle costs">
 </p>
 
 ## Why ITAMbox?
@@ -142,17 +137,22 @@ Architecture boundaries, implementation conventions, test lanes, and contributor
 
 <p align="center">
   <strong>Tenant-aware operations</strong><br>
-  <img src="assets/screenshots/tenant-operations.png" width="900" alt="ITAMbox tenant-aware workspace for an MSP operating across authorized customer environments">
+  <img src="assets/readme/tenant-tabs.webp" width="900" alt="ITAMbox tenant-aware workspace for an MSP operating across authorized customer environments">
 </p>
 
 <p align="center">
   <strong>Inventory and procurement</strong><br>
-  <img src="assets/screenshots/inventory-procurement.png" width="900" alt="ITAMbox inventory and procurement workflow with stock and fulfillment information">
+  <img src="assets/readme/procurement.webp" width="900" alt="Purchase order showing supplier, delivery location, line items and order value">
 </p>
 
 <p align="center">
-  <strong>Reporting and governance</strong><br>
-  <img src="assets/screenshots/reporting-governance.png" width="900" alt="ITAMbox reporting and governance workflow with audit and compliance information">
+  <strong>Audit campaigns</strong><br>
+  <img src="assets/readme/audit.webp" width="900" alt="ITAMbox audit campaign with expected assets and scan results">
+</p>
+
+<p align="center">
+  <strong>Mobile dashboard</strong><br>
+  <img src="assets/readme/dashboard-mobile.webp" width="390" alt="ITAMbox mobile dashboard with operations overview, stock alerts, and subscription renewals">
 </p>
 
 ## Documentation
@@ -172,8 +172,8 @@ Useful starting points:
 
 ## Get involved
 
-- Ask questions, share workflows, and discuss the project in [GitHub Discussions](https://github.com/itambox/itambox-webapp/discussions).
-- Report reproducible defects using the [bug report template](https://github.com/itambox/itambox-webapp/issues/new?template=bug_report.md).
+- Ask questions, share workflows, and discuss the project in [GitHub Discussions](https://github.com/itambox-community/itambox-webapp/discussions).
+- Report reproducible defects using the [bug report template](https://github.com/itambox-community/itambox-webapp/issues/new?template=bug_report.md).
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 - Use [DEVELOPMENT.md](DEVELOPMENT.md) for architecture and implementation conventions.
 
