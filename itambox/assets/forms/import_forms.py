@@ -363,7 +363,9 @@ class _ReferenceDataBulkImportForm(BulkImportForm):
     def clean(self):
         cleaned_data = super().clean()
         if any(column.casefold() in {"tenant", "tenant_id"} for row in self._rows_data for column in row):
-            raise ValidationError(_("The import always writes into the active tenant; remove the tenant column."))
+            raise ValidationError(
+                _("The import always assigns records to the active tenant. Remove the tenant column.")
+            )
         errors, notes = [], []
         for number, row in enumerate(self._rows_data, start=2):
             try:
@@ -387,7 +389,10 @@ class _ReferenceDataBulkImportForm(BulkImportForm):
             except RowSkipped as skip:
                 notes.append(_("Row %(row)s: %(reason)s") % {"row": number, "reason": skip})
             except ValidationError as exc:
-                errors.extend(f"Row {number}: {message}" for message in _row_error_messages(exc))
+                errors.extend(
+                    _("Row %(row)s: %(reason)s") % {"row": number, "reason": message}
+                    for message in _row_error_messages(exc)
+                )
         self.row_notes = notes
         if errors:
             raise ValidationError(errors)
@@ -472,7 +477,7 @@ class ContactBulkImportForm(_ReferenceDataBulkImportForm):
     def _find_existing(self, mapped):
         tenant = get_current_tenant()
         if tenant is None:
-            raise ValidationError(_("A concrete active tenant is required to import contacts."))
+            raise ValidationError(_("Select a tenant before importing contacts."))
         lookup = {}
         for attname in self._key_attnames():
             if attname not in mapped:
@@ -485,7 +490,7 @@ class ContactBulkImportForm(_ReferenceDataBulkImportForm):
 
     def _create_instance(self, mapped_data):
         if get_current_tenant() is None:
-            raise ValidationError(_("A concrete active tenant is required to import contacts."))
+            raise ValidationError(_("Select a tenant before importing contacts."))
         return super()._create_instance(mapped_data)
 
 

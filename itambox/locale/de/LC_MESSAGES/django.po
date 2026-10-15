@@ -2322,15 +2322,18 @@ msgstr "Fehlende erforderliche Felder: {fields}"
 msgid "No data to import."
 msgstr "Keine Daten zum Importieren vorhanden."
 
-msgid "A concrete active tenant is required to import contacts."
-msgstr "Für den Kontaktimport ist ein konkreter aktiver Mandant erforderlich."
+msgid "Select a tenant before importing contacts."
+msgstr "Wählen Sie vor dem Kontaktimport einen Mandanten aus."
 
-msgid "The import always writes into the active tenant; remove the tenant column."
-msgstr "Der Import schreibt immer in den aktiven Mandanten; entfernen Sie die Mandantenspalte."
+msgid "The import always assigns records to the active tenant. Remove the tenant column."
+msgstr ""
+"Importierte Einträge werden immer dem aktiven Mandanten zugeordnet. Entfernen Sie die Mandantenspalte."
 
 #, python-format
 msgid "%(field)s: \"%(value)s\" matches more than one %(model)s."
-msgstr "%(field)s: \"%(value)s\" entspricht mehr als einem %(model)s."
+msgstr ""
+"Der Wert \"%(value)s\" für %(field)s ist nicht eindeutig; mehrere Einträge "
+"des Typs %(model)s stimmen überein."
 
 #, python-format
 msgid "%(field)s: unknown %(model)s \"%(value)s\"."

@@ -219,7 +219,7 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         self.grant(user, self.tenant, role)
         return user
 
-    def _import(self, user, app_label, model_name, csv_text):
+    def _import(self, user, app_label, model_name, csv_text, *, headers=None):
         self.client_login_to_tenant(user, self.tenant)
         url = reverse("generic_import", kwargs={"app_label": app_label, "model_name": model_name})
         preview = self.client.post(
@@ -231,10 +231,15 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                 "delimiter": ",",
                 "_preview": "1",
             },
+            headers=headers,
         )
         if preview.context["form"].errors:
             return preview, None
-        confirmed = self.client.post(url, {"active_tab": "editor", "_confirm": "1"})
+        confirmed = self.client.post(
+            url,
+            {"active_tab": "editor", "_confirm": "1"},
+            headers=headers,
+        )
         return preview, confirmed
 
     def test_each_admitted_reference_form_creates_skips_without_change_and_updates_with_change(self):
@@ -387,11 +392,12 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                     app_label,
                     model_name,
                     "name,tenant\nTenant Injection,foreign-tenant\n",
+                    headers={"accept-language": "de"},
                 )
                 self.assertEqual(preview.status_code, 200)
                 self.assertIsNone(response)
                 errors = str(preview.context["form"].errors)
-                self.assertIn("remove the tenant column", errors)
+                self.assertIn("Entfernen Sie die Mandantenspalte", errors)
                 self.assertNotIn("foreign-tenant", errors)
                 self.assertNotIn("Row 2", errors)
                 self.assertEqual(model._base_manager.filter(name="Tenant Injection").count(), before)
@@ -471,10 +477,12 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                         "delimiter": ",",
                         "_preview": "1",
                     },
+                    headers={"accept-language": "de"},
                 )
                 self.assertEqual(response.status_code, 200)
                 messages = " ".join(str(message) for message in response.context["form"].errors["__all__"])
-                self.assertIn("Row 2", messages)
+                self.assertIn("Zeile 2", messages)
+                self.assertNotIn("Row 2", messages)
                 self.assertIn("parent", messages)
                 self.assertIn(row.split(",", 1)[1], messages)
                 self.assertFalse(model.objects.filter(name=row.split(",", 1)[0]).exists())
@@ -507,14 +515,16 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
             "organization",
             "sitegroup",
             "name,parent\nChild Site Group,north\n",
+            headers={"accept-language": "de"},
         )
 
         self.assertIsNone(response)
         messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
-        self.assertIn("Row 2", messages)
+        self.assertIn("Zeile 2", messages)
+        self.assertNotIn("Row 2", messages)
         self.assertIn("parent", messages)
         self.assertIn("north", messages)
-        self.assertIn("more than one", messages)
+        self.assertIn("mehrere Einträge des Typs Standortgruppe stimmen überein", messages)
         self.assertFalse(SiteGroup.objects.filter(name="Child Site Group").exists())
 
     def test_reference_help_describes_the_natural_key_parent_contract(self):
