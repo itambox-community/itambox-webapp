@@ -2,6 +2,7 @@
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 
 from assets.models import AssetType, Manufacturer
 from assets.services import checkout_kit
@@ -9,7 +10,7 @@ from core.importers.bulk_forms import get_registered_import_form
 from core.models import Job
 from core.tasks.csv_import import import_csv_task
 from core.tests.mixins import TenantTestMixin
-from inventory.forms.import_forms import KitBulkImportForm
+from inventory.forms.import_forms import KitBulkImportForm, _declared_entries, _parse_entry
 from inventory.models import Accessory, Consumable, Kit, KitItem
 from organization.models import Tenant
 
@@ -120,3 +121,85 @@ class TestKitImport(TenantTestMixin):
         assert callable(checkout_kit)
         assert kit.items.filter(consumable=self.cable).exists()
         assert get_user_model().objects.filter(pk=self.tenant_user.pk).exists()
+
+
+@pytest.mark.django_db
+class TestKitImportForm(TenantTestMixin):
+    """Form-level contract: clean() validates the whole file before anything is written."""
+
+    def _form(self, text, permissions=REPLACE_PERMS):
+        self.setup_tenant_context(name="Kit Form", slug="kit-form", permissions=list(permissions))
+        self.set_active_tenant(self.tenant, self.tenant_membership)
+        self.vendor = Manufacturer.objects.create(name="Form Vendor", slug="form-vendor")
+        self.mouse = Accessory.objects.create(name="Form Mouse", manufacturer=self.vendor, tenant=self.tenant)
+        return self._build(text)
+
+    def _build(self, text):
+        form = KitBulkImportForm(data={"import_text": text, "active_tab": "editor", "import_format": "csv"})
+        form.actor = self.tenant_user
+        return form
+
+    def test_tenant_column_is_rejected_for_the_whole_file(self):
+        form = self._form("name,tenant\nA,other\n")
+        assert not form.is_valid()
+        assert "tenant column" in str(form.errors)
+
+    def test_clean_reports_row_errors_with_row_numbers(self):
+        form = self._form("name,items\nA,accessory:missing\n")
+        assert not form.is_valid()
+        assert "Row 2" in str(form.errors)
+        assert "item 1" in str(form.errors)
+
+    def test_clean_passes_for_valid_rows(self):
+        form = self._form("name,items\nA,accessory:form-mouse\n")
+        assert form.is_valid(), form.errors
+        form.import_data()
+        assert Kit.objects.get(name="A").items.count() == 1
+
+    def test_shared_kit_name_is_rejected_in_preview(self):
+        form = self._form("name\nShared\n")
+        Kit.objects.create(name="Shared", tenant=None)
+        assert not form.is_valid()
+        assert "never modified" in str(form.errors)
+
+    def test_blank_name_is_rejected(self):
+        form = self._form("name,description\n,x\n")
+        assert not form.is_valid()
+
+    def test_create_with_items_requires_add_kititem(self):
+        form = self._form("name,items\nNoPerm,accessory:form-mouse\n", permissions=("inventory.add_kit",))
+        assert form.is_valid(), form.errors
+        form.import_data()
+        assert not Kit.objects.filter(name="NoPerm").exists()
+        assert form.errors_list
+
+    def test_unchanged_reimport_is_skipped(self):
+        text = "name,items\nSame,accessory:form-mouse\n"
+        self._form(text).import_data()
+        again = self._build(text)
+        again.is_valid()
+        again.import_data()
+        assert again.skipped_list
+        assert not again.updated_list
+
+    def test_ambiguous_reference_is_rejected(self):
+        form = self._form("name,items\nAmb,accessory:Dup\n")
+        Accessory.objects.create(name="Dup", slug="dup-a", manufacturer=self.vendor, tenant=self.tenant)
+        Accessory.objects.create(name="Dup", slug="dup-b", manufacturer=self.vendor, tenant=None)
+        assert not form.is_valid()
+        assert "ambiguous" in str(form.errors)
+
+
+class TestKitItemParsing:
+    def test_parse_rejects_unknown_kind_missing_reference_and_bad_quantity(self):
+        for bad in ("bogus:x", "accessory:", "accessory:x*0"):
+            with pytest.raises(ValidationError):
+                _parse_entry(bad)
+        with pytest.raises(ValidationError):
+            _parse_entry({"type": "accessory", "ref": "x", "qty": "abc"})
+
+    def test_declared_entries_encodings(self):
+        assert _declared_entries("") is None
+        assert _declared_entries([]) is None
+        assert _declared_entries("accessory:a;\nconsumable:b") == ["accessory:a", "consumable:b"]
+        assert _parse_entry("accessory:a*3") == ("accessory", "a", 3)

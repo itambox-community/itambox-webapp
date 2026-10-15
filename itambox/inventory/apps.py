@@ -8,6 +8,7 @@ class InventoryConfig(AppConfig):
     def ready(self):
         import inventory.search  # noqa: F401  # registers search providers
 
+        # isort: split
         # inline import: app-registry: curated import forms load only after the app registry is ready.
         import inventory.forms.import_forms  # noqa: F401  # registers the kit importer
 
