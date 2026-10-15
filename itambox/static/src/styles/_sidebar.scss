@@ -2,19 +2,50 @@
 //  Premium Sidebar & Vertical Navigation Styles
 // ============================================================
 
-// Desktop: widen the vertical sidebar a touch beyond Tabler's 15rem default and
-// keep the page content offset in lockstep so nothing overlaps or leaves a gap.
-// (Tabler hardcodes 15rem on both .navbar-vertical and .page-wrapper — no var.)
-$itambox-sidebar-width: 18rem; // 288px — Tabler default is 15rem/240px (+48px)
+// Desktop: widen the vertical sidebar a touch beyond Tabler's default (16rem since
+// 1.5, exposed as --tblr-sidebar-width) and keep the page content offset in lockstep
+// so nothing overlaps or leaves a gap.
+$itambox-sidebar-width: 18rem; // 288px — Tabler default is 16rem/256px (+32px)
 
 @media (width >= 992px) {
     .navbar-vertical.navbar-expand-lg {
         width: $itambox-sidebar-width;
+
+        // Brand: Tabler >= 1.5 left-aligns the vertical-navbar brand
+        // (justify-content: space-between + 1rem inline padding). Keep the
+        // desktop lockup centered as designed.
+        .navbar-brand {
+            justify-content: center;
+            padding-inline: 0;
+        }
+
+        // Scroll chain: Tabler >= 1.5 removed `overflow-y: scroll` from
+        // `.navbar-vertical` and scrolls `.navbar-collapse` between a pinned
+        // brand and footer instead. This layout embeds the mobile offcanvas
+        // drawer (`#sidebar-menu`) with an inner `.flex-grow-1.overflow-auto`
+        // region whose height chain is only bounded below 992px (see the mobile
+        // block at the end of this file). Bound it here too so the navigation
+        // scrolls under the pinned brand instead of clipping at the viewport.
+        #sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        #sidebar-menu > .offcanvas-body {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        #sidebar-menu > .offcanvas-body > .flex-grow-1 {
+            min-height: 0;
+        }
     }
 
     // Match Tabler's own sibling-combinator selector (specificity 0,3,0) so our
     // content offset actually wins — a plain `.page-wrapper` rule is outranked and
-    // the content stays at 15rem while the sidebar grows, causing overlap.
+    // the content stays at the default width while the sidebar grows, causing overlap.
     .navbar-vertical.navbar-expand-lg ~ .page-wrapper {
         margin-left: $itambox-sidebar-width;
     }
