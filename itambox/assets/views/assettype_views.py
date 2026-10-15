@@ -8,6 +8,7 @@ from django_tables2 import RequestConfig
 
 from assets.customfields import resolve_asset_type_custom_fields
 from core.managers import Scope
+from extras.models import CustomField
 from itambox.panels import Panel
 from itambox.quick_add import QuickAddMixin
 from itambox.utils import get_paginate_count
@@ -29,6 +30,23 @@ class AssetTypeListView(ObjectListView):
     filterset_form = forms.AssetTypeFilterForm
     table = tables.AssetTypeTable
     action_buttons = ("add",)
+
+
+def _unresolved_custom_values(assettype, specification_fields):
+    """Stored values outside the resolved specification set (historical or unknown keys).
+
+    Each entry carries the key, the definition label when a definition exists, and the raw value.
+    A later type-aware renderer replaces this block without touching the resolved-field block.
+    """
+    covered = {resolved.definition.name for resolved in specification_fields}
+    stored = {name: value for name, value in (assettype.custom_field_data or {}).items() if name not in covered}
+    if not stored:
+        return []
+    labels = dict(CustomField.objects.filter(name__in=stored).values_list("name", "label"))
+    return [
+        {"key": name, "label": labels.get(name), "known": name in labels, "value": value}
+        for name, value in sorted(stored.items())
+    ]
 
 
 class AssetTypeDetailView(ObjectDetailView):
@@ -74,7 +92,11 @@ class AssetTypeDetailView(ObjectDetailView):
         context["can_view_assets"] = can_view_assets
         context["assets_table"] = assets_table
         context["related_objects_list"] = related_objects_list
-        context["specification_fields"] = resolve_asset_type_custom_fields(assettype)
+        specification_fields = resolve_asset_type_custom_fields(assettype)
+        context["specification_fields"] = specification_fields
+        context["specification_extra_values"] = _unresolved_custom_values(assettype, specification_fields)
+        # The Hardware Specifications card is the representation of the type's custom data.
+        context["hide_generic_custom_fields"] = True
 
         # Requests
         from ..models import AssetRequest
