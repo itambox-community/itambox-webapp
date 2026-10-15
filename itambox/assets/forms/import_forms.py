@@ -19,10 +19,16 @@ from assets.specification_adapters import (
     require_command_success,
 )
 from core.context import get_current_tenant
-from core.importers.bulk_forms import ROW_CREATED, BulkImportForm, RowSkipped, register_import_form
+from core.importers.bulk_forms import (
+    ROW_CREATED,
+    BulkImportForm,
+    HybridCatalogueImportForm,
+    RowSkipped,
+    register_import_form,
+)
 from core.managers import Scope
 from core.slugs import generate_unique_slug
-from inventory.models import Accessory, Consumable
+from inventory.models import Accessory, Component, Consumable
 from licenses.models import License
 from organization.models import AssetHolder, Location
 from organization.services.catalogue_authorization import has_provider_catalogue_permission
@@ -329,6 +335,24 @@ class ConsumableBulkImportForm(BulkImportForm):
     model = Consumable
     required_fields = ["name", "manufacturer"]
     optional_fields = ["category", "supplier", "slug", "part_number", "min_qty", "notes"]
+
+
+@register_import_form
+class ComponentBulkImportForm(HybridCatalogueImportForm):
+    """Component catalogue only: stock and allocations are never written by an import."""
+
+    model = Component
+    update_key = ("manufacturer", "name")
+    required_fields = ["name", "manufacturer"]
+    optional_fields = ["category", "supplier", "part_number", "ean", "min_qty", "allow_overallocate", "notes"]
+    rejected_columns = {
+        **HybridCatalogueImportForm.rejected_columns,
+        **{
+            column: "stock is not imported; record stock movements on the component"
+            for column in ("qty", "quantity", "location", "stock")
+        },
+    }
+    reference_filters = {"category": lambda queryset: queryset.filter(applies_to__component=True)}
 
 
 @register_import_form
