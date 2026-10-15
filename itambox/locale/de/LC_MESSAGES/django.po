@@ -15440,8 +15440,8 @@ msgstr "Zeile %(row)s: Datensatz existiert bereits; übersprungen."
 msgid "asset_tag is required."
 msgstr "asset_tag ist erforderlich."
 
-msgid "asset_tag: no asset with this tag exists in the active tenant."
-msgstr "asset_tag: Im aktiven Mandanten existiert kein Asset mit dieser Tag-Nummer."
+msgid "asset_tag: no asset with tag '%(tag)s' exists in this tenant."
+msgstr "asset_tag: Im Mandanten existiert kein Asset mit Tag '%(tag)s'."
 
 msgid "end_date must be on or after start_date."
 msgstr "end_date muss gleich oder nach start_date liegen."
@@ -15454,3 +15454,35 @@ msgstr "supplier: Im aktiven Mandanten gibt es keinen passenden Lieferanten."
 
 msgid "warranty_type: select a valid choice."
 msgstr "warranty_type: Gültige Auswahl treffen."
+
+#: assets/forms/import_forms.py
+msgid "Exact asset tag of a non-archived asset in the current tenant."
+msgstr "Exakter Inventar-Tag eines nicht archivierten Assets im aktuellen Mandanten."
+
+#: assets/forms/import_forms.py
+msgid "Supplier matches by slug or name among suppliers visible to the current tenant; numeric IDs are not accepted."
+msgstr "Der Lieferant wird anhand von Slug oder Namen unter den für den aktuellen Mandanten sichtbaren Lieferanten zugeordnet; numerische IDs sind nicht zulässig."
+
+#: assets/forms/import_forms.py
+msgid "completion_date must be on or after start_date."
+msgstr "completion_date muss am oder nach start_date liegen."
+
+#: assets/forms/import_forms.py
+msgid "completion_date: completed maintenance requires a completion date."
+msgstr "completion_date: Für abgeschlossene Wartungen ist ein Abschlussdatum erforderlich."
+
+#: assets/forms/import_forms.py
+msgid "supplier: no supplier matching '%(value)s' by slug or name is visible to this tenant."
+msgstr "supplier: Kein für diesen Mandanten sichtbarer Lieferant passt anhand von Slug oder Name zu '%(value)s'."
+
+#: assets/forms/import_forms.py
+msgid "maintenance_type: select a valid choice."
+msgstr "maintenance_type: Gültige Auswahl treffen."
+
+#: assets/forms/import_forms.py
+msgid "status: only completed or cancelled maintenance can be imported; schedule open maintenance in the application."
+msgstr "status: Nur abgeschlossene oder abgebrochene Wartungen können importiert werden; offene Wartungen müssen in der Anwendung geplant werden."
+
+#: assets/forms/import_forms.py
+msgid "supplier: '%(value)s' matches more than one supplier."
+msgstr "supplier: '%(value)s' passt zu mehreren Lieferanten."

@@ -3,10 +3,22 @@ from functools import lru_cache
 from typing import NamedTuple
 
 import jsonschema
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import NON_FIELD_ERRORS, PermissionDenied, ValidationError
 from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _lazy
 
-from assets.models import Asset, AssetRole, AssetType, Category, Manufacturer, Supplier, Warranty, WarrantyTypeChoices
+from assets.models import (
+    Asset,
+    AssetMaintenance,
+    AssetRole,
+    AssetType,
+    Category,
+    Manufacturer,
+    Supplier,
+    Warranty,
+    WarrantyTypeChoices,
+)
+from assets.models.choices import MaintenanceStatusChoices
 from assets.services.specifications.catalogue_schema import build_catalogue_schema
 from assets.services.specifications.commands import create_asset_type, preview_asset_type_create
 from assets.services.specifications.contracts import FieldsetSelectionDTO, SpecificationPatchDTO
@@ -488,13 +500,155 @@ class WarrantyBulkImportForm(BulkImportForm):
         return mapped
 
 
+@register_import_form
+class AssetMaintenanceBulkImportForm(BulkImportForm):
+    """Create-only import of completed and cancelled maintenance history (#829, slice 5).
+
+    Asset references use an exact asset tag in the active tenant. Supplier
+    references use a scoped slug or name; neither may be resolved by numeric ID.
+    Open maintenance and update paths stay in the maintenance workflow.
+    """
+
+    model = AssetMaintenance
+    update_key = ()
+    custom_reference_resolution = True
+    required_fields = ["asset_tag", "maintenance_type", "status", "start_date"]
+    optional_fields = ["completion_date", "supplier", "performed_by", "cost", "currency", "description", "notes"]
+    field_descriptions = {
+        "asset_tag": _lazy("Exact asset tag of a non-archived asset in the current tenant."),
+        "supplier": _lazy(
+            "Supplier matches by slug or name among suppliers visible to the current tenant; numeric IDs are not accepted."
+        ),
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._batch_keys = set()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not self._rows_data:
+            return cleaned_data
+        if any(str(key).strip().lower() == "tenant" for row in self._rows_data for key in row):
+            raise ValidationError(_("A 'tenant' column is not allowed: rows always land in the active tenant."))
+        self._batch_keys = set()
+        errors, notes = [], []
+        for number, row in enumerate(self._rows_data, start=2):
+            try:
+                _mapped, key = self._prepare(row)
+                if self._is_duplicate(key):
+                    notes.append(_("Row %(row)s: record already exists; skipped.") % {"row": number})
+                else:
+                    self._batch_keys.add(key)
+            except ValidationError as exc:
+                errors.extend(f"Row {number}: {message}" for message in exc.messages)
+        self.row_notes = notes
+        if errors:
+            raise ValidationError(errors)
+        return cleaned_data
+
+    def import_data(self, request=None):
+        self._batch_keys = set()
+        return super().import_data(request)
+
+    def _import_row(self, row, row_number):
+        mapped, key = self._prepare(row)
+        if self._is_duplicate(key):
+            raise RowSkipped(_("record already exists; skipped."))
+        self.model(**mapped).save()
+        self._batch_keys.add(key)
+        return ROW_CREATED
+
+    def _prepare(self, row):
+        mapped = self.map_row(row)
+        self._validate_history(mapped)
+        self._validate_model_values(mapped)
+        key = (mapped["asset_id"], mapped["maintenance_type"], mapped["start_date"])
+        return mapped, key
+
+    def _is_duplicate(self, key):
+        if key in self._batch_keys:
+            return True
+        tenant = get_current_tenant()
+        if tenant is None:
+            return False
+        asset_id, maintenance_type, start_date = key
+        return (
+            AssetMaintenance.objects.for_scope(Scope.current())
+            .filter(
+                asset__tenant_id=tenant.pk,
+                asset_id=asset_id,
+                maintenance_type=maintenance_type,
+                start_date=start_date,
+            )
+            .exists()
+        )
+
+    def _validate_history(self, mapped):
+        maintenance_types = {value for value, _label in AssetMaintenance.MAINTENANCE_TYPE_CHOICES}
+        if mapped["maintenance_type"] not in maintenance_types:
+            raise ValidationError(_("maintenance_type: select a valid choice."))
+        if mapped["status"] not in (MaintenanceStatusChoices.COMPLETED, MaintenanceStatusChoices.CANCELLED):
+            raise ValidationError(
+                _(
+                    "status: only completed or cancelled maintenance can be imported; "
+                    "schedule open maintenance in the application."
+                )
+            )
+        if mapped["status"] == MaintenanceStatusChoices.COMPLETED and mapped.get("completion_date") is None:
+            raise ValidationError(_("completion_date: completed maintenance requires a completion date."))
+        completion_date = mapped.get("completion_date")
+        if completion_date is not None and completion_date < mapped["start_date"]:
+            raise ValidationError(_("completion_date must be on or after start_date."))
+
+    def _validate_model_values(self, mapped):
+        try:
+            self.model(**mapped).full_clean()
+        except ValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                messages = [
+                    f"{field}: {message}" if field != NON_FIELD_ERRORS else str(message)
+                    for field, field_messages in exc.message_dict.items()
+                    for message in field_messages
+                ]
+                raise ValidationError(messages) from exc
+            raise
+
+    def map_row(self, row):
+        mapped = {}
+        tag = str(row.get("asset_tag") or "").strip()
+        if not tag:
+            raise ValidationError(_("asset_tag is required."))
+        mapped["asset_id"] = _resolve_warranty_asset(tag).pk
+
+        for column in ("maintenance_type", "status", "start_date"):
+            raw = str(row.get(column) or "").strip()
+            if not raw:
+                raise ValidationError(_("%(column)s is required.") % {"column": column})
+            mapped[column] = _parse_maintenance_date(column, raw) if column == "start_date" else raw
+
+        completion_date = str(row.get("completion_date") or "").strip()
+        if completion_date:
+            mapped["completion_date"] = _parse_maintenance_date("completion_date", completion_date)
+
+        supplier = str(row.get("supplier") or "").strip()
+        if supplier:
+            mapped["supplier_id"] = _resolve_maintenance_supplier(supplier).pk
+
+        for column in ("performed_by", "cost", "currency", "description", "notes"):
+            value = str(row.get(column) or "").strip()
+            if value:
+                mapped[column] = value
+        return mapped
+
+
 def _resolve_warranty_asset(tag):
     """Return the live asset with this tag in the active tenant, or fail the row."""
     tenant = get_current_tenant()
     queryset = Asset.objects.for_scope(Scope.current())
     asset = queryset.filter(asset_tag=tag, tenant=tenant).first() if tenant is not None else None
     if asset is None:
-        raise ValidationError(_("asset_tag: no asset with this tag exists in the active tenant."))
+        raise ValidationError(_("asset_tag: no asset with tag '%(tag)s' exists in this tenant.") % {"tag": tag})
     return asset
 
 
@@ -514,5 +668,26 @@ def _resolve_warranty_supplier(value):
 def _parse_warranty_date(column, raw):
     try:
         return Warranty._meta.get_field(column).to_python(raw)
+    except ValidationError:
+        raise ValidationError(_("%(column)s: enter a valid date (YYYY-MM-DD).") % {"column": column}) from None
+
+
+def _resolve_maintenance_supplier(value):
+    """Resolve a supplier by the approved natural-key order inside the active scope."""
+    queryset = Supplier.objects.for_scope(Scope.current())
+    for lookup in ("slug", "name", "slug__iexact", "name__iexact"):
+        matches = list(queryset.filter(**{lookup: value})[:2])
+        if len(matches) > 1:
+            raise ValidationError(_("supplier: '%(value)s' matches more than one supplier.") % {"value": value})
+        if matches:
+            return matches[0]
+    raise ValidationError(
+        _("supplier: no supplier matching '%(value)s' by slug or name is visible to this tenant.") % {"value": value}
+    )
+
+
+def _parse_maintenance_date(column, raw):
+    try:
+        return AssetMaintenance._meta.get_field(column).to_python(raw)
     except ValidationError:
         raise ValidationError(_("%(column)s: enter a valid date (YYYY-MM-DD).") % {"column": column}) from None

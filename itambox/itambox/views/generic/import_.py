@@ -161,6 +161,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
             return fields_info
 
         form_cls = self.get_form_class()
+        field_descriptions = getattr(form_cls, "field_descriptions", {}) or {}
         required = set(getattr(form_cls, "required_fields", []) or [])
         field_names = list(getattr(form_cls, "required_fields", []) or []) + list(
             getattr(form_cls, "optional_fields", []) or []
@@ -173,27 +174,17 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
                 field = model._meta.get_field(name)
             except FieldDoesNotExist:
                 fields_info.append(
-                    {"name": name, "required": name in required, "accessor": "", "description": "", "choices": []}
+                    {
+                        "name": name,
+                        "required": name in required,
+                        "accessor": "",
+                        "description": str(field_descriptions.get(name) or ""),
+                        "choices": [],
+                    }
                 )
                 continue
 
-            description = field.help_text or field.verbose_name or ""
-            description = str(description) if description else ""
-            is_relation = field.is_relation and field.many_to_one
-            accessor = ""
-            choices = []
-            if is_relation:
-                related_model = field.related_model
-                accessor = "slug" if _model_has_concrete_field(related_model, "slug") else "name"
-                description = _("Relation to {model_name} (resolves by ID, Slug or Name).").format(
-                    model_name=str(related_model._meta.verbose_name)
-                )
-            if field.choices:
-                choices = [(val, label) for val, label in field.choices]
-            if isinstance(field, models.DateField):
-                description = f"{description} Format: YYYY-MM-DD"
-            elif isinstance(field, models.BooleanField):
-                description = f"{description} Specify true or false"
+            accessor, description, choices = self._get_field_details(field, name, field_descriptions)
 
             fields_info.append(
                 {
@@ -206,12 +197,35 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
             )
         return fields_info
 
+    @staticmethod
+    def _get_field_details(field, name, field_descriptions):
+        description = field.help_text or field.verbose_name or ""
+        description = str(description) if description else ""
+        accessor = ""
+        choices = []
+        if field.is_relation and field.many_to_one:
+            related_model = field.related_model
+            accessor = "slug" if _model_has_concrete_field(related_model, "slug") else "name"
+            description = _("Relation to {model_name} (resolves by ID, Slug or Name).").format(
+                model_name=str(related_model._meta.verbose_name)
+            )
+        if field.choices:
+            choices = [(val, label) for val, label in field.choices]
+        if isinstance(field, models.DateField):
+            description = f"{description} Format: YYYY-MM-DD"
+        elif isinstance(field, models.BooleanField):
+            description = f"{description} Specify true or false"
+        if name in field_descriptions:
+            description = str(field_descriptions[name])
+        return accessor, description, choices
+
     def _render_response(self, request, form, **extra_context):
         context = {
             "form": form,
             "title": self._get_title(),
             "cancel_url": self._get_cancel_url(),
             "fields": self._get_fields_info(),
+            "show_generic_reference_help": not getattr(self.get_form_class(), "custom_reference_resolution", False),
             **extra_context,
         }
         return self.render_to_response(context)
