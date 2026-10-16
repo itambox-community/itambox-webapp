@@ -3,6 +3,10 @@
 The builders are pure: they read already loaded definitions and stored values and
 never invent a value. A value that does not fit its definition is shown raw with an
 explicit state instead of being coerced.
+
+Every vocabulary label (definition, choice, section, unit token) goes through a
+``VocabularyTranslator`` (``extras.services.vocabulary_translations``) passed in by
+the view; without one the base labels are shown.
 """
 
 import json
@@ -13,6 +17,8 @@ from decimal import Decimal, InvalidOperation
 from django.utils.formats import date_format, number_format
 from django.utils.text import Truncator
 from django.utils.translation import gettext as _
+
+from extras.services.vocabulary_translations import BASE_LABELS
 
 TEXT_DISPLAY_LIMIT = 120
 PLACEHOLDER = "-"
@@ -84,13 +90,6 @@ def _raw_text(value) -> str:
         return str(value)
 
 
-def _unit_text(definition) -> str:
-    unit = getattr(definition, "canonical_unit", None) or ""
-    if unit == "pages_per_minute":
-        return _("ppm")
-    return unit
-
-
 def _format_decimal(number: Decimal) -> str:
     plain = format(number.normalize(), "f") if number != 0 else "0"
     places = len(plain.split(".")[1]) if "." in plain else 0
@@ -111,36 +110,36 @@ def _invalid(value) -> dict:
     return {"kind": KIND_TEXT, "text": _raw_text(value), "state": STATE_INVALID}
 
 
-def _build_boolean(definition, value) -> dict:
+def _build_boolean(definition, value, translator) -> dict:
     if isinstance(value, bool):
         return {"kind": KIND_BOOLEAN, "flag": value, "raw": _raw_text(value)}
     return _invalid(value)
 
 
-def _build_integer(definition, value) -> dict:
+def _build_integer(definition, value, translator) -> dict:
     if isinstance(value, bool) or not isinstance(value, int):
         return _invalid(value)
     return {
         "kind": KIND_NUMBER,
         "text": number_format(value, use_l10n=True, force_grouping=True),
-        "unit": _unit_text(definition),
+        "unit": translator.unit(definition),
         "raw": str(value),
     }
 
 
-def _build_decimal(definition, value) -> dict:
+def _build_decimal(definition, value, translator) -> dict:
     number = _parse_decimal(value)
     if number is None:
         return _invalid(value)
     return {
         "kind": KIND_NUMBER,
         "text": _format_decimal(number),
-        "unit": _unit_text(definition),
+        "unit": translator.unit(definition),
         "raw": _raw_text(value),
     }
 
 
-def _build_date(definition, value) -> dict:
+def _build_date(definition, value, translator) -> dict:
     if not isinstance(value, str):
         return _invalid(value)
     try:
@@ -150,7 +149,7 @@ def _build_date(definition, value) -> dict:
     return {"kind": KIND_DATE, "text": date_format(parsed, "DATE_FORMAT"), "raw": value}
 
 
-def _build_text(definition, value) -> dict:
+def _build_text(definition, value, translator) -> dict:
     if not isinstance(value, str):
         return _invalid(value)
     shown = Truncator(value).chars(TEXT_DISPLAY_LIMIT)
@@ -164,7 +163,7 @@ def _choice_index(definition) -> dict | None:
     return {choice.key: choice for choice in choice_set.choices.all()}
 
 
-def _resolve_choice(index, key) -> SpecItem:
+def _resolve_choice(index, key, translator) -> SpecItem:
     if not isinstance(key, str):
         return SpecItem(key=_raw_text(key), text=_raw_text(key), state=STATE_INVALID)
     if index is None:
@@ -173,20 +172,20 @@ def _resolve_choice(index, key) -> SpecItem:
     if choice is None:
         return SpecItem(key=key, text=key, state=STATE_UNKNOWN_VALUE)
     deprecated = getattr(choice, "lifecycle", "active") == "deprecated"
-    return SpecItem(key=key, text=choice.label, state=STATE_DEPRECATED if deprecated else STATE_OK)
+    return SpecItem(key=key, text=translator.choice_label(choice), state=STATE_DEPRECATED if deprecated else STATE_OK)
 
 
-def _build_single_select(definition, value) -> dict:
-    item = _resolve_choice(_choice_index(definition), value)
+def _build_single_select(definition, value, translator) -> dict:
+    item = _resolve_choice(_choice_index(definition), value, translator)
     return {"kind": KIND_CHOICE, "text": item.text, "raw": item.key, "state": item.state}
 
 
-def _build_multi_select(definition, value) -> dict:
+def _build_multi_select(definition, value, translator) -> dict:
     if not isinstance(value, list):
         return _invalid(value)
     index = _choice_index(definition)
     positions = {key: choice.position for key, choice in (index or {}).items()}
-    items = [_resolve_choice(index, key) for key in value]
+    items = [_resolve_choice(index, key, translator) for key in value]
     if index is not None:
         items.sort(key=lambda item: (positions.get(item.key, float("inf")), item.key))
     return {"kind": KIND_CHIPS, "items": tuple(items), "raw": _raw_text(value)}
@@ -203,16 +202,16 @@ _BUILDERS = {
 }
 
 
-def build_entry(definition, value, *, group=None, state=None) -> SpecDisplayEntry:
+def build_entry(definition, value, *, group=None, state=None, translator=BASE_LABELS) -> SpecDisplayEntry:
     """Render one stored value of a known definition."""
     builder = _BUILDERS.get(definition.field_type, _build_text)
-    parts = builder(definition, value)
+    parts = builder(definition, value, translator)
     if state is not None and parts.get("state", STATE_OK) == STATE_OK:
         parts["state"] = state
-    return SpecDisplayEntry(key=definition.name, label=definition.label, group=group, **parts)
+    return SpecDisplayEntry(key=definition.name, label=translator.field_label(definition), group=group, **parts)
 
 
-def build_spec_groups(resolved_fields, stored_values, group_labels=None) -> list[SpecGroup]:
+def build_spec_groups(resolved_fields, stored_values, group_labels=None, translator=BASE_LABELS) -> list[SpecGroup]:
     """Group the non-empty resolved values by their first fieldset, in composition order."""
     stored_values = stored_values or {}
     group_labels = group_labels or {}
@@ -226,7 +225,7 @@ def build_spec_groups(resolved_fields, stored_values, group_labels=None) -> list
         label = None
         if identity is not None:
             label = group_labels.get(identity) or identity.split("/", 1)[-1]
-        entry = build_entry(resolved.definition, value, group=label)
+        entry = build_entry(resolved.definition, value, group=label, translator=translator)
         (named.setdefault(identity, []) if identity is not None else ungrouped).append(entry)
     groups = [SpecGroup(label=entries[0].group, entries=tuple(entries)) for entries in named.values()]
     if ungrouped:
@@ -239,7 +238,9 @@ def _unknown_entry(key, value) -> SpecDisplayEntry:
     return SpecDisplayEntry(key=key, label=key, kind=KIND_UNKNOWN, text=text, state=STATE_UNKNOWN_FIELD)
 
 
-def build_further_values(resolved_fields, stored_values, definitions=None) -> list[SpecDisplayEntry]:
+def build_further_values(
+    resolved_fields, stored_values, definitions=None, translator=BASE_LABELS
+) -> list[SpecDisplayEntry]:
     """Stored keys that the current specification does not resolve."""
     stored_values = stored_values or {}
     definitions = definitions or {}
@@ -255,30 +256,44 @@ def build_further_values(resolved_fields, stored_values, definitions=None) -> li
         elif _is_empty(value):
             entries.append(
                 SpecDisplayEntry(
-                    key=key, label=definition.label, kind=KIND_TEXT, text=PLACEHOLDER, state=STATE_HISTORICAL
+                    key=key,
+                    label=translator.field_label(definition),
+                    kind=KIND_TEXT,
+                    text=PLACEHOLDER,
+                    state=STATE_HISTORICAL,
                 )
             )
         else:
-            entries.append(build_entry(definition, value, state=STATE_HISTORICAL))
+            entries.append(build_entry(definition, value, state=STATE_HISTORICAL, translator=translator))
     return entries
 
 
-def fieldset_group_labels(fieldsets) -> dict[str, str]:
-    return {f"{fs.namespace}/{fs.slug}": (fs.label or fs.slug) for fs in fieldsets}
+def fieldset_group_labels(fieldsets, translator=BASE_LABELS) -> dict[str, str]:
+    return {f"{fs.namespace}/{fs.slug}": translator.fieldset_label(fs) for fs in fieldsets}
 
 
 def build_spec_panel(
-    resolved_fields, stored_values, fieldsets, definitions_loader=None, include_further=True
+    resolved_fields, stored_values, fieldsets, definitions_loader=None, include_further=True, translator=BASE_LABELS
 ) -> SpecPanel:
     """Build the grouped values plus the completeness block for one object.
 
     ``definitions_loader`` receives the unresolved stored keys and returns a
     name -> definition mapping; it is only called when such keys exist.
+    ``translator`` resolves every vocabulary label; it is loaded here for the
+    resolved definitions, the fieldsets and any historical definitions.
     """
     stored_values = dict(stored_values or {})
-    groups = build_spec_groups(resolved_fields, stored_values, fieldset_group_labels(fieldsets))
+    translator.load_resolved(resolved_fields, fieldsets)
+    groups = build_spec_groups(
+        resolved_fields, stored_values, fieldset_group_labels(fieldsets, translator), translator=translator
+    )
     resolved_names = {resolved.definition.name for resolved in resolved_fields}
     rest = [key for key in stored_values if key not in resolved_names] if include_further else []
     definitions = definitions_loader(rest) if rest and definitions_loader else {}
-    further = build_further_values(resolved_fields, stored_values, definitions) if include_further else []
+    translator.load(fields=list(definitions.values()))
+    further = (
+        build_further_values(resolved_fields, stored_values, definitions, translator=translator)
+        if include_further
+        else []
+    )
     return SpecPanel(groups=tuple(groups), further=tuple(further))
