@@ -144,10 +144,3 @@ class MitigationsPhase2Tests(TestCase):
             self.assertNotIn(mfg_b, mfg_qs)
         finally:
             set_current_tenant(None)
-
-    def test_settings_docusign_mock_credentials(self):
-        from django.conf import settings
-
-        config = settings.PLUGINS_CONFIG.get("itambox_esign", {})
-        self.assertEqual(config.get("DOCUSIGN_INTEGRATION_KEY"), "mock-integration-key-guid")
-        self.assertEqual(config.get("DOCUSIGN_USER_ID"), "mock-user-id-guid")

@@ -601,25 +601,13 @@ FIELD_ENCRYPTION_KEYS_ERROR = _field_keyring.error
 # so the core image boots without bundling any plugin. A missing, incompatible,
 # or malformed plugin is disabled with an operator-visible diagnostic; it does
 # not abort Stable core startup.
-#   Example: ITAMBOX_PLUGINS=itambox_esign
+#   Example: ITAMBOX_PLUGINS=example_plugin
 PLUGINS = [p.strip() for p in os.environ.get("ITAMBOX_PLUGINS", "").split(",") if p.strip()]
 
 IS_TESTING = _TEST_INVOCATION
 
-PLUGINS_CONFIG = {
-    "itambox_esign": {
-        "DOCUSIGN_INTEGRATION_KEY": os.environ.get(
-            "DOCUSIGN_INTEGRATION_KEY", "mock-integration-key-guid" if IS_TESTING else ""
-        ),
-        "DOCUSIGN_USER_ID": os.environ.get("DOCUSIGN_USER_ID", "mock-user-id-guid" if IS_TESTING else ""),
-        "DOCUSIGN_ACCOUNT_ID": os.environ.get("DOCUSIGN_ACCOUNT_ID", "mock-account-id-guid" if IS_TESTING else ""),
-        "DOCUSIGN_RSA_PRIVATE_KEY": os.environ.get(
-            "DOCUSIGN_RSA_PRIVATE_KEY",
-            "-----BEGIN RSA PRIVATE KEY-----\nMockKey\n-----END RSA PRIVATE KEY-----" if IS_TESTING else "",
-        ),
-        "DOCUSIGN_SANDBOX": os.environ.get("DOCUSIGN_SANDBOX", "True").lower() in ("true", "1", "t"),
-    }
-}
+# Per-plugin settings live under the plugin's own key; the core ships none.
+PLUGINS_CONFIG: dict[str, dict] = {}
 
 # Load and validate plugins dynamically
 

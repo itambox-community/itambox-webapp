@@ -321,13 +321,6 @@ ROLE_PERMISSION_PRESENTATION = {
         "model_name": "configcontext",
         "group": _("System & Reporting"),
     },
-    # Plugins
-    "docusignenvelope": {
-        "label": _("DocuSign Envelopes"),
-        "app": "itambox_esign",
-        "model_name": "docusignenvelope",
-        "group": _("Plugins"),
-    },
 }
 
 

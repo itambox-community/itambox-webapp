@@ -80,7 +80,6 @@ ROLE_PERMISSION_TARGETS: tuple[RolePermissionTarget, ...] = (
     RolePermissionTarget("costcenter", "organization", "costcenter"),
     RolePermissionTarget("journalentry", "extras", "journalentry"),
     RolePermissionTarget("configcontext", "extras", "configcontext"),
-    RolePermissionTarget("docusignenvelope", "itambox_esign", "docusignenvelope", "itambox_esign"),
 )
 
 DASHBOARD_SSO_PERMISSIONS = frozenset(

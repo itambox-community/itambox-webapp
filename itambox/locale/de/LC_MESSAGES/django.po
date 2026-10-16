@@ -5733,9 +5733,6 @@ msgstr "Benutzerverwaltung"
 msgid "API Tokens"
 msgstr "API-Token"
 
-msgid "DocuSign Envelopes"
-msgstr "DocuSign-Umschläge"
-
 msgid "Staging"
 msgstr "Bereitstellung"
 

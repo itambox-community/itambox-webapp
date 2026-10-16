@@ -6,13 +6,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import strawberry
-from django.conf import settings
 from django.template.loader import render_to_string
 from django.test import SimpleTestCase, TestCase
-from django.urls import reverse
 from django.utils.html import escape
-from rest_framework import status
-from rest_framework.test import APITestCase
 
 from core.templatetags.plugins import plugin_template_content
 from itambox.context_processors import plugin_diagnostics_processor
@@ -538,6 +534,7 @@ class TemplateTagTestCase(TestCase):
         super().tearDown()
 
     def test_template_tag_rendering_and_error_handling(self):
+        # The failure is logged with full detail; the page gets nothing from it.
         class GoodContent(PluginTemplateContent):
             def left_panel(self):
                 return "<div>Good Injection</div>"
@@ -550,17 +547,33 @@ class TemplateTagTestCase(TestCase):
         registry.register_plugin_template_content("assets.asset", BrokenContent)
 
         context = {"request": None}
-        rendered = plugin_template_content(context, "assets.asset", "left_panel", None)
+        with self.assertLogs("core.templatetags.plugins", level="ERROR") as logs:
+            rendered = plugin_template_content(context, "assets.asset", "left_panel", None)
+        self.assertIn("Simulated template error", "\n".join(logs.output))
 
         self.assertIn("<div>Good Injection</div>", rendered)
-        self.assertIn(
-            "<!-- Error rendering plugin template content class 'BrokenContent' "
-            "for position 'left_panel': Simulated template error -->",
-            rendered,
-        )
+        self.assertNotIn("Simulated template error", rendered)
+        self.assertNotIn("ValueError", rendered)
+        self.assertNotIn("BrokenContent", rendered)
+        self.assertNotIn("<!--", rendered)
+
+
+def _request_for(*, is_superuser=None, anonymous=False):
+    user = types.SimpleNamespace(is_authenticated=not anonymous, is_superuser=bool(is_superuser))
+    return types.SimpleNamespace(user=user)
 
 
 class PluginDiagnosticsSurfaceTest(SimpleTestCase):
+    def test_diagnostics_hidden_from_non_operators(self):
+        diagnostic = {"plugin": "hidden_plugin", "failure_class": "ValueError", "error": "boom"}
+        with self.settings(PLUGINS_DIAGNOSTICS=[diagnostic]):
+            for request in (None, _request_for(is_superuser=False), _request_for(anonymous=True)):
+                context = plugin_diagnostics_processor(request)
+                self.assertEqual(context["plugin_diagnostics"], [])
+                rendered = render_to_string("global_includes/_plugin_diagnostics.html", context)
+                self.assertNotIn("hidden_plugin", rendered)
+                self.assertNotIn("plugin-startup-diagnostics", rendered)
+
     def test_diagnostic_is_visible_and_html_escaped(self):
         diagnostic = {
             "plugin": "unsafe_plugin",
@@ -574,7 +587,7 @@ class PluginDiagnosticsSurfaceTest(SimpleTestCase):
             "error": escape("bad <script>alert('secret')</script>"),
         }
         with self.settings(PLUGINS_DIAGNOSTICS=[diagnostic]):
-            context = plugin_diagnostics_processor(None)
+            context = plugin_diagnostics_processor(_request_for(is_superuser=True))
             rendered = render_to_string("global_includes/_plugin_diagnostics.html", context)
 
         self.assertIn("unsafe_plugin", rendered)
@@ -584,20 +597,3 @@ class PluginDiagnosticsSurfaceTest(SimpleTestCase):
         self.assertIn("disabled", rendered)
         self.assertIn("&lt;script&gt;", rendered)
         self.assertNotIn("<script>", rendered)
-
-
-class PluginAPITestCase(APITestCase):
-    def test_api_route_resolution(self):
-        if "itambox_esign" in settings.PLUGINS:
-            url = "/api/plugins/itambox_esign/"
-            response = self.client.get(url)
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertEqual(response.data["status"], "active")
-            self.assertEqual(response.data["message"], "DocuSign integration plugin API is online.")
-
-    def test_ui_route_resolution(self):
-        if "itambox_esign" in settings.PLUGINS:
-            url = reverse("plugins:itambox_esign:dashboard")
-            self.assertEqual(url, "/plugins/itambox_esign/dashboard/")
-            response = self.client.get(url)
-            self.assertEqual(response.status_code, status.HTTP_302_FOUND)
