@@ -366,9 +366,7 @@ class _ReferenceDataBulkImportForm(BulkImportForm):
     def clean(self):
         cleaned_data = super().clean()
         if any(column.casefold() in {"tenant", "tenant_id"} for row in self._rows_data for column in row):
-            raise ValidationError(
-                _("The import always assigns records to the active tenant. Remove the tenant column.")
-            )
+            raise ValidationError(_("Tenant and tenant_id columns are not supported. Remove them before importing."))
         errors, notes = [], []
         for number, row in enumerate(self._rows_data, start=2):
             try:

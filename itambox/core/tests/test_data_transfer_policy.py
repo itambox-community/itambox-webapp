@@ -97,6 +97,35 @@ class DataTransferPolicyContractTests(SimpleTestCase):
                 self.assertEqual(declared, registered, f"{label}: import_ and @register_import_form must match")
                 self.assertEqual(is_model_importable(model), declared)
 
+    def test_reference_import_tenant_column_error_does_not_claim_tenant_assignment(self):
+        labels = (
+            "assets.category",
+            "assets.assetrole",
+            "organization.region",
+            "organization.sitegroup",
+            "organization.contactrole",
+            "organization.contact",
+        )
+        for label in labels:
+            for column in ("tenant", "tenant_id"):
+                with self.subTest(label=label, column=column), translation.override("de"):
+                    form_class = get_registered_import_form(apps.get_model(label))
+                    if form_class is None:
+                        self.fail(f"{label} must have a curated import form")
+                    form = form_class(
+                        data={
+                            "active_tab": "editor",
+                            "import_format": "csv",
+                            "import_text": f"name,{column}\nExample,foreign-tenant",
+                            "delimiter": ",",
+                        }
+                    )
+                    self.assertFalse(form.is_valid())
+                    errors = str(form.errors)
+                    self.assertIn("Die Spalten „tenant“ und „tenant_id“ werden nicht unterstützt.", errors)
+                    self.assertIn("Entfernen Sie sie vor dem Import.", errors)
+                    self.assertNotIn("dem aktiven Mandanten zugeordnet", errors)
+
     def test_service_owned_and_security_sensitive_models_are_never_importable(self):
         for label in SERVICE_OWNED + SECURITY_SENSITIVE:
             with self.subTest(label=label):
@@ -424,7 +453,9 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                 self.assertEqual(preview.status_code, 200)
                 self.assertIsNone(response)
                 errors = str(preview.context["form"].errors)
-                self.assertIn("Entfernen Sie die Mandantenspalte", errors)
+                self.assertIn("Die Spalten „tenant“ und „tenant_id“ werden nicht unterstützt.", errors)
+                self.assertIn("Entfernen Sie sie vor dem Import.", errors)
+                self.assertNotIn("werden immer dem aktiven Mandanten zugeordnet", errors)
                 self.assertNotIn("foreign-tenant", errors)
                 self.assertNotIn("Row 2", errors)
                 self.assertEqual(model._base_manager.filter(name="Tenant Injection").count(), before)
