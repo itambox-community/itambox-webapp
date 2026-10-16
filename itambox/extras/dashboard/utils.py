@@ -55,10 +55,10 @@ def get_default_dashboard():
             "config": {
                 "content": (
                     "# Welcome to ITAMbox!\n\n"
-                    "This is your premium ITAM dashboard. Click the gear icon on any widget to adjust "
-                    "parameters, or click **Unlock** at the top right to drag, resize, or reorder elements.\n\n"
-                    "- Star any object to see it under **My Bookmarks**\n"
-                    "- Press **Ctrl+K** to jump to search from anywhere"
+                    "This is your dashboard. Click the gear icon on any widget to adjust "
+                    "parameters, or click Unlock at the top right to drag, resize, or reorder elements.\n\n"
+                    "- Star any object to see it under My Bookmarks\n"
+                    "- Press Ctrl+K to jump to search from anywhere"
                 )
             },
         },
