@@ -1,16 +1,12 @@
 """Root GraphQL schema for the read-only API.
 
 The per-app query types are merged into one root type; plugins may contribute
-their own Strawberry ``Query``/``Mutation`` types through the Experimental
-plugin API (``PluginConfig.graphql_schema``).
+their own Strawberry ``Query`` type (queries only) through
+``PluginConfig.graphql_schema``; core apps expose no GraphQL mutations (writes
+are REST-only, #612).
 """
 
-import importlib
-import logging
-
 import strawberry
-from django.apps import apps
-from django.conf import settings
 
 import assets.schema
 import inventory.schema
@@ -19,9 +15,7 @@ import software.schema
 import subscriptions.schema
 from assets.graphql_specifications.scalars import SCALAR_OVERRIDES
 from core.views.graphql import schema_extensions
-from itambox.plugins.utils import is_plugin_active, record_plugin_failure
-
-logger = logging.getLogger(__name__)
+from itambox.registry import registry
 
 query_bases = [
     assets.schema.Query,
@@ -31,30 +25,12 @@ query_bases = [
     subscriptions.schema.Query,
 ]
 
-# Core apps expose no GraphQL mutations (writes are REST-only, #612); only plugins may contribute any.
-mutation_bases = []
-
-# Dynamically import plugin schemas
-for plugin_name in getattr(settings, "PLUGINS", []):
-    if not is_plugin_active(plugin_name):
-        continue
-    try:
-        plugin_config = apps.get_app_config(plugin_name)
-        graphql_schema_path = getattr(plugin_config, "graphql_schema", None)
-        if graphql_schema_path:
-            schema_module = importlib.import_module(graphql_schema_path)
-            if hasattr(schema_module, "Query"):
-                query_bases.append(schema_module.Query)
-            if hasattr(schema_module, "Mutation"):
-                mutation_bases.append(schema_module.Mutation)
-    except Exception as exc:  # broad except: boundary-isolation: one plugin schema must not abort core schema startup
-        record_plugin_failure(plugin_name, exc, stage="graphql")
-        logger.warning("GraphQL contribution disabled for plugin %s (%s)", plugin_name, type(exc).__name__)
+# Plugin Query types were validated and registered by the host during the
+# compose phase (queries only; a plugin Mutation is rejected at startup).
+query_bases.extend(query for _, query in registry.get_plugin_graphql())
 
 # Strawberry merges the fields of every base type into one root type.
 Query = strawberry.type(type("Query", tuple(query_bases), {}), name="Query")
-# No mutation root unless a plugin contributes one (core apps are REST-only for writes).
-Mutation = strawberry.type(type("Mutation", tuple(mutation_bases), {}), name="Mutation") if mutation_bases else None
 
 
 def build_schema(*, extensions=None) -> strawberry.Schema:
@@ -66,7 +42,6 @@ def build_schema(*, extensions=None) -> strawberry.Schema:
     """
     return strawberry.Schema(
         query=Query,
-        mutation=Mutation,
         extensions=schema_extensions() if extensions is None else extensions,
         scalar_overrides=SCALAR_OVERRIDES,
     )

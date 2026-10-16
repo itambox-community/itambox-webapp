@@ -1,24 +1,25 @@
-import importlib
-import runpy
 import sys
 import types
 from pathlib import Path
 from unittest.mock import patch
 
-import strawberry
+from django.core.exceptions import ImproperlyConfigured
 from django.template.loader import render_to_string
 from django.test import SimpleTestCase, TestCase
 from django.utils.html import escape
 
 from core.templatetags.plugins import plugin_template_content
 from itambox.context_processors import plugin_diagnostics_processor
-from itambox.plugins import PluginConfig
-from itambox.plugins.utils import deep_merge, is_plugin_active, load_plugins
+from itambox.plugins import PluginConfig, assembly
+from itambox.plugins.runtime import PluginStartupError
+from itambox.plugins.utils import deep_merge, load_plugins, parse_itambox_range
 from itambox.plugins.views import PluginTemplateContent
 from itambox.registry import registry
 
 
 class DummySettings:
+    VERSION = "1.1.3"
+
     def __init__(self):
         self.INSTALLED_APPS = ["django.contrib.auth", "django.contrib.contenttypes"]
         self.MIDDLEWARE = ["django.middleware.common.CommonMiddleware"]
@@ -26,17 +27,11 @@ class DummySettings:
         self.PLUGINS_CONFIG = {}
         self.PLUGINS_RESOLVED_CONFIG = {}
         self.PLUGINS_ACTIVE = []
+        self.PLUGINS_DISABLED = []
         self.PLUGINS_DIAGNOSTICS = []
 
 
-def _plugin_module(name, config_cls):
-    module = types.ModuleType(name)
-    module.config = config_cls
-    sys.modules[name] = module
-    return module
-
-
-def _api_compatible_config(plugin_name, **attrs):
+def _config(plugin_name, **attrs):
     return type(
         "MockPluginConfig",
         (PluginConfig,),
@@ -44,480 +39,237 @@ def _api_compatible_config(plugin_name, **attrs):
             "__module__": plugin_name,
             "name": plugin_name,
             "verbose_name": plugin_name,
+            "description": "A test plugin",
+            "itambox_range": ">=1.1,<1.2",
             "path": str(Path(__file__).resolve().parent),
-            "min_plugin_api_version": "1.0",
-            "max_plugin_api_version": "1.0",
             **attrs,
         },
     )
 
 
-def _raise_for_plugin_schema_import(name, *args, **kwargs):
-    """Fail only the plugin schema module import under test.
-
-    The core schema resolves cross-module GraphQL types lazily at build time, so
-    a blanket ``importlib.import_module`` failure would also break the core
-    schema instead of isolating the plugin failure.
-    """
-    if name == "test_mock_plugin.graphql":
-        raise RuntimeError("schema secret")
-    return _ORIGINAL_IMPORT_MODULE(name, *args, **kwargs)
-
-
-_ORIGINAL_IMPORT_MODULE = importlib.import_module
-
-
 class PluginLoaderTestCase(SimpleTestCase):
-    def test_deep_merge(self):
-        dict1 = {"a": 1, "b": {"c": 3}}
-        dict2 = {"b": {"d": 4}, "e": 5}
-        expected = {"a": 1, "b": {"c": 3, "d": 4}, "e": 5}
-        self.assertEqual(deep_merge(dict1, dict2), expected)
+    def setUp(self):
+        self._names = []
 
-    def test_successful_loader_registration(self):
-        dummy_name = "test_mock_plugin"
-        MockPluginConfig = _api_compatible_config(
-            dummy_name,
-            verbose_name="Mock Plugin",
-            default_settings={"setting_a": "default_a", "setting_b": "default_b"},
-            required_settings=["setting_req"],
-            middleware=["test_mock_plugin.middleware.MockMiddleware"],
-            django_apps=["test_mock_plugin.auxiliary"],
+    def tearDown(self):
+        for name in self._names:
+            for key in [k for k in sys.modules if k == name or k.startswith(name + ".")]:
+                del sys.modules[key]
+
+    def _install(self, name, config_cls):
+        module = types.ModuleType(name)
+        module.config = config_cls
+        sys.modules[name] = module
+        self._names.append(name)
+
+    def _load(self, pkg, plugin_config=None, **attrs):
+        name = pkg
+        self._install(name, _config(name, **attrs))
+        dummy = DummySettings()
+        dummy.PLUGINS = [name]
+        dummy.PLUGINS_CONFIG = plugin_config or {}
+        load_plugins(dummy)
+        return dummy
+
+    def test_deep_merge(self):
+        self.assertEqual(
+            deep_merge({"a": 1, "b": {"c": 3}}, {"b": {"d": 4}, "e": 5}), {"a": 1, "b": {"c": 3, "d": 4}, "e": 5}
         )
-        _plugin_module(dummy_name, MockPluginConfig)
-        middleware_module = types.ModuleType("test_mock_plugin.middleware")
+
+    def test_parse_range(self):
+        self.assertEqual(parse_itambox_range("p", ">=1.1,<1.2"), ((1, 1), (1, 2)))
+        for bad in (None, "1.1", ">=1.1", ">=1.1.0,<1.2", "<1.2,>=1.1", ">=1.2,<1.1", ">=1.1,<1.1"):
+            with self.assertRaises(ImproperlyConfigured, msg=bad):
+                parse_itambox_range("p", bad)
+
+    def test_successful_load_merges_settings_and_is_idempotent(self):
+        name = "test_mock_plugin"
+        mw = types.ModuleType(f"{name}.middleware")
 
         class MockMiddleware:
-            __slots__ = ("get_response",)
-
             def __init__(self, get_response):
                 self.get_response = get_response
 
-        middleware_module.MockMiddleware = MockMiddleware
-        sys.modules["test_mock_plugin.middleware"] = middleware_module
-
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
-        dummy_settings.PLUGINS_CONFIG = {dummy_name: {"setting_req": "val_req", "setting_b": "val_b_overridden"}}
-
-        load_plugins(dummy_settings)
-
-        self.assertIn(f"{dummy_name}.{MockPluginConfig.__name__}", dummy_settings.INSTALLED_APPS)
-        self.assertIn("test_mock_plugin.auxiliary", dummy_settings.INSTALLED_APPS)
-        self.assertIn("test_mock_plugin.middleware.MockMiddleware", dummy_settings.MIDDLEWARE)
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [dummy_name])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS, [])
-
-        load_plugins(dummy_settings)
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [dummy_name])
-        self.assertEqual(dummy_settings.INSTALLED_APPS.count(f"{dummy_name}.{MockPluginConfig.__name__}"), 1)
-        self.assertEqual(dummy_settings.MIDDLEWARE.count("test_mock_plugin.middleware.MockMiddleware"), 1)
-
-        resolved = dummy_settings.PLUGINS_RESOLVED_CONFIG[dummy_name]
-        self.assertEqual(resolved["setting_a"], "default_a")
-        self.assertEqual(resolved["setting_b"], "val_b_overridden")
-        self.assertEqual(resolved["setting_req"], "val_req")
-
-        if dummy_name in sys.modules:
-            del sys.modules[dummy_name]
-        sys.modules.pop("test_mock_plugin.middleware", None)
-
-    def test_improperly_configured_missing_required(self):
-        dummy_name = "test_mock_plugin_missing"
-        MockPluginConfig = _api_compatible_config(
-            dummy_name,
-            verbose_name="Mock Plugin Missing",
-            required_settings=["crucial_setting"],
+        mw.MockMiddleware = MockMiddleware
+        sys.modules[f"{name}.middleware"] = mw
+        dummy = self._load(
+            name,
+            {name: {"req": "x", "b": "over"}},
+            default_settings={"a": "da", "b": "db"},
+            required_settings=["req"],
+            middleware=[f"{name}.middleware.MockMiddleware"],
+            django_apps=[f"{name}.auxiliary"],
         )
-        _plugin_module(dummy_name, MockPluginConfig)
+        self.assertEqual(dummy.PLUGINS_ACTIVE, [name])
+        self.assertIn(f"{name}.auxiliary", dummy.INSTALLED_APPS)
+        self.assertEqual(dummy.PLUGINS_RESOLVED_CONFIG[name], {"a": "da", "b": "over", "req": "x"})
+        load_plugins(dummy)
+        self.assertEqual(dummy.INSTALLED_APPS.count(f"{name}.MockPluginConfig"), 1)
+        self.assertEqual(dummy.MIDDLEWARE.count(f"{name}.middleware.MockMiddleware"), 1)
 
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
-        dummy_settings.PLUGINS_CONFIG = {}
+    def test_missing_required_setting_aborts_startup(self):
+        with self.assertRaises(PluginStartupError) as ctx:
+            self._load("test_mock_missing", required_settings=["crucial"])
+        self.assertEqual(ctx.exception.plugin_name, "test_mock_missing")
+        self.assertEqual(ctx.exception.phase, "resolve")
+        self.assertIn("test_mock_missing", str(ctx.exception))
 
-        load_plugins(dummy_settings)
-
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [])
-        diagnostic = dummy_settings.PLUGINS_DIAGNOSTICS[0]
-        self.assertEqual(diagnostic["plugin"], dummy_name)
-        self.assertEqual(diagnostic["activation_state"], "disabled")
-        self.assertEqual(diagnostic["source"], "settings.PLUGINS")
-        self.assertEqual(diagnostic["failure_class"], "ImproperlyConfigured")
-
-        if dummy_name in sys.modules:
-            del sys.modules[dummy_name]
-
-    def test_missing_plugin_config_object_is_disabled(self):
-        dummy_name = "test_mock_plugin_missing_config"
-        sys.modules[dummy_name] = types.ModuleType(dummy_name)
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
-
-        load_plugins(dummy_settings)
-
-        diagnostic = dummy_settings.PLUGINS_DIAGNOSTICS[0]
-        self.assertEqual(diagnostic["failure_class"], "ImproperlyConfigured")
-        self.assertEqual(diagnostic["stage"], "configuration")
-        del sys.modules[dummy_name]
-
-    def test_import_failure_is_disabled_without_aborting_startup(self):
-        dummy_name = "test_mock_plugin_not_importable"
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
-
-        load_plugins(dummy_settings)
-        load_plugins(dummy_settings)
-
-        diagnostic = dummy_settings.PLUGINS_DIAGNOSTICS[0]
-        self.assertEqual(diagnostic["failure_class"], "ModuleNotFoundError")
-        self.assertEqual(diagnostic["stage"], "import")
-        self.assertEqual(len(dummy_settings.PLUGINS_DIAGNOSTICS), 1)
-
-    def test_active_settings_fallback_does_not_activate_an_unconfigured_plugin(self):
-        dummy_name = "test_mock_plugin_registry_transition"
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS_ACTIVE = [dummy_name]
-
-        with patch("itambox.plugins.runtime.apps.get_app_config", side_effect=LookupError):
-            self.assertTrue(is_plugin_active(dummy_name, dummy_settings))
-            self.assertFalse(is_plugin_active("test_mock_plugin_not_active", dummy_settings))
-
-    def test_rest_router_failure_isolated_from_plugin_router_startup(self):
-        dummy_name = "test_mock_plugin_router_failure"
-        module_path = Path(__file__).resolve().parents[2] / "itambox" / "plugins" / "urls.py"
-
-        with (
-            patch("itambox.plugins.utils.is_plugin_active", return_value=True),
-            patch("itambox.plugins.utils.record_plugin_failure") as record_failure,
-            patch.object(
-                registry,
-                "get_plugin_viewsets",
-                return_value={dummy_name: [("broken", object, "broken")]},
-            ),
-            patch("rest_framework.routers.DefaultRouter.register", side_effect=RuntimeError("router secret")),
-        ):
-            runpy.run_path(str(module_path), run_name="issue99_plugin_urls")
-
-        record_failure.assert_called_once()
-        self.assertEqual(record_failure.call_args.kwargs["stage"], "api")
-
-    def test_graphql_schema_failure_isolated_from_core_schema_startup(self):
-        dummy_name = "test_mock_plugin_graphql_failure"
-        module_path = Path(__file__).resolve().parents[1] / "schema.py"
-
-        with (
-            patch("itambox.plugins.utils.is_plugin_active", return_value=True),
-            patch("itambox.plugins.utils.record_plugin_failure") as record_failure,
-            patch(
-                "django.apps.apps.get_app_config",
-                return_value=types.SimpleNamespace(graphql_schema="test_mock_plugin.graphql"),
-            ),
-            patch("importlib.import_module", side_effect=_raise_for_plugin_schema_import),
-            self.settings(PLUGINS=[dummy_name]),
-        ):
-            namespace = runpy.run_path(str(module_path), run_name="issue99_core_schema")
-
-        self.assertIn("schema", namespace)
-        record_failure.assert_called_once()
-        self.assertEqual(record_failure.call_args.args[0], dummy_name)
-        self.assertEqual(record_failure.call_args.kwargs["stage"], "graphql")
-
-    def test_graphql_schema_adds_plugin_query_and_mutation_types(self):
-        dummy_name = "test_mock_plugin_graphql_success"
-        module_path = Path(__file__).resolve().parents[1] / "schema.py"
-
-        @strawberry.type
-        class PluginQuery:
-            plugin_value: str = "available"
-
-        @strawberry.type
-        class PluginMutation:
-            @strawberry.mutation
-            def update_plugin_value(self) -> bool:
-                return True
-
-        plugin_schema = types.SimpleNamespace(Query=PluginQuery, Mutation=PluginMutation)
-
-        def import_plugin_schema(name, *args, **kwargs):
-            if name == "test_mock_plugin.graphql":
-                return plugin_schema
-            return _ORIGINAL_IMPORT_MODULE(name, *args, **kwargs)
-
-        with (
-            self.settings(PLUGINS=[dummy_name]),
-            patch("itambox.plugins.utils.is_plugin_active", return_value=True),
-            patch("itambox.plugins.utils.record_plugin_failure") as record_failure,
-            patch(
-                "django.apps.apps.get_app_config",
-                return_value=types.SimpleNamespace(graphql_schema="test_mock_plugin.graphql"),
-            ),
-            patch("importlib.import_module", side_effect=import_plugin_schema),
-        ):
-            namespace = runpy.run_path(str(module_path), run_name="issue99_core_schema_with_plugin")
-
-        self.assertIn(PluginQuery, namespace["query_bases"])
-        self.assertIn(PluginMutation, namespace["mutation_bases"])
-        self.assertIsNotNone(namespace["Mutation"])
-        record_failure.assert_not_called()
-
-    def test_plugin_urlconf_failure_isolated_from_core_url_startup(self):
-        dummy_name = "test_mock_plugin_urlconf_failure"
-        module_path = Path(__file__).resolve().parents[1] / "urls.py"
-
-        with (
-            self.settings(PLUGINS=[dummy_name], DEBUG=False),
-            patch("itambox.plugins.utils.is_plugin_active", return_value=True),
-            patch("itambox.plugins.utils.record_plugin_failure") as record_failure,
-            patch(
-                "django.apps.apps.get_app_config",
-                return_value=types.SimpleNamespace(base_url=dummy_name),
-            ),
-            patch("importlib.import_module", side_effect=RuntimeError("urlconf secret")),
-        ):
-            runpy.run_path(str(module_path), run_name="issue99_core_urls")
-
-        record_failure.assert_called_once()
-        self.assertEqual(record_failure.call_args.args[0], dummy_name)
-        self.assertEqual(record_failure.call_args.kwargs["stage"], "urls")
-
-    def test_missing_optional_plugin_urlconf_is_not_reported_as_a_failure(self):
-        dummy_name = "test_mock_plugin_without_urlconf"
-        module_path = Path(__file__).resolve().parents[1] / "urls.py"
-
-        with (
-            self.settings(PLUGINS=[dummy_name], DEBUG=False),
-            patch("itambox.plugins.utils.is_plugin_active", return_value=True),
-            patch("itambox.plugins.utils.record_plugin_failure") as record_failure,
-            patch(
-                "django.apps.apps.get_app_config",
-                return_value=types.SimpleNamespace(base_url=dummy_name),
-            ),
-            patch("importlib.import_module", side_effect=ModuleNotFoundError(name=f"{dummy_name}.urls")),
-        ):
-            runpy.run_path(str(module_path), run_name="issue99_core_urls_without_optional_conf")
-
-        record_failure.assert_not_called()
-
-    def test_nested_module_not_found_is_not_treated_as_optional_absence(self):
-        # A ModuleNotFoundError for anything other than the exact optional
-        # "<plugin>.urls" module (e.g. a missing dependency inside an existing
-        # urls.py) must be recorded as a plugin failure, never swallowed as
-        # "optional URLconf absent".
-        dummy_name = "test_mock_plugin_nested_import_error"
-        module_path = Path(__file__).resolve().parents[1] / "urls.py"
-
-        with (
-            self.settings(PLUGINS=[dummy_name], DEBUG=False),
-            patch("itambox.plugins.utils.is_plugin_active", return_value=True),
-            patch("itambox.plugins.utils.record_plugin_failure") as record_failure,
-            patch(
-                "django.apps.apps.get_app_config",
-                return_value=types.SimpleNamespace(base_url=dummy_name),
-            ),
-            patch("importlib.import_module", side_effect=ModuleNotFoundError(name="missing.dependency")),
-        ):
-            runpy.run_path(str(module_path), run_name="issue99_core_urls_nested_import_error")
-
-        record_failure.assert_called_once()
-        self.assertEqual(record_failure.call_args.args[0], dummy_name)
-        self.assertEqual(record_failure.call_args.kwargs["stage"], "urls")
-
-    def test_record_plugin_failure_redacts_configured_secrets_from_diagnostic(self):
-        # The failure diagnostic for the new api/graphql/urls stages must not
-        # carry configured secret values even when the exception text contains
-        # them verbatim.
-        from itambox.plugins.runtime import record_plugin_failure
-
-        dummy_name = "test_mock_plugin_secret_redaction"
+    def test_missing_package_aborts_startup(self):
         dummy = DummySettings()
-        dummy.PLUGINS_CONFIG = {dummy_name: {"api_token": "router secret value"}}
-        with patch("itambox.plugins.runtime._settings_object", return_value=dummy):
-            record_plugin_failure(dummy_name, RuntimeError("router secret value"), stage="api")
+        dummy.PLUGINS = ["test_no_such_plugin_pkg"]
+        with self.assertRaises(PluginStartupError) as ctx:
+            load_plugins(dummy)
+        self.assertEqual(ctx.exception.plugin_name, "test_no_such_plugin_pkg")
 
-        diagnostic = dummy.PLUGINS_DIAGNOSTICS[0]
-        self.assertEqual(diagnostic["plugin"], dummy_name)
-        self.assertEqual(diagnostic["stage"], "api")
-        self.assertNotIn("router secret value", str(diagnostic))
+    def test_missing_config_object_aborts_startup(self):
+        name = "test_mock_noconfig"
+        sys.modules[name] = types.ModuleType(name)
+        self._names.append(name)
+        dummy = DummySettings()
+        dummy.PLUGINS = [name]
+        with self.assertRaises(PluginStartupError):
+            load_plugins(dummy)
 
-    def test_loader_min_version_compatible(self):
-        dummy_name = "test_mock_plugin_min_ok"
-        MockPluginConfig = _api_compatible_config(
-            dummy_name,
-            verbose_name="Mock Plugin Min OK",
-            min_version="1.0.0-alpha",
-        )
-        _plugin_module(dummy_name, MockPluginConfig)
+    def test_config_name_must_match_package(self):
+        with self.assertRaises(PluginStartupError):
+            self._load("test_mock_name", **{"name": "other_name"})
 
-        dummy_settings = DummySettings()
-        dummy_settings.VERSION = "1.0.0-alpha"
-        dummy_settings.PLUGINS = [dummy_name]
+    def test_description_and_range_are_required(self):
+        with self.assertRaises(PluginStartupError):
+            self._load("test_mock_nodesc", description="")
+        with self.assertRaises(PluginStartupError):
+            self._load("test_mock_norange", itambox_range=None)
 
-        load_plugins(dummy_settings)
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [dummy_name])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS, [])
+    def test_malformed_range_aborts_startup(self):
+        with self.assertRaises(PluginStartupError):
+            self._load("test_mock_badrange", itambox_range="1.1")
 
-        if dummy_name in sys.modules:
-            del sys.modules[dummy_name]
+    def test_malformed_middleware_aborts_startup(self):
+        with self.assertRaises(PluginStartupError):
+            self._load("test_mock_badmw", middleware=["test_mock_badmw.missing.Mw"])
 
-    def test_loader_min_version_incompatible(self):
-        dummy_name = "test_mock_plugin_min_fail"
-        MockPluginConfig = _api_compatible_config(
-            dummy_name,
-            verbose_name="Mock Plugin Min Fail",
-            min_version="1.1.0",
-        )
-        _plugin_module(dummy_name, MockPluginConfig)
+    def test_incompatible_version_is_skipped_with_warning(self):
+        name = "test_mock_old"
+        with self.assertLogs("itambox.plugins.runtime", level="WARNING") as logs:
+            dummy = self._load(name, itambox_range=">=1.0,<1.1")
+        self.assertEqual(dummy.PLUGINS_ACTIVE, [])
+        self.assertEqual(dummy.PLUGINS_DISABLED, [name])
+        self.assertNotIn(f"{name}.MockPluginConfig", dummy.INSTALLED_APPS)
+        self.assertIn(name, "\n".join(logs.output))
+        self.assertIn("1.1.3", "\n".join(logs.output))
+        self.assertEqual(dummy.PLUGINS_DIAGNOSTICS[0]["plugin"], name)
 
-        dummy_settings = DummySettings()
-        dummy_settings.VERSION = "1.0.0-alpha"
-        dummy_settings.PLUGINS = [dummy_name]
+    def test_range_accepts_patch_releases_and_rejects_next_minor(self):
+        for version, expected in (("1.1.0", ["p_ok"]), ("1.1.99", ["p_ok"]), ("1.2.0", [])):
+            with self.subTest(version=version):
+                name = "p_ok"
+                self._install(name, _config(name))
+                dummy = DummySettings()
+                dummy.VERSION = version
+                dummy.PLUGINS = [name]
+                load_plugins(dummy)
+                self.assertEqual(dummy.PLUGINS_ACTIVE, expected)
 
-        load_plugins(dummy_settings)
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS[0]["compatibility"], "incompatible-product")
+    def test_one_bad_plugin_aborts_even_with_a_good_one(self):
+        self._install("test_good", _config("test_good"))
+        self._install("test_bad", _config("test_bad", required_settings=["x"]))
+        dummy = DummySettings()
+        dummy.PLUGINS = ["test_good", "test_bad"]
+        with self.assertRaises(PluginStartupError):
+            load_plugins(dummy)
 
-        if dummy_name in sys.modules:
-            del sys.modules[dummy_name]
 
-    def test_loader_max_version_incompatible(self):
-        dummy_name = "test_mock_plugin_max_fail"
-        config_cls = _api_compatible_config(dummy_name, max_version="0.9.0")
-        _plugin_module(dummy_name, config_cls)
-        dummy_settings = DummySettings()
-        dummy_settings.VERSION = "1.0.0-alpha"
-        dummy_settings.PLUGINS = [dummy_name]
+class PluginComposeTestCase(SimpleTestCase):
+    def setUp(self):
+        self._snapshot = {
+            key: (value.copy() if hasattr(value, "copy") else value)
+            for key, value in vars(registry).items()
+            if key.startswith("_plugin")
+        }
+        registry._plugins_frozen = False
 
-        load_plugins(dummy_settings)
+    def tearDown(self):
+        for key, value in self._snapshot.items():
+            setattr(registry, key, value)
 
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS[0]["compatibility"], "incompatible-product")
-        del sys.modules[dummy_name]
+    def _cfg(self, **attrs):
+        cfg = _config("compose_plugin", **attrs)
+        return cfg.__new__(cfg)
 
-    def test_missing_plugin_api_metadata_is_disabled_without_guessing(self):
-        dummy_name = "test_mock_plugin_no_api_metadata"
-        config_cls = type("MockPluginConfig", (PluginConfig,), {"name": dummy_name})
-        _plugin_module(dummy_name, config_cls)
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
+    def test_template_extension_must_subclass_and_name_models(self):
+        class NotContent:
+            models = ["assets.asset"]
 
-        load_plugins(dummy_settings)
+        with self.assertRaises(TypeError):
+            assembly._compose_template_extensions("p", [NotContent])
 
-        diagnostic = dummy_settings.PLUGINS_DIAGNOSTICS[0]
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [])
-        self.assertEqual(diagnostic["compatibility"], "missing-plugin-api")
-        self.assertTrue(diagnostic["value_present"])
-        del sys.modules[dummy_name]
-
-    def test_plugin_config_name_must_match_package(self):
-        dummy_name = "test_mock_plugin_wrong_name"
-        config_cls = _api_compatible_config(dummy_name, name="other_plugin")
-        _plugin_module(dummy_name, config_cls)
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
-
-        load_plugins(dummy_settings)
-
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS[0]["failure_class"], "ImproperlyConfigured")
-        del sys.modules[dummy_name]
-
-    def test_plugin_api_version_is_independent_from_product_version(self):
-        dummy_name = "test_mock_plugin_api_version"
-        config_cls = _api_compatible_config(
-            dummy_name,
-            min_version="9.0.0",
-            max_version="9.0.0",
-        )
-        _plugin_module(dummy_name, config_cls)
-        dummy_settings = DummySettings()
-        dummy_settings.VERSION = "9.0.0"
-        dummy_settings.PLUGINS = [dummy_name]
-
-        load_plugins(dummy_settings)
-
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [dummy_name])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS, [])
-        del sys.modules[dummy_name]
-
-    def test_incompatible_plugin_api_version_is_disabled(self):
-        dummy_name = "test_mock_plugin_api_version_fail"
-        config_cls = _api_compatible_config(
-            dummy_name,
-            min_plugin_api_version="2.0",
-            max_plugin_api_version="2.0",
-        )
-        _plugin_module(dummy_name, config_cls)
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
-
-        load_plugins(dummy_settings)
-
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS[0]["compatibility"], "incompatible-plugin-api")
-        del sys.modules[dummy_name]
-
-    def test_one_failed_plugin_does_not_disable_another(self):
-        good_name = "test_mock_plugin_good"
-        bad_name = "test_mock_plugin_bad"
-        good_config = _api_compatible_config(good_name)
-
-        class BadMenu:
+        class NoModels(PluginTemplateContent):
             pass
 
-        def broken_ready(self):
-            registry.register_plugin_menu(BadMenu)
-            registry.register_plugin_viewset(self.name, "broken", object)
-            raise ValueError("bad <script>alert('secret-value')</script>")
+        with self.assertRaises(TypeError):
+            assembly._compose_template_extensions("p", [NoModels])
 
-        bad_middleware_module = types.ModuleType("test_mock_plugin_bad.middleware")
+        class Good(PluginTemplateContent):
+            models = ["assets.asset"]
 
-        class BadMiddleware:
-            __slots__ = ("get_response",)
+        assembly._compose_template_extensions("p", [Good])
+        self.assertIn(Good, registry.get_plugin_template_contents("assets.asset"))
 
-            def __init__(self, get_response):
-                self.get_response = get_response
+    def test_unknown_model_label_is_rejected(self):
+        class Bad(PluginTemplateContent):
+            models = ["assets.nosuchmodel"]
 
-        bad_middleware_module.BadMiddleware = BadMiddleware
-        sys.modules["test_mock_plugin_bad.middleware"] = bad_middleware_module
-        bad_config = _api_compatible_config(
-            bad_name,
-            ready=broken_ready,
-            middleware=["test_mock_plugin_bad.middleware.BadMiddleware"],
-        )
-        _plugin_module(good_name, good_config)
-        _plugin_module(bad_name, bad_config)
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [good_name, bad_name]
-        dummy_settings.PLUGINS_CONFIG = {bad_name: {"secret": "secret-value"}}
+        with self.assertRaises(LookupError):
+            assembly._compose_template_extensions("p", [Bad])
 
-        load_plugins(dummy_settings)
-        bad_instance = bad_config(bad_name, sys.modules[bad_name])
-        bad_instance.ready()
+    def test_graphql_mutation_is_rejected_and_query_required(self):
+        with self.assertRaises(TypeError):
+            assembly._validate_graphql(types.SimpleNamespace(Query=object, Mutation=object))
+        with self.assertRaises(TypeError):
+            assembly._validate_graphql(types.SimpleNamespace())
+        sentinel = object()
+        self.assertIs(assembly._validate_graphql(types.SimpleNamespace(Query=sentinel)), sentinel)
 
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [good_name])
-        diagnostic = dummy_settings.PLUGINS_DIAGNOSTICS[0]
-        self.assertEqual(diagnostic["plugin"], bad_name)
-        self.assertEqual(diagnostic["failure_class"], "ValueError")
-        self.assertNotIn("secret-value", diagnostic["error"])
-        self.assertNotIn("test_mock_plugin_bad.middleware.BadMiddleware", dummy_settings.MIDDLEWARE)
-        self.assertNotIn(BadMenu, registry.get_plugin_menus())
-        self.assertNotIn(bad_name, registry.get_plugin_viewsets())
-        del sys.modules[good_name]
-        del sys.modules[bad_name]
-        del sys.modules["test_mock_plugin_bad.middleware"]
+    def test_viewset_prefix_and_base_are_validated(self):
+        with self.assertRaises(TypeError):
+            assembly._compose_viewsets("p", [("things", object)])
 
-    def test_malformed_middleware_is_disabled(self):
-        dummy_name = "test_mock_plugin_bad_middleware"
-        config_cls = _api_compatible_config(dummy_name, middleware=[object()])
-        _plugin_module(dummy_name, config_cls)
-        dummy_settings = DummySettings()
-        dummy_settings.PLUGINS = [dummy_name]
+    def test_duplicate_viewset_prefix_is_rejected(self):
+        registry._register_plugin_viewset("p", "things", object)
+        with self.assertRaises(ValueError):
+            registry._register_plugin_viewset("p", "things", object)
 
-        load_plugins(dummy_settings)
+    def test_registry_is_frozen_after_assembly(self):
+        registry._freeze_plugins()
+        with self.assertRaises(RuntimeError):
+            registry._register_plugin_menu("p", object)
+        with self.assertRaises(RuntimeError):
+            registry._register_plugin_graphql("p", object)
 
-        self.assertEqual(dummy_settings.PLUGINS_ACTIVE, [])
-        self.assertEqual(dummy_settings.PLUGINS_DIAGNOSTICS[0]["stage"], "middleware")
-        del sys.modules[dummy_name]
+    def test_plugins_have_no_public_register_api(self):
+        for attr in (
+            "register_plugin_template_content",
+            "register_plugin_menu",
+            "register_plugin_menu_item",
+            "register_plugin_viewset",
+            "plugin_registration",
+        ):
+            self.assertFalse(hasattr(registry, attr), attr)
+
+    def test_failing_ready_is_wrapped_with_plugin_name(self):
+        class Boom(PluginConfig):
+            name = "boom_plugin"
+            description = "x"
+            itambox_range = ">=1.1,<1.2"
+            path = str(Path(__file__).resolve().parent)
+
+            def ready(self):
+                raise RuntimeError("kaboom")
+
+        with patch("itambox.plugins.assembly.compose_plugin"), self.assertRaises(PluginStartupError) as ctx:
+            Boom.__new__(Boom).ready()
+        self.assertEqual(ctx.exception.plugin_name, "boom_plugin")
+        self.assertEqual(ctx.exception.phase, "ready")
 
 
 class TemplateTagTestCase(TestCase):
@@ -543,8 +295,8 @@ class TemplateTagTestCase(TestCase):
             def left_panel(self):
                 raise ValueError("Simulated template error")
 
-        registry.register_plugin_template_content("assets.asset", GoodContent)
-        registry.register_plugin_template_content("assets.asset", BrokenContent)
+        registry._register_plugin_template_content("p", "assets.asset", GoodContent)
+        registry._register_plugin_template_content("p", "assets.asset", BrokenContent)
 
         context = {"request": None}
         with self.assertLogs("core.templatetags.plugins", level="ERROR") as logs:

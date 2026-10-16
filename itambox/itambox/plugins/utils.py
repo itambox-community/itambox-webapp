@@ -1,4 +1,5 @@
 import importlib
+import re
 from collections.abc import Sequence
 
 from django.core.exceptions import ImproperlyConfigured
@@ -7,23 +8,50 @@ from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
 
 from itambox.dictutils import deep_merge
-from itambox.plugins import PLUGIN_API_VERSION, PluginConfig
-from itambox.plugins.runtime import get_plugin_diagnostics, is_plugin_active, record_plugin_failure
-from itambox.registry import registry
+from itambox.plugins import PluginConfig
+from itambox.plugins.runtime import (
+    PluginStartupError,
+    get_plugin_diagnostics,
+    is_plugin_active,
+    record_plugin_skip,
+)
 
 
-class PluginCompatibilityError(ImproperlyConfigured):
-    """A configured plugin does not match this product or plugin API."""
+class PluginCompatibilityError(Exception):
+    """The running ITAMbox version is outside the range a plugin declares (the single skip case)."""
 
-    def __init__(self, message, compatibility):
-        super().__init__(message)
-        self.compatibility = compatibility
+
+_RANGE = re.compile(r"^\s*>=\s*(\d+)\.(\d+)\s*,\s*<\s*(\d+)\.(\d+)\s*$")
+
+
+def parse_itambox_range(plugin_name, value):
+    """Parse ``>=X.Y,<X.Y`` into ((lo_major, lo_minor), (hi_major, hi_minor)); malformed is a configuration error."""
+    match = _RANGE.match(value) if isinstance(value, str) else None
+    if match is None:
+        raise ImproperlyConfigured(
+            f"Plugin {plugin_name!r} must declare itambox_range as '>=<major.minor>,<<next-major.minor>>' "
+            f"(for example '>=1.1,<1.2'), got {value!r}"
+        )
+    lower = (int(match.group(1)), int(match.group(2)))
+    upper = (int(match.group(3)), int(match.group(4)))
+    if lower >= upper:
+        raise ImproperlyConfigured(
+            f"Plugin {plugin_name!r} itambox_range {value!r} is empty (lower bound >= upper bound)"
+        )
+    return lower, upper
+
+
+def _release_pair(version_str):
+    try:
+        release = parse_version(version_str).release
+    except InvalidVersion as exc:
+        raise ImproperlyConfigured(f"Running ITAMbox version {version_str!r} is not a valid version") from exc
+    return (release[0], release[1] if len(release) > 1 else 0)
 
 
 def _load_plugin_config(plugin_name):
     try:
-        with registry.plugin_registration(plugin_name):
-            plugin_module = importlib.import_module(plugin_name)
+        plugin_module = importlib.import_module(plugin_name)
     except ImportError as exc:
         raise ImproperlyConfigured(f"Failed to import plugin {plugin_name!r}: {exc}") from exc
 
@@ -39,22 +67,19 @@ def _load_plugin_config(plugin_name):
     return config_cls
 
 
-def _validate_product_version(settings_module, plugin_name, config_cls):
-    current_version_str = getattr(settings_module, "VERSION", "0.0.0")
-    current_version = parse_version(current_version_str)
-    min_version = getattr(config_cls, "min_version", None)
-    if min_version and current_version < parse_version(min_version):
-        raise PluginCompatibilityError(
-            f"Plugin {plugin_name!r} requires minimum ITAMbox version {min_version} (current version is {current_version_str})",
-            "incompatible-product",
-        )
-
-    max_version = getattr(config_cls, "max_version", None)
-    if max_version and current_version > parse_version(max_version):
-        raise PluginCompatibilityError(
-            f"Plugin {plugin_name!r} supports maximum ITAMbox version {max_version} (current version is {current_version_str})",
-            "incompatible-product",
-        )
+def _check_version_range(settings_module, plugin_name, config_cls):
+    """Return the (message) of a version incompatibility, else None. A malformed range raises."""
+    declared = getattr(config_cls, "itambox_range", None)
+    lower, upper = parse_itambox_range(plugin_name, declared)
+    current_str = getattr(settings_module, "VERSION", "0.0.0")
+    current = _release_pair(current_str)
+    if lower <= current < upper:
+        return None
+    return (
+        f'Plugin "{plugin_name}" supports ITAMbox {declared.strip()} but this is ITAMbox {current_str}; '
+        f"the plugin was not loaded. Install a plugin release that supports {current[0]}.{current[1]} "
+        f"or remove it from ITAMBOX_PLUGINS."
+    )
 
 
 def _validate_config_metadata(plugin_name, config_cls):
@@ -63,33 +88,12 @@ def _validate_config_metadata(plugin_name, config_cls):
         raise ImproperlyConfigured(f"Plugin {plugin_name!r} must declare a non-empty PluginConfig.name")
     if config_name != plugin_name:
         raise ImproperlyConfigured(f"Plugin {plugin_name!r} PluginConfig.name must match the configured package name")
+    description = getattr(config_cls, "description", None)
+    if not isinstance(description, str) or not description.strip():
+        raise ImproperlyConfigured(f"Plugin {plugin_name!r} must declare a non-empty PluginConfig.description")
     base_url = getattr(config_cls, "base_url", None)
     if base_url is not None and (not isinstance(base_url, str) or not base_url.strip()):
         raise TypeError(f"Plugin {plugin_name!r} base_url must be a non-empty string or None")
-
-
-def _validate_plugin_api_version(plugin_name, config_cls):
-    min_version = getattr(config_cls, "min_plugin_api_version", None)
-    max_version = getattr(config_cls, "max_plugin_api_version", None)
-    if min_version is None or max_version is None:
-        raise PluginCompatibilityError(
-            f"Plugin {plugin_name!r} must declare min_plugin_api_version and max_plugin_api_version for API {PLUGIN_API_VERSION}",
-            "missing-plugin-api",
-        )
-    try:
-        current_version = parse_version(PLUGIN_API_VERSION)
-        min_supported = parse_version(min_version)
-        max_supported = parse_version(max_version)
-    except (InvalidVersion, TypeError) as exc:
-        raise PluginCompatibilityError(
-            f"Plugin {plugin_name!r} declares invalid plugin API compatibility metadata",
-            "invalid-plugin-api",
-        ) from exc
-    if min_supported > current_version or max_supported < current_version:
-        raise PluginCompatibilityError(
-            f"Plugin {plugin_name!r} does not support ITAMbox plugin API {PLUGIN_API_VERSION}",
-            "incompatible-plugin-api",
-        )
 
 
 def _resolve_plugin_settings(plugin_name, config_cls, plugins_config):
@@ -128,57 +132,48 @@ def _append_unique(target, values):
             target.append(value)
 
 
-def load_plugins(settings_module):
-    """Load configured plugins without allowing one failure to abort startup.
+def _resolve_plugin(settings_module, plugin_name, plugins_config):
+    """Resolve phase for one plugin; returns None for a skip or the resolved data."""
+    config_cls = _load_plugin_config(plugin_name)
+    _validate_config_metadata(plugin_name, config_cls)
+    incompatibility = _check_version_range(settings_module, plugin_name, config_cls)
+    if incompatibility is not None:
+        record_plugin_skip(plugin_name, PluginCompatibilityError(incompatibility), settings_module=settings_module)
+        return None
+    resolved_config = _resolve_plugin_settings(plugin_name, config_cls, plugins_config)
+    _validate_middleware(plugin_name, config_cls)
+    plugin_apps = [*getattr(config_cls, "django_apps", ()), f"{plugin_name}.{config_cls.__name__}"]
+    if any(not isinstance(app_name, str) or not app_name.strip() for app_name in plugin_apps):
+        raise TypeError(f"Plugin {plugin_name!r} django_apps must contain strings")
+    return config_cls, resolved_config, plugin_apps, list(getattr(config_cls, "middleware", ()))
 
-    Configuration and compatibility failures are isolated before Django app
-    population. Failures during ``PluginConfig.ready`` are isolated by the
-    wrapper in :class:`PluginConfig`; both paths publish the same diagnostic
-    shape and remove only that plugin's contributions.
+
+def load_plugins(settings_module):
+    """Resolve phase: validate every configured plugin before Django populates apps.
+
+    A missing package, import failure, invalid manifest or invalid configuration
+    raises :class:`PluginStartupError` and aborts startup. A version
+    incompatibility is the single degrade case: the plugin is skipped with a
+    warning before it enters ``INSTALLED_APPS``.
     """
     plugins = list(getattr(settings_module, "PLUGINS", ()))
     plugins_config = getattr(settings_module, "PLUGINS_CONFIG", {}) or {}
-    if not hasattr(settings_module, "_PLUGIN_BASE_INSTALLED_APPS"):
-        settings_module._PLUGIN_BASE_INSTALLED_APPS = list(settings_module.INSTALLED_APPS)
-    if not hasattr(settings_module, "_PLUGIN_BASE_MIDDLEWARE"):
-        settings_module._PLUGIN_BASE_MIDDLEWARE = list(settings_module.MIDDLEWARE)
 
     settings_module.PLUGINS_RESOLVED_CONFIG = {}
     settings_module.PLUGINS_ACTIVE = []
     settings_module.PLUGINS_DISABLED = []
     settings_module.PLUGINS_DIAGNOSTICS = []
-    settings_module._PLUGINS_APPS_BY_PLUGIN = {}
-    settings_module._PLUGINS_MIDDLEWARE_BY_PLUGIN = {}
-    settings_module.INSTALLED_APPS = list(settings_module._PLUGIN_BASE_INSTALLED_APPS)
-    settings_module.MIDDLEWARE = list(settings_module._PLUGIN_BASE_MIDDLEWARE)
 
     for plugin_name in plugins:
         try:
-            config_cls = _load_plugin_config(plugin_name)
-            _validate_config_metadata(plugin_name, config_cls)
-            _validate_product_version(settings_module, plugin_name, config_cls)
-            _validate_plugin_api_version(plugin_name, config_cls)
-            resolved_config = _resolve_plugin_settings(plugin_name, config_cls, plugins_config)
-            _validate_middleware(plugin_name, config_cls)
-            plugin_apps = [*getattr(config_cls, "django_apps", ()), f"{plugin_name}.{config_cls.__name__}"]
-            plugin_middleware = list(getattr(config_cls, "middleware", ()))
-            if any(not isinstance(app_name, str) or not app_name.strip() for app_name in plugin_apps):
-                raise TypeError(f"Plugin {plugin_name!r} django_apps must contain strings")
-        except Exception as exc:  # broad except: boundary-isolation: one plugin must not abort app startup
-            stage = (
-                "import" if isinstance(exc, ImportError) or isinstance(exc.__cause__, ImportError) else "configuration"
-            )
-            if stage == "configuration" and isinstance(exc, PluginCompatibilityError):
-                stage = "compatibility"
-            if "middleware" in str(exc).lower():
-                stage = "middleware"
-            record_plugin_failure(plugin_name, exc, stage=stage, settings_module=settings_module)
+            resolved = _resolve_plugin(settings_module, plugin_name, plugins_config)
+        except Exception as exc:
+            raise PluginStartupError(plugin_name, "resolve", exc) from exc
+        if resolved is None:
             continue
-
+        config_cls, resolved_config, plugin_apps, plugin_middleware = resolved
         config_cls._plugin_settings_module = settings_module
         settings_module.PLUGINS_RESOLVED_CONFIG[plugin_name] = resolved_config
-        settings_module._PLUGINS_APPS_BY_PLUGIN[plugin_name] = plugin_apps
-        settings_module._PLUGINS_MIDDLEWARE_BY_PLUGIN[plugin_name] = plugin_middleware
         _append_unique(settings_module.INSTALLED_APPS, plugin_apps)
         _append_unique(settings_module.MIDDLEWARE, plugin_middleware)
         settings_module.PLUGINS_ACTIVE.append(plugin_name)
@@ -192,5 +187,6 @@ __all__ = [
     "get_plugin_diagnostics",
     "is_plugin_active",
     "load_plugins",
-    "record_plugin_failure",
+    "parse_itambox_range",
+    "record_plugin_skip",
 ]

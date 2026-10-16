@@ -9,7 +9,7 @@
     pin both ITAMbox and the plugin revision together.
 
     Compatibility must be checked **before** deployment: verify the plugin's
-    declared `min_version`/`max_version` and plugin API version against the
+    declared `itambox_range` against the
     deployed ITAMbox revision, and test the combination in a non-production
     environment first. Plugins are not covered by the Stable 1.0 compatibility
     promise; Experimental interfaces may change in any release.
@@ -69,11 +69,8 @@ class EsignPluginConfig(PluginConfig):
     version = '1.0.0'
     author = 'DocuSign Dev Team'
     author_email = 'dev@docusign.com'
-    min_version = '1.0.0-alpha'  # Version constraint checks
-    max_version = '1.99.99'      # Product version, not plugin API version
-    min_plugin_api_version = '1.0'
-    max_plugin_api_version = '1.0'
-    graphql_schema = 'itambox_esign.graphql.schema'  # Optional GraphQL hook
+    description = 'DocuSign envelopes for assets'
+    itambox_range = '>=1.1,<1.2'  # supported ITAMbox major.minor range
 
     required_settings = ['DOCUSIGN_API_KEY']
     default_settings = {
@@ -83,8 +80,8 @@ class EsignPluginConfig(PluginConfig):
 
     def ready(self):
         super().ready()
-        # Custom registration logic goes here
-        # (e.g. registering template injections, viewsets, menus)
+        # Resources (template extensions, menu, viewsets, GraphQL) are declared
+        # on the config or in conventional modules; the host registers them.
 
 config = EsignPluginConfig
 ```
