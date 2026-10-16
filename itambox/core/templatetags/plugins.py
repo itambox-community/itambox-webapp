@@ -1,9 +1,12 @@
+import logging
+
 from django import template
 from django.utils.safestring import mark_safe
 
 from itambox.registry import registry
 
 register = template.Library()
+logger = logging.getLogger(__name__)
 
 
 @register.simple_tag(takes_context=True)
@@ -43,11 +46,14 @@ def plugin_template_content(context, model, position, object=None):
                 method = getattr(instance, position)
                 content = method()
                 rendered_contents.append(str(content))
-        except Exception as e:
-            # Catch exceptions raised by plugin templates safely as an HTML comment
-            comment_log = "<!-- Error rendering plugin template content class '{}' for position '{}': {} -->".format(
-                content_class.__name__, position, e
+        except Exception:
+            # Full detail goes to the server log only; the page never carries
+            # exception text, class paths or tracebacks.
+            logger.exception(
+                "Plugin template content class %s failed for model %s position %s",
+                content_class.__name__,
+                model_name,
+                position,
             )
-            rendered_contents.append(comment_log)
 
     return mark_safe("\n".join(rendered_contents))

@@ -205,8 +205,7 @@ class Command(
         # reliable and quiet regardless of FK ordering: CASCADE also truncates any
         # table that references the listed ones — dependent rows (assignments,
         # change log, m2m through tables, API tokens) and tables left behind by
-        # uninstalled plugins (e.g. itambox_esign, moved to a separate repo, whose
-        # models are no longer registered but whose rows still FK assets).
+        # any table that references them.
         # The auth user table is NOT in this set and has no FK into it (default
         # auth.User), so superuser accounts survive; regular users are removed
         # afterwards. A previous best-effort multi-pass delete printed dozens of
@@ -224,7 +223,6 @@ class Command(
             db_table = model._meta.db_table
             if db_table in existing and db_table not in tables:
                 tables.append(db_table)
-        tables += [t for t in existing if t.startswith("itambox_esign") and t not in tables]
 
         if tables:
             with connection.cursor() as cur:

@@ -66,7 +66,6 @@ EXPECTED_TARGETS = (
     ("costcenter", "organization", "costcenter"),
     ("journalentry", "extras", "journalentry"),
     ("configcontext", "extras", "configcontext"),
-    ("docusignenvelope", "itambox_esign", "docusignenvelope"),
 )
 
 DASHBOARD_PERMISSIONS = frozenset(
@@ -88,7 +87,6 @@ def _independent_live_permissions(role_name):
     candidates = {
         f"{app}.{action}_{model}"
         for _key, app, model in EXPECTED_TARGETS
-        if app != "itambox_esign" or apps.is_installed("itambox_esign")
         for action in actions
     }
     candidates.update(DASHBOARD_PERMISSIONS)
@@ -132,11 +130,10 @@ def test_independent_expected_set_catches_semantic_policy_target_sabotage(monkey
     assert set(policy.permissions_for_sso_role("Admin")) != expected
 
 
-def test_current_both_matrix_surfaces_preserve_the_ordered_59_key_compatibility_dict():
-    assert not apps.is_installed("itambox_esign")
+def test_current_both_matrix_surfaces_preserve_the_ordered_58_key_compatibility_dict():
     expected_keys = [key for key, _app, _model in EXPECTED_TARGETS]
-    assert len(expected_keys) == 59
-    assert expected_keys[-1] == "docusignenvelope"
+    assert len(expected_keys) == 58
+    assert expected_keys[-1] == "configcontext"
     assert list(ROLE_FORM_MATRIX_MODELS) == expected_keys
     assert list(PACKAGE_MATRIX_MODELS) == expected_keys
     assert ROLE_FORM_MATRIX_MODELS == PACKAGE_MATRIX_MODELS
@@ -148,7 +145,6 @@ def test_current_both_matrix_surfaces_preserve_the_ordered_59_key_compatibility_
 def test_new_policy_has_exact_absent_branch_counts_and_dashboard_set():
     from organization.services.role_permission_policy import DASHBOARD_SSO_PERMISSIONS, permissions_for_sso_role
 
-    assert not apps.is_installed("itambox_esign")
     action_map = {
         "Admin": ("view", "add", "change", "delete"),
         "Manager": ("view", "add", "change"),
@@ -159,7 +155,6 @@ def test_new_policy_has_exact_absent_branch_counts_and_dashboard_set():
         crud = {
             f"{app}.{action}_{model}"
             for _key, app, model in EXPECTED_TARGETS
-            if app != "itambox_esign"
             for action in action_map[role_name]
         }
         assert len(actual) == expected_count
@@ -167,18 +162,16 @@ def test_new_policy_has_exact_absent_branch_counts_and_dashboard_set():
     assert set(permissions_for_sso_role("Manager")) == set(permissions_for_sso_role("Member"))
 
 
-def test_semantic_and_presentation_declarations_have_exact_59_key_order():
+def test_semantic_and_presentation_declarations_have_exact_58_key_order():
     from organization.forms.role_matrix import ROLE_PERMISSION_PRESENTATION
     from organization.services.role_permission_policy import ROLE_PERMISSION_TARGETS
 
-    expected = tuple(
-        (key, app, model, "itambox_esign" if app == "itambox_esign" else None) for key, app, model in EXPECTED_TARGETS
-    )
+    expected = tuple((key, app, model, None) for key, app, model in EXPECTED_TARGETS)
     actual = tuple((target.key, target.app, target.model, target.required_app) for target in ROLE_PERMISSION_TARGETS)
-    assert len(ROLE_PERMISSION_TARGETS) == 59
+    assert len(ROLE_PERMISSION_TARGETS) == 58
     assert actual == expected
     assert list(ROLE_PERMISSION_PRESENTATION) == [key for key, _app, _model, _required in expected]
-    assert len(ROLE_PERMISSION_PRESENTATION) == 59
+    assert len(ROLE_PERMISSION_PRESENTATION) == 58
 
 
 def test_semantic_targets_are_presentation_free_and_policy_does_not_import_forms():
@@ -194,54 +187,23 @@ def test_semantic_targets_are_presentation_free_and_policy_does_not_import_forms
     )
 
 
-@pytest.mark.django_db
-def test_present_and_absent_optional_plugin_projection_and_effective_counts(monkeypatch):
-    from django.contrib.contenttypes.models import ContentType
+def test_target_with_required_app_follows_app_installation(monkeypatch):
+    """A target may declare ``required_app``; it is active only while that app is installed.
 
-    import organization.forms.role_matrix as presentation
+    The core declares no such target, so the mechanism is exercised with a synthetic one.
+    """
     import organization.services.role_permission_policy as policy
 
-    content_type, _created = ContentType.objects.get_or_create(
-        app_label="itambox_esign",
-        model="docusignenvelope",
-    )
-    for codename in (
-        "view_docusignenvelope",
-        "add_docusignenvelope",
-        "change_docusignenvelope",
-        "delete_docusignenvelope",
-    ):
-        Permission.objects.get_or_create(
-            content_type=content_type,
-            codename=codename,
-            defaults={"name": codename.replace("_", " ").title()},
-        )
+    optional = policy.RolePermissionTarget("optionalthing", "optional_app", "optionalthing", "optional_app")
+    monkeypatch.setattr(policy, "ROLE_PERMISSION_TARGETS", policy.ROLE_PERMISSION_TARGETS + (optional,))
 
     monkeypatch.setattr(apps, "is_installed", lambda label: False)
     assert len(policy.active_role_permission_targets()) == 58
-    assert len(presentation.build_matrix_models()) == 59
-    assert [target.key for target in policy.active_role_permission_targets()][-1] == "configcontext"
-    assert len(policy.permissions_for_sso_role("Admin")) == 231
-    assert len(policy.permissions_for_sso_role("Manager")) == 174
-    assert len(policy.permissions_for_sso_role("Member")) == 174
+    assert "optionalthing" not in [target.key for target in policy.active_role_permission_targets()]
 
-    monkeypatch.setattr(apps, "is_installed", lambda label: label == "itambox_esign")
+    monkeypatch.setattr(apps, "is_installed", lambda label: label == "optional_app")
     assert len(policy.active_role_permission_targets()) == 59
-    present_matrix = presentation.build_matrix_models()
-    assert len(present_matrix) == 59
-    assert [target.key for target in policy.active_role_permission_targets()][-1] == "docusignenvelope"
-    expected_present = []
-    for key, label, group in EXPECTED_PRESENTATION_ROWS:
-        target = next(target for target in EXPECTED_TARGETS if target[0] == key)
-        expected_present.append((key, label, target[1], target[2], group))
-    actual_present = [
-        (key, str(info["label"]), info["app"], info["model_name"], str(info["group"]))
-        for key, info in present_matrix.items()
-    ]
-    assert actual_present == expected_present
-    assert len(policy.permissions_for_sso_role("Admin")) == 235
-    assert len(policy.permissions_for_sso_role("Manager")) == 177
-    assert len(policy.permissions_for_sso_role("Member")) == 177
+    assert [target.key for target in policy.active_role_permission_targets()][-1] == "optionalthing"
 
 
 @pytest.mark.django_db
@@ -260,7 +222,7 @@ def test_complete_matrix_keeps_both_legacy_surfaces_exactly_compatible():
         }
         assert info == expected
         assert key in [target[0] for target in EXPECTED_TARGETS]
-    assert list(ROLE_FORM_MATRIX_MODELS)[-1] == "docusignenvelope"
+    assert list(ROLE_FORM_MATRIX_MODELS)[-1] == "configcontext"
 
 
 @pytest.mark.parametrize("mutation,expected_fragment", (("missing", "missing="), ("extra", "extra=")))
@@ -361,11 +323,10 @@ EXPECTED_PRESENTATION_ROWS = (
     ("costcenter", "Cost Centers", "Organization " + chr(38) + " Structure"),
     ("journalentry", "Journal Entries", "System " + chr(38) + " Reporting"),
     ("configcontext", "Config Contexts", "System " + chr(38) + " Reporting"),
-    ("docusignenvelope", "DocuSign Envelopes", "Plugins"),
 )
 
 
-def test_presentation_values_match_the_established_59_row_contract():
+def test_presentation_values_match_the_established_58_row_contract():
     expected = []
     for key, label, group in EXPECTED_PRESENTATION_ROWS:
         target = next(target for target in EXPECTED_TARGETS if target[0] == key)
@@ -375,5 +336,5 @@ def test_presentation_values_match_the_established_59_row_contract():
         (key, str(info["label"]), info["app"], info["model_name"], str(info["group"]))
         for key, info in PACKAGE_MATRIX_MODELS.items()
     ]
-    assert len(EXPECTED_PRESENTATION_ROWS) == 59
+    assert len(EXPECTED_PRESENTATION_ROWS) == 58
     assert actual == expected
