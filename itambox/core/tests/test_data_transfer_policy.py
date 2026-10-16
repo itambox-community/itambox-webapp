@@ -1,8 +1,13 @@
 """Contract: every installed model carries an explicit import and export declaration."""
 
 from django.apps import apps
-from django.test import SimpleTestCase
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
+from django.utils import translation
 
+from assets.models import AssetRole, Category
 from core.data_transfer import (
     DECLARATIONS,
     DENIED,
@@ -23,6 +28,9 @@ from core.data_transfer import (
     required_export_permissions,
 )
 from core.importers.bulk_forms import get_registered_import_form, is_model_importable
+from core.models import Job
+from core.tests.mixins import TenantTestMixin
+from organization.models import Contact, ContactAssignment, ContactRole, Region, Role, SiteGroup, Tenant
 from organization.services import is_container_scoped_unfiltered
 
 # Lifecycle rows a domain service owns. A raw-field import could put them into
@@ -88,6 +96,35 @@ class DataTransferPolicyContractTests(SimpleTestCase):
                 registered = get_registered_import_form(model) is not None
                 self.assertEqual(declared, registered, f"{label}: import_ and @register_import_form must match")
                 self.assertEqual(is_model_importable(model), declared)
+
+    def test_reference_import_tenant_column_error_does_not_claim_tenant_assignment(self):
+        labels = (
+            "assets.category",
+            "assets.assetrole",
+            "organization.region",
+            "organization.sitegroup",
+            "organization.contactrole",
+            "organization.contact",
+        )
+        for label in labels:
+            for column in ("tenant", "tenant_id"):
+                with self.subTest(label=label, column=column), translation.override("de"):
+                    form_class = get_registered_import_form(apps.get_model(label))
+                    if form_class is None:
+                        self.fail(f"{label} must have a curated import form")
+                    form = form_class(
+                        data={
+                            "active_tab": "editor",
+                            "import_format": "csv",
+                            "import_text": f"name,{column}\nExample,foreign-tenant",
+                            "delimiter": ",",
+                        }
+                    )
+                    self.assertFalse(form.is_valid())
+                    errors = str(form.errors)
+                    self.assertIn("Die Spalten „tenant“ und „tenant_id“ werden nicht unterstützt.", errors)
+                    self.assertIn("Entfernen Sie sie vor dem Import.", errors)
+                    self.assertNotIn("dem aktiven Mandanten zugeordnet", errors)
 
     def test_service_owned_and_security_sensitive_models_are_never_importable(self):
         for label in SERVICE_OWNED + SECURITY_SENSITIVE:
@@ -177,6 +214,433 @@ class ExportContractTests(SimpleTestCase):
                 self.assertEqual(perms[0], f"{meta.app_label}.view_{meta.model_name}")
                 declared = any(code == f"export_{meta.model_name}" for code, _n in meta.permissions)
                 self.assertEqual(len(perms) == 2, declared)
+
+
+class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
+    REFERENCE_ROUTES = (
+        ("assets", "category"),
+        ("assets", "assetrole"),
+        ("organization", "region"),
+        ("organization", "sitegroup"),
+        ("organization", "contactrole"),
+        ("organization", "contact"),
+    )
+
+    def setUp(self):
+        self._language_before_test = translation.get_language()
+        translation.activate(settings.LANGUAGE_CODE)
+        super().setUp()
+        self.clear_tenant_context()
+        self.setup_tenant_context(name="Reference Import Tenant", slug="reference-import-tenant")
+
+    def tearDown(self):
+        self.clear_tenant_context()
+        translation.activate(self._language_before_test or settings.LANGUAGE_CODE)
+        super().tearDown()
+
+    def _member(self, username, permissions):
+        user_model = get_user_model()
+        user = user_model.objects.create_user(
+            username=username,
+            email=f"{username}@example.com",
+            password="password",
+        )
+        role = Role.objects.create(
+            tenant=self.tenant,
+            name=f"{username} role",
+            permissions=sorted(permissions),
+        )
+        self.grant(user, self.tenant, role)
+        return user
+
+    def _import(self, user, app_label, model_name, csv_text, *, headers=None):
+        self.client_login_to_tenant(user, self.tenant)
+        url = reverse("generic_import", kwargs={"app_label": app_label, "model_name": model_name})
+        preview = self.client.post(
+            url,
+            {
+                "import_text": csv_text,
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "_preview": "1",
+            },
+            headers=headers,
+        )
+        if preview.context["form"].errors:
+            return preview, None
+        confirmed = self.client.post(
+            url,
+            {"active_tab": "editor", "_confirm": "1"},
+            headers=headers,
+        )
+        return preview, confirmed
+
+    def test_each_admitted_reference_form_creates_skips_without_change_and_updates_with_change(self):
+        models = (
+            (
+                "assets",
+                "category",
+                Category,
+                ("name", "slug"),
+                ("Ref Category", "ref-category"),
+                ("Ref Category", "ref-category-v2"),
+                "slug",
+            ),
+            (
+                "assets",
+                "assetrole",
+                AssetRole,
+                ("name", "description"),
+                ("Ref Role", "before"),
+                ("Ref Role", "after"),
+                "description",
+            ),
+            (
+                "organization",
+                "region",
+                Region,
+                ("name", "description"),
+                ("Ref Region", "before"),
+                ("Ref Region", "after"),
+                "description",
+            ),
+            (
+                "organization",
+                "sitegroup",
+                SiteGroup,
+                ("name", "description"),
+                ("Ref Site Group", "before"),
+                ("Ref Site Group", "after"),
+                "description",
+            ),
+            (
+                "organization",
+                "contactrole",
+                ContactRole,
+                ("name", "description"),
+                ("Ref Contact Role", "before"),
+                ("Ref Contact Role", "after"),
+                "description",
+            ),
+            (
+                "organization",
+                "contact",
+                Contact,
+                ("name", "description"),
+                ("Ref Contact", "before"),
+                ("Ref Contact", "after"),
+                "description",
+            ),
+        )
+        add_permissions = {f"{app}.add_{model}" for app, model, *_ in models}
+        change_permissions = {f"{app}.change_{model}" for app, model, *_ in models}
+        adder = self._member("reference-data-adder", add_permissions)
+        editor = self._member("reference-data-editor", add_permissions | change_permissions)
+
+        for app_label, model_name, model, fields, initial, changed, updated_field in models:
+            with self.subTest(model=f"{app_label}.{model_name}"):
+                header = ",".join(fields)
+                initial_csv = f"{header}\n{','.join(initial)}\n"
+                changed_csv = f"{header}\n{','.join(changed)}\n"
+
+                preview, response = self._import(adder, app_label, model_name, initial_csv)
+                self.assertEqual(preview.status_code, 200)
+                if response is None:
+                    self.fail("A valid import preview must allow confirmation.")
+                self.assertEqual(response.status_code, 302)
+                created = model._base_manager.get(
+                    name=initial[0], **({"tenant": self.tenant} if model is Contact else {})
+                )
+                created_value = getattr(created, updated_field)
+                self.assertEqual(created_value, initial[fields.index(updated_field)])
+                self.assertEqual(Job.objects.latest("created").result["imported"], 1)
+
+                preview, response = self._import(
+                    adder,
+                    app_label,
+                    model_name,
+                    initial_csv,
+                    headers={"accept-language": "de"},
+                )
+                self.assertEqual(preview.status_code, 200)
+                self.assertTrue(
+                    any(
+                        "zeile 2:" in note.lower()
+                        and "diese zeile wird übersprungen" in note.lower()
+                        and "berechtigung zum aktualisieren" in note.lower()
+                        and "administrator" in note.lower()
+                        for note in preview.context["preview_notes"]
+                    )
+                )
+                if response is None:
+                    self.fail("A valid import preview must allow confirmation.")
+                self.assertEqual(response.status_code, 302)
+                skipped_job = Job.objects.latest("created")
+                self.assertEqual(
+                    skipped_job.result,
+                    {"imported": 0, "failed": 0, "total": 1, "skipped": 1},
+                    skipped_job.logs,
+                )
+                created.refresh_from_db()
+                self.assertEqual(getattr(created, updated_field), created_value)
+
+                preview, response = self._import(editor, app_label, model_name, changed_csv)
+                self.assertEqual(preview.status_code, 200)
+                if response is None:
+                    self.fail("A valid import preview must allow confirmation.")
+                self.assertEqual(response.status_code, 302)
+                updated_job = Job.objects.latest("created")
+                self.assertEqual(updated_job.result["updated"], 1, updated_job.logs)
+                created.refresh_from_db()
+                self.assertEqual(getattr(created, updated_field), changed[fields.index(updated_field)])
+
+                preview, response = self._import(
+                    editor,
+                    app_label,
+                    model_name,
+                    changed_csv,
+                    headers={"accept-language": "de"},
+                )
+                self.assertEqual(preview.status_code, 200)
+                if response is None:
+                    raise AssertionError("A valid unchanged re-import must allow confirmation.")
+                self.assertEqual(response.status_code, 302)
+                unchanged_job = Job.objects.latest("created")
+                self.assertEqual(
+                    unchanged_job.result,
+                    {"imported": 0, "failed": 0, "total": 1, "skipped": 1},
+                    unchanged_job.logs,
+                )
+                self.assertTrue(
+                    any(
+                        "zeile 2:" in note.lower()
+                        and "datensatz existiert bereits" in note.lower()
+                        and "unverändert" in note.lower()
+                        and "übersprungen" in note.lower()
+                        for note in preview.context["preview_notes"]
+                    )
+                )
+                created.refresh_from_db()
+                self.assertEqual(getattr(created, updated_field), changed[fields.index(updated_field)])
+
+    def test_all_reference_import_routes_are_denied_in_all_accessible_scope(self):
+        permissions = {f"{app_label}.add_{model_name}" for app_label, model_name in self.REFERENCE_ROUTES}
+        user = self._member("reference-all-accessible-importer", permissions)
+        self.client_login_to_tenant(user, self.tenant)
+
+        for app_label, model_name in self.REFERENCE_ROUTES:
+            with self.subTest(model=f"{app_label}.{model_name}"):
+                url = reverse("generic_import", kwargs={"app_label": app_label, "model_name": model_name})
+                response = self.client.get(f"{url}?switch_all_accessible=1")
+                self.assertEqual(response.status_code, 403)
+
+    def test_tenant_column_is_rejected_for_the_whole_file_on_each_reference_route(self):
+        permissions = {f"{app_label}.add_{model_name}" for app_label, model_name in self.REFERENCE_ROUTES}
+        user = self._member("reference-tenant-column-importer", permissions)
+
+        for app_label, model_name in self.REFERENCE_ROUTES:
+            with self.subTest(model=f"{app_label}.{model_name}"):
+                model = apps.get_model(app_label, model_name)
+                before = model._base_manager.filter(name="Tenant Injection").count()
+                preview, response = self._import(
+                    user,
+                    app_label,
+                    model_name,
+                    "name,tenant\nTenant Injection,foreign-tenant\n",
+                    headers={"accept-language": "de"},
+                )
+                self.assertEqual(preview.status_code, 200)
+                self.assertIsNone(response)
+                errors = str(preview.context["form"].errors)
+                self.assertIn("Die Spalten „tenant“ und „tenant_id“ werden nicht unterstützt.", errors)
+                self.assertIn("Entfernen Sie sie vor dem Import.", errors)
+                self.assertNotIn("werden immer dem aktiven Mandanten zugeordnet", errors)
+                self.assertNotIn("foreign-tenant", errors)
+                self.assertNotIn("Row 2", errors)
+                self.assertEqual(model._base_manager.filter(name="Tenant Injection").count(), before)
+
+    def test_contact_rows_land_in_active_tenant_and_never_update_shared_contacts(self):
+        global_contact = Contact._base_manager.create(name="Shared contact", description="global copy")
+        foreign_tenant = Tenant._base_manager.create(name="Foreign Contact Tenant", slug="foreign-contact-tenant")
+        foreign_contact = Contact._base_manager.create(
+            name="Shared contact", tenant=foreign_tenant, description="foreign copy"
+        )
+        user = self._member("tenant-contact-importer", {"organization.add_contact"})
+
+        preview, response = self._import(
+            user,
+            "organization",
+            "contact",
+            "name,description\nShared contact,tenant copy\n",
+        )
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertFalse(preview.context["form"].errors)
+        self.assertNotIn("foreign copy", preview.content.decode())
+        if response is None:
+            self.fail("A valid import preview must allow confirmation.")
+        self.assertEqual(response.status_code, 302)
+        imported = Contact._base_manager.get(name="Shared contact", tenant=self.tenant)
+        global_contact.refresh_from_db()
+        foreign_contact.refresh_from_db()
+        self.assertEqual(imported.description, "tenant copy")
+        self.assertEqual(global_contact.description, "global copy")
+        self.assertEqual(foreign_contact.description, "foreign copy")
+
+    def test_asset_role_boolean_help_is_localized(self):
+        user = self._member("reference-asset-role-help", {"assets.add_assetrole"})
+        self.client_login_to_tenant(user, self.tenant)
+        url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "assetrole"})
+        response = self.client.get(url, headers={"accept-language": "de"})
+
+        self.assertEqual(response.status_code, 200)
+        boolean_info = next(field for field in response.context["fields"] if field["name"] == "allows_components")
+        self.assertIn("Geben Sie „true“ oder „false“ an.", boolean_info["description"])
+        self.assertNotIn("Specify true or false", boolean_info["description"])
+
+    def test_contact_duplicate_name_error_is_tenant_specific_and_actionable(self):
+        Contact._base_manager.create(name="Duplicate contact", tenant=self.tenant)
+        Contact._base_manager.create(name="Duplicate contact", tenant=self.tenant)
+        user = self._member("tenant-contact-duplicate-importer", {"organization.add_contact"})
+        preview, response = self._import(
+            user,
+            "organization",
+            "contact",
+            "name,description\nDuplicate contact,new description\n",
+            headers={"accept-language": "de"},
+        )
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertIsNone(response)
+        messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
+        self.assertIn("Zeile 2", messages)
+        self.assertIn("Im aktiven Mandanten sind mehrere Kontakte mit diesem Namen vorhanden.", messages)
+        self.assertIn("Benennen Sie die doppelten Kontakte vor dem Import um.", messages)
+
+    def test_contact_role_column_is_rejected_per_row_in_preview(self):
+        user = self._member("contact-role-importer", {"organization.add_contact"})
+        url = reverse("generic_import", kwargs={"app_label": "organization", "model_name": "contact"})
+        before_contacts = Contact._base_manager.count()
+        before_assignments = ContactAssignment._base_manager.count()
+        self.client_login_to_tenant(user, self.tenant)
+
+        response = self.client.post(
+            url,
+            {
+                "import_text": "name,role\nContact with rejected role,No such role\n",
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "_preview": "1",
+            },
+            headers={"accept-language": "de"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        messages = " ".join(str(message) for message in response.context["form"].errors["__all__"])
+        self.assertIn("Zeile 2", messages)
+        self.assertIn("Kontaktrollen können nicht mit dieser Datei importiert werden", messages)
+        self.assertIn("Spalte „role“", messages)
+        self.assertIn("nach dem Kontaktimport zu", messages)
+        self.assertEqual(Contact._base_manager.count(), before_contacts)
+        self.assertEqual(ContactAssignment._base_manager.count(), before_assignments)
+
+    def test_region_and_site_group_unknown_parents_fail_readably_per_row_in_preview(self):
+        user = self._member(
+            "reference-data-parent-importer",
+            {"organization.add_region", "organization.add_sitegroup"},
+        )
+        self.client_login_to_tenant(user, self.tenant)
+
+        for model_name, model, row in (
+            ("region", Region, "Child Region,missing-region"),
+            ("sitegroup", SiteGroup, "Child Site Group,missing-site-group"),
+        ):
+            with self.subTest(model=model_name):
+                url = reverse("generic_import", kwargs={"app_label": "organization", "model_name": model_name})
+                response = self.client.post(
+                    url,
+                    {
+                        "import_text": f"name,parent\n{row}\n",
+                        "active_tab": "editor",
+                        "import_format": "csv",
+                        "delimiter": ",",
+                        "_preview": "1",
+                    },
+                    headers={"accept-language": "de"},
+                )
+                self.assertEqual(response.status_code, 200)
+                messages = " ".join(str(message) for message in response.context["form"].errors["__all__"])
+                self.assertIn("Zeile 2", messages)
+                self.assertNotIn("Row 2", messages)
+                self.assertIn("Übergeordnet", messages)
+                self.assertNotIn("parent", messages.lower())
+                self.assertIn(row.split(",", 1)[1], messages)
+                self.assertIn("Prüfen Sie den Slug oder Namen", messages)
+                self.assertIn("legen Sie den fehlenden Eintrag vor dem Import an", messages)
+                self.assertFalse(model.objects.filter(name=row.split(",", 1)[0]).exists())
+                self.assertFalse(model.objects.filter(name=row.split(",", 1)[1]).exists())
+
+    def test_region_parent_reference_uses_name_before_a_numeric_primary_key(self):
+        user = self._member("reference-numeric-parent-importer", {"organization.add_region"})
+        primary_key_target = Region.objects.create(name="PK target", slug="pk-target")
+        name_target = Region.objects.create(name=str(primary_key_target.pk), slug="numeric-name-target")
+
+        preview, response = self._import(
+            user,
+            "organization",
+            "region",
+            f"name,parent\nChild Region,{primary_key_target.pk}\n",
+        )
+
+        if response is None:
+            self.fail(f"A valid natural-key parent reference must be importable: {preview.context['form'].errors}")
+        created = Region.objects.get(name="Child Region")
+        self.assertEqual(created.parent_id, name_target.pk)
+
+    def test_site_group_parent_ambiguity_fails_readably_per_row(self):
+        user = self._member("reference-ambiguous-parent-importer", {"organization.add_sitegroup"})
+        SiteGroup.objects.create(name="North", slug="north-one")
+        SiteGroup.objects.create(name="NORTH", slug="north-two")
+
+        preview, response = self._import(
+            user,
+            "organization",
+            "sitegroup",
+            "name,parent\nChild Site Group,north\n",
+            headers={"accept-language": "de"},
+        )
+
+        self.assertIsNone(response)
+        messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
+        self.assertIn("Zeile 2", messages)
+        self.assertNotIn("Row 2", messages)
+        self.assertIn("Übergeordnet", messages)
+        self.assertNotIn("parent", messages.lower())
+        self.assertIn("north", messages)
+        self.assertIn("Zu „north“ wurden mehrere Einträge des Typs Standortgruppe gefunden.", messages)
+        self.assertIn("eindeutigen Slug oder Namen", messages)
+        self.assertFalse(SiteGroup.objects.filter(name="Child Site Group").exists())
+
+    def test_reference_help_describes_the_natural_key_parent_contract(self):
+        user = self._member("reference-parent-help", {"organization.add_region"})
+        self.client_login_to_tenant(user, self.tenant)
+        url = reverse("generic_import", kwargs={"app_label": "organization", "model_name": "region"})
+
+        response = self.client.get(url, headers={"accept-language": "de"})
+
+        self.assertEqual(response.status_code, 200)
+        parent_info = next(field for field in response.context["fields"] if field["name"] == "parent")
+        self.assertIn("Geben Sie den Slug oder den Namen des übergeordneten Eintrags an.", parent_info["description"])
+        self.assertNotIn("ID", parent_info["description"])
+
+    def test_site_import_remains_closed_in_this_slice(self):
+        user = self._member("site-import-boundary", {"organization.add_site"})
+        self.client_login_to_tenant(user, self.tenant)
+        url = reverse("generic_import", kwargs={"app_label": "organization", "model_name": "site"})
+
+        self.assertEqual(self.client.get(url).status_code, 404)
 
 
 class ExportInventoryDetailTests(SimpleTestCase):
