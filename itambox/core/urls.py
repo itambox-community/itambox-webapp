@@ -45,7 +45,7 @@ from extras.attachment_views import (
 )
 from extras.dashboard import views as dashboard_views
 from extras.export_views import LabelPrintView, LabelSelectView, ObjectExportView
-from itambox.plugins.utils import is_plugin_active, record_plugin_failure
+from itambox.plugins.runtime import PluginStartupError
 from itambox.views.features import ObjectChangeListView, ObjectChangeView
 from itambox.views.generic import (
     GenericObjectImportView,
@@ -271,28 +271,22 @@ urlpatterns = [
     path("health/", health, name="health"),
 ]
 
-# Dynamically register plugin UI URLconfs
+# Mount plugin UI URLconfs (eager: an import or URLconf error aborts startup
+# and names the plugin).
 plugin_ui_patterns = []
-for plugin_name in getattr(settings, "PLUGINS", []):
-    if not is_plugin_active(plugin_name):
-        continue
+for plugin_name in getattr(settings, "PLUGINS_ACTIVE", []):
+    plugin_config = apps.get_app_config(plugin_name)
+    base_url = getattr(plugin_config, "base_url", None) or plugin_name
+    url_module_name = f"{plugin_name}.urls"
     try:
-        plugin_config = apps.get_app_config(plugin_name)
-        base_url = getattr(plugin_config, "base_url", None) or plugin_name
-        url_module_name = f"{plugin_name}.urls"
-        try:
-            importlib.import_module(url_module_name)
-        except ModuleNotFoundError as exc:
-            if exc.name == url_module_name:
-                continue
-            raise
-        plugin_ui_patterns.append(
-            path(f"{base_url}/", include((f"{plugin_name}.urls", plugin_name), namespace=plugin_name))
-        )
-    except LookupError:
-        continue
-    except Exception as exc:  # broad except: boundary-isolation: one plugin URLconf must not abort core URL startup
-        record_plugin_failure(plugin_name, exc, stage="urls")
+        importlib.import_module(url_module_name)
+    except ModuleNotFoundError as exc:
+        if exc.name == url_module_name:
+            continue
+        raise PluginStartupError(plugin_name, "assemble", exc) from exc
+    except Exception as exc:
+        raise PluginStartupError(plugin_name, "assemble", exc) from exc
+    plugin_ui_patterns.append(path(f"{base_url}/", include((url_module_name, plugin_name), namespace=plugin_name)))
 
 if plugin_ui_patterns:
     urlpatterns.append(path("plugins/", include((plugin_ui_patterns, "plugins"), namespace="plugins")))

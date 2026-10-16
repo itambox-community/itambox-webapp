@@ -20,11 +20,7 @@ Plugins are Experimental, trusted, in-process code. This runbook is for a deploy
    plugin's routes, middleware, API router, GraphQL contribution, menu, and
    template hooks are absent.
 
-This intentional degradation is a supported operator contract: a plugin that
-cannot be imported, is malformed, fails compatibility checks, or raises during
-startup is disabled without blocking Stable core, and the diagnostic reports
-the failure class and stage. Removing the plugin from `ITAMBOX_PLUGINS` and
-restarting restores the previous state.
+A plugin that cannot be imported, is malformed, or raises while composing aborts startup with a message naming the plugin and the phase; remove it from `ITAMBOX_PLUGINS` and restart to recover. The one skip case is a version incompatibility: a plugin whose `itambox_range` excludes the running release is skipped with a warning and shown in `manage.py plugins`.
 
 ## Disable or remove a plugin
 
@@ -48,12 +44,9 @@ normal plugin removal.
 
 ## Recover a failed plugin
 
-1. Keep the failed plugin disabled while investigating. Stable core should not
-   be made dependent on a broken Experimental plugin.
-2. Compare the plugin's declared `min_version`/`max_version` (ITAMbox product
-   compatibility) and `min_plugin_api_version`/`max_plugin_api_version` (host
-   plugin API compatibility) with the deployed revision. These are independent
-   checks; do not reinterpret product-version bounds as API-version bounds.
+1. Keep the failing plugin out of `PLUGINS` while investigating.
+2. Compare the plugin's declared `itambox_range` with the deployed ITAMbox
+   release.
 3. Fix the package, configuration, middleware, URL, or schema error in a
    development/staging deployment. Pin the tested plugin revision.
 4. Re-add the package name to `PLUGINS` only during the planned deployment
@@ -65,8 +58,8 @@ normal plugin removal.
    ```
 
 5. Exercise the plugin's supported routes and extension points, plus the Stable
-   core smoke/test subset. A plugin that fails again is disabled again; it does
-   not abort the application startup.
+   core smoke/test subset. A plugin that fails again aborts startup again; remove it
+   from `PLUGINS` to restore service.
 
 ## Migrate API imports in extensions
 

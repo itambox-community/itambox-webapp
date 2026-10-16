@@ -596,11 +596,13 @@ FIELD_ENCRYPTION_KEYS_ERROR = _field_keyring.error
 # ==============================================================================
 # Plugins Configuration
 # ==============================================================================
-# Plugins are optional Django apps loaded at settings time (see
+# Plugins are optional Django apps resolved at settings time (see
 # itambox/plugins/utils.py). They are configured via a comma-separated env var
-# so the core image boots without bundling any plugin. A missing, incompatible,
-# or malformed plugin is disabled with an operator-visible diagnostic; it does
-# not abort Stable core startup.
+# so the core image boots without bundling any plugin. A missing package, an
+# import failure or an invalid manifest aborts startup with a message naming the
+# plugin and the phase. The single exception is a version incompatibility: a
+# plugin whose declared ITAMbox range excludes this release is skipped with a
+# warning before it enters INSTALLED_APPS.
 #   Example: ITAMBOX_PLUGINS=example_plugin
 PLUGINS = [p.strip() for p in os.environ.get("ITAMBOX_PLUGINS", "").split(",") if p.strip()]
 
