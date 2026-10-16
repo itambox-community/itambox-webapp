@@ -11,6 +11,8 @@ Only deployment operators activate plugins by placing an importable package name
 
 A plugin that cannot be imported, is malformed, fails compatibility checks, or raises during startup is disabled. ITAMbox continues starting and publishes a diagnostic; the failed plugin contributes no middleware, URL, REST router, GraphQL schema, menu, or template hook. This intentional degradation is a supported operator contract — see the [plugin removal and recovery runbook](../operations/plugin-runbook.md) for the operational response.
 
+"Disabled" means different things depending on the stage that failed. A plugin that fails import, configuration or compatibility checks is skipped before Django app population: its `django_apps`, middleware and `PluginConfig` are not added, so it loads no models, migrations or app-level signal receivers (its package `__init__.py` is still imported during the check). A plugin that fails in `ready()` has already been added to the app registry, so models or signal receivers registered before the exception may remain loaded.
+
 ## `PluginConfig`
 
 A plugin package's `__init__.py` must expose a class assigned to `config` that subclasses `itambox.plugins.PluginConfig`.
