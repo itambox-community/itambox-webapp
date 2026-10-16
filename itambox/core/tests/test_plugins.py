@@ -1,3 +1,4 @@
+import importlib
 import sys
 import types
 from pathlib import Path
@@ -5,12 +6,13 @@ from unittest.mock import patch
 
 from django.core.exceptions import ImproperlyConfigured
 from django.template.loader import render_to_string
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils.html import escape
 
 from core.templatetags.plugins import plugin_template_content
 from itambox.context_processors import plugin_diagnostics_processor
-from itambox.plugins import PluginConfig, assembly
+from itambox.plugins import PluginConfig, assembly, runtime
+from itambox.plugins.navigation import PluginNavigationItem, PluginNavigationMenu
 from itambox.plugins.runtime import PluginStartupError
 from itambox.plugins.utils import deep_merge, load_plugins, parse_itambox_range
 from itambox.plugins.views import PluginTemplateContent
@@ -352,3 +354,243 @@ class PluginDiagnosticsSurfaceTest(SimpleTestCase):
         self.assertIn("disabled", rendered)
         self.assertIn("&lt;script&gt;", rendered)
         self.assertNotIn("<script>", rendered)
+
+
+class PluginAssemblyTestCase(SimpleTestCase):
+    def setUp(self):
+        self._snapshot = {
+            key: (value.copy() if hasattr(value, "copy") else value)
+            for key, value in vars(registry).items()
+            if key.startswith("_plugin")
+        }
+        registry._plugins_frozen = False
+
+    def tearDown(self):
+        for key, value in self._snapshot.items():
+            setattr(registry, key, value)
+
+    def test_resolve_declared_values(self):
+        marker = object()
+        self.assertIs(assembly._resolve(types.SimpleNamespace(name="p", menu=marker), "menu"), marker)
+        self.assertIs(
+            assembly._resolve(types.SimpleNamespace(name="p", menu="os.path"), "menu"),
+            importlib.import_module("os.path"),
+        )
+        self.assertEqual(
+            assembly._resolve(types.SimpleNamespace(name="p", graphql_schema="json"), "graphql_schema"),
+            importlib.import_module("json"),
+        )
+
+    def test_resolve_defaults(self):
+        config = types.SimpleNamespace(name="no_such_plugin_pkg")
+        self.assertIsNone(assembly._resolve(config, "template_extensions"))
+        module = types.SimpleNamespace(template_extensions=["x"])
+        with (
+            patch("itambox.plugins.assembly.importlib.util.find_spec", return_value=object()),
+            patch("itambox.plugins.assembly.importlib.import_module", return_value=module),
+        ):
+            self.assertEqual(assembly._resolve(config, "template_extensions"), ["x"])
+            self.assertIs(assembly._resolve(config, "graphql_schema"), module)
+        with patch("itambox.plugins.assembly.importlib.util.find_spec", return_value=None):
+            self.assertIsNone(assembly._resolve(config, "menu"))
+
+    def test_as_list_rejects_scalars(self):
+        for bad in ("abc", b"abc", 5, {"a": 1}):
+            with self.assertRaises(TypeError):
+                assembly._as_list(bad, "x")
+        self.assertEqual(assembly._as_list((1, 2), "x"), [1, 2])
+
+    def test_compose_navigation(self):
+        class Menu(PluginNavigationMenu):
+            label = "M"
+
+        class Item(PluginNavigationItem):
+            link = "x"
+
+        assembly._compose_navigation(types.SimpleNamespace(name="p", menu=Menu, menu_items=[Item]))
+        self.assertIn(Menu, registry.get_plugin_menus())
+        self.assertIn(Item, registry.get_plugin_menu_items())
+        with self.assertRaises(TypeError):
+            assembly._compose_navigation(types.SimpleNamespace(name="p", menu=object, menu_items=None))
+        with self.assertRaises(TypeError):
+            assembly._compose_navigation(types.SimpleNamespace(name="p", menu=None, menu_items=[object]))
+
+    def test_compose_viewsets(self):
+        from itambox.api.viewsets import BaseViewSet
+
+        class ViewSet(BaseViewSet):
+            pass
+
+        assembly._compose_viewsets(
+            "p", [("things", ViewSet, "p-things"), ("other", "itambox.api.viewsets.BaseViewSet")]
+        )
+        prefixes = [row[0] for row in registry.get_plugin_viewsets()["p"]]
+        self.assertEqual(prefixes, ["things", "other"])
+        with self.assertRaises(ValueError):
+            assembly._compose_viewsets("p", [("Bad Prefix", ViewSet)])
+
+    def test_compose_plugin_registers_only_active_plugins(self):
+        from itambox.api.viewsets import BaseViewSet
+
+        class Query:
+            pass
+
+        class Content(PluginTemplateContent):
+            models = ["assets.asset"]
+
+        config = types.SimpleNamespace(
+            name="p",
+            template_extensions=[Content],
+            menu=None,
+            menu_items=None,
+            viewsets=[("things", BaseViewSet)],
+            graphql_schema=types.SimpleNamespace(Query=Query),
+        )
+        with override_settings(PLUGINS_ACTIVE=[]):
+            assembly.compose_plugin(config)
+        self.assertEqual(registry.get_plugin_graphql(), tuple(self._snapshot["_plugin_graphql"]))
+        with override_settings(PLUGINS_ACTIVE=["p"]):
+            assembly.compose_plugin(config)
+        self.assertIn(("p", Query), registry.get_plugin_graphql())
+        self.assertIn(Content, registry.get_plugin_template_contents("assets.asset"))
+
+    def test_assemble_waits_for_last_plugin_then_freezes(self):
+        with override_settings(PLUGINS_ACTIVE=["a", "b"]), patch("itambox.plugins.assembly.importlib.import_module"):
+            assembly.assemble_after_last_plugin(types.SimpleNamespace(name="a"))
+            self.assertFalse(registry._plugins_frozen)
+            assembly.assemble_after_last_plugin(types.SimpleNamespace(name="b"))
+            self.assertTrue(registry._plugins_frozen)
+        with override_settings(PLUGINS_ACTIVE=[]):
+            assembly.assemble_after_last_plugin(types.SimpleNamespace(name="a"))
+
+    def test_assemble_failures_name_the_plugin(self):
+        registry._register_plugin_graphql("a", object)
+        with (
+            override_settings(PLUGINS_ACTIVE=["a"]),
+            patch("itambox.plugins.assembly._trial_build", side_effect=RuntimeError("bad schema")),
+            self.assertRaises(PluginStartupError) as ctx,
+        ):
+            assembly.assemble_after_last_plugin(types.SimpleNamespace(name="a"))
+        self.assertEqual((ctx.exception.plugin_name, ctx.exception.phase), ("a", "assemble"))
+        registry._plugin_graphql.clear()
+        with (
+            override_settings(PLUGINS_ACTIVE=["a"]),
+            patch("itambox.plugins.assembly.importlib.import_module", side_effect=ImportError("urls")),
+            self.assertRaises(PluginStartupError) as ctx,
+        ):
+            assembly.assemble_after_last_plugin(types.SimpleNamespace(name="a"))
+        self.assertEqual(ctx.exception.phase, "assemble")
+        passthrough = PluginStartupError("z", "assemble", RuntimeError("x"))
+        with (
+            override_settings(PLUGINS_ACTIVE=["a"]),
+            patch("itambox.plugins.assembly.importlib.import_module", side_effect=passthrough),
+            self.assertRaises(PluginStartupError) as ctx,
+        ):
+            assembly.assemble_after_last_plugin(types.SimpleNamespace(name="a"))
+        self.assertIs(ctx.exception, passthrough)
+
+    def test_trial_build_accepts_a_query_type(self):
+        import strawberry
+
+        @strawberry.type
+        class Query:
+            @strawberry.field
+            def ping(self) -> int:
+                return 1
+
+        assembly._trial_build(Query)
+
+
+class PluginRuntimeEdgeTestCase(SimpleTestCase):
+    def test_skip_is_recorded_once_and_listed(self):
+        settings_module = DummySettings()
+        for _ in range(2):
+            runtime.record_plugin_skip("p", ValueError("no"), settings_module=settings_module)
+        self.assertEqual(settings_module.PLUGINS_DISABLED, ["p"])
+        self.assertEqual(len(runtime.get_plugin_diagnostics(settings_module)), 1)
+        self.assertFalse(runtime.is_plugin_active("p", settings_module))
+
+    def test_without_settings_nothing_is_reported(self):
+        with patch("itambox.plugins.runtime._settings_object", return_value=None):
+            self.assertEqual(runtime.get_plugin_diagnostics(), ())
+            self.assertFalse(runtime.is_plugin_active("p"))
+            runtime.record_plugin_skip("p", ValueError("no"))
+
+    def test_invalid_running_version_is_a_configuration_error(self):
+        from itambox.plugins.utils import _release_pair
+
+        with self.assertRaises(ImproperlyConfigured):
+            _release_pair("not-a-version")
+        self.assertEqual(_release_pair("1"), (1, 0))
+
+    def test_django_apps_must_be_strings(self):
+        case = PluginLoaderTestCase()
+        case.setUp()
+        try:
+            with self.assertRaises(PluginStartupError) as ctx:
+                case._load("bad_django_apps_plugin", django_apps=[5])
+            self.assertEqual(ctx.exception.phase, "resolve")
+        finally:
+            case.tearDown()
+
+
+class PluginUrlMountingTestCase(SimpleTestCase):
+    def tearDown(self):
+        importlib.reload(importlib.import_module("itambox.plugins.urls"))
+        importlib.reload(importlib.import_module("core.urls"))
+
+    def test_api_router_mounts_registered_viewsets_and_names_failures(self):
+        from itambox.api.viewsets import BaseViewSet
+
+        snapshot = {k: v.copy() for k, v in vars(registry).items() if k.startswith("_plugin") and hasattr(v, "copy")}
+        try:
+            registry._plugin_viewsets["p"].append(("things", BaseViewSet, "p-things"))
+            importlib.reload(importlib.import_module("itambox.plugins.urls"))
+            registry._plugin_viewsets["p"].append(("broken", object, None))
+            with self.assertRaises(PluginStartupError) as ctx:
+                importlib.reload(importlib.import_module("itambox.plugins.urls"))
+            self.assertEqual((ctx.exception.plugin_name, ctx.exception.phase), ("p", "assemble"))
+        finally:
+            for key, value in snapshot.items():
+                setattr(registry, key, value)
+
+    def test_ui_urls_are_mounted_skipped_or_fail_with_plugin_name(self):
+        package = types.ModuleType("ui_plugin_pkg")
+        package.__path__ = []
+        urls_module = types.ModuleType("ui_plugin_pkg.urls")
+        urls_module.urlpatterns = []
+        bare = types.ModuleType("bare_plugin_pkg")
+        bare.__path__ = []
+        sys.modules.update({"ui_plugin_pkg": package, "ui_plugin_pkg.urls": urls_module, "bare_plugin_pkg": bare})
+        config = types.SimpleNamespace(base_url=None)
+        try:
+            with (
+                override_settings(PLUGINS_ACTIVE=["ui_plugin_pkg", "bare_plugin_pkg"]),
+                patch("django.apps.apps.get_app_config", return_value=config),
+            ):
+                module = importlib.reload(importlib.import_module("core.urls"))
+            self.assertTrue(any(str(p.pattern) == "plugins/" for p in module.urlpatterns))
+            with (
+                override_settings(PLUGINS_ACTIVE=["missing_plugin_pkg"]),
+                patch("django.apps.apps.get_app_config", return_value=config),
+                self.assertRaises(PluginStartupError) as ctx,
+            ):
+                importlib.reload(importlib.import_module("core.urls"))
+            self.assertEqual(ctx.exception.plugin_name, "missing_plugin_pkg")
+            real_import = importlib.import_module
+
+            def flaky(name, *args):
+                if name == "ui_plugin_pkg.urls":
+                    raise RuntimeError("boom")
+                return real_import(name, *args)
+
+            with (
+                override_settings(PLUGINS_ACTIVE=["ui_plugin_pkg"]),
+                patch("django.apps.apps.get_app_config", return_value=config),
+                patch("importlib.import_module", side_effect=flaky),
+                self.assertRaises(PluginStartupError),
+            ):
+                importlib.reload(real_import("core.urls"))
+        finally:
+            for name in ("ui_plugin_pkg", "ui_plugin_pkg.urls", "bare_plugin_pkg"):
+                sys.modules.pop(name, None)
