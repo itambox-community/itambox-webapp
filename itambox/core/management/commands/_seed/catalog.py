@@ -20,7 +20,10 @@ after tenant and tenant-group scopes are available. It reads
 
 from decimal import Decimal
 
+from django.apps import apps
+
 from assets.models import AssetTypeFieldset, CategoryDefaultFieldset
+from assets.services.specifications.core_vocabulary_translations import seed_core_vocabulary_translations
 from extras.models import CustomField, CustomFieldChoice, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField, Tag
 from extras.services.custom_field_data import write_custom_field_data
 
@@ -624,6 +627,7 @@ class SeedCatalogMixin:
             vocabulary_version,
         )
         self._fieldsets = _reconcile_core_fieldsets(vocabulary["sections"], self._custom_fields, vocabulary_version)
+        seed_core_vocabulary_translations(apps.get_model, vocabulary=vocabulary)
 
         canonical_category_rows = vocabulary["categories"]
 

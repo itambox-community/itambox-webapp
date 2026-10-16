@@ -548,7 +548,7 @@ class MigrationAuditTests(unittest.TestCase):
         self.assertEqual(inventory["summary"]["replacement_shards"], 62)
         self.assertEqual(inventory["summary"]["replacement_targets"], 262)
         self.assertEqual(inventory["summary"]["explicit_replacement_chain_edges"], 61)
-        self.assertEqual(inventory["summary"]["post_transition_migrations"], 71)
+        self.assertEqual(inventory["summary"]["post_transition_migrations"], 72)
         self.assertEqual(
             inventory["post_transition_migrations"],
             [
@@ -568,6 +568,7 @@ class MigrationAuditTests(unittest.TestCase):
                 "assets.0124_tenant_archive_leaf_markers",
                 "assets.0125_unique_open_loan_per_maintenance",
                 "assets.0126_remove_type_library_identity",
+                "assets.0127_core_vocabulary_german_translations",
                 "compliance.0101_alter_custodyreceipt_signed_at",
                 "compliance.0102_clear_unsigned_receipt_timestamps",
                 "compliance.0103_alter_custodyreceipt_options",
@@ -665,6 +666,7 @@ class MigrationAuditTests(unittest.TestCase):
                 "assets.0104_asset_type_core_vocabulary",
                 "assets.0107_asset_type_specification_guards",
                 "assets.0126_remove_type_library_identity",
+                "assets.0127_core_vocabulary_german_translations",
                 "extras.0108_alertlog_delivery_outcome",
                 "extras.0117_asset_type_definition_guards",
                 "extras.0129_remove_type_library",
