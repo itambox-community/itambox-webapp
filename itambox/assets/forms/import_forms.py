@@ -344,13 +344,16 @@ def _resolve_natural_key_reference(model, value, *, field):
         matches = list(model.objects.filter(**{lookup: value})[:2])
         if len(matches) > 1:
             raise ValidationError(
-                _('%(field)s: "%(value)s" matches more than one %(model)s.')
+                _('%(field)s: "%(value)s" matches more than one %(model)s. Enter a unique Slug or Name.')
                 % {"field": field, "value": value, "model": model._meta.verbose_name}
             )
         if matches:
             return matches[0].pk
     raise ValidationError(
-        _('%(field)s: unknown %(model)s "%(value)s".')
+        _(
+            '%(field)s: no matching %(model)s was found for "%(value)s". '
+            "Check the Slug or Name, or create the missing parent before importing."
+        )
         % {"field": field, "value": value, "model": model._meta.verbose_name}
     )
 
@@ -402,7 +405,12 @@ class _ReferenceDataBulkImportForm(BulkImportForm):
         meta = self.model._meta
         permission = f"{meta.app_label}.change_{meta.model_name}"
         if self.actor is None or not self.actor.has_perm(permission, instance):
-            raise RowSkipped(_("You do not have permission to update existing objects."))
+            raise RowSkipped(
+                _(
+                    "This row will be skipped because you do not have permission to update the "
+                    "existing record. Ask an administrator for update permission."
+                )
+            )
 
 
 class _ParentedReferenceDataBulkImportForm(_ReferenceDataBulkImportForm):
@@ -413,7 +421,8 @@ class _ParentedReferenceDataBulkImportForm(_ReferenceDataBulkImportForm):
         parent = str(row.get("parent") or "").strip()
         mapped = super().map_row({key: value for key, value in row.items() if key != "parent"})
         if parent:
-            mapped["parent_id"] = _resolve_natural_key_reference(self.parent_model, parent, field="parent")
+            field_label = str(self.model._meta.get_field("parent").verbose_name)
+            mapped["parent_id"] = _resolve_natural_key_reference(self.parent_model, parent, field=field_label)
         return mapped
 
 
@@ -471,7 +480,12 @@ class ContactBulkImportForm(_ReferenceDataBulkImportForm):
 
     def map_row(self, row):
         if any(str(column).casefold() == "role" for column in row):
-            raise ValidationError(_("role assignments are not importable."))
+            raise ValidationError(
+                _(
+                    'Contact roles cannot be imported in this file. Remove the "role" column '
+                    "and assign roles after importing contacts."
+                )
+            )
         return super().map_row(row)
 
     def _find_existing(self, mapped):
@@ -485,7 +499,12 @@ class ContactBulkImportForm(_ReferenceDataBulkImportForm):
             lookup[attname] = mapped[attname]
         matches = list(Contact.objects.filter(tenant_id=tenant.pk, **lookup)[:2])
         if len(matches) > 1:
-            raise ValidationError(_("More than one existing object matches the update key."))
+            raise ValidationError(
+                _(
+                    "More than one contact with this name exists in the active tenant. "
+                    "Rename the duplicates before importing."
+                )
+            )
         return matches[0] if matches else None
 
     def _create_instance(self, mapped_data):

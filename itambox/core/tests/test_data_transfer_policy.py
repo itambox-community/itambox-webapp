@@ -322,12 +322,20 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                 self.assertEqual(created_value, initial[fields.index(updated_field)])
                 self.assertEqual(Job.objects.latest("created").result["imported"], 1)
 
-                preview, response = self._import(adder, app_label, model_name, initial_csv)
+                preview, response = self._import(
+                    adder,
+                    app_label,
+                    model_name,
+                    initial_csv,
+                    headers={"accept-language": "de"},
+                )
                 self.assertEqual(preview.status_code, 200)
                 self.assertTrue(
                     any(
-                        "row 2:" in note.lower()
-                        and "you do not have permission to update existing objects" in note.lower()
+                        "zeile 2:" in note.lower()
+                        and "diese zeile wird übersprungen" in note.lower()
+                        and "berechtigung zum aktualisieren" in note.lower()
+                        and "administrator" in note.lower()
                         for note in preview.context["preview_notes"]
                     )
                 )
@@ -353,7 +361,13 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                 created.refresh_from_db()
                 self.assertEqual(getattr(created, updated_field), changed[fields.index(updated_field)])
 
-                preview, response = self._import(editor, app_label, model_name, changed_csv)
+                preview, response = self._import(
+                    editor,
+                    app_label,
+                    model_name,
+                    changed_csv,
+                    headers={"accept-language": "de"},
+                )
                 self.assertEqual(preview.status_code, 200)
                 if response is None:
                     raise AssertionError("A valid unchanged re-import must allow confirmation.")
@@ -364,7 +378,15 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                     {"imported": 0, "failed": 0, "total": 1, "skipped": 1},
                     unchanged_job.logs,
                 )
-                self.assertTrue(any("unchanged" in note.lower() for note in preview.context["preview_notes"]))
+                self.assertTrue(
+                    any(
+                        "zeile 2:" in note.lower()
+                        and "datensatz existiert bereits" in note.lower()
+                        and "unverändert" in note.lower()
+                        and "übersprungen" in note.lower()
+                        for note in preview.context["preview_notes"]
+                    )
+                )
                 created.refresh_from_db()
                 self.assertEqual(getattr(created, updated_field), changed[fields.index(updated_field)])
 
@@ -430,6 +452,36 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         self.assertEqual(global_contact.description, "global copy")
         self.assertEqual(foreign_contact.description, "foreign copy")
 
+    def test_asset_role_boolean_help_is_localized(self):
+        user = self._member("reference-asset-role-help", {"assets.add_assetrole"})
+        self.client_login_to_tenant(user, self.tenant)
+        url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "assetrole"})
+        response = self.client.get(url, headers={"accept-language": "de"})
+
+        self.assertEqual(response.status_code, 200)
+        boolean_info = next(field for field in response.context["fields"] if field["name"] == "allows_components")
+        self.assertIn("Geben Sie „true“ oder „false“ an.", boolean_info["description"])
+        self.assertNotIn("Specify true or false", boolean_info["description"])
+
+    def test_contact_duplicate_name_error_is_tenant_specific_and_actionable(self):
+        Contact._base_manager.create(name="Duplicate contact", tenant=self.tenant)
+        Contact._base_manager.create(name="Duplicate contact", tenant=self.tenant)
+        user = self._member("tenant-contact-duplicate-importer", {"organization.add_contact"})
+        preview, response = self._import(
+            user,
+            "organization",
+            "contact",
+            "name,description\nDuplicate contact,new description\n",
+            headers={"accept-language": "de"},
+        )
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertIsNone(response)
+        messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
+        self.assertIn("Zeile 2", messages)
+        self.assertIn("Im aktiven Mandanten sind mehrere Kontakte mit diesem Namen vorhanden.", messages)
+        self.assertIn("Benennen Sie die doppelten Kontakte vor dem Import um.", messages)
+
     def test_contact_role_column_is_rejected_per_row_in_preview(self):
         user = self._member("contact-role-importer", {"organization.add_contact"})
         url = reverse("generic_import", kwargs={"app_label": "organization", "model_name": "contact"})
@@ -446,12 +498,15 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                 "delimiter": ",",
                 "_preview": "1",
             },
+            headers={"accept-language": "de"},
         )
 
         self.assertEqual(response.status_code, 200)
         messages = " ".join(str(message) for message in response.context["form"].errors["__all__"])
-        self.assertIn("Row 2", messages)
-        self.assertIn("role assignments are not importable", messages)
+        self.assertIn("Zeile 2", messages)
+        self.assertIn("Kontaktrollen können nicht mit dieser Datei importiert werden", messages)
+        self.assertIn("Spalte „role“", messages)
+        self.assertIn("nach dem Kontaktimport zu", messages)
         self.assertEqual(Contact._base_manager.count(), before_contacts)
         self.assertEqual(ContactAssignment._base_manager.count(), before_assignments)
 
@@ -483,8 +538,11 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                 messages = " ".join(str(message) for message in response.context["form"].errors["__all__"])
                 self.assertIn("Zeile 2", messages)
                 self.assertNotIn("Row 2", messages)
-                self.assertIn("parent", messages)
+                self.assertIn("Übergeordnet", messages)
+                self.assertNotIn("parent", messages.lower())
                 self.assertIn(row.split(",", 1)[1], messages)
+                self.assertIn("Prüfen Sie den Slug oder Namen", messages)
+                self.assertIn("legen Sie den fehlenden Eintrag vor dem Import an", messages)
                 self.assertFalse(model.objects.filter(name=row.split(",", 1)[0]).exists())
                 self.assertFalse(model.objects.filter(name=row.split(",", 1)[1]).exists())
 
@@ -522,9 +580,11 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
         self.assertIn("Zeile 2", messages)
         self.assertNotIn("Row 2", messages)
-        self.assertIn("parent", messages)
+        self.assertIn("Übergeordnet", messages)
+        self.assertNotIn("parent", messages.lower())
         self.assertIn("north", messages)
         self.assertIn("mehrere Einträge des Typs Standortgruppe stimmen überein", messages)
+        self.assertIn("eindeutigen Slug oder Namen", messages)
         self.assertFalse(SiteGroup.objects.filter(name="Child Site Group").exists())
 
     def test_reference_help_describes_the_natural_key_parent_contract(self):
@@ -532,11 +592,11 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         self.client_login_to_tenant(user, self.tenant)
         url = reverse("generic_import", kwargs={"app_label": "organization", "model_name": "region"})
 
-        response = self.client.get(url)
+        response = self.client.get(url, headers={"accept-language": "de"})
 
         self.assertEqual(response.status_code, 200)
         parent_info = next(field for field in response.context["fields"] if field["name"] == "parent")
-        self.assertIn("Slug or Name", parent_info["description"])
+        self.assertIn("Geben Sie den Slug oder den Namen des übergeordneten Eintrags an.", parent_info["description"])
         self.assertNotIn("ID", parent_info["description"])
 
     def test_site_import_remains_closed_in_this_slice(self):

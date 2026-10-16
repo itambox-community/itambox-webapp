@@ -32,9 +32,8 @@ logger = logging.getLogger(__name__)
 
 def _relation_description(form_cls, name, related_model):
     if name in getattr(form_cls, "natural_key_only_fields", ()):
-        description = _("Relation to {model_name} (resolves by Slug or Name).")
-    else:
-        description = _("Relation to {model_name} (resolves by ID, Slug or Name).")
+        return _("Enter the parent record's Slug or Name.")
+    description = _("Relation to {model_name} (resolves by ID, Slug or Name).")
     return description.format(model_name=str(related_model._meta.verbose_name))
 
 
@@ -228,7 +227,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
         if isinstance(field, models.DateField):
             description = f"{description} Format: YYYY-MM-DD"
         elif isinstance(field, models.BooleanField):
-            description = f"{description} Specify true or false"
+            description = _("{description}. Enter true or false.").format(description=description.rstrip(" .!?"))
         if name in field_descriptions:
             description = str(field_descriptions[name])
         return accessor, description, choices
