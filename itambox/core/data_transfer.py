@@ -84,7 +84,7 @@ DECLARATIONS = {
     "assets.asset": _allow(SCOPE_MANAGER, import_=True),
     "assets.assetassignment": _allow(SCOPE_MANAGER),
     "assets.assetdisposal": _allow(SCOPE_MANAGER),
-    "assets.assetmaintenance": _allow(SCOPE_MANAGER),
+    "assets.assetmaintenance": _allow(SCOPE_MANAGER, import_=True),
     "assets.assetrequest": _allow(SCOPE_MANAGER),
     "assets.assetreservation": _allow(SCOPE_MANAGER),
     "assets.assetrole": _allow(SCOPE_GLOBAL),

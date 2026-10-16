@@ -57,6 +57,14 @@ SECURITY_SENSITIVE = (
 
 
 class DataTransferPolicyContractTests(SimpleTestCase):
+    def test_asset_maintenance_is_declared_with_a_curated_importer(self):
+        model = apps.get_model("assets", "AssetMaintenance")
+        form = get_registered_import_form(model)
+
+        self.assertTrue(policy_for(model).import_)
+        self.assertIsNotNone(form)
+        self.assertEqual(form.update_key, ())
+
     def test_every_installed_model_has_an_explicit_declaration(self):
         labels = {model._meta.label_lower for model in apps.get_models()}
         undeclared = sorted(labels - set(DECLARATIONS))

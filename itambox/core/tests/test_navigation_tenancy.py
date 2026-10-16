@@ -177,6 +177,7 @@ class TenantNavigationTests(TestCase):
             ("assets", "asset"),
             ("assets", "assettype"),
             ("assets", "manufacturer"),
+            ("assets", "assetmaintenance"),
             ("inventory", "accessory"),
             ("inventory", "component"),
             ("inventory", "consumable"),

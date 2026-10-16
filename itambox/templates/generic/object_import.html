@@ -292,10 +292,12 @@
                 <span class="badge bg-red-lt me-1">{% translate "Required" %}</span>
                 {% translate "Required fields must be specified for all records." %}
               </p>
-              <p class="small text-muted">
-                <span class="badge bg-blue-lt me-1">{% translate "Accessor" %}</span>
-                {% translate "Related objects (ForeignKeys) can be matched by ID, Slug, or Name (case-insensitive)." %}
-              </p>
+              {% if show_generic_reference_help %}
+                <p class="small text-muted">
+                  <span class="badge bg-blue-lt me-1">{% translate "Accessor" %}</span>
+                  {% translate "Related objects (ForeignKeys) can be matched by ID, Slug, or Name (case-insensitive)." %}
+                </p>
+              {% endif %}
             </div>
           {% endif %}
         {% endif %}
