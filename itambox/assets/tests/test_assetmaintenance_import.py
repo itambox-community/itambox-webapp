@@ -321,7 +321,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         )
 
     def test_authenticated_member_can_preview_and_import_in_concrete_tenant(self):
-        self.tenant_role.permissions = [IMPORT_PERMISSION, "assets.change_assetmaintenance"]
+        self.tenant_role.permissions = [IMPORT_PERMISSION]
         self.tenant_role.save(update_fields=["permissions"])
         self.client_login_to_tenant(self.tenant_user, self.tenant)
         url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "assetmaintenance"})
