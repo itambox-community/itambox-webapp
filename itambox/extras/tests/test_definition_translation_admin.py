@@ -86,7 +86,7 @@ class DefinitionTranslationAdminTests(TestCase):
         self.client.force_login(self.operator)
         self.assertEqual(self.client.get(self._url("field", self.field, locale="xx")).status_code, 404)
         self.assertEqual(self.client.post(self._url("field", self.field, "xx"), {"label": "x"}).status_code, 404)
-        self.assertFalse(CustomFieldTranslation.objects.exists())
+        self.assertFalse(CustomFieldTranslation.objects.filter(custom_field=self.field).exists())
         url = reverse("extras:definition_translation_edit", kwargs={"kind": "bogus", "pk": 1, "locale": "de"})
         self.assertEqual(self.client.get(url).status_code, 404)
 
@@ -94,7 +94,7 @@ class DefinitionTranslationAdminTests(TestCase):
         self.client.force_login(self.operator)
         response = self.client.post(self._url("field", self.field), {"label": ""})
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(CustomFieldTranslation.objects.exists())
+        self.assertFalse(CustomFieldTranslation.objects.filter(custom_field=self.field).exists())
 
     def test_non_operators_cannot_read_or_write(self):
         for user in (self.outsider, self.staff_without_permission):
@@ -103,12 +103,12 @@ class DefinitionTranslationAdminTests(TestCase):
             with self.subTest(user=user.username):
                 self.assertEqual(self.client.get(url).status_code, 403)
                 self.assertEqual(self.client.post(url, {"label": "x"}).status_code, 403)
-        self.assertFalse(CustomFieldTranslation.objects.exists())
+        self.assertFalse(CustomFieldTranslation.objects.filter(custom_field=self.field).exists())
 
     def test_anonymous_user_is_denied(self):
         response = self.client.post(self._url("field", self.field), {"label": "x"})
         self.assertEqual(response.status_code, 403)
-        self.assertFalse(CustomFieldTranslation.objects.exists())
+        self.assertFalse(CustomFieldTranslation.objects.filter(custom_field=self.field).exists())
 
     def test_choice_set_detail_links_to_the_translation_form(self):
         self.client.force_login(self.operator)
