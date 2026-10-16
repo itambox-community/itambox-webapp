@@ -73,8 +73,8 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             )
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["supplier"]),
-                "Der Lieferant wird anhand seines Slugs oder Namens zugeordnet, sofern er für den aktuellen "
-                "Mandanten sichtbar ist; numerische IDs sind nicht zulässig.",
+                "Lieferanten, die für diesen Import verfügbar sind, werden anhand des Slugs oder Namens zugeordnet; "
+                "numerische IDs sind nicht zulässig.",
             )
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["completion_date"]),
@@ -305,6 +305,14 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         self.assertIn("foreign-vendor", foreign_errors)
         self.assertNotIn("Foreign Vendor", foreign_errors)
         self.assertEqual(AssetMaintenance.all_objects.count(), 0)
+        with override("de"):
+            _form, german_errors = self.preview_errors(
+                self.csv("TAG-A,repair,completed,2026-08-01,2026-08-02,foreign-vendor,,,,,")
+            )
+        self.assertIn(
+            "supplier: Für diesen Import ist kein Lieferant mit dem Slug oder Namen 'foreign-vendor' verfügbar.",
+            german_errors,
+        )
 
     def test_authenticated_member_can_preview_and_import_in_concrete_tenant(self):
         self.tenant_role.permissions = [IMPORT_PERMISSION, "assets.change_assetmaintenance"]
@@ -318,7 +326,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             response, "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD."
         )
         self.assertContains(response, "Only completed or cancelled maintenance records can be imported.")
-        self.assertContains(response, "Supplier matches by slug or name among suppliers visible to the current tenant")
+        self.assertContains(response, "Supplier matches by slug or name among suppliers available for this import")
         self.assertContains(response, '<samp class="text-secondary">completed</samp>', html=True)
         self.assertContains(response, '<samp class="text-secondary">cancelled</samp>', html=True)
         self.assertNotContains(response, '<samp class="text-secondary">scheduled</samp>', html=True)

@@ -521,7 +521,7 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
         ),
         "status": _lazy("Only completed or cancelled maintenance records can be imported."),
         "supplier": _lazy(
-            "Supplier matches by slug or name among suppliers visible to the current tenant; numeric IDs are not accepted."
+            "Supplier matches by slug or name among suppliers available for this import; numeric IDs are not accepted."
         ),
     }
     field_choices = {
@@ -696,7 +696,7 @@ def _resolve_maintenance_supplier(value):
         if matches:
             return matches[0]
     raise ValidationError(
-        _("supplier: no supplier matching '%(value)s' by slug or name is visible to this tenant.") % {"value": value}
+        _("supplier: no supplier matching '%(value)s' by slug or name is available for this import.") % {"value": value}
     )
 
 
