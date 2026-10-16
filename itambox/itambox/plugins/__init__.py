@@ -45,7 +45,7 @@ class PluginConfig(AppConfig):
             return
 
         def ready(self):
-            # inline import: cycle: assembly imports modules of this package, which defines PluginConfig
+            # inline import: app-registry: assembly loads plugin modules that need the populated app registry
             from itambox.plugins.assembly import assemble_after_last_plugin, compose_plugin
 
             try:
