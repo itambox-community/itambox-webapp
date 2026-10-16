@@ -2332,13 +2332,13 @@ msgstr ""
 #, python-format
 msgid "%(field)s: \"%(value)s\" matches more than one %(model)s. Enter a unique Slug or Name."
 msgstr ""
-"%(field)s: Der Wert \"%(value)s\" ist nicht eindeutig; mehrere Einträge des Typs "
-"%(model)s stimmen überein. Geben Sie einen eindeutigen Slug oder Namen ein."
+"%(field)s: Zu „%(value)s“ wurden mehrere Einträge des Typs %(model)s gefunden. "
+"Geben Sie einen eindeutigen Slug oder Namen ein."
 
 #, python-format
 msgid "%(field)s: no matching %(model)s was found for \"%(value)s\". Check the Slug or Name, or create the missing parent before importing."
 msgstr ""
-"%(field)s: Für den Wert \"%(value)s\" wurde keine passende %(model)s gefunden. "
+"%(field)s: Für „%(value)s“ wurde keine passende %(model)s gefunden. "
 "Prüfen Sie den Slug oder Namen oder legen Sie den fehlenden Eintrag vor dem Import an."
 
 msgid "Contact roles cannot be imported in this file. Remove the \"role\" column and assign roles after importing contacts."

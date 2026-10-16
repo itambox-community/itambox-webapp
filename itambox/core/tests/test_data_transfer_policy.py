@@ -583,7 +583,7 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         self.assertIn("Übergeordnet", messages)
         self.assertNotIn("parent", messages.lower())
         self.assertIn("north", messages)
-        self.assertIn("mehrere Einträge des Typs Standortgruppe stimmen überein", messages)
+        self.assertIn("Zu „north“ wurden mehrere Einträge des Typs Standortgruppe gefunden.", messages)
         self.assertIn("eindeutigen Slug oder Namen", messages)
         self.assertFalse(SiteGroup.objects.filter(name="Child Site Group").exists())
 
