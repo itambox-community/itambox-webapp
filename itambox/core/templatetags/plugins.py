@@ -46,7 +46,7 @@ def plugin_template_content(context, model, position, object=None):
                 method = getattr(instance, position)
                 content = method()
                 rendered_contents.append(str(content))
-        except Exception:
+        except Exception:  # broad except: render-degrade: one failing plugin panel must not fail the page
             # Full detail goes to the server log only; the page never carries
             # exception text, class paths or tracebacks.
             logger.exception(

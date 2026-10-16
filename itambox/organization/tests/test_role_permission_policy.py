@@ -84,11 +84,7 @@ def _independent_live_permissions(role_name):
         "Manager": ("view", "add", "change"),
         "Member": ("view", "add", "change"),
     }[role_name]
-    candidates = {
-        f"{app}.{action}_{model}"
-        for _key, app, model in EXPECTED_TARGETS
-        for action in actions
-    }
+    candidates = {f"{app}.{action}_{model}" for _key, app, model in EXPECTED_TARGETS for action in actions}
     candidates.update(DASHBOARD_PERMISSIONS)
     live = set(Permission.objects.values_list("content_type__app_label", "codename"))
     live = {f"{app}.{codename}" for app, codename in live}
@@ -152,11 +148,7 @@ def test_new_policy_has_exact_absent_branch_counts_and_dashboard_set():
     }
     for role_name, expected_count in (("Admin", 231), ("Manager", 174), ("Member", 174)):
         actual = set(permissions_for_sso_role(role_name))
-        crud = {
-            f"{app}.{action}_{model}"
-            for _key, app, model in EXPECTED_TARGETS
-            for action in action_map[role_name]
-        }
+        crud = {f"{app}.{action}_{model}" for _key, app, model in EXPECTED_TARGETS for action in action_map[role_name]}
         assert len(actual) == expected_count
         assert actual.difference(crud) == set(DASHBOARD_SSO_PERMISSIONS)
     assert set(permissions_for_sso_role("Manager")) == set(permissions_for_sso_role("Member"))

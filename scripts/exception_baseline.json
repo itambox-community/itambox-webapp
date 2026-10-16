@@ -220,14 +220,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/templatetags/plugins.py",
-      "scope": "FunctionDef:plugin_template_content",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "9013e452da07c877cb5332cd03904b1acfa9b15b668737b2d166ea9c8e71dc02",
-      "count": 1
-    },
-    {
       "path": "itambox/core/templatetags/utility_tags.py",
       "scope": "FunctionDef:pretty_json",
       "handler_type": "Exception",
