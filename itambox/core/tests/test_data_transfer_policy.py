@@ -1,8 +1,12 @@
 """Contract: every installed model carries an explicit import and export declaration."""
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import translation
@@ -171,6 +175,49 @@ class DataTransferPolicyContractTests(SimpleTestCase):
                     self.assertFalse(field.primary_key, "an update key must be a natural key, never the pk")
                     columns = list(form.required_fields) + list(form.optional_fields)
                 self.assertIn(name, columns, "an update key must be an importable column")
+
+
+class SiteBulkImportFormInternalBranchTests(SimpleTestCase):
+    def setUp(self):
+        form_class = get_registered_import_form(Site)
+        if form_class is None:
+            raise AssertionError("Site must have a curated importer.")
+        self.form = form_class()
+
+    def test_validate_row_requires_an_active_tenant(self):
+        with patch("assets.forms.import_forms.get_current_tenant", return_value=None):
+            with self.assertRaisesMessage(ValidationError, "Select an active tenant before importing sites."):
+                self.form._validate_row({}, row_number=2)
+
+    def test_find_existing_requires_an_active_tenant(self):
+        with (
+            patch("assets.forms.import_forms.get_current_tenant", return_value=None),
+            patch.object(Site.objects, "filter") as site_filter,
+        ):
+            with self.assertRaisesMessage(ValidationError, "Select an active tenant before importing sites."):
+                self.form._find_existing({"name": "Example"})
+        site_filter.assert_not_called()
+
+    def test_find_existing_returns_none_when_the_update_key_is_missing(self):
+        tenant = SimpleNamespace(pk=17)
+        with (
+            patch("assets.forms.import_forms.get_current_tenant", return_value=tenant),
+            patch.object(Site.objects, "filter") as site_filter,
+        ):
+            self.assertIsNone(self.form._find_existing({}))
+        site_filter.assert_not_called()
+
+    def test_find_existing_rejects_multiple_update_key_matches(self):
+        tenant = SimpleNamespace(pk=17)
+        queryset = MagicMock()
+        queryset.__getitem__.return_value = [object(), object()]
+        with (
+            patch("assets.forms.import_forms.get_current_tenant", return_value=tenant),
+            patch.object(Site.objects, "filter", return_value=queryset) as site_filter,
+        ):
+            with self.assertRaisesMessage(ValidationError, "More than one existing object matches the update key."):
+                self.form._find_existing({"name": "Duplicate"})
+        site_filter.assert_called_once_with(tenant_id=tenant.pk, name="Duplicate")
 
 
 class ExportContractTests(SimpleTestCase):
