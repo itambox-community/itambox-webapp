@@ -202,7 +202,10 @@ class GermanDetailRenderingTests(_VocabularyWorld, TestCase):
         self.client.force_login(self.admin)
 
     def _get(self, url, language):
-        response = self.client.get(url, HTTP_ACCEPT_LANGUAGE=language)
+        # LocaleMiddleware leaves the negotiated language active on the thread;
+        # the override restores it so later tests on the same worker stay in English.
+        with translation.override(language):
+            response = self.client.get(url, HTTP_ACCEPT_LANGUAGE=language)
         self.assertEqual(response.status_code, 200)
         return response.content.decode()
 
