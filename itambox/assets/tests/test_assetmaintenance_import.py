@@ -111,7 +111,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         archive_asset(self.asset)
         _form, errors = self.preview_errors(self.csv("TAG-A,repair,completed,2026-01-01,2026-01-02,,,,,,"))
         self.assertIn(
-            "asset_tag: Im aktuellen Mandanten wurde kein nicht archiviertes Asset mit der Inventarnummer 'TAG-A' gefunden.",
+            "Row 2: asset_tag: no non-archived asset with tag 'TAG-A' exists in this tenant.",
             errors,
         )
 
