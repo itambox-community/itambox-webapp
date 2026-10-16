@@ -326,7 +326,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             response, "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD."
         )
         self.assertContains(response, "Only completed or cancelled maintenance records can be imported.")
-        self.assertContains(response, "Enter a supplier's slug or name from those available for this import")
+        self.assertContains(response, "Enter a supplier's slug or name from those available for this import", html=True)
         self.assertContains(response, '<samp class="text-secondary">completed</samp>', html=True)
         self.assertContains(response, '<samp class="text-secondary">cancelled</samp>', html=True)
         self.assertNotContains(response, '<samp class="text-secondary">scheduled</samp>', html=True)
