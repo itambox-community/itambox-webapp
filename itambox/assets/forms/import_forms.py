@@ -516,6 +516,7 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
     optional_fields = ["completion_date", "supplier", "performed_by", "cost", "currency", "description", "notes"]
     field_descriptions = {
         "asset_tag": _lazy("Exact asset tag of a non-archived asset in the current tenant."),
+        "start_date": _lazy("Date format: YYYY-MM-DD."),
         "completion_date": _lazy(
             "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD."
         ),
@@ -524,6 +525,7 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
             "Enter a supplier's slug or name from those available for this import; numeric IDs are not accepted."
         ),
     }
+    field_accessors = {"supplier": "slug / name"}
     field_choices = {
         "status": [
             (MaintenanceStatusChoices.COMPLETED.value, MaintenanceStatusChoices.COMPLETED.label),

@@ -162,6 +162,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
 
         form_cls = self.get_form_class()
         field_descriptions = getattr(form_cls, "field_descriptions", {}) or {}
+        field_accessors = getattr(form_cls, "field_accessors", {}) or {}
         field_choices = getattr(form_cls, "field_choices", {}) or {}
         required = set(getattr(form_cls, "required_fields", []) or [])
         field_names = list(getattr(form_cls, "required_fields", []) or []) + list(
@@ -186,6 +187,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
                 continue
 
             accessor, description, choices = self._get_field_details(field, name, field_descriptions, field_choices)
+            accessor = field_accessors.get(name, accessor)
 
             fields_info.append(
                 {

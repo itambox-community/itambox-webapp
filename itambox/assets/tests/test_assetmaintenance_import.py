@@ -72,6 +72,10 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
                 "Exakte Inventarnummer eines nicht archivierten Assets im aktuellen Mandanten.",
             )
             self.assertEqual(
+                str(AssetMaintenanceBulkImportForm.field_descriptions["start_date"]),
+                "Datumsformat: JJJJ-MM-TT.",
+            )
+            self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["supplier"]),
                 "Geben Sie den Slug oder Namen eines für diesen Import verfügbaren Lieferanten ein; "
                 "numerische IDs sind nicht zulässig.",
@@ -98,6 +102,8 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD.",
             fields["completion_date"]["description"],
         )
+        self.assertEqual(fields["start_date"]["description"], "Date format: YYYY-MM-DD.")
+        self.assertEqual(fields["supplier"]["accessor"], "slug / name")
 
     def test_asset_reference_error_names_the_tag_and_uses_the_german_catalog(self):
         with override("de"):
@@ -327,6 +333,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         )
         self.assertContains(response, "Only completed or cancelled maintenance records can be imported.")
         self.assertContains(response, "slug or name from those available for this import")
+        self.assertContains(response, "slug / name")
         self.assertContains(response, '<samp class="text-secondary">completed</samp>', html=True)
         self.assertContains(response, '<samp class="text-secondary">cancelled</samp>', html=True)
         self.assertNotContains(response, '<samp class="text-secondary">scheduled</samp>', html=True)
