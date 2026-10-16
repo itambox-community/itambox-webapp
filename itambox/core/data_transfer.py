@@ -170,7 +170,7 @@ DECLARATIONS = {
     "inventory.consumable": _allow(SCOPE_MANAGER, import_=True),
     "inventory.consumableassignment": _allow(SCOPE_MANAGER),
     "inventory.consumablestock": _allow(SCOPE_MANAGER),
-    "inventory.kit": _allow(SCOPE_MANAGER),
+    "inventory.kit": _allow(SCOPE_MANAGER, import_=True),
     "inventory.kititem": _allow(SCOPE_MANAGER),
     # licenses
     "licenses.license": _allow(SCOPE_MANAGER, import_=True),

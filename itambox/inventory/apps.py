@@ -8,6 +8,10 @@ class InventoryConfig(AppConfig):
     def ready(self):
         import inventory.search  # noqa: F401  # registers search providers
 
+        # isort: split
+        # inline import: app-registry: curated import forms load only after the app registry is ready.
+        import inventory.forms.import_forms  # noqa: F401  # registers the kit importer
+
         # inline import: app-registry: register handlers only after inventory models are loaded.
         from core.purge_handlers import register_purge_handler
         from inventory.services import ASSIGNMENT_MODELS, purge_inventory_assignment

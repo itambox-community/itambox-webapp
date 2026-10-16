@@ -27,6 +27,7 @@ from .consumable_forms import (
     ConsumableStockForm,
     ConsumableStockModalForm,
 )
+from .import_forms import KitBulkImportForm
 from .kit_forms import (
     KitCheckoutForm,
     KitFilterForm,
@@ -58,6 +59,7 @@ __all__ = [
     "ConsumableStockFilterForm",
     "ConsumableStockForm",
     "ConsumableStockModalForm",
+    "KitBulkImportForm",
     "KitCheckoutForm",
     "KitFilterForm",
     "KitForm",
