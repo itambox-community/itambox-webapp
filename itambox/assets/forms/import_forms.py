@@ -516,7 +516,9 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
     optional_fields = ["completion_date", "supplier", "performed_by", "cost", "currency", "description", "notes"]
     field_descriptions = {
         "asset_tag": _lazy("Exact asset tag of a non-archived asset in the current tenant."),
-        "completion_date": _lazy("Optional for cancelled maintenance; required when status is completed."),
+        "completion_date": _lazy(
+            "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD."
+        ),
         "status": _lazy("Only completed or cancelled maintenance records can be imported."),
         "supplier": _lazy(
             "Supplier matches by slug or name among suppliers visible to the current tenant; numeric IDs are not accepted."
@@ -549,7 +551,9 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
                 else:
                     self._batch_keys.add(key)
             except ValidationError as exc:
-                errors.extend(f"Row {number}: {message}" for message in exc.messages)
+                errors.extend(
+                    _("Row %(row)s: %(message)s") % {"row": number, "message": message} for message in exc.messages
+                )
         self.row_notes = notes
         if errors:
             raise ValidationError(errors)
@@ -656,7 +660,9 @@ def _resolve_warranty_asset(tag):
     queryset = Asset.objects.for_scope(Scope.current())
     asset = queryset.filter(asset_tag=tag, tenant=tenant).first() if tenant is not None else None
     if asset is None:
-        raise ValidationError(_("asset_tag: no asset with tag '%(tag)s' exists in this tenant.") % {"tag": tag})
+        raise ValidationError(
+            _("asset_tag: no non-archived asset with tag '%(tag)s' exists in this tenant.") % {"tag": tag}
+        )
     return asset
 
 

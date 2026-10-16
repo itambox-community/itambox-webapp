@@ -69,7 +69,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         with override("de"):
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["asset_tag"]),
-                "Exakter Asset-Tag eines nicht archivierten Assets im aktuellen Mandanten.",
+                "Exakte Inventarnummer eines nicht archivierten Assets im aktuellen Mandanten.",
             )
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["supplier"]),
@@ -78,7 +78,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             )
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["completion_date"]),
-                "Bei abgebrochenen Wartungen optional; bei abgeschlossenen Wartungen erforderlich.",
+                "Bei abgebrochenen Wartungen optional; bei abgeschlossenen Wartungen erforderlich. Datumsformat: JJJJ-MM-TT.",
             )
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["status"]),
@@ -95,14 +95,30 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             "Only completed or cancelled maintenance records can be imported.", fields["status"]["description"]
         )
         self.assertIn(
-            "Optional for cancelled maintenance; required when status is completed.",
+            "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD.",
             fields["completion_date"]["description"],
         )
 
     def test_asset_reference_error_names_the_tag_and_uses_the_german_catalog(self):
         with override("de"):
             _form, errors = self.preview_errors(self.csv("TAG-F,repair,completed,2026-01-01,2026-01-02,,,,,,"))
-        self.assertIn("asset_tag: Im Mandanten existiert kein Asset mit Tag 'TAG-F'.", errors)
+        self.assertIn(
+            "asset_tag: Im aktuellen Mandanten wurde kein nicht archiviertes Asset mit der Inventarnummer 'TAG-F' gefunden.",
+            errors,
+        )
+
+    def test_archived_asset_reference_error_explains_why_it_is_ineligible(self):
+        archive_asset(self.asset)
+        _form, errors = self.preview_errors(self.csv("TAG-A,repair,completed,2026-01-01,2026-01-02,,,,,,"))
+        self.assertIn(
+            "asset_tag: Im aktuellen Mandanten wurde kein nicht archiviertes Asset mit der Inventarnummer 'TAG-A' gefunden.",
+            errors,
+        )
+
+    def test_german_preview_errors_translate_row_prefix_and_date_order(self):
+        with override("de"):
+            _form, errors = self.preview_errors(self.csv("TAG-A,repair,completed,2026-02-01,2026-01-31,,,,,,"))
+        self.assertIn("Zeile 2: completion_date darf nicht vor start_date liegen.", errors)
 
     def test_completed_and_cancelled_history_import_without_links_and_remains_archivable(self):
         _form, result = self.run_import(
@@ -298,7 +314,9 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Exact asset tag of a non-archived asset in the current tenant.")
-        self.assertContains(response, "Optional for cancelled maintenance; required when status is completed.")
+        self.assertContains(
+            response, "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD."
+        )
         self.assertContains(response, "Only completed or cancelled maintenance records can be imported.")
         self.assertContains(response, "Supplier matches by slug or name among suppliers visible to the current tenant")
         self.assertContains(response, '<samp class="text-secondary">completed</samp>', html=True)

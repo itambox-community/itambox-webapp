@@ -15437,11 +15437,14 @@ msgstr "Eine Spalte 'tenant' ist nicht erlaubt: Zeilen werden immer im aktiven M
 msgid "Row %(row)s: record already exists; skipped."
 msgstr "Zeile %(row)s: Datensatz existiert bereits; übersprungen."
 
+msgid "Row %(row)s: %(message)s"
+msgstr "Zeile %(row)s: %(message)s"
+
 msgid "asset_tag is required."
 msgstr "asset_tag ist erforderlich."
 
-msgid "asset_tag: no asset with tag '%(tag)s' exists in this tenant."
-msgstr "asset_tag: Im Mandanten existiert kein Asset mit Tag '%(tag)s'."
+msgid "asset_tag: no non-archived asset with tag '%(tag)s' exists in this tenant."
+msgstr "asset_tag: Im aktuellen Mandanten wurde kein nicht archiviertes Asset mit der Inventarnummer '%(tag)s' gefunden."
 
 msgid "end_date must be on or after start_date."
 msgstr "end_date muss gleich oder nach start_date liegen."
@@ -15457,7 +15460,7 @@ msgstr "warranty_type: Gültige Auswahl treffen."
 
 #: assets/forms/import_forms.py
 msgid "Exact asset tag of a non-archived asset in the current tenant."
-msgstr "Exakter Asset-Tag eines nicht archivierten Assets im aktuellen Mandanten."
+msgstr "Exakte Inventarnummer eines nicht archivierten Assets im aktuellen Mandanten."
 
 #: assets/forms/import_forms.py
 msgid "Supplier matches by slug or name among suppliers visible to the current tenant; numeric IDs are not accepted."
@@ -15465,11 +15468,11 @@ msgstr "Der Lieferant wird anhand seines Slugs oder Namens zugeordnet, sofern er
 
 #: assets/forms/import_forms.py
 msgid "completion_date must be on or after start_date."
-msgstr "completion_date muss am oder nach start_date liegen."
+msgstr "completion_date darf nicht vor start_date liegen."
 
 #: assets/forms/import_forms.py
-msgid "Optional for cancelled maintenance; required when status is completed."
-msgstr "Bei abgebrochenen Wartungen optional; bei abgeschlossenen Wartungen erforderlich."
+msgid "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD."
+msgstr "Bei abgebrochenen Wartungen optional; bei abgeschlossenen Wartungen erforderlich. Datumsformat: JJJJ-MM-TT."
 
 #: assets/forms/import_forms.py
 msgid "completion_date: completed maintenance requires a completion date."
@@ -15493,4 +15496,4 @@ msgstr "status: Nur abgeschlossene oder abgebrochene Wartungen können importier
 
 #: assets/forms/import_forms.py
 msgid "supplier: '%(value)s' matches more than one supplier."
-msgstr "supplier: '%(value)s' passt zu mehreren Lieferanten."
+msgstr "supplier: '%(value)s' entspricht mehreren Lieferanten."
