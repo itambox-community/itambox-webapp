@@ -12,7 +12,7 @@ import yaml
 from django import forms
 from django.conf import settings
 from django.core.exceptions import NON_FIELD_ERRORS, FieldDoesNotExist, ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 
 from core.context import get_current_request_id, get_current_tenant, get_current_user
@@ -547,3 +547,162 @@ class BulkImportForm(forms.Form):
         if tenant is not None and tenant_field is not None:
             mapped_data = {**mapped_data, tenant_field.attname: tenant.pk}
         return self.model(**mapped_data)
+
+
+class _PreviewRollback(Exception):
+    """Raised inside a savepoint so a preview row leaves nothing behind."""
+
+
+class HybridCatalogueImportForm(BulkImportForm):
+    """Base for catalogues that hold shared (tenantless) rows next to tenant-owned rows.
+
+    Rows always land in the active tenant. A shared entry is never created,
+    matched or changed: a key equal to a shared entry fails the row, because the
+    separate global and tenant unique constraints would otherwise let a tenant
+    create a private duplicate of it. References resolve by natural key only
+    (never by numeric id) and are never created implicitly. The preview runs the
+    import itself inside a rolled-back savepoint, so it cannot disagree with it.
+    """
+
+    # lower-case column -> file-level rejection message
+    rejected_columns = {"tenant": "the import always writes into the active tenant; remove the tenant column"}
+    # field name -> callable(queryset) narrowing the reference queryset
+    reference_filters = {}
+
+    @classmethod
+    def can_import(cls, actor):
+        """Creating catalogue rows needs the model's add permission (checked by the view and the worker)."""
+        meta = cls.model._meta
+        return actor is not None and actor.has_perm(f"{meta.app_label}.add_{meta.model_name}")
+
+    def _rejected_column_errors(self):
+        present = {str(key).strip().lower() for row in self._rows_data for key in row}
+        return [message for column, message in self.rejected_columns.items() if column in present]
+
+    def clean(self):
+        cleaned = super().clean()
+        errors = self._rejected_column_errors()
+        if errors:
+            raise ValidationError(errors)
+        failures, notes = self._preview_rows()
+        self.row_notes = notes
+        if failures:
+            raise ValidationError(failures)
+        return cleaned
+
+    def _preview_rows(self):
+        failures, notes = [], []
+        for row_number, row in enumerate(self._rows_data, start=2):
+            try:
+                with transaction.atomic():
+                    self._import_row(row, row_number)
+                    raise _PreviewRollback
+            except _PreviewRollback:
+                continue
+            except RowSkipped as skip:
+                notes.append(f"Row {row_number}: {skip}")
+            except ValidationError as exc:
+                failures.append(f"Row {row_number}: {'; '.join(_row_error_messages(exc))}")
+            except Exception:
+                # broad except: task-isolation: one malformed preview row must not abort the review
+                failures.append(f"Row {row_number}: could not be checked due to an unexpected error.")
+        return failures, notes
+
+    def import_data(self, request=None):
+        errors = self._rejected_column_errors()
+        if errors:
+            return ImportResult(0, errors)
+        return super().import_data(request)
+
+    def _reference_queryset(self, field):
+        queryset = field.related_model.objects
+        if hasattr(queryset, "for_scope"):
+            queryset = queryset.for_scope(Scope.current())
+        narrow = self.reference_filters.get(field.name)
+        return narrow(queryset) if narrow else queryset
+
+    def _resolve_reference(self, field, value):
+        """Slug exact, name exact, slug case-insensitive, name case-insensitive; never a numeric id."""
+        related = field.related_model
+        label = str(related._meta.verbose_name)
+        queryset = self._reference_queryset(field)
+        for suffix in ("", "__iexact"):
+            for lookup in ("slug", "name"):
+                if not _model_has_concrete_field(related, lookup):
+                    continue
+                matches = list(queryset.filter(**{f"{lookup}{suffix}": value})[:2])
+                if len(matches) > 1:
+                    raise ValidationError({field.name: "'" + value + f"' matches more than one {label}."})
+                if matches:
+                    return matches[0].pk
+        raise ValidationError(
+            {field.name: f"unknown {label} '" + value + f"'; a {label} is never created by an import."}
+        )
+
+    @staticmethod
+    def _parse_bool(name, value):
+        lowered = value.lower()
+        if lowered in ("true", "1", "yes", "y", "t"):
+            return True
+        if lowered in ("false", "0", "no", "n", "f"):
+            return False
+        raise ValidationError({name: "enter true or false."})
+
+    def map_row(self, row):
+        mapped = {}
+        for name in self.field_names:
+            if name not in row or row[name] is None:
+                continue
+            value = str(row[name]).strip()
+            if not value:
+                continue
+            try:
+                field = self.model._meta.get_field(name)
+            except FieldDoesNotExist:
+                continue
+            if field.is_relation and field.many_to_one:
+                mapped[field.attname] = self._resolve_reference(field, value)
+            elif isinstance(field, models.BooleanField):
+                mapped[name] = self._parse_bool(name, value)
+            else:
+                mapped[name] = value
+        return mapped
+
+    def _key_lookup(self, mapped):
+        lookup = {}
+        for attname in self._key_attnames():
+            if attname not in mapped:
+                return None
+            lookup[attname] = mapped[attname]
+        return lookup
+
+    def _validate_row(self, mapped_data, row_number):
+        super()._validate_row(mapped_data, row_number)
+        if get_current_tenant() is None:
+            raise ValidationError("an active tenant is required; select a tenant before importing.")
+        lookup = self._key_lookup(mapped_data)
+        if lookup is not None and self.model.objects.filter(tenant__isnull=True, **lookup).exists():
+            name = mapped_data.get("name")
+            raise ValidationError(
+                {
+                    "name": "a shared catalogue entry named '" + str(name) + "' already exists; "
+                    "shared entries are not changed by an import"
+                }
+            )
+
+    def _find_existing(self, mapped):
+        """Only the active tenant's own live rows can match (never shared or granted rows)."""
+        tenant = get_current_tenant()
+        lookup = self._key_lookup(mapped)
+        if tenant is None or lookup is None:
+            return None
+        matches = list(self.model.objects.filter(tenant_id=tenant.pk, **lookup)[:2])
+        if len(matches) > 1:
+            raise ValidationError("More than one existing object matches the update key.")
+        return matches[0] if matches else None
+
+    def _authorize_update(self, instance):
+        meta = self.model._meta
+        actor = self.actor
+        if actor is None or not actor.has_perm(f"{meta.app_label}.change_{meta.model_name}", instance):
+            raise RowSkipped(f"not updated: you do not have permission to change existing {meta.verbose_name}.")

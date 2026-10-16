@@ -164,7 +164,7 @@ DECLARATIONS = {
     "inventory.accessory": _allow(SCOPE_MANAGER, import_=True),
     "inventory.accessoryassignment": _allow(SCOPE_MANAGER),
     "inventory.accessorystock": _allow(SCOPE_MANAGER),
-    "inventory.component": _allow(SCOPE_MANAGER),
+    "inventory.component": _allow(SCOPE_MANAGER, import_=True),
     "inventory.componentallocation": _allow(SCOPE_MANAGER),
     "inventory.componentstock": _allow(SCOPE_MANAGER),
     "inventory.consumable": _allow(SCOPE_MANAGER, import_=True),
@@ -210,7 +210,7 @@ DECLARATIONS = {
     "sessions.session": _deny(R_SYSTEM, "framework or third-party system table"),
     # software
     "software.installedsoftware": _allow(SCOPE_MANAGER),
-    "software.software": _allow(SCOPE_MANAGER),
+    "software.software": _allow(SCOPE_MANAGER, import_=True),
     # subscriptions
     "subscriptions.subscription": _allow(SCOPE_MANAGER, import_=True),
     "subscriptions.subscriptionassignment": _allow(SCOPE_MANAGER),

@@ -178,14 +178,15 @@ class TenantNavigationTests(TestCase):
             ("assets", "assettype"),
             ("assets", "manufacturer"),
             ("inventory", "accessory"),
+            ("inventory", "component"),
             ("inventory", "consumable"),
             ("licenses", "license"),
             ("organization", "assetholder"),
             ("organization", "location"),
+            ("software", "software"),
             ("subscriptions", "subscription"),
         )
         non_importable_models = (
-            ("inventory", "component"),
             ("procurement", "purchaseorder"),
             ("assets", "assetrequest"),
             ("compliance", "auditsession"),

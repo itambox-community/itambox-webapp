@@ -7,3 +7,6 @@ class SoftwareConfig(AppConfig):
 
     def ready(self):
         import software.search  # noqa
+
+        # inline import: app-registry: curated import forms load only after the app registry is ready.
+        import software.import_forms  # noqa: F401
