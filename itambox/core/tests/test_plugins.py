@@ -551,8 +551,7 @@ class TemplateTagTestCase(TestCase):
         context = {"request": None}
         with self.assertLogs("core.templatetags.plugins", level="ERROR") as logs:
             rendered = plugin_template_content(context, "assets.asset", "left_panel", None)
-        self.assertIn("Simulated template error", "
-".join(logs.output))
+        self.assertIn("Simulated template error", "\n".join(logs.output))
 
         self.assertIn("<div>Good Injection</div>", rendered)
         self.assertNotIn("Simulated template error", rendered)
