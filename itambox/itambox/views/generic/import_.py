@@ -162,6 +162,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
 
         form_cls = self.get_form_class()
         field_descriptions = getattr(form_cls, "field_descriptions", {}) or {}
+        field_choices = getattr(form_cls, "field_choices", {}) or {}
         required = set(getattr(form_cls, "required_fields", []) or [])
         field_names = list(getattr(form_cls, "required_fields", []) or []) + list(
             getattr(form_cls, "optional_fields", []) or []
@@ -184,7 +185,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
                 )
                 continue
 
-            accessor, description, choices = self._get_field_details(field, name, field_descriptions)
+            accessor, description, choices = self._get_field_details(field, name, field_descriptions, field_choices)
 
             fields_info.append(
                 {
@@ -198,7 +199,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
         return fields_info
 
     @staticmethod
-    def _get_field_details(field, name, field_descriptions):
+    def _get_field_details(field, name, field_descriptions, field_choices=None):
         description = field.help_text or field.verbose_name or ""
         description = str(description) if description else ""
         accessor = ""
@@ -209,7 +210,10 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
             description = _("Relation to {model_name} (resolves by ID, Slug or Name).").format(
                 model_name=str(related_model._meta.verbose_name)
             )
-        if field.choices:
+        field_choices = field_choices or {}
+        if name in field_choices:
+            choices = field_choices[name]
+        elif field.choices:
             choices = [(val, label) for val, label in field.choices]
         if isinstance(field, models.DateField):
             description = f"{description} Format: YYYY-MM-DD"

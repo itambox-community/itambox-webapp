@@ -516,9 +516,17 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
     optional_fields = ["completion_date", "supplier", "performed_by", "cost", "currency", "description", "notes"]
     field_descriptions = {
         "asset_tag": _lazy("Exact asset tag of a non-archived asset in the current tenant."),
+        "completion_date": _lazy("Optional for cancelled maintenance; required when status is completed."),
+        "status": _lazy("Only completed or cancelled maintenance records can be imported."),
         "supplier": _lazy(
             "Supplier matches by slug or name among suppliers visible to the current tenant; numeric IDs are not accepted."
         ),
+    }
+    field_choices = {
+        "status": [
+            (MaintenanceStatusChoices.COMPLETED.value, MaintenanceStatusChoices.COMPLETED.label),
+            (MaintenanceStatusChoices.CANCELLED.value, MaintenanceStatusChoices.CANCELLED.label),
+        ],
     }
 
     def __init__(self, *args, **kwargs):
@@ -592,7 +600,7 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
             raise ValidationError(
                 _(
                     "status: only completed or cancelled maintenance can be imported; "
-                    "schedule open maintenance in the application."
+                    "manage open maintenance in the application."
                 )
             )
         if mapped["status"] == MaintenanceStatusChoices.COMPLETED and mapped.get("completion_date") is None:

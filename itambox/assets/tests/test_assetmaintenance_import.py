@@ -12,6 +12,7 @@ from core.data_transfer import policy_for
 from core.importers.bulk_forms import get_import_form_class, is_model_importable
 from core.models import Job
 from core.tests.mixins import TenantTestMixin
+from itambox.views.generic import ObjectImportView
 from organization.models import Tenant
 
 HEADER = (
@@ -68,13 +69,35 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         with override("de"):
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["asset_tag"]),
-                "Exakter Inventar-Tag eines nicht archivierten Assets im aktuellen Mandanten.",
+                "Exakter Asset-Tag eines nicht archivierten Assets im aktuellen Mandanten.",
             )
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["supplier"]),
-                "Der Lieferant wird anhand von Slug oder Namen unter den für den aktuellen Mandanten sichtbaren "
-                "Lieferanten zugeordnet; numerische IDs sind nicht zulässig.",
+                "Der Lieferant wird anhand seines Slugs oder Namens zugeordnet, sofern er für den aktuellen "
+                "Mandanten sichtbar ist; numerische IDs sind nicht zulässig.",
             )
+            self.assertEqual(
+                str(AssetMaintenanceBulkImportForm.field_descriptions["completion_date"]),
+                "Bei abgebrochenen Wartungen optional; bei abgeschlossenen Wartungen erforderlich.",
+            )
+            self.assertEqual(
+                str(AssetMaintenanceBulkImportForm.field_descriptions["status"]),
+                "Nur abgeschlossene oder abgebrochene Wartungen können importiert werden.",
+            )
+
+    def test_field_options_only_show_importable_maintenance_statuses(self):
+        view = ObjectImportView()
+        view.model_form = AssetMaintenanceBulkImportForm
+        fields = {field["name"]: field for field in view._get_fields_info()}
+
+        self.assertEqual([value for value, _label in fields["status"]["choices"]], ["completed", "cancelled"])
+        self.assertIn(
+            "Only completed or cancelled maintenance records can be imported.", fields["status"]["description"]
+        )
+        self.assertIn(
+            "Optional for cancelled maintenance; required when status is completed.",
+            fields["completion_date"]["description"],
+        )
 
     def test_asset_reference_error_names_the_tag_and_uses_the_german_catalog(self):
         with override("de"):
@@ -275,7 +298,13 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Exact asset tag of a non-archived asset in the current tenant.")
+        self.assertContains(response, "Optional for cancelled maintenance; required when status is completed.")
+        self.assertContains(response, "Only completed or cancelled maintenance records can be imported.")
         self.assertContains(response, "Supplier matches by slug or name among suppliers visible to the current tenant")
+        self.assertContains(response, '<samp class="text-secondary">completed</samp>', html=True)
+        self.assertContains(response, '<samp class="text-secondary">cancelled</samp>', html=True)
+        self.assertNotContains(response, '<samp class="text-secondary">scheduled</samp>', html=True)
+        self.assertNotContains(response, '<samp class="text-secondary">in_progress</samp>', html=True)
         self.assertNotContains(response, "Related objects (ForeignKeys) can be matched by ID")
 
         tenant_preview = self.client.post(

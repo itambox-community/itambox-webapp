@@ -15457,15 +15457,19 @@ msgstr "warranty_type: Gültige Auswahl treffen."
 
 #: assets/forms/import_forms.py
 msgid "Exact asset tag of a non-archived asset in the current tenant."
-msgstr "Exakter Inventar-Tag eines nicht archivierten Assets im aktuellen Mandanten."
+msgstr "Exakter Asset-Tag eines nicht archivierten Assets im aktuellen Mandanten."
 
 #: assets/forms/import_forms.py
 msgid "Supplier matches by slug or name among suppliers visible to the current tenant; numeric IDs are not accepted."
-msgstr "Der Lieferant wird anhand von Slug oder Namen unter den für den aktuellen Mandanten sichtbaren Lieferanten zugeordnet; numerische IDs sind nicht zulässig."
+msgstr "Der Lieferant wird anhand seines Slugs oder Namens zugeordnet, sofern er für den aktuellen Mandanten sichtbar ist; numerische IDs sind nicht zulässig."
 
 #: assets/forms/import_forms.py
 msgid "completion_date must be on or after start_date."
 msgstr "completion_date muss am oder nach start_date liegen."
+
+#: assets/forms/import_forms.py
+msgid "Optional for cancelled maintenance; required when status is completed."
+msgstr "Bei abgebrochenen Wartungen optional; bei abgeschlossenen Wartungen erforderlich."
 
 #: assets/forms/import_forms.py
 msgid "completion_date: completed maintenance requires a completion date."
@@ -15473,15 +15477,19 @@ msgstr "completion_date: Für abgeschlossene Wartungen ist ein Abschlussdatum er
 
 #: assets/forms/import_forms.py
 msgid "supplier: no supplier matching '%(value)s' by slug or name is visible to this tenant."
-msgstr "supplier: Kein für diesen Mandanten sichtbarer Lieferant passt anhand von Slug oder Name zu '%(value)s'."
+msgstr "supplier: In diesem Mandanten ist kein Lieferant mit dem Slug oder Namen '%(value)s' sichtbar."
 
 #: assets/forms/import_forms.py
 msgid "maintenance_type: select a valid choice."
 msgstr "maintenance_type: Gültige Auswahl treffen."
 
 #: assets/forms/import_forms.py
-msgid "status: only completed or cancelled maintenance can be imported; schedule open maintenance in the application."
-msgstr "status: Nur abgeschlossene oder abgebrochene Wartungen können importiert werden; offene Wartungen müssen in der Anwendung geplant werden."
+msgid "Only completed or cancelled maintenance records can be imported."
+msgstr "Nur abgeschlossene oder abgebrochene Wartungen können importiert werden."
+
+#: assets/forms/import_forms.py
+msgid "status: only completed or cancelled maintenance can be imported; manage open maintenance in the application."
+msgstr "status: Nur abgeschlossene oder abgebrochene Wartungen können importiert werden; offene Wartungen werden in der Anwendung verwaltet."
 
 #: assets/forms/import_forms.py
 msgid "supplier: '%(value)s' matches more than one supplier."
