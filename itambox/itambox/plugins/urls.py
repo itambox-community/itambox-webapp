@@ -20,6 +20,7 @@ for plugin_name, registrations in registry.get_plugin_viewsets().items():
     for prefix, viewset, basename in registrations:
         try:
             router.register(f"{plugin_name}/{prefix}", viewset, basename=basename)
+        # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
         except Exception as exc:
             raise PluginStartupError(plugin_name, "assemble", exc) from exc
 

@@ -284,7 +284,7 @@ for plugin_name in getattr(settings, "PLUGINS_ACTIVE", []):
         if exc.name == url_module_name:
             continue
         raise PluginStartupError(plugin_name, "assemble", exc) from exc
-    except Exception as exc:
+    except Exception as exc:  # broad except: cleanup-reraise: re-raised wrapped with the plugin name and phase
         raise PluginStartupError(plugin_name, "assemble", exc) from exc
     plugin_ui_patterns.append(path(f"{base_url}/", include((url_module_name, plugin_name), namespace=plugin_name)))
 

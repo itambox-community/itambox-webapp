@@ -76,8 +76,9 @@ def _check_version_range(settings_module, plugin_name, config_cls):
     if lower <= current < upper:
         return None
     return (
-        f'Plugin "{plugin_name}" supports ITAMbox {declared.strip()} but this is ITAMbox {current_str}; '
-        f"the plugin was not loaded. Install a plugin release that supports {current[0]}.{current[1]} "
+        'Plugin "%s" supports ITAMbox %s but this is ITAMbox %s; '
+        % (plugin_name, declared.strip(), current_str)
+        + f"the plugin was not loaded. Install a plugin release that supports {current[0]}.{current[1]} "
         f"or remove it from ITAMBOX_PLUGINS."
     )
 
@@ -167,6 +168,7 @@ def load_plugins(settings_module):
     for plugin_name in plugins:
         try:
             resolved = _resolve_plugin(settings_module, plugin_name, plugins_config)
+        # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
         except Exception as exc:
             raise PluginStartupError(plugin_name, "resolve", exc) from exc
         if resolved is None:

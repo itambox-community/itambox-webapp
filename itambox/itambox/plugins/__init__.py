@@ -45,17 +45,20 @@ class PluginConfig(AppConfig):
             return
 
         def ready(self):
+            # inline import: cycle: assembly imports modules of this package, which defines PluginConfig
             from itambox.plugins.assembly import assemble_after_last_plugin, compose_plugin
 
             try:
                 compose_plugin(self)
             except PluginStartupError:
                 raise
+            # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
             except Exception as exc:
                 raise PluginStartupError(self.name, "compose", exc) from exc
             if original is not None:
                 try:
                     original(self)
+                # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
                 except Exception as exc:
                     raise PluginStartupError(self.name, "ready", exc) from exc
             assemble_after_last_plugin(self)
