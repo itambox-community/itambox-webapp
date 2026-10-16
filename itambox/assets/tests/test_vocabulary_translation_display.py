@@ -297,11 +297,13 @@ class PublishedContractUnchangedTests(_VocabularyWorld, TestCase):
     def test_rest_definition_payload_returns_base_label_under_german(self):
         client = APIClient()
         client.force_authenticate(self.admin)
-        response = client.get(f"/api/extras/custom-fields/{self.role.pk}/", HTTP_ACCEPT_LANGUAGE="de")
+        # The override restores the thread language the negotiated request leaves behind.
+        with translation.override("de"):
+            response = client.get(f"/api/extras/custom-fields/{self.role.pk}/", HTTP_ACCEPT_LANGUAGE="de")
+            listing = client.get("/api/extras/custom-fields/?limit=500", HTTP_ACCEPT_LANGUAGE="de")
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.data["label"], "Device Role")
         self.assertEqual(response.data["help_text"], "What the device does")
-        listing = client.get("/api/extras/custom-fields/?limit=500", HTTP_ACCEPT_LANGUAGE="de")
         self.assertEqual(listing.status_code, 200)
         labels = {row["name"]: row["label"] for row in listing.data["results"]}
         self.assertEqual(labels["voc832_network_os"], "Network OS")
