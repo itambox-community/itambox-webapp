@@ -69,6 +69,27 @@ class MultiDashboardModelAndUtilsTests(TestCase):
         self.assertEqual(fetched.name, "Board A")
 
 
+class DefaultNoteWidgetTextTests(TestCase):
+    def test_default_note_widget_text_and_rendered_structure(self):
+        note = next(w for w in get_default_dashboard() if w["widget"] == "note")
+        self.assertEqual(
+            note["config"]["content"],
+            "# Welcome to ITAMbox!\n\n"
+            "This is your dashboard. Click the gear icon on any widget to adjust "
+            "parameters, or click Unlock at the top right to drag, resize, or reorder elements.\n\n"
+            "- Star any object to see it under My Bookmarks\n"
+            "- Press Ctrl+K to jump to search from anywhere",
+        )
+        request = RequestFactory().get("/")
+        html = dashboard_widgets.NoteWidget(config=note).get_context(request)["content_html"]
+        self.assertEqual(html.count("<h1>"), 1)
+        self.assertEqual(html.count("<p>"), 1)
+        self.assertEqual(html.count("<ul>"), 1)
+        self.assertEqual(html.count("<li>"), 2)
+        self.assertNotIn("<pre>", html)
+        self.assertNotIn("<code>", html)
+
+
 class MultiDashboardViewsTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="test_user", password="password")
