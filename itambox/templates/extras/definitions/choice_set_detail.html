@@ -35,7 +35,8 @@
                       <a class="btn btn-sm btn-outline-secondary" href="{{ row.edit_url }}">{% translate "Edit" %}</a>
                     {% endif %}
                     {% if can_configure_global and row.translate_url %}
-                      <a class="btn btn-sm btn-outline-secondary" href="{{ row.translate_url }}">{% translate "Translate" %}</a>
+                      <a class="btn btn-sm btn-outline-secondary"
+                         href="{{ row.translate_url }}">{% translate "Translate" %}</a>
                     {% endif %}
                     {% if can_edit and row.retire_url and row.choice.lifecycle == "active" %}
                       <a class="btn btn-sm btn-outline-warning" href="{{ row.retire_url }}">{% translate "Retire" %}</a>

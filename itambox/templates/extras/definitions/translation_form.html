@@ -8,7 +8,11 @@
       <p class="text-muted">{% translate "Language" %}: <code>{{ object.locale }}</code> ({{ locale_name }})</p>
       <div class="mb-3">
         <label class="form-label">{% translate "Source label" %}</label>
-        <input type="text" class="form-control" value="{{ base_label }}" readonly disabled>
+        <input type="text"
+               class="form-control"
+               value="{{ base_label }}"
+               readonly
+               disabled>
         <div class="form-text">{% translate "The source label is not changed here. Only the translation is saved." %}</div>
       </div>
       <form method="post">
