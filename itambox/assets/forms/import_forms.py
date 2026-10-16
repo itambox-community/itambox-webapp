@@ -521,7 +521,7 @@ class AssetMaintenanceBulkImportForm(BulkImportForm):
         ),
         "status": _lazy("Only completed or cancelled maintenance records can be imported."),
         "supplier": _lazy(
-            "Supplier matches by slug or name among suppliers available for this import; numeric IDs are not accepted."
+            "Enter a supplier's slug or name from those available for this import; numeric IDs are not accepted."
         ),
     }
     field_choices = {

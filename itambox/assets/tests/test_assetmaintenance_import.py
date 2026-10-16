@@ -73,7 +73,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             )
             self.assertEqual(
                 str(AssetMaintenanceBulkImportForm.field_descriptions["supplier"]),
-                "Lieferanten, die für diesen Import verfügbar sind, werden anhand des Slugs oder Namens zugeordnet; "
+                "Geben Sie den Slug oder Namen eines für diesen Import verfügbaren Lieferanten ein; "
                 "numerische IDs sind nicht zulässig.",
             )
             self.assertEqual(
@@ -326,7 +326,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
             response, "Optional for cancelled maintenance; required when status is completed. Format: YYYY-MM-DD."
         )
         self.assertContains(response, "Only completed or cancelled maintenance records can be imported.")
-        self.assertContains(response, "Supplier matches by slug or name among suppliers available for this import")
+        self.assertContains(response, "Enter a supplier's slug or name from those available for this import")
         self.assertContains(response, '<samp class="text-secondary">completed</samp>', html=True)
         self.assertContains(response, '<samp class="text-secondary">cancelled</samp>', html=True)
         self.assertNotContains(response, '<samp class="text-secondary">scheduled</samp>', html=True)

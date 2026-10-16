@@ -15463,8 +15463,8 @@ msgid "Exact asset tag of a non-archived asset in the current tenant."
 msgstr "Exakte Inventarnummer eines nicht archivierten Assets im aktuellen Mandanten."
 
 #: assets/forms/import_forms.py
-msgid "Supplier matches by slug or name among suppliers available for this import; numeric IDs are not accepted."
-msgstr "Lieferanten, die für diesen Import verfügbar sind, werden anhand des Slugs oder Namens zugeordnet; numerische IDs sind nicht zulässig."
+msgid "Enter a supplier's slug or name from those available for this import; numeric IDs are not accepted."
+msgstr "Geben Sie den Slug oder Namen eines für diesen Import verfügbaren Lieferanten ein; numerische IDs sind nicht zulässig."
 
 #: assets/forms/import_forms.py
 msgid "completion_date must be on or after start_date."
