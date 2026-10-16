@@ -1,9 +1,11 @@
 """Contract: every installed model carries an explicit import and export declaration."""
 
 from django.apps import apps
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import translation
 
 from assets.models import AssetRole, Category
 from core.data_transfer import (
@@ -196,12 +198,15 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
     )
 
     def setUp(self):
+        self._language_before_test = translation.get_language()
+        translation.activate(settings.LANGUAGE_CODE)
         super().setUp()
         self.clear_tenant_context()
         self.setup_tenant_context(name="Reference Import Tenant", slug="reference-import-tenant")
 
     def tearDown(self):
         self.clear_tenant_context()
+        translation.activate(self._language_before_test or settings.LANGUAGE_CODE)
         super().tearDown()
 
     def _member(self, username, permissions):
