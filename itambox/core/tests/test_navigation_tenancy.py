@@ -192,13 +192,13 @@ class TenantNavigationTests(TestCase):
             ("organization", "sitegroup"),
             ("organization", "contactrole"),
             ("organization", "contact"),
+            ("organization", "site"),
         )
         non_importable_models = (
             ("procurement", "purchaseorder"),
             ("assets", "assetrequest"),
             ("compliance", "auditsession"),
             ("assets", "assettagsequence"),
-            ("organization", "site"),
         )
 
         for app_label, model_name in importable_models:

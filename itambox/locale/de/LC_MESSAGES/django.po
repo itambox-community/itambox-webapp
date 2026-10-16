@@ -2340,6 +2340,23 @@ msgstr ""
 "%(field)s: Für „%(value)s“ wurde keine passende %(model)s gefunden. "
 "Prüfen Sie den Slug oder Namen oder legen Sie den fehlenden Eintrag vor dem Import an."
 
+#, python-format
+msgid "unknown region '%(value)s'. Regions are never created by a site import."
+msgstr "Unbekannte Region „%(value)s“. Regionen werden durch einen Standortimport nicht angelegt."
+
+#, python-format
+msgid "unknown site group '%(value)s'. Site groups are never created by a site import."
+msgstr "Unbekannte Standortgruppe „%(value)s“. Standortgruppen werden durch einen Standortimport nicht angelegt."
+
+msgid "Sites have no parent site; use region or group, or model the hierarchy as locations."
+msgstr "Standorte haben keinen übergeordneten Standort. Verwenden Sie Region oder Gruppe oder bilden Sie die Hierarchie über Lagerorte ab."
+
+msgid "Select an active tenant before importing sites."
+msgstr "Wählen Sie vor dem Import von Standorten einen aktiven Mandanten aus."
+
+msgid "a site with this name already exists."
+msgstr "Ein Standort mit diesem Namen ist bereits vorhanden."
+
 msgid "Contact roles cannot be imported in this file. Remove the \"role\" column and assign roles after importing contacts."
 msgstr "Kontaktrollen können nicht mit dieser Datei importiert werden. Entfernen Sie die Spalte „role“ "
 "und weisen Sie die Rollen nach dem Kontaktimport zu."

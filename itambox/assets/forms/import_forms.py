@@ -44,7 +44,7 @@ from core.managers import Scope
 from core.slugs import generate_unique_slug
 from inventory.models import Accessory, Component, Consumable
 from licenses.models import License
-from organization.models import AssetHolder, Contact, ContactRole, Location, Region, SiteGroup
+from organization.models import AssetHolder, Contact, ContactRole, Location, Region, Site, SiteGroup
 from organization.services.catalogue_authorization import has_provider_catalogue_permission
 
 # These forms are declarative: the base BulkImportForm.map_row maps scalar
@@ -338,7 +338,7 @@ class ManufacturerBulkImportForm(BulkImportForm):
     optional_fields = ["slug", "description"]
 
 
-def _resolve_natural_key_reference(model, value, *, field):
+def _resolve_natural_key_reference(model, value, *, field, unknown_message=None):
     """Resolve a curated reference by slug/name without accepting numeric IDs."""
     for lookup in ("slug", "name", "slug__iexact", "name__iexact"):
         matches = list(model.objects.filter(**{lookup: value})[:2])
@@ -349,6 +349,8 @@ def _resolve_natural_key_reference(model, value, *, field):
             )
         if matches:
             return matches[0].pk
+    if unknown_message is not None:
+        raise ValidationError({field: unknown_message % {"value": value}})
     raise ValidationError(
         _(
             '%(field)s: no matching %(model)s was found for "%(value)s". '
@@ -459,6 +461,75 @@ class SiteGroupBulkImportForm(_ParentedReferenceDataBulkImportForm):
     generated_slug_source = "name"
     required_fields = ["name"]
     optional_fields = ["slug", "parent", "description"]
+
+
+@register_import_form
+class SiteBulkImportForm(_ReferenceDataBulkImportForm):
+    model = Site
+    update_key = ("name",)
+    generated_slug_source = "name"
+    required_fields = ["name"]
+    optional_fields = [
+        "slug",
+        "status",
+        "region",
+        "group",
+        "facility",
+        "time_zone",
+        "description",
+        "physical_address",
+        "shipping_address",
+        "latitude",
+        "longitude",
+        "comments",
+    ]
+
+    def map_row(self, row):
+        if any(str(column).strip().casefold() == "parent" for column in row):
+            raise ValidationError(
+                {"parent": _("Sites have no parent site; use region or group, or model the hierarchy as locations.")}
+            )
+
+        mapped = super().map_row({key: value for key, value in row.items() if key not in {"region", "group"}})
+        for field, related_model in (("region", Region), ("group", SiteGroup)):
+            value = str(row.get(field) or "").strip()
+            if not value:
+                continue
+            if field == "region":
+                unknown_message = _("unknown region '%(value)s'. Regions are never created by a site import.")
+            else:
+                unknown_message = _("unknown site group '%(value)s'. Site groups are never created by a site import.")
+            mapped[field + "_id"] = _resolve_natural_key_reference(
+                related_model,
+                value,
+                field=field,
+                unknown_message=unknown_message,
+            )
+        return mapped
+
+    def _validate_row(self, mapped_data, row_number):
+        tenant = get_current_tenant()
+        if tenant is None:
+            raise ValidationError(_("Select an active tenant before importing sites."))
+        super()._validate_row(mapped_data, row_number)
+        name = mapped_data.get("name")
+        # unscoped: detect a global name collision without exposing the owning tenant.
+        if name and Site._base_manager.filter(name=name, deleted_at__isnull=True).exclude(tenant_id=tenant.pk).exists():
+            raise ValidationError({"name": _("a site with this name already exists.")})
+
+    def _find_existing(self, mapped):
+        tenant = get_current_tenant()
+        if tenant is None:
+            raise ValidationError(_("Select an active tenant before importing sites."))
+        lookup = {}
+        for attname in self._key_attnames():
+            if attname not in mapped:
+                return None
+            lookup[attname] = mapped[attname]
+        matches = list(Site.objects.filter(tenant_id=tenant.pk, **lookup)[:2])
+        if len(matches) > 1:
+            raise ValidationError(_("More than one existing object matches the update key."))
+        return matches[0] if matches else None
 
 
 @register_import_form
