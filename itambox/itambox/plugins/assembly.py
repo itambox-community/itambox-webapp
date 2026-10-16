@@ -4,6 +4,7 @@ import importlib
 import importlib.util
 import re
 
+import strawberry
 from django.apps import apps
 from django.conf import settings
 from django.utils.module_loading import import_string
@@ -79,6 +80,7 @@ def _compose_navigation(config):
 
 
 def _compose_viewsets(plugin_name, value):
+    # inline import: app-registry: the API viewset base loads models that need the app registry
     from itambox.api.viewsets import BaseViewSet
 
     for entry in _as_list(value, "viewsets"):
@@ -117,8 +119,6 @@ def compose_plugin(config):
 
 
 def _trial_build(query):
-    import strawberry
-
     strawberry.Schema(query=query)
 
 
@@ -130,6 +130,7 @@ def assemble_after_last_plugin(config):
     for name, query in registry.get_plugin_graphql():
         try:
             _trial_build(query)
+        # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
         except Exception as exc:
             raise PluginStartupError(name, "assemble", exc) from exc
     try:
@@ -137,6 +138,7 @@ def assemble_after_last_plugin(config):
             importlib.import_module(module_name)
     except PluginStartupError:
         raise
+    # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
     except Exception as exc:
         raise PluginStartupError("(plugin set)", "assemble", exc) from exc
     registry._freeze_plugins()

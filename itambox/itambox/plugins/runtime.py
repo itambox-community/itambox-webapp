@@ -14,7 +14,7 @@ class PluginStartupError(Exception):
         self.plugin_name = plugin_name
         self.phase = phase
         self.cause = cause
-        super().__init__(f'Plugin "{plugin_name}" failed during {phase}: {type(cause).__name__}: {cause}')
+        super().__init__('Plugin "%s" failed during %s: %s: %s' % (plugin_name, phase, type(cause).__name__, cause))
 
 
 def _setting_value_strings(value):
