@@ -7,9 +7,10 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
 
-from assets.customfields import resolve_asset_custom_fields, resolve_asset_type_custom_fields
+from assets.customfields import composed_fieldsets, resolve_asset_custom_fields, resolve_asset_type_custom_fields
 from core.forms import CrispyFormMixin, TenantScopedFormMixin
 from core.managers import Scope
 from core.mixins import suppress_custom_field_data_validation
@@ -19,6 +20,7 @@ from extras.customfields import (
     custom_field_clear_key,
 )
 from extras.models import CustomField
+from extras.services.vocabulary_translations import VocabularyTranslator
 from organization.models import CostCenter, Location, Tenant
 from procurement.models import PurchaseOrderLine
 
@@ -471,6 +473,9 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
         self.custom_field_clear_keys = {}
         self.custom_field_presence_keys = {}
         resolved_fields = resolve_asset_custom_fields(selected_asset_type, stored_values)
+        self.vocabulary_translator = VocabularyTranslator(active_locale=get_language()).load_resolved(
+            resolved_fields, self._composed_fieldset_rows(selected_asset_type)
+        )
         drafts = self._read_t15_draft_transport()
         for resolved in resolved_fields:
             field = resolved.definition
@@ -483,6 +488,7 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
                 initial_value,
                 has_stored_value=field.name in stored_values or field.name in drafts,
                 read_only=resolved.read_only,
+                translator=self.vocabulary_translator,
             )
             if form_field is None:
                 continue
@@ -599,11 +605,17 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
             elif mode == "null":
                 cleaned_data[key] = None
 
+    def _composed_fieldset_rows(self, selected_asset_type):
+        cached = getattr(self, "_composed_fieldset_cache", None)
+        if cached is None or cached[0] is not selected_asset_type:
+            cached = (selected_asset_type, composed_fieldsets(selected_asset_type))
+            self._composed_fieldset_cache = cached
+        return cached[1]
+
     def _asset_fieldset_context(self, selected_asset_type, resolved_fields):
-        memberships = getattr(selected_asset_type, "_prefetched_objects_cache", {}).get("fieldset_memberships", ())
+        translator = self.vocabulary_translator
         by_identity = {}
-        for membership in memberships:
-            fieldset = membership.fieldset
+        for fieldset in self._composed_fieldset_rows(selected_asset_type):
             identity = f"{fieldset.namespace}/{fieldset.slug}"
             by_identity[identity] = fieldset
 
@@ -617,8 +629,11 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
             identity = resolved.provenance[0]
             if identity not in section_by_identity:
                 fieldset = by_identity.get(identity)
-                label = getattr(fieldset, "label", None) or identity.rsplit("/", 1)[-1]
-                description = getattr(fieldset, "description", "")
+                if fieldset is not None:
+                    label = translator.fieldset_label(fieldset)
+                    description = translator.fieldset_description(fieldset)
+                else:
+                    label, description = identity.rsplit("/", 1)[-1], ""
                 source = self._fieldset_source(fieldset) if fieldset is not None else identity.split("/", 1)[0]
                 section_by_identity[identity] = {
                     "id": getattr(fieldset, "pk", identity),
@@ -673,18 +688,21 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
             return []
 
         model_values = dict(selected_asset_type.custom_field_data or {})
+        translator = self.vocabulary_translator
+        model_fields = resolve_asset_type_custom_fields(selected_asset_type)
+        translator.load_resolved(model_fields)
         fields = []
-        for resolved in resolve_asset_type_custom_fields(selected_asset_type):
+        for resolved in model_fields:
             definition = resolved.definition
             value = model_values.get(definition.name)
             has_value = definition.name in model_values
             fields.append(
                 {
                     "key": definition.name,
-                    "label": definition.label,
+                    "label": translator.field_label(definition),
                     "definition": definition,
                     "value": value,
-                    "display_value": _display_t15_value(definition, value) if has_value else _("Not set"),
+                    "display_value": _display_t15_value(definition, value, translator) if has_value else _("Not set"),
                     "model_value_json": json.dumps(value, ensure_ascii=False),
                     "model_value_script_id": f"asset-model-value-{definition.name}",
                     "can_copy": definition.name in self.custom_field_definitions,
@@ -695,7 +713,9 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
     def _build_t15_presentation(self, selected_asset_type, resolved_fields, cancel_url):
         stored_values = self._stored_custom_values()
         self.specification_sections = self._asset_fieldset_context(selected_asset_type, resolved_fields)
-        self.specification_history = _history_entries(stored_values, self.custom_field_definitions)
+        self.specification_history = _history_entries(
+            stored_values, self.custom_field_definitions, self.vocabulary_translator
+        )
         self.specification_definition_revision = ""
         if selected_asset_type is not None:
             try:

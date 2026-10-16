@@ -53,6 +53,11 @@ urlpatterns = [
     path("custom-fieldsets/<int:pk>/delete/", views.CustomFieldsetDeleteView.as_view(), name="customfieldset_delete"),
     # Reusable Choice Sets and Choices
     path(
+        "translations/<str:kind>/<int:pk>/<str:locale>/",
+        definition_views.DefinitionTranslationEditView.as_view(),
+        name="definition_translation_edit",
+    ),
+    path(
         "choice-sets/",
         definition_views.ChoiceSetListView.as_view(),
         name="definition_choice_set_list",

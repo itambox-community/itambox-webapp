@@ -12,6 +12,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import NoReverseMatch, reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
@@ -30,6 +31,7 @@ from compliance.audit_services import audit_asset_from_form
 from compliance.models import CustodyReceipt
 from compliance.services import scope_custody_receipts
 from core.managers import Scope
+from extras.services.vocabulary_translations import VocabularyTranslator
 from inventory.models import AccessoryAssignment, ConsumableAssignment
 from inventory.tables import AccessoryAssignmentTable, ConsumableAssignmentTable
 from itambox.panels import Panel
@@ -136,16 +138,24 @@ class AssetDetailView(ObjectDetailView):
         type_fields = resolve_asset_type_custom_fields(asset.asset_type) if asset.asset_type else []
         context["asset_type_specification_fields"] = type_fields
         fieldsets = composed_fieldsets(asset.asset_type)
+        own_fields = resolve_asset_custom_fields(asset.asset_type, asset.custom_field_data)
+        context["asset_specification_fields"] = own_fields
+        # One translator per request: rows for both panels load in one pass.
+        translator = VocabularyTranslator(active_locale=get_language())
+        translator.load_resolved([*type_fields, *own_fields], fieldsets)
         context["asset_type_spec_panel"] = build_spec_panel(
             type_fields,
             asset.asset_type.custom_field_data if asset.asset_type else {},
             fieldsets,
             include_further=False,
+            translator=translator,
         )
-        own_fields = resolve_asset_custom_fields(asset.asset_type, asset.custom_field_data)
-        context["asset_specification_fields"] = own_fields
         context["asset_spec_panel"] = build_spec_panel(
-            own_fields, asset.custom_field_data, fieldsets, definitions_loader=fetch_definitions_by_name
+            own_fields,
+            asset.custom_field_data,
+            fieldsets,
+            definitions_loader=fetch_definitions_by_name,
+            translator=translator,
         )
 
         sw_qs = (

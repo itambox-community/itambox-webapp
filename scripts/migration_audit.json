@@ -1654,6 +1654,50 @@
     },
     {
       "dependencies": [
+        "assets.0126_remove_type_library_identity",
+        "extras.0130_definition_translations",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "assets.0127_core_vocabulary_german_translations",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 1,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/assets/migrations/0127_core_vocabulary_german_translations.py",
+      "replaces": [],
+      "reviewed_disposition": {
+        "disposition": "required-fresh",
+        "rationale": "Seeds explicit German translations for shipped core custom-field definitions, choices, and fieldsets; only the itambox namespace is matched, leaving canonical labels and tenant-authored definitions untouched."
+      },
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": true,
+          "RunSQL": false,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
         "extras.0100_issue88_shard_05_extras_history_1"
       ],
       "id": "compliance.0100_issue88_shard_06_compliance_schema",
@@ -6290,6 +6334,7 @@
     "assets.0124_tenant_archive_leaf_markers",
     "assets.0125_unique_open_loan_per_maintenance",
     "assets.0126_remove_type_library_identity",
+    "assets.0127_core_vocabulary_german_translations",
     "compliance.0101_alter_custodyreceipt_signed_at",
     "compliance.0102_clear_unsigned_receipt_timestamps",
     "compliance.0103_alter_custodyreceipt_options",
@@ -6362,6 +6407,7 @@
       "assets.0104_asset_type_core_vocabulary",
       "assets.0107_asset_type_specification_guards",
       "assets.0126_remove_type_library_identity",
+      "assets.0127_core_vocabulary_german_translations",
       "extras.0108_alertlog_delivery_outcome",
       "extras.0117_asset_type_definition_guards",
       "extras.0129_remove_type_library"
@@ -6422,7 +6468,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 71,
+    "post_transition_migrations": 72,
     "replacement_shards": 62,
     "replacement_targets": 262
   }

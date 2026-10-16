@@ -6,6 +6,7 @@ from django.urls import resolve, reverse
 
 from assets.forms.assettype_form import AssetTypeForm
 from extras.models import CustomFieldset
+from extras.services.vocabulary_translations import VocabularyTranslator
 
 
 class SpecificationUiIntegrationTests(SimpleTestCase):
@@ -25,6 +26,8 @@ class SpecificationUiIntegrationTests(SimpleTestCase):
         form = object.__new__(AssetTypeForm)
         form._stored_custom_values = lambda: {}
         form._fieldset_source = lambda value: "local"
+        # Source-language translator: inert, so the database-free test issues no queries.
+        form.vocabulary_translator = VocabularyTranslator(active_locale="en")
         with patch("assets.forms.assettype_form.CustomFieldset.objects.filter") as query:
             query.return_value.prefetch_related.return_value.order_by.return_value = [alpha, middle, zulu]
             options = form._fieldset_options([zulu, alpha])

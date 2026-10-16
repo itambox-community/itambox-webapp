@@ -5,7 +5,13 @@ from __future__ import annotations
 from django import forms
 
 from core.forms.base import TenantScopedFormMixin
-from extras.models import CustomFieldChoice, CustomFieldChoiceSet
+from extras.models import (
+    CustomFieldChoice,
+    CustomFieldChoiceSet,
+    CustomFieldChoiceTranslation,
+    CustomFieldsetTranslation,
+    CustomFieldTranslation,
+)
 
 
 class _RevisionFormMixin(forms.Form):
@@ -93,7 +99,44 @@ class ChoiceRetireForm(_RevisionFormMixin):
         self._disable_managed_fields("replacement_identity")
 
 
+class _TranslationFormBase(forms.ModelForm):
+    """Edit one (entity, locale) translation row; entity and locale come from the URL."""
+
+    class Meta:
+        fields = ("label",)
+        widgets = {"label": forms.TextInput(attrs={"class": "form-control"})}
+
+
+class CustomFieldTranslationForm(_TranslationFormBase):
+    class Meta(_TranslationFormBase.Meta):
+        model = CustomFieldTranslation
+        fields = ("label", "help_text", "unit_label")
+        widgets = {
+            "label": forms.TextInput(attrs={"class": "form-control"}),
+            "help_text": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "unit_label": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+
+class CustomFieldChoiceTranslationForm(_TranslationFormBase):
+    class Meta(_TranslationFormBase.Meta):
+        model = CustomFieldChoiceTranslation
+
+
+class CustomFieldsetTranslationForm(_TranslationFormBase):
+    class Meta(_TranslationFormBase.Meta):
+        model = CustomFieldsetTranslation
+        fields = ("label", "description")
+        widgets = {
+            "label": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+
 __all__ = [
+    "CustomFieldChoiceTranslationForm",
+    "CustomFieldTranslationForm",
+    "CustomFieldsetTranslationForm",
     "ChoiceCreateForm",
     "ChoiceRetireForm",
     "ChoiceSetCreateForm",
