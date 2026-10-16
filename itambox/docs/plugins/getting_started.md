@@ -21,7 +21,7 @@
     Django `ContentType` rows, changelog rows, and configuration entries remain
     after the package is removed from `ITAMBOX_PLUGINS`.
 
-ITAMbox has a bounded Experimental plugin system modeled after **NetBox**. The supported API is intentionally small; read the [API Reference](api_reference.md) before writing a plugin. Anything not listed there is private/unstable.
+ITAMbox has a bounded Experimental plugin system. Plugins are ordinary Django apps that the host loads at startup and composes through a small set of documented extension points; the API is kept deliberately small so that it can be versioned and kept compatible. Read the [API Reference](api_reference.md) before writing a plugin. Anything not listed there is private/unstable.
 
 ---
 
@@ -133,6 +133,8 @@ that plugin, keeps Stable core and other valid plugins running, and publishes a
 redacted diagnostic in the UI and through `python manage.py plugins`. A failed
 plugin contributes no routes, middleware, REST router, GraphQL schema, menu, or
 template hook.
+
+"Disabled" has a precise meaning. A plugin that fails import, configuration or compatibility checks is skipped before Django app population: its `django_apps`, its middleware and its `PluginConfig` are not added to the running application, so it loads no models, no migrations and no app-level signal receivers. Its package `__init__.py` is still imported during that check, so module-level code in it runs. A plugin that fails in `ready()` is different: that failure happens after app population, so models or signal receivers that were registered before the exception may remain loaded. The diagnostic in the UI and `python manage.py plugins` tells you which stage failed.
 
 Removal and reinstall are manual operations. Removing a name from
 `PLUGINS`/`ITAMBOX_PLUGINS` does not remove database tables, ContentTypes,

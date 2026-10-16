@@ -176,4 +176,4 @@ class Query:
         return DocuSignStatusType(status="Sent")
 ```
 
-ITAMbox merges this query alongside all core GraphQL queries at setup time; a Graphene contribution is rejected and logged as a plugin failure rather than aborting core startup.
+ITAMbox merges this query alongside all core GraphQL queries at setup time. If the module named in `graphql_schema` cannot be imported, the plugin's GraphQL contribution is disabled and recorded as a plugin failure, and core startup continues. The `Query` and `Mutation` types are not individually validated when the root schema is composed, so they must be valid Strawberry types; a type built with another GraphQL library is not isolated by this boundary.
