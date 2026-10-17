@@ -205,7 +205,9 @@ def test_declared_plugin_permission_target_is_reflected_in_role_matrix(monkeypat
     import organization.forms.role_matrix as presentation
     from organization.services.role_permission_policy import RolePermissionTarget
 
-    target = RolePermissionTarget("plugin_widget_plugin_widget", "widget_plugin", "widget", plugin_name="widget_plugin")
+    target = RolePermissionTarget(
+        "plugin_13_widget_plugin_widget", "widget_plugin", "widget", plugin_name="widget_plugin"
+    )
     model = types.SimpleNamespace(_meta=types.SimpleNamespace(verbose_name_plural="Widgets"))
     app_config = types.SimpleNamespace(verbose_name="Widget plugin")
     monkeypatch.setattr(presentation, "active_role_permission_targets", lambda: (target,))
@@ -220,6 +222,40 @@ def test_declared_plugin_permission_target_is_reflected_in_role_matrix(monkeypat
         "model_name": "widget",
         "group": "Widget plugin",
     }
+
+
+def test_distinct_plugin_target_labels_cannot_overwrite_role_matrix_rows(monkeypatch):
+    import types
+
+    import itambox.registry as plugin_registry
+    import organization.forms.role_matrix as presentation
+    from organization.services.role_permission_policy import active_role_permission_targets
+
+    declared = {
+        "plugin_one": ("foo.bar_baz",),
+        "plugin_two": ("foo_bar.baz",),
+    }
+    monkeypatch.setattr(plugin_registry.registry, "get_plugin_permission_targets", lambda: declared)
+    targets = tuple(target for target in active_role_permission_targets() if target.plugin_name is not None)
+    assert len(targets) == 2
+    assert len({target.key for target in targets}) == 2
+
+    monkeypatch.setattr(
+        presentation.apps,
+        "get_model",
+        lambda app, model_name: types.SimpleNamespace(
+            _meta=types.SimpleNamespace(verbose_name_plural=f"{app}.{model_name}")
+        ),
+    )
+    monkeypatch.setattr(
+        presentation.apps,
+        "get_app_config",
+        lambda app: types.SimpleNamespace(verbose_name=app),
+    )
+    rows = presentation.build_matrix_models()
+
+    assert all(rows[target.key]["app"] == target.app for target in targets)
+    assert {rows[target.key]["model_name"] for target in targets} == {"bar_baz", "baz"}
 
 
 @pytest.mark.django_db

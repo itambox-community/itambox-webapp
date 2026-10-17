@@ -299,62 +299,69 @@ class PluginComposeTestCase(SimpleTestCase):
         with patch("core.management.commands._seed.access.active_role_permission_targets", return_value=targets):
             self.assertEqual(_technician_plugin_models(), {("widget_plugin", "widget")})
 
-    def test_host_owned_queryset_applies_tenant_filter_when_available(self):
-        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+    def test_host_owned_viewset_enforces_scope_when_static_queryset_method_is_noop(self):
+        from typing import cast
 
-        class Base:
-            def __init__(self, queryset):
-                self.queryset = queryset
-
-            def get_queryset(self):
-                return self.queryset
-
-        class ScopedQueryset:
-            filtered = False
-
-            def filter_by_tenant(self):
-                self.filtered = True
-                return self
-
-        class ViewSet(_HostOwnedViewSetDefaults, Base):
-            pass
-
-        scoped = ScopedQueryset()
-        self.assertIs(ViewSet(scoped).get_queryset(), scoped)
-        self.assertTrue(scoped.filtered)
-        unscoped = object()
-        self.assertIs(ViewSet(unscoped).get_queryset(), unscoped)
-
-    def test_host_owned_viewset_rejects_unscoped_tenant_models_at_assembly(self):
-        from django.core.exceptions import ImproperlyConfigured
         from django.db.models import QuerySet
 
+        from core.managers import Scope, TenantScopingQuerySet
         from itambox.api.viewsets import ITAMBoxModelViewSet
         from itambox.plugins.urls import _host_owned_viewset
         from organization.models import Role
 
+        class NoOpTenantScopeQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
+
         class UnscopedRoleViewSet(ITAMBoxModelViewSet):
-            queryset = QuerySet(model=Role, using="default")
+            queryset = NoOpTenantScopeQuerySet(model=Role, using="default")
+            serializer_class = object
 
-        with self.assertRaises(ImproperlyConfigured):
-            _host_owned_viewset("test_plugin", UnscopedRoleViewSet)
+        host_viewset = _host_owned_viewset("test_plugin", UnscopedRoleViewSet)
+        scope = Scope(Scope.TENANT, tenant=types.SimpleNamespace(pk=42, group=None))
+        with (
+            patch.object(Scope, "current", return_value=scope),
+            patch.object(TenantScopingQuerySet, "_resolve_allowed_tenant_ids", return_value=[42]),
+        ):
+            queryset = cast(QuerySet, host_viewset().get_queryset())
 
-    def test_host_owned_queryset_rejects_unscoped_dynamic_tenant_models(self):
-        from django.core.exceptions import ImproperlyConfigured
+        sql, params = queryset.query.sql_with_params()
+        self.assertIn("tenant_id", sql)
+        self.assertIn(42, params)
+
+    def test_host_owned_dynamic_queryset_enforces_group_scope_when_method_is_noop(self):
+        from typing import cast
+
         from django.db.models import QuerySet
 
+        from core.managers import Scope, TenantScopingQuerySet
         from itambox.plugins.urls import _HostOwnedViewSetDefaults
-        from organization.models import Role
+        from organization.models import TenantGroup
+
+        class NoOpTenantScopeQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
 
         class Base:
-            def get_queryset(self):
-                return QuerySet(model=Role, using="default")
+            def get_queryset(self) -> QuerySet:
+                return NoOpTenantScopeQuerySet(model=TenantGroup, using="default")
 
         class DynamicViewSet(_HostOwnedViewSetDefaults, Base):
             pass
 
-        with self.assertRaises(ImproperlyConfigured):
-            DynamicViewSet().get_queryset()
+        def _scope_group_rows(queryset, scope, get_descendant_group_ids):
+            return queryset.filter(pk=42)
+
+        scope = Scope(Scope.GROUP, group=types.SimpleNamespace(pk=7))
+        with (
+            patch.object(Scope, "current", return_value=scope),
+            patch.object(TenantScopingQuerySet, "_resolve_allowed_tenant_ids", return_value=[]),
+            patch.object(TenantScopingQuerySet, "_scope_tenant_group_rows", _scope_group_rows),
+        ):
+            queryset = cast(QuerySet, DynamicViewSet().get_queryset())
+
+        _sql, params = queryset.query.sql_with_params()
+        self.assertIn(42, params)
 
     def test_duplicate_viewset_prefix_is_rejected(self):
         registry._register_plugin_viewset("p", "things", object)
@@ -729,6 +736,7 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
             if key.startswith("_plugin")
         }
         registry._plugins_frozen = False
+        from django.db.models import QuerySet
         from django.urls import clear_url_caches
         from rest_framework import serializers
 
@@ -741,8 +749,12 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
                 fields = ("id", "tenant", "name")
                 read_only_fields = ("id",)
 
+        class NoOpRoleQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
+
         class PluginRoleViewSet(ITAMBoxModelViewSet):
-            queryset = Role.objects.all()
+            queryset = NoOpRoleQuerySet(model=Role, using="default")
             serializer_class = RoleSerializer
             authentication_classes = ()
             permission_classes = ()

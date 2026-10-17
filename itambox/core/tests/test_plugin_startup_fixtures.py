@@ -57,7 +57,7 @@ HEALTHY_PROBE = textwrap.dedent(
         "menu_items": [i.link_text for i in registry.get_plugin_menu_items()],
         "viewsets": {k: [p for p, _, _ in v] for k, v in registry.get_plugin_viewsets().items()},
         "permission_targets": [target.key for target in plugin_targets],
-        "matrix_target": matrix.get("plugin_fixture_plugin_fixturewidget"),
+        "matrix_target": matrix.get("plugin_14_fixture_plugin_fixturewidget"),
         "seeded_target_permissions": technician_permissions,
         "graphql_fields": "fixturePluginPing" in schema.as_str(),
         "ui_route": resolve("/plugins/fixture/").view_name,
@@ -136,7 +136,7 @@ class PluginStartupFixtureTests(SimpleTestCase):
         self.assertIs(payload["graphql_fields"], True)
         self.assertEqual(payload["ui_route"], "plugins:fixture_plugin:index")
         self.assertTrue(payload["api_route"].startswith("plugins-api:"), payload["api_route"])
-        self.assertEqual(payload["permission_targets"], ["plugin_fixture_plugin_fixturewidget"])
+        self.assertEqual(payload["permission_targets"], ["plugin_14_fixture_plugin_fixturewidget"])
         self.assertEqual(payload["matrix_target"]["app"], "fixture_plugin")
         self.assertEqual(payload["matrix_target"]["model_name"], "fixturewidget")
         self.assertEqual(payload["matrix_target"]["group"], "Fixture plugin")

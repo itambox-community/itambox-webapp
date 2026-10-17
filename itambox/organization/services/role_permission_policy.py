@@ -106,7 +106,7 @@ def active_role_permission_targets() -> tuple[RolePermissionTarget, ...]:
     )
     plugin_targets = tuple(
         RolePermissionTarget(
-            key=f"plugin_{app}_{model}",
+            key=f"plugin_{len(app)}_{app}_{model}",
             app=app,
             model=model,
             plugin_name=plugin_name,
