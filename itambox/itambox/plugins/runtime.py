@@ -1,13 +1,20 @@
 import logging
 from collections.abc import Mapping, Sequence
 
-from django.apps import apps
 from django.conf import settings
 from django.utils.html import escape
 
-from itambox.registry import registry
-
 logger = logging.getLogger(__name__)
+
+
+class PluginStartupError(Exception):
+    """A plugin problem that aborts startup; names the plugin, the phase and the cause."""
+
+    def __init__(self, plugin_name, phase, cause):
+        self.plugin_name = plugin_name
+        self.phase = phase
+        self.cause = cause
+        super().__init__('Plugin "%s" failed during %s: %s: %s' % (plugin_name, phase, type(cause).__name__, cause))
 
 
 def _setting_value_strings(value):
@@ -26,72 +33,45 @@ def _setting_value_strings(value):
     return set()
 
 
+def _secret_config_strings(settings_module):
+    """Strings of every value whose schema key is flagged ``secret`` (no value guessing)."""
+    resolved = getattr(settings_module, "PLUGINS_RESOLVED_CONFIG", {})
+    result = set()
+    for plugin_name, keys in getattr(settings_module, "PLUGINS_SECRET_KEYS", {}).items():
+        values = resolved.get(plugin_name, {})
+        for key in keys:
+            result.update(_setting_value_strings(values.get(key)))
+    return result
+
+
 def _redacted_error(exc, settings_module):
     message = str(exc)
     secret_values = set()
     if settings_module is not None:
-        secret_values.update(_setting_value_strings(getattr(settings_module, "PLUGINS_CONFIG", {})))
-        secret_values.update(_setting_value_strings(getattr(settings_module, "PLUGINS_RESOLVED_CONFIG", {})))
+        secret_values.update(_secret_config_strings(settings_module))
         secret_values.update(_setting_value_strings(getattr(settings_module, "SECRET_KEY", "")))
     for secret in sorted(secret_values, key=len, reverse=True):
         message = message.replace(secret, "[redacted]")
-    message = "[redacted]" if not message else message
-    return escape(message)
+    return escape(message or "[redacted]")
 
 
 def _settings_object(settings_module):
     if settings_module is not None:
         return settings_module
-    if settings.configured:
-        return settings
-    return None
+    return settings if settings.configured else None
 
 
-def _active_plugin_middleware(settings_module):
-    base = list(getattr(settings_module, "_PLUGIN_BASE_MIDDLEWARE", settings_module.MIDDLEWARE))
-    for plugin_name in getattr(settings_module, "PLUGINS_ACTIVE", []):
-        values = getattr(settings_module, "_PLUGINS_MIDDLEWARE_BY_PLUGIN", {}).get(plugin_name, ())
-        for value in values:
-            if value not in base:
-                base.append(value)
-    return base
-
-
-def _active_plugin_apps(settings_module):
-    base = list(getattr(settings_module, "_PLUGIN_BASE_INSTALLED_APPS", settings_module.INSTALLED_APPS))
-    for plugin_name in getattr(settings_module, "PLUGINS_ACTIVE", []):
-        values = getattr(settings_module, "_PLUGINS_APPS_BY_PLUGIN", {}).get(plugin_name, ())
-        for value in values:
-            if value not in base:
-                base.append(value)
-    return base
-
-
-def record_plugin_failure(plugin_name, exc, *, stage, settings_module=None, compatibility=None):
-    """Disable one plugin and publish a safe, operator-visible diagnostic."""
+def record_plugin_skip(plugin_name, exc, *, settings_module=None):
+    """Record the single degrade case (version incompatibility): skip with a warning and a diagnostic."""
     settings_module = _settings_object(settings_module)
-    if settings_module is not None:
-        active_plugins = list(getattr(settings_module, "PLUGINS_ACTIVE", []))
-        if plugin_name in active_plugins:
-            active_plugins.remove(plugin_name)
-        settings_module.PLUGINS_ACTIVE = active_plugins
-        disabled_plugins = list(getattr(settings_module, "PLUGINS_DISABLED", []))
-        if plugin_name not in disabled_plugins:
-            disabled_plugins.append(plugin_name)
-        settings_module.PLUGINS_DISABLED = disabled_plugins
-        settings_module.MIDDLEWARE = _active_plugin_middleware(settings_module)
-        settings_module.INSTALLED_APPS = _active_plugin_apps(settings_module)
-
-    registry.clear_plugin(plugin_name)
-    failure = exc.__cause__ if isinstance(exc.__cause__, ImportError) else exc
     diagnostic = {
         "plugin": plugin_name,
         "plugin_name": plugin_name,
-        "failure_class": type(failure).__name__,
-        "stage": stage,
-        "compatibility": compatibility or getattr(exc, "compatibility", "not-evaluated"),
+        "failure_class": type(exc).__name__,
+        "stage": "compatibility",
+        "compatibility": "incompatible-product",
         "activation_mode": "opt-in",
-        "activation_state": "disabled",
+        "activation_state": "skipped",
         "active": False,
         "activation_source": "settings.PLUGINS",
         "source": "settings.PLUGINS",
@@ -99,18 +79,14 @@ def record_plugin_failure(plugin_name, exc, *, stage, settings_module=None, comp
         "error": _redacted_error(exc, settings_module),
     }
     if settings_module is not None:
-        diagnostics = [
-            row for row in getattr(settings_module, "PLUGINS_DIAGNOSTICS", []) if row["plugin"] != plugin_name
-        ]
-        diagnostics.append(diagnostic)
-        settings_module.PLUGINS_DIAGNOSTICS = diagnostics
-    logger.warning(
-        "Plugin %s disabled at %s (%s): %s",
-        plugin_name,
-        stage,
-        diagnostic["failure_class"],
-        diagnostic["error"],
-    )
+        disabled = list(getattr(settings_module, "PLUGINS_DISABLED", []))
+        if plugin_name not in disabled:
+            disabled.append(plugin_name)
+        settings_module.PLUGINS_DISABLED = disabled
+        rows = [row for row in getattr(settings_module, "PLUGINS_DIAGNOSTICS", []) if row["plugin"] != plugin_name]
+        rows.append(diagnostic)
+        settings_module.PLUGINS_DIAGNOSTICS = rows
+    logger.warning("%s", exc)
     return diagnostic
 
 
@@ -123,9 +99,4 @@ def get_plugin_diagnostics(settings_module=None):
 
 def is_plugin_active(plugin_name, settings_module=None):
     settings_module = _settings_object(settings_module)
-    if settings_module is None or plugin_name not in getattr(settings_module, "PLUGINS_ACTIVE", ()):
-        return False
-    try:
-        return bool(getattr(apps.get_app_config(plugin_name), "_plugin_active", True))
-    except LookupError:
-        return True
+    return settings_module is not None and plugin_name in getattr(settings_module, "PLUGINS_ACTIVE", ())

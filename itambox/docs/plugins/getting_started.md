@@ -9,7 +9,7 @@
     pin both ITAMbox and the plugin revision together.
 
     Compatibility must be checked **before** deployment: verify the plugin's
-    declared `min_version`/`max_version` and plugin API version against the
+    declared `itambox_range` against the
     deployed ITAMbox revision, and test the combination in a non-production
     environment first. Plugins are not covered by the Stable 1.0 compatibility
     promise; Experimental interfaces may change in any release.
@@ -69,22 +69,18 @@ class EsignPluginConfig(PluginConfig):
     version = '1.0.0'
     author = 'DocuSign Dev Team'
     author_email = 'dev@docusign.com'
-    min_version = '1.0.0-alpha'  # Version constraint checks
-    max_version = '1.99.99'      # Product version, not plugin API version
-    min_plugin_api_version = '1.0'
-    max_plugin_api_version = '1.0'
-    graphql_schema = 'itambox_esign.graphql.schema'  # Optional GraphQL hook
+    description = 'DocuSign envelopes for assets'
+    itambox_range = '>=1.1,<1.2'  # supported ITAMbox major.minor range
 
-    required_settings = ['DOCUSIGN_API_KEY']
-    default_settings = {
-        'DOCUSIGN_API_KEY': None,
-        'DOCUSIGN_SANDBOX': True,
+    settings_schema = {
+        'DOCUSIGN_API_KEY': {'type': 'str', 'required': True, 'secret': True},
+        'DOCUSIGN_SANDBOX': {'type': 'bool', 'default': True},
     }
 
     def ready(self):
         super().ready()
-        # Custom registration logic goes here
-        # (e.g. registering template injections, viewsets, menus)
+        # Resources (template extensions, menu, viewsets, GraphQL) are declared
+        # on the config or in conventional modules; the host registers them.
 
 config = EsignPluginConfig
 ```
@@ -94,30 +90,22 @@ config = EsignPluginConfig
 ## 2. Registering the Plugin
 
 To enable your plugin, add its package name to the `ITAMBOX_PLUGINS` environment
-variable (comma-separated), or configure it directly in `core/settings/base.py`:
+variable (comma-separated). Product source is never edited:
 
-```python
-# Environment variable (preferred — survives updates):
-# ITAMBOX_PLUGINS=itambox_esign
-
-# Or in code:
-PLUGINS = [
-    'itambox_esign',
-]
+```bash
+ITAMBOX_PLUGINS=itambox_esign
 ```
 
-If your plugin requires custom settings, configure them under `PLUGINS_CONFIG`:
+Operator settings are validated against your `settings_schema`. Supply them as JSON in
+`ITAMBOX_PLUGINS_CONFIG`, and inject secrets as single values with
+`ITAMBOX_PLUGIN_<NAME>_<KEY>`, which wins over the JSON:
 
-```python
-PLUGINS_CONFIG = {
-    'itambox_esign': {
-        'DOCUSIGN_API_KEY': 'your-api-key-here',
-        'DOCUSIGN_SANDBOX': True,
-    }
-}
+```bash
+ITAMBOX_PLUGINS_CONFIG='{"itambox_esign": {"DOCUSIGN_SANDBOX": false}}'
+ITAMBOX_PLUGIN_ITAMBOX_ESIGN_DOCUSIGN_API_KEY=your-api-key-here
 ```
 
-These settings are deep-merged with your plugin's `default_settings` and made available at runtime via `settings.PLUGINS_RESOLVED_CONFIG['itambox_esign']`.
+Read the validated values at runtime with `itambox.plugins.get_plugin_config('itambox_esign', 'DOCUSIGN_SANDBOX')`. See [Configuration](api_reference.md#configuration).
 
 ## Trust and failure behavior
 

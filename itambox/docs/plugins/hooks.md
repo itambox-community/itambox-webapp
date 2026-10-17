@@ -1,7 +1,7 @@
 # ITAMbox Plugin Extension Hooks
 
 !!! warning "Status: Experimental"
-    Only the four registry methods and `PluginConfig.graphql_schema` documented here are supported for plugin API version 1.0. Other hooks and internals are private/unstable and may change without notice.
+    Only the resources declared on `PluginConfig` documented here are supported. Other hooks and internals are private/unstable and may change without notice.
 
 This document details the developer hooks available to extend the web UI, menus, REST API, and GraphQL schema.
 
@@ -54,11 +54,7 @@ escape every value derived from an asset, user, or other data with
 interpolate data into an f-string or mark an interpolated string safe: doing so
 can inject attacker-controlled HTML into the page.
 
-Register this injector in `__init__.py`:
-
-```python
-registry.register_plugin_template_content('assets.asset', AssetDocuSignContent)
-```
+Declare the model on the class (`models = ['assets.asset']`) and export `template_extensions = [AssetDocuSignContent]` from `template_content.py`; the host registers it.
 
 ---
 
@@ -100,11 +96,7 @@ class EsignNavigationMenu(PluginNavigationMenu):
     groups = (EsignGroup,)
 ```
 
-Register this menu in `__init__.py`:
-
-```python
-registry.register_plugin_menu(EsignNavigationMenu)
-```
+Export `menu = EsignNavigationMenu` (and optionally `menu_items = [...]`) from `navigation.py`; the host registers them.
 
 ---
 
@@ -137,16 +129,7 @@ Plugins can register Django REST Framework (DRF) viewsets directly into the cent
 
 ### Example Viewset
 
-Register in `__init__.py` using its dotted path string for lazy-loading:
-
-```python
-registry.register_plugin_viewset(
-    'itambox_esign',
-    '',
-    'itambox_esign.api.views.DocuSignViewSet',
-    basename='itambox_esign'
-)
-```
+Export `viewsets = [('', DocuSignViewSet, 'itambox_esign')]` from `api/viewsets.py` (viewsets derive from the core API viewset base).
 
 This viewset is mounted at `/api/plugins/itambox_esign/`.
 
@@ -154,7 +137,7 @@ This viewset is mounted at `/api/plugins/itambox_esign/`.
 
 ## 5. GraphQL Schema Extension
 
-To extend the GraphQL schema, set `graphql_schema` in your config class and define Strawberry `Query` and/or `Mutation` types.
+To extend the GraphQL schema, set `graphql_schema` in your config class and define a Strawberry `Query` type (queries only).
 
 ### Example Schema
 
@@ -176,4 +159,4 @@ class Query:
         return DocuSignStatusType(status="Sent")
 ```
 
-ITAMbox merges this query alongside all core GraphQL queries at setup time. If the module named in `graphql_schema` cannot be imported, the plugin's GraphQL contribution is disabled and recorded as a plugin failure, and core startup continues. The `Query` and `Mutation` types are not individually validated when the root schema is composed, so they must be valid Strawberry types; a type built with another GraphQL library is not isolated by this boundary.
+ITAMbox merges this query alongside all core GraphQL queries at startup. An import error, a `Mutation` type or an invalid type aborts startup naming the plugin.
