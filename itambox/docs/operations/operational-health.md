@@ -5,7 +5,7 @@ while diagnostics stay rich.
 
 | Surface | Purpose | Contract |
 |---|---|---|
-| `/health/` | Web traffic readiness | Process and database only. Returns `200` with `{"status": "ok", "checks": {"database": "ok"}}`, or `503` with `"error"` when the database is unreachable. Background workers, the queue and the cache never influence it. |
+| `/health/` | Web traffic readiness | Process and database only. Returns `200` with `{"status": "ok", "checks": {"database": "ok", "plugins": "ok"}}`, or `503` with `"error"` when the database is unreachable. The informational `plugins` check is `ok`, or `skipped` when a plugin was skipped for a version incompatibility; it never fails the probe (a broken plugin prevents startup instead). Background workers, the queue and the cache never influence it. |
 | Liveness | Process supervision | The container restart policy; no dependency checks and no extra endpoint. |
 | `operational_health` | Deeper diagnostics | Management command, read-only, bounded, sanitized. |
 | Monitoring | Alerting | Run the command from cron, a systemd timer or an uptime check; no metrics server is shipped. |

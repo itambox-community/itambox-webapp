@@ -92,6 +92,10 @@ def health(request):
         checks["database"] = "error"
         healthy = False
 
+    # Informational only: a broken plugin aborts startup, so a process answering
+    # here has a consistent plugin set. "skipped" means a version-incompatible plugin.
+    checks["plugins"] = "skipped" if getattr(settings, "PLUGINS_DISABLED", None) else "ok"
+
     return JsonResponse(
         {"status": "ok" if healthy else "error", "checks": checks},
         status=200 if healthy else 503,

@@ -33,13 +33,13 @@ class HealthEndpointContractTests(TestCase):
     def test_ok_payload(self):
         response = self.client.get(reverse("health"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok", "checks": {"database": "ok"}})
+        self.assertEqual(response.json(), {"status": "ok", "checks": {"database": "ok", "plugins": "ok"}})
 
     def test_database_failure_is_503(self):
         with mock.patch("django.db.connection.cursor", side_effect=OperationalError("down")):
             response = self.client.get(reverse("health"))
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json(), {"status": "error", "checks": {"database": "error"}})
+        self.assertEqual(response.json(), {"status": "error", "checks": {"database": "error", "plugins": "ok"}})
 
     def test_async_degradation_does_not_influence_health(self):
         OrmQ.objects.create(key="x", payload="p", lock=timezone.now() - timedelta(days=2))
@@ -47,7 +47,7 @@ class HealthEndpointContractTests(TestCase):
         with mock.patch("django_q.status.Stat.get_all", side_effect=RuntimeError("cache down")):
             response = self.client.get(reverse("health"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok", "checks": {"database": "ok"}})
+        self.assertEqual(response.json(), {"status": "ok", "checks": {"database": "ok", "plugins": "ok"}})
 
 
 class WorkerTests(TestCase):
