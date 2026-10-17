@@ -8,6 +8,8 @@ from typing import Literal, TypeAlias
 from django.apps import apps
 from django.contrib.auth.models import Permission
 
+from itambox.registry import registry
+
 CustomerRoleName: TypeAlias = Literal["Admin", "Manager", "Member"]
 
 
@@ -19,6 +21,7 @@ class RolePermissionTarget:
     app: str
     model: str
     required_app: str | None = None
+    plugin_name: str | None = None
 
 
 ROLE_PERMISSION_TARGETS: tuple[RolePermissionTarget, ...] = (
@@ -94,13 +97,25 @@ DASHBOARD_CODENAMES = DASHBOARD_SSO_PERMISSIONS
 
 
 def active_role_permission_targets() -> tuple[RolePermissionTarget, ...]:
-    """Return declared targets whose required optional application is active."""
+    """Return core targets and the targets declared by active plugins."""
 
-    return tuple(
+    core_targets = tuple(
         target
         for target in ROLE_PERMISSION_TARGETS
         if target.required_app is None or apps.is_installed(target.required_app)
     )
+    plugin_targets = tuple(
+        RolePermissionTarget(
+            key=f"plugin_{len(app)}_{app}_{model}",
+            app=app,
+            model=model,
+            plugin_name=plugin_name,
+        )
+        for plugin_name, labels in registry.get_plugin_permission_targets().items()
+        for label in labels
+        for app, model in (label.split(".", 1),)
+    )
+    return core_targets + plugin_targets
 
 
 def permissions_for_sso_role(role_name: CustomerRoleName) -> list[str]:

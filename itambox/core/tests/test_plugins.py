@@ -10,6 +10,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils.html import escape
 
 from core.templatetags.plugins import plugin_template_content
+from core.tests.mixins import TenantTestMixin
 from itambox.context_processors import plugin_diagnostics_processor
 from itambox.dictutils import deep_merge
 from itambox.plugins import PluginConfig, assembly, runtime
@@ -241,8 +242,273 @@ class PluginComposeTestCase(SimpleTestCase):
         self.assertIs(assembly._validate_graphql(types.SimpleNamespace(Query=sentinel)), sentinel)
 
     def test_viewset_prefix_and_base_are_validated(self):
+        from itambox.api.viewsets import BaseViewSet
+
+        with self.assertRaises(TypeError):
+            assembly._compose_viewsets("p", [("things", BaseViewSet)])
         with self.assertRaises(TypeError):
             assembly._compose_viewsets("p", [("things", object)])
+
+    def test_viewset_cannot_override_host_security_and_scope_hooks(self):
+        from itambox.api.viewsets import ITAMBoxModelViewSet
+
+        def unsafe_override(self, *args, **kwargs):
+            return None
+
+        for method_name in (
+            "as_view",
+            "dispatch",
+            "initialize_request",
+            "perform_authentication",
+            "initial",
+            "check_permissions",
+            "check_object_permissions",
+            "permission_denied",
+            "get_object",
+            "list",
+            "retrieve",
+        ):
+            with self.subTest(method=method_name):
+                viewset = type(
+                    f"Unsafe{method_name.title()}ViewSet",
+                    (ITAMBoxModelViewSet,),
+                    {method_name: unsafe_override},
+                )
+                with self.assertRaisesRegex(TypeError, method_name):
+                    assembly._compose_viewsets("p", [(f"things_{method_name}", viewset)])
+
+        class PermissionDeniedMixin:
+            permission_denied = unsafe_override
+
+        class InheritedPermissionDeniedViewSet(PermissionDeniedMixin, ITAMBoxModelViewSet):
+            pass
+
+        with self.assertRaisesRegex(TypeError, "permission_denied"):
+            assembly._compose_viewsets("p", [("things_inherited", InheritedPermissionDeniedViewSet)])
+
+    def test_permission_targets_validate_and_register_owned_models(self):
+        config = types.SimpleNamespace(name="widget_plugin")
+        model = types.SimpleNamespace(
+            _meta=types.SimpleNamespace(app_config=types.SimpleNamespace(name="widget_plugin.models"))
+        )
+        with patch("itambox.plugins.assembly.apps.get_model", return_value=model) as get_model:
+            assembly._compose_permission_targets(config, ["widget_plugin.widget"])
+
+        get_model.assert_called_once_with("widget_plugin.widget")
+        self.assertEqual(
+            registry.get_plugin_permission_targets()["widget_plugin"],
+            ("widget_plugin.widget",),
+        )
+        with self.assertRaises(ValueError):
+            registry._register_plugin_permission_target("another_plugin", "widget_plugin.widget")
+
+    def test_permission_targets_reject_invalid_labels_duplicates_and_foreign_models(self):
+        config = types.SimpleNamespace(name="widget_plugin")
+        with self.assertRaises(TypeError):
+            assembly._compose_permission_targets(config, "widget_plugin.widget")
+        for invalid in (None, "invalid-label"):
+            with self.assertRaises(ValueError):
+                assembly._compose_permission_targets(config, [invalid])
+
+        model = types.SimpleNamespace(
+            _meta=types.SimpleNamespace(app_config=types.SimpleNamespace(name="widget_plugin"))
+        )
+        with patch("itambox.plugins.assembly.apps.get_model", return_value=model) as get_model:
+            with self.assertRaises(ValueError):
+                assembly._compose_permission_targets(config, ["widget_plugin.widget", "widget_plugin.widget"])
+            get_model.assert_called_once_with("widget_plugin.widget")
+
+        foreign_model = types.SimpleNamespace(
+            _meta=types.SimpleNamespace(app_config=types.SimpleNamespace(name="another_plugin"))
+        )
+        with patch("itambox.plugins.assembly.apps.get_model", return_value=foreign_model):
+            with self.assertRaises(ValueError):
+                assembly._compose_permission_targets(config, ["widget_plugin.widget"])
+
+    def test_last_plugin_refreshes_early_role_matrix_import_in_place(self):
+        import organization.forms.role_form as role_form
+        from organization.forms import role_matrix
+
+        matrix_models = role_matrix.MATRIX_MODELS
+        original = matrix_models.copy()
+        target_key = "plugin_11_late_plugin_latermodel"
+        target_row = {
+            "label": "Late target",
+            "app": "late_plugin",
+            "model_name": "latermodel",
+            "group": "Late plugin",
+        }
+        try:
+            matrix_models.clear()
+            matrix_models.update(role_matrix.ROLE_PERMISSION_PRESENTATION)
+            with (
+                override_settings(PLUGINS_ACTIVE=["early_plugin", "late_plugin"]),
+                patch.object(role_matrix, "_plugin_permission_presentations", return_value={target_key: target_row}),
+                patch.object(registry, "get_plugin_graphql", return_value=()),
+                patch.object(registry, "_freeze_plugins"),
+                patch("itambox.plugins.assembly.importlib.import_module"),
+            ):
+                assembly.assemble_after_last_plugin(types.SimpleNamespace(name="late_plugin"))
+
+            self.assertIs(role_form.MATRIX_MODELS, matrix_models)
+            self.assertEqual(matrix_models[target_key], target_row)
+        finally:
+            matrix_models.clear()
+            matrix_models.update(original)
+
+    def test_technician_seed_scope_uses_declared_plugin_models(self):
+        from core.management.commands._seed.access import _technician_plugin_models
+        from organization.services.role_permission_policy import RolePermissionTarget
+
+        targets = (
+            RolePermissionTarget("asset", "assets", "asset"),
+            RolePermissionTarget("plugin_widget", "widget_plugin", "widget", plugin_name="widget_plugin"),
+        )
+        with patch("core.management.commands._seed.access.active_role_permission_targets", return_value=targets):
+            self.assertEqual(_technician_plugin_models(), {("widget_plugin", "widget")})
+
+    def test_host_owned_viewset_enforces_scope_when_static_queryset_method_is_noop(self):
+        from typing import cast
+
+        from django.db.models import QuerySet
+
+        from core.managers import Scope, TenantScopingQuerySet
+        from itambox.api.viewsets import ITAMBoxModelViewSet
+        from itambox.plugins.urls import _host_owned_viewset
+        from organization.models import Role
+
+        class NoOpTenantScopeQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
+
+        class UnscopedRoleViewSet(ITAMBoxModelViewSet):
+            queryset = NoOpTenantScopeQuerySet(model=Role, using="default")
+            serializer_class = object
+
+        host_viewset = _host_owned_viewset("test_plugin", UnscopedRoleViewSet)
+        scope = Scope(Scope.TENANT, tenant=types.SimpleNamespace(pk=42, group=None))
+        with (
+            patch.object(Scope, "current", return_value=scope),
+            patch.object(TenantScopingQuerySet, "_resolve_allowed_tenant_ids", return_value=[42]),
+        ):
+            queryset = cast(QuerySet, host_viewset().get_queryset())
+
+        sql, params = queryset.query.sql_with_params()
+        self.assertIn("tenant_id", sql)
+        self.assertIn(42, params)
+
+    def test_host_owned_dynamic_queryset_enforces_group_scope_when_method_is_noop(self):
+        from typing import cast
+
+        from django.db.models import QuerySet
+
+        from core.managers import Scope, TenantScopingQuerySet
+        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+        from organization.models import TenantGroup
+
+        class NoOpTenantScopeQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
+
+        class Base:
+            def get_queryset(self) -> QuerySet:
+                return NoOpTenantScopeQuerySet(model=TenantGroup, using="default")
+
+        class DynamicViewSet(_HostOwnedViewSetDefaults, Base):
+            pass
+
+        def _scope_group_rows(queryset, scope, get_descendant_group_ids):
+            return queryset.filter(pk=42)
+
+        scope = Scope(Scope.GROUP, group=types.SimpleNamespace(pk=7))
+        with (
+            patch.object(Scope, "current", return_value=scope),
+            patch.object(TenantScopingQuerySet, "_resolve_allowed_tenant_ids", return_value=[]),
+            patch.object(TenantScopingQuerySet, "_scope_tenant_group_rows", _scope_group_rows),
+        ):
+            queryset = cast(QuerySet, DynamicViewSet().get_queryset())
+
+        _sql, params = queryset.query.sql_with_params()
+        self.assertIn(42, params)
+
+    def test_host_filter_queryset_reapplies_tenant_scope_after_plugin_override(self):
+        from typing import cast
+
+        from django.db.models import QuerySet
+
+        from core.managers import Scope, TenantScopingQuerySet
+        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+        from organization.models import Role
+
+        class NoOpTenantScopeQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
+
+        class PluginFilter:
+            def filter_queryset(self, queryset: QuerySet) -> QuerySet:
+                return NoOpTenantScopeQuerySet(model=Role, using=queryset.db)
+
+        class HostViewSet(_HostOwnedViewSetDefaults, PluginFilter):
+            pass
+
+        queryset = NoOpTenantScopeQuerySet(model=Role, using="default")
+        scope = Scope(Scope.TENANT, tenant=types.SimpleNamespace(pk=42, group=None))
+        with (
+            patch.object(Scope, "current", return_value=scope),
+            patch.object(TenantScopingQuerySet, "_resolve_allowed_tenant_ids", return_value=[42]),
+        ):
+            result = cast(QuerySet, HostViewSet().filter_queryset(queryset))
+
+        sql, params = result.query.sql_with_params()
+        self.assertIn("tenant_id", sql)
+        self.assertIn(42, params)
+
+    def test_host_filter_queryset_rejects_plugin_model_swap(self):
+        from django.db.models import QuerySet
+
+        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+        from organization.models import Role, Tenant
+
+        class PluginFilter:
+            def filter_queryset(self, queryset: QuerySet) -> QuerySet:
+                return QuerySet(model=Tenant, using=queryset.db)
+
+        class HostViewSet(_HostOwnedViewSetDefaults, PluginFilter):
+            pass
+
+        with self.assertRaises(ImproperlyConfigured):
+            HostViewSet().filter_queryset(QuerySet(model=Role, using="default"))
+
+    def test_host_owned_schema_generates_openapi_for_plugin_viewset(self):
+        from django.urls import path
+        from drf_spectacular.generators import SchemaGenerator
+        from rest_framework import serializers
+        from rest_framework.settings import api_settings
+
+        from itambox.api.viewsets import ITAMBoxModelViewSet
+        from itambox.plugins.urls import _host_owned_viewset
+        from organization.models import Role
+
+        class RoleSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = Role
+                fields = ("id", "tenant", "name")
+
+        class PluginRoleViewSet(ITAMBoxModelViewSet):
+            queryset = Role._base_manager.none()
+            serializer_class = RoleSerializer
+            schema = None
+
+        viewset = _host_owned_viewset("schema_probe", PluginRoleViewSet)
+        view = viewset()
+        view.schema = None
+        self.assertIsInstance(view.schema, api_settings.DEFAULT_SCHEMA_CLASS)
+        self.assertIs(view.schema.view, view)
+
+        patterns = [path("api/plugins/schema_probe/roles/", viewset.as_view({"get": "list"}), name="role-list")]
+        schema = SchemaGenerator(title="Plugin API", patterns=patterns).get_schema(public=True)
+
+        self.assertIn("/api/plugins/schema_probe/roles/", schema["paths"])
 
     def test_duplicate_viewset_prefix_is_rejected(self):
         registry._register_plugin_viewset("p", "things", object)
@@ -421,21 +687,27 @@ class PluginAssemblyTestCase(SimpleTestCase):
             assembly._compose_navigation(types.SimpleNamespace(name="p", menu=None, menu_items=[object]))
 
     def test_compose_viewsets(self):
-        from itambox.api.viewsets import BaseViewSet
+        from itambox.api.viewsets import ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet
 
-        class ViewSet(BaseViewSet):
+        class ViewSet(ITAMBoxModelViewSet):
+            pass
+
+        class ReadOnlyViewSet(ITAMBoxReadOnlyModelViewSet):
             pass
 
         assembly._compose_viewsets(
-            "p", [("things", ViewSet, "p-things"), ("other", "itambox.api.viewsets.BaseViewSet")]
+            "p",
+            [("things", ViewSet, "p-things"), ("other", ReadOnlyViewSet, "p-other")],
         )
         prefixes = [row[0] for row in registry.get_plugin_viewsets()["p"]]
         self.assertEqual(prefixes, ["things", "other"])
+        with self.assertRaises(TypeError):
+            assembly._compose_viewsets("p", [("unsafe", object)])
         with self.assertRaises(ValueError):
             assembly._compose_viewsets("p", [("Bad Prefix", ViewSet)])
 
     def test_compose_plugin_registers_only_active_plugins(self):
-        from itambox.api.viewsets import BaseViewSet
+        from itambox.api.viewsets import ITAMBoxModelViewSet
 
         class Query:
             pass
@@ -448,7 +720,8 @@ class PluginAssemblyTestCase(SimpleTestCase):
             template_extensions=[Content],
             menu=None,
             menu_items=None,
-            viewsets=[("things", BaseViewSet)],
+            viewsets=[("things", ITAMBoxModelViewSet)],
+            permission_targets=[],
             graphql_schema=types.SimpleNamespace(Query=Query),
         )
         with override_settings(PLUGINS_ACTIVE=[]):
@@ -545,11 +818,11 @@ class PluginUrlMountingTestCase(SimpleTestCase):
         importlib.reload(importlib.import_module("core.urls"))
 
     def test_api_router_mounts_registered_viewsets_and_names_failures(self):
-        from itambox.api.viewsets import BaseViewSet
+        from itambox.api.viewsets import ITAMBoxModelViewSet
 
         snapshot = {k: v.copy() for k, v in vars(registry).items() if k.startswith("_plugin") and hasattr(v, "copy")}
         try:
-            registry._plugin_viewsets["p"].append(("things", BaseViewSet, "p-things"))
+            registry._plugin_viewsets["p"].append(("things", ITAMBoxModelViewSet, "p-things"))
             importlib.reload(importlib.import_module("itambox.plugins.urls"))
             registry._plugin_viewsets["p"].append(("broken", object, None))
             with self.assertRaises(PluginStartupError) as ctx:
@@ -599,6 +872,204 @@ class PluginUrlMountingTestCase(SimpleTestCase):
         finally:
             for name in ("ui_plugin_pkg", "ui_plugin_pkg.urls", "bare_plugin_pkg"):
                 sys.modules.pop(name, None)
+
+
+class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        self._snapshot = {
+            key: (value.copy() if hasattr(value, "copy") else value)
+            for key, value in vars(registry).items()
+            if key.startswith("_plugin")
+        }
+        registry._plugins_frozen = False
+        from django.db.models import QuerySet
+        from django.urls import clear_url_caches
+        from rest_framework import serializers
+        from rest_framework.filters import BaseFilterBackend
+
+        from itambox.api.viewsets import ITAMBoxModelViewSet
+        from organization.models import Role, Tenant
+
+        class RoleSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = Role
+                fields = ("id", "tenant", "name")
+                read_only_fields = ("id",)
+
+        class NoOpRoleQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
+
+        class PluginRoleViewSet(ITAMBoxModelViewSet):
+            queryset = NoOpRoleQuerySet(model=Role, using="default")
+            serializer_class = RoleSerializer
+            authentication_classes = ()
+            permission_classes = ()
+            schema = None
+
+        class PluginRoleFilterOverrideViewSet(PluginRoleViewSet):
+            def filter_queryset(self, queryset):
+                return NoOpRoleQuerySet(model=Role, using=queryset.db)
+
+        class UnscopedRoleFilterBackend(BaseFilterBackend):
+            def filter_queryset(self, request, queryset, view):
+                return NoOpRoleQuerySet(model=Role, using=queryset.db)
+
+        class PluginRoleUnscopedBackendViewSet(PluginRoleViewSet):
+            filter_backends = (UnscopedRoleFilterBackend,)
+
+        registry._register_plugin_viewset("rest_probe", "roles", PluginRoleViewSet, "rest-probe-roles")
+        registry._register_plugin_viewset(
+            "rest_probe",
+            "roles_filter_override",
+            PluginRoleFilterOverrideViewSet,
+            "rest-probe-roles-filter-override",
+        )
+        registry._register_plugin_viewset(
+            "rest_probe",
+            "roles_unscoped_backend",
+            PluginRoleUnscopedBackendViewSet,
+            "rest-probe-roles-unscoped-backend",
+        )
+        importlib.reload(importlib.import_module("itambox.plugins.urls"))
+        importlib.reload(importlib.import_module("core.urls"))
+        clear_url_caches()
+        self.setup_tenant_context(name="Tenant A", slug="tenant-a", permissions=["organization.view_role"])
+        self.tenant_role.name = "Tenant A private role"
+        self.tenant_role.save(update_fields=["name"])
+        self.other_tenant = Tenant.objects.create(name="Tenant B", slug="tenant-b")
+        self.foreign_role = Role.objects.create(
+            tenant=self.other_tenant, name="Tenant B private role", permissions=["organization.view_role"]
+        )
+
+    def tearDown(self):
+        from django.urls import clear_url_caches
+
+        self.clear_tenant_context()
+        for key, value in self._snapshot.items():
+            setattr(registry, key, value)
+        importlib.reload(importlib.import_module("itambox.plugins.urls"))
+        importlib.reload(importlib.import_module("core.urls"))
+        clear_url_caches()
+        super().tearDown()
+
+    def test_plugin_endpoint_is_scoped_and_uses_host_defaults(self):
+        from django.urls import resolve
+        from rest_framework.settings import api_settings
+
+        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+        from organization.models import Role
+
+        self.client_login_to_tenant(self.tenant_user, self.tenant)
+        response = self.client.get("/api/plugins/rest_probe/roles/")
+        self.assertEqual(response.status_code, 200, response.content.decode())
+        payload = response.json()
+        rows = payload["results"] if isinstance(payload, dict) else payload
+        names = {row["name"] for row in rows}
+        self.assertIn("Tenant A private role", names)
+        self.assertNotIn("Tenant B private role", names)
+        detail = self.client.get(f"/api/plugins/rest_probe/roles/{self.foreign_role.pk}/")
+        self.assertEqual(detail.status_code, 404)
+
+        view_class = resolve("/api/plugins/rest_probe/roles/").func.cls
+        self.assertTrue(issubclass(view_class, _HostOwnedViewSetDefaults))
+        self.assertEqual(view_class.permission_classes, api_settings.DEFAULT_PERMISSION_CLASSES)
+        self.assertIsInstance(view_class().schema, api_settings.DEFAULT_SCHEMA_CLASS)
+        self.assertEqual(
+            [permission.__class__ for permission in view_class().get_permissions()],
+            api_settings.DEFAULT_PERMISSION_CLASSES,
+        )
+        view = view_class()
+        view.schema = None
+        self.assertIsInstance(view.schema, api_settings.DEFAULT_SCHEMA_CLASS)
+        self.assertEqual(Role._base_manager.filter(tenant=self.other_tenant).count(), 1)
+
+    def test_host_tenant_scope_survives_plugin_filter_overrides(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant)
+
+        for prefix in ("roles_filter_override", "roles_unscoped_backend"):
+            with self.subTest(prefix=prefix):
+                response = self.client.get(f"/api/plugins/rest_probe/{prefix}/")
+                self.assertEqual(response.status_code, 200, response.content.decode())
+                payload = response.json()
+                rows = payload["results"] if isinstance(payload, dict) else payload
+                names = {row["name"] for row in rows}
+                self.assertIn("Tenant A private role", names)
+                self.assertNotIn("Tenant B private role", names)
+
+                detail = self.client.get(f"/api/plugins/rest_probe/{prefix}/{self.foreign_role.pk}/")
+                self.assertEqual(detail.status_code, 404)
+
+    def test_host_token_permission_cannot_be_disabled_by_plugin(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import resolve
+        from rest_framework.settings import api_settings
+
+        from core.tests.mixins import grant
+        from organization.models import Role
+        from users.models import Token
+
+        user = get_user_model().objects.create_user(username="no_role_reader", password="test")
+        denied_role = Role.objects.create(tenant=self.tenant, name="No view role", permissions=[])
+        grant(user, self.tenant, denied_role)
+        self.client_login_to_tenant(user, self.tenant)
+        response = self.client.get("/api/plugins/rest_probe/roles/")
+        self.assertEqual(response.status_code, 403)
+
+        token = Token.objects.create(user=user, tenant=self.tenant)
+        self.client.logout()
+        token_response = self.client.get(
+            "/api/plugins/rest_probe/roles/",
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
+        self.assertEqual(token_response.status_code, 403)
+
+        allowed_user = get_user_model().objects.create_user(username="token_role_reader", password="test")
+        allowed_role = Role.objects.create(
+            tenant=self.tenant,
+            name="Token view role",
+            permissions=["organization.view_role"],
+        )
+        grant(allowed_user, self.tenant, allowed_role)
+        allowed_token = Token.objects.create(user=allowed_user, tenant=self.tenant)
+        allowed_response = self.client.get(
+            "/api/plugins/rest_probe/roles/",
+            HTTP_AUTHORIZATION=f"Token {allowed_token.key}",
+        )
+        self.assertEqual(allowed_response.status_code, 200, allowed_response.content.decode())
+
+        view_class = resolve("/api/plugins/rest_probe/roles/").func.cls
+        self.assertEqual(
+            [auth.__class__ for auth in view_class().get_authenticators()],
+            api_settings.DEFAULT_AUTHENTICATION_CLASSES,
+        )
+
+    def test_plugin_rest_endpoint_is_the_supported_write_surface(self):
+        from django.contrib.auth import get_user_model
+
+        from core.tests.mixins import grant
+        from organization.models import Role
+
+        user = get_user_model().objects.create_user(username="role_writer", password="test")
+        role = Role.objects.create(
+            tenant=self.tenant,
+            name="Role writer",
+            permissions=["organization.add_role"],
+        )
+        grant(user, self.tenant, role)
+        self.client_login_to_tenant(user, self.tenant)
+
+        response = self.client.post(
+            "/api/plugins/rest_probe/roles/",
+            {"name": "Created through plugin REST", "tenant": self.tenant.pk},
+        )
+
+        self.assertEqual(response.status_code, 201, response.content.decode())
+        self.assertEqual(
+            Role._base_manager.filter(tenant=self.tenant, name="Created through plugin REST").count(),
+            1,
+        )
 
 
 class PluginSettingsSchemaTestCase(SimpleTestCase):

@@ -32,6 +32,7 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 
 from core.mfa import role_is_privileged
+from organization.services.role_permission_policy import active_role_permission_targets
 
 User = get_user_model()
 
@@ -52,17 +53,35 @@ TECHNICIAN_CUSTODY_REQUIRED_PERMISSIONS = (
     "compliance.prepare_custodyreceipt",
 )
 
+CORE_OPERATIONAL_APPS = frozenset(
+    {
+        "assets",
+        "inventory",
+        "organization",
+        "compliance",
+        "licenses",
+        "subscriptions",
+        "software",
+        "procurement",
+        "extras",
+        "core",
+    }
+)
+
 
 def _permission_name(permission):
     return f"{permission.content_type.app_label}.{permission.codename}"
 
 
-def _technician_permissions(all_permissions, operational_apps):
+def _technician_permissions(all_permissions, operational_apps, plugin_models=()):
     available = {_permission_name(permission) for permission in all_permissions}
     permissions = [
         _permission_name(permission)
         for permission in all_permissions
-        if permission.content_type.app_label in operational_apps
+        if (
+            permission.content_type.app_label in operational_apps
+            or (permission.content_type.app_label, permission.content_type.model) in plugin_models
+        )
         and not permission.codename.startswith("delete_")
         and _permission_name(permission) not in TECHNICIAN_CUSTODY_DENIED_PERMISSIONS
     ]
@@ -72,6 +91,11 @@ def _technician_permissions(all_permissions, operational_apps):
         if permission in available and permission not in permissions
     )
     return permissions
+
+
+def _technician_plugin_models():
+    """Return model labels declared by active plugins for Technician permissions."""
+    return {(target.app, target.model) for target in active_role_permission_targets() if target.plugin_name is not None}
 
 
 def _is_admin_seed_account(user):
@@ -309,20 +333,8 @@ class SeedAccessMixin:
             if permission.content_type.model_class() is not None
         ]
 
-        op_apps = {
-            "assets",
-            "inventory",
-            "organization",
-            "compliance",
-            "licenses",
-            "subscriptions",
-            "software",
-            "procurement",
-            "extras",
-            "core",
-        }
         ADMIN = [_permission_name(p) for p in all_perms]
-        TECH = _technician_permissions(all_perms, op_apps)
+        TECH = _technician_permissions(all_perms, CORE_OPERATIONAL_APPS, _technician_plugin_models())
         ASSETMGR = [
             _permission_name(p)
             for p in all_perms

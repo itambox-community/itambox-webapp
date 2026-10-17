@@ -1,7 +1,7 @@
-from itambox.api.viewsets import BaseViewSet
+from itambox.api.viewsets import ITAMBoxModelViewSet
 
 
-class NoQuerysetViewSet(BaseViewSet):
+class NoQuerysetViewSet(ITAMBoxModelViewSet):
     """No queryset and no basename: the router refuses to mount it."""
 
 

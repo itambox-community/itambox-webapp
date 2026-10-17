@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from django.apps import apps
 from django.utils.translation import gettext_lazy as _
 
-from organization.services.role_permission_policy import ROLE_PERMISSION_TARGETS
+from organization.services.role_permission_policy import ROLE_PERMISSION_TARGETS, active_role_permission_targets
 
 ROLE_PERMISSION_PRESENTATION = {
     # Inventory & Hardware
@@ -335,11 +336,37 @@ def _validate_declarations() -> None:
         raise RuntimeError(f"Role permission matrix declarations differ: missing={missing!r} extra={extra!r}")
 
 
+def _plugin_permission_presentations():
+    """Derive presentation rows from the active plugins' declared model targets."""
+    result = {}
+    for target in active_role_permission_targets():
+        if target.plugin_name is None:
+            continue
+        model = apps.get_model(target.app, target.model)
+        app_config = apps.get_app_config(target.app)
+        result[target.key] = {
+            "label": model._meta.verbose_name_plural,
+            "app": target.app,
+            "model_name": target.model,
+            "group": app_config.verbose_name,
+        }
+    return result
+
+
 def build_matrix_models():
-    """Build the complete legacy-shaped presentation compatibility mapping."""
+    """Build the core matrix and append rows declared by active plugins."""
 
     _validate_declarations()
-    return dict(ROLE_PERMISSION_PRESENTATION)
+    result = dict(ROLE_PERMISSION_PRESENTATION)
+    result.update(_plugin_permission_presentations())
+    return result
 
 
 MATRIX_MODELS = build_matrix_models()
+
+
+def refresh_matrix_models() -> None:
+    """Refresh exported rows in place after the final plugin registers its targets."""
+    refreshed = build_matrix_models()
+    MATRIX_MODELS.clear()
+    MATRIX_MODELS.update(refreshed)

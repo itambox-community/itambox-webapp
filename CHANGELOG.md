@@ -6,6 +6,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+- Plugins can declare host-mounted REST resources using the Stable core model viewset bases and declare plugin-owned permission targets through `PluginConfig.permission_targets`. The host owns authentication, permission and schema defaults, rejects viewset overrides that bypass host authentication, permission checks or scoped list/detail handling, applies core tenant-scope rules after plugin queryset overrides and filter-backend processing, and includes declared targets in SSO role policy, Technician seed permissions and the tenant role matrix. Plugin GraphQL is query-only; writes use the host-owned REST surface.
+
 ### Changed
 - Plugins are configured through `ITAMBOX_PLUGINS_CONFIG` (JSON keyed by plugin package) with per-key environment overrides `ITAMBOX_PLUGIN_<NAME>_<KEY>` for secrets, validated against the new `settings_schema` manifest attribute. `settings_schema` replaces `default_settings` and `required_settings`, which a plugin may no longer declare; unknown keys, missing required keys, wrong types and values outside `choices` abort startup with a message naming the plugin and the key, and keys flagged `secret` never appear in logs, diagnostics or errors. This includes the message of a startup error raised by plugin code and secret values of any length, including numbers.
 

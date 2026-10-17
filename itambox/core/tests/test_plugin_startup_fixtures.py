@@ -26,9 +26,29 @@ HEALTHY_PROBE = textwrap.dedent(
     from django.conf import settings
     from django.urls import resolve
     from core.schema import build_schema
+    from core.management.commands._seed.access import (
+        CORE_OPERATIONAL_APPS,
+        _technician_plugin_models,
+        _technician_permissions,
+    )
     from itambox.registry import registry
+    from organization.forms.role_matrix import build_matrix_models
+    from organization.services.role_permission_policy import active_role_permission_targets
 
     schema = build_schema(extensions=[])
+    plugin_targets = [target for target in active_role_permission_targets() if target.plugin_name == "fixture_plugin"]
+    fake_permission = type("Permission", (), {
+        "content_type": type("ContentType", (), {"app_label": "fixture_plugin", "model": "fixturewidget"})(),
+        "codename": "view_fixturewidget",
+    })()
+    fake_unrelated_permission = type("Permission", (), {
+        "content_type": type("ContentType", (), {"app_label": "fixture_plugin", "model": "unrelatedwidget"})(),
+        "codename": "view_unrelatedwidget",
+    })()
+    matrix = build_matrix_models()
+    technician_permissions = _technician_permissions(
+        [fake_permission, fake_unrelated_permission], CORE_OPERATIONAL_APPS, _technician_plugin_models()
+    )
     result = {
         "active": list(settings.PLUGINS_ACTIVE),
         "disabled": list(settings.PLUGINS_DISABLED),
@@ -36,9 +56,13 @@ HEALTHY_PROBE = textwrap.dedent(
         "menus": [m.label for m in registry.get_plugin_menus()],
         "menu_items": [i.link_text for i in registry.get_plugin_menu_items()],
         "viewsets": {k: [p for p, _, _ in v] for k, v in registry.get_plugin_viewsets().items()},
+        "permission_targets": [target.key for target in plugin_targets],
+        "matrix_target": matrix.get("plugin_14_fixture_plugin_fixturewidget"),
+        "seeded_target_permissions": technician_permissions,
         "graphql_fields": "fixturePluginPing" in schema.as_str(),
         "ui_route": resolve("/plugins/fixture/").view_name,
         "api_route": resolve("/api/plugins/fixture_plugin/manufacturers/").view_name,
+        "api_actions": resolve("/api/plugins/fixture_plugin/manufacturers/").func.actions,
     }
     print("PROBE" + json.dumps(result))
     """
@@ -112,6 +136,13 @@ class PluginStartupFixtureTests(SimpleTestCase):
         self.assertIs(payload["graphql_fields"], True)
         self.assertEqual(payload["ui_route"], "plugins:fixture_plugin:index")
         self.assertTrue(payload["api_route"].startswith("plugins-api:"), payload["api_route"])
+        self.assertEqual(payload["permission_targets"], ["plugin_14_fixture_plugin_fixturewidget"])
+        self.assertEqual(payload["matrix_target"]["app"], "fixture_plugin")
+        self.assertEqual(payload["matrix_target"]["model_name"], "fixturewidget")
+        self.assertEqual(payload["matrix_target"]["group"], "Fixture plugin")
+        self.assertIn("fixture_plugin.view_fixturewidget", payload["seeded_target_permissions"])
+        self.assertNotIn("fixture_plugin.view_unrelatedwidget", payload["seeded_target_permissions"])
+        self.assertEqual(payload["api_actions"].get("post"), "create")
 
     def assert_aborts(self, plugin, phase, detail=None):
         completed = boot(plugin)

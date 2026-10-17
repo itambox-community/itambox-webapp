@@ -1,11 +1,9 @@
-from rest_framework.mixins import ListModelMixin
-
 from assets.api.serializers import ManufacturerSerializer
 from assets.models import Manufacturer
-from itambox.api.viewsets import BaseViewSet
+from itambox.api.viewsets import ITAMBoxModelViewSet
 
 
-class FixtureManufacturerViewSet(ListModelMixin, BaseViewSet):
+class FixtureManufacturerViewSet(ITAMBoxModelViewSet):
     queryset = Manufacturer.objects.all()
     serializer_class = ManufacturerSerializer
 

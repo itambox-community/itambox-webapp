@@ -16,7 +16,8 @@ class PluginConfig(AppConfig):
     dotted path (or the object itself) with a conventional default location:
     ``template_extensions`` (``template_content.template_extensions``),
     ``menu`` (``navigation.menu``), ``menu_items`` (``navigation.menu_items``),
-    ``viewsets`` (``api.viewsets.viewsets``) and ``graphql_schema``
+    ``viewsets`` (``api.viewsets.viewsets``), ``permission_targets``
+    (``permissions.targets``, plugin-owned model labels), and ``graphql_schema``
     (``graphql.schema``, queries only).
 
     Operator configuration is declared by ``settings_schema`` (key -> ``type``,
@@ -40,6 +41,7 @@ class PluginConfig(AppConfig):
     menu = None
     menu_items = None
     viewsets = None
+    permission_targets = None
     graphql_schema = None
 
     def __init_subclass__(cls, **kwargs):

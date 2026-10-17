@@ -176,6 +176,7 @@ def test_semantic_targets_are_presentation_free_and_policy_does_not_import_forms
         "app",
         "model",
         "required_app",
+        "plugin_name",
     )
 
 
@@ -196,6 +197,65 @@ def test_target_with_required_app_follows_app_installation(monkeypatch):
     monkeypatch.setattr(apps, "is_installed", lambda label: label == "optional_app")
     assert len(policy.active_role_permission_targets()) == 59
     assert [target.key for target in policy.active_role_permission_targets()][-1] == "optionalthing"
+
+
+def test_declared_plugin_permission_target_is_reflected_in_role_matrix(monkeypatch):
+    import types
+
+    import organization.forms.role_matrix as presentation
+    from organization.services.role_permission_policy import RolePermissionTarget
+
+    target = RolePermissionTarget(
+        "plugin_13_widget_plugin_widget", "widget_plugin", "widget", plugin_name="widget_plugin"
+    )
+    model = types.SimpleNamespace(_meta=types.SimpleNamespace(verbose_name_plural="Widgets"))
+    app_config = types.SimpleNamespace(verbose_name="Widget plugin")
+    monkeypatch.setattr(presentation, "active_role_permission_targets", lambda: (target,))
+    monkeypatch.setattr(presentation.apps, "get_model", lambda app, model_name: model)
+    monkeypatch.setattr(presentation.apps, "get_app_config", lambda app: app_config)
+
+    row = presentation.build_matrix_models()[target.key]
+
+    assert row == {
+        "label": "Widgets",
+        "app": "widget_plugin",
+        "model_name": "widget",
+        "group": "Widget plugin",
+    }
+
+
+def test_distinct_plugin_target_labels_cannot_overwrite_role_matrix_rows(monkeypatch):
+    import types
+
+    import itambox.registry as plugin_registry
+    import organization.forms.role_matrix as presentation
+    from organization.services.role_permission_policy import active_role_permission_targets
+
+    declared = {
+        "plugin_one": ("foo.bar_baz",),
+        "plugin_two": ("foo_bar.baz",),
+    }
+    monkeypatch.setattr(plugin_registry.registry, "get_plugin_permission_targets", lambda: declared)
+    targets = tuple(target for target in active_role_permission_targets() if target.plugin_name is not None)
+    assert len(targets) == 2
+    assert len({target.key for target in targets}) == 2
+
+    monkeypatch.setattr(
+        presentation.apps,
+        "get_model",
+        lambda app, model_name: types.SimpleNamespace(
+            _meta=types.SimpleNamespace(verbose_name_plural=f"{app}.{model_name}")
+        ),
+    )
+    monkeypatch.setattr(
+        presentation.apps,
+        "get_app_config",
+        lambda app: types.SimpleNamespace(verbose_name=app),
+    )
+    rows = presentation.build_matrix_models()
+
+    assert all(rows[target.key]["app"] == target.app for target in targets)
+    assert {rows[target.key]["model_name"] for target in targets} == {"bar_baz", "baz"}
 
 
 @pytest.mark.django_db
@@ -246,6 +306,28 @@ def test_future_semantic_target_requires_a_presentation_entry(monkeypatch):
 
     with pytest.raises(RuntimeError, match="missing=.*futureonly"):
         presentation.build_matrix_models()
+
+
+@pytest.mark.django_db
+def test_declared_plugin_permission_target_contributes_to_sso_policy(monkeypatch):
+    from django.contrib.contenttypes.models import ContentType
+
+    from itambox.registry import registry
+    from organization.services.role_permission_policy import permissions_for_sso_role
+
+    monkeypatch.setattr(
+        registry,
+        "get_plugin_permission_targets",
+        lambda: {"demo_plugin": ("demo_plugin.widget",)},
+    )
+    content_type, _ = ContentType.objects.get_or_create(app_label="demo_plugin", model="widget")
+    Permission.objects.get_or_create(
+        content_type=content_type,
+        codename="view_widget",
+        defaults={"name": "Can view widget"},
+    )
+
+    assert "demo_plugin.view_widget" in permissions_for_sso_role("Member")
 
 
 def test_customer_role_vocabulary_matches_supported_roles():

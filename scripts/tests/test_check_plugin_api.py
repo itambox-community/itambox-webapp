@@ -48,6 +48,7 @@ class DerivationAgainstSourceTests(unittest.TestCase):
                 "graphql_schema": "graphql.schema",
                 "menu": "navigation.menu",
                 "menu_items": "navigation.menu_items",
+                "permission_targets": "permissions.targets",
                 "template_extensions": "template_content.template_extensions",
                 "viewsets": "api.viewsets.viewsets",
             },
@@ -59,6 +60,11 @@ class DerivationAgainstSourceTests(unittest.TestCase):
             for name in names:
                 self.assertFalse(name.startswith("_"), name)
         self.assertIn("PluginTemplateContent", symbols["itambox.plugins.views"])
+        self.assertEqual(
+            symbols["itambox.api.viewsets"],
+            ["ITAMBoxModelViewSet", "ITAMBoxReadOnlyModelViewSet"],
+        )
+        self.assertNotIn("BaseViewSet", symbols["itambox.api.viewsets"])
 
     def test_fixture_plugin_exercises_each_stable_resource(self):
         names = gate.fixture_exercised_names()
