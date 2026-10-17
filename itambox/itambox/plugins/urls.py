@@ -1,5 +1,8 @@
+from typing import cast
+
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
+from rest_framework.generics import GenericAPIView
 from rest_framework.routers import DefaultRouter
 from rest_framework.settings import api_settings
 
@@ -57,6 +60,13 @@ class _HostOwnedViewSetDefaults:
     def get_queryset(self) -> QuerySet:
         queryset = super().get_queryset()
         return _apply_host_tenant_scope(queryset)
+
+    def filter_queryset(self, queryset: QuerySet) -> QuerySet:
+        model = queryset.model
+        filtered_queryset = cast(GenericAPIView, super()).filter_queryset(queryset)
+        if getattr(filtered_queryset, "model", None) is not model:
+            raise ImproperlyConfigured("Plugin filter backends must preserve the queryset model.")
+        return _apply_host_tenant_scope(filtered_queryset)
 
 
 def _host_owned_viewset(plugin_name, viewset):

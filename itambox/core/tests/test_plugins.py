@@ -363,6 +363,54 @@ class PluginComposeTestCase(SimpleTestCase):
         _sql, params = queryset.query.sql_with_params()
         self.assertIn(42, params)
 
+    def test_host_filter_queryset_reapplies_tenant_scope_after_plugin_override(self):
+        from typing import cast
+
+        from django.db.models import QuerySet
+
+        from core.managers import Scope, TenantScopingQuerySet
+        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+        from organization.models import Role
+
+        class NoOpTenantScopeQuerySet(QuerySet):
+            def filter_by_tenant(self) -> QuerySet:
+                return self
+
+        class PluginFilter:
+            def filter_queryset(self, queryset: QuerySet) -> QuerySet:
+                return NoOpTenantScopeQuerySet(model=Role, using=queryset.db)
+
+        class HostViewSet(_HostOwnedViewSetDefaults, PluginFilter):
+            pass
+
+        queryset = NoOpTenantScopeQuerySet(model=Role, using="default")
+        scope = Scope(Scope.TENANT, tenant=types.SimpleNamespace(pk=42, group=None))
+        with (
+            patch.object(Scope, "current", return_value=scope),
+            patch.object(TenantScopingQuerySet, "_resolve_allowed_tenant_ids", return_value=[42]),
+        ):
+            result = cast(QuerySet, HostViewSet().filter_queryset(queryset))
+
+        sql, params = result.query.sql_with_params()
+        self.assertIn("tenant_id", sql)
+        self.assertIn(42, params)
+
+    def test_host_filter_queryset_rejects_plugin_model_swap(self):
+        from django.db.models import QuerySet
+
+        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+        from organization.models import Role, Tenant
+
+        class PluginFilter:
+            def filter_queryset(self, queryset: QuerySet) -> QuerySet:
+                return QuerySet(model=Tenant, using=queryset.db)
+
+        class HostViewSet(_HostOwnedViewSetDefaults, PluginFilter):
+            pass
+
+        with self.assertRaises(ImproperlyConfigured):
+            HostViewSet().filter_queryset(QuerySet(model=Role, using="default"))
+
     def test_duplicate_viewset_prefix_is_rejected(self):
         registry._register_plugin_viewset("p", "things", object)
         with self.assertRaises(ValueError):
@@ -739,6 +787,7 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
         from django.db.models import QuerySet
         from django.urls import clear_url_caches
         from rest_framework import serializers
+        from rest_framework.filters import BaseFilterBackend
 
         from itambox.api.viewsets import ITAMBoxModelViewSet
         from organization.models import Role, Tenant
@@ -760,7 +809,30 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
             permission_classes = ()
             schema = None
 
+        class PluginRoleFilterOverrideViewSet(PluginRoleViewSet):
+            def filter_queryset(self, queryset):
+                return NoOpRoleQuerySet(model=Role, using=queryset.db)
+
+        class UnscopedRoleFilterBackend(BaseFilterBackend):
+            def filter_queryset(self, request, queryset, view):
+                return NoOpRoleQuerySet(model=Role, using=queryset.db)
+
+        class PluginRoleUnscopedBackendViewSet(PluginRoleViewSet):
+            filter_backends = (UnscopedRoleFilterBackend,)
+
         registry._register_plugin_viewset("rest_probe", "roles", PluginRoleViewSet, "rest-probe-roles")
+        registry._register_plugin_viewset(
+            "rest_probe",
+            "roles_filter_override",
+            PluginRoleFilterOverrideViewSet,
+            "rest-probe-roles-filter-override",
+        )
+        registry._register_plugin_viewset(
+            "rest_probe",
+            "roles_unscoped_backend",
+            PluginRoleUnscopedBackendViewSet,
+            "rest-probe-roles-unscoped-backend",
+        )
         importlib.reload(importlib.import_module("itambox.plugins.urls"))
         importlib.reload(importlib.import_module("core.urls"))
         clear_url_caches()
@@ -813,6 +885,22 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
         view.schema = None
         self.assertIsInstance(view.schema, api_settings.DEFAULT_SCHEMA_CLASS)
         self.assertEqual(Role._base_manager.filter(tenant=self.other_tenant).count(), 1)
+
+    def test_host_tenant_scope_survives_plugin_filter_overrides(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant)
+
+        for prefix in ("roles_filter_override", "roles_unscoped_backend"):
+            with self.subTest(prefix=prefix):
+                response = self.client.get(f"/api/plugins/rest_probe/{prefix}/")
+                self.assertEqual(response.status_code, 200, response.content.decode())
+                payload = response.json()
+                rows = payload["results"] if isinstance(payload, dict) else payload
+                names = {row["name"] for row in rows}
+                self.assertIn("Tenant A private role", names)
+                self.assertNotIn("Tenant B private role", names)
+
+                detail = self.client.get(f"/api/plugins/rest_probe/{prefix}/{self.foreign_role.pk}/")
+                self.assertEqual(detail.status_code, 404)
 
     def test_host_token_permission_cannot_be_disabled_by_plugin(self):
         from django.contrib.auth import get_user_model
