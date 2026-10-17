@@ -179,7 +179,7 @@ def load_plugins(settings_module):
             resolved = _resolve_plugin(settings_module, plugin_name, plugins_config, environ, claimed_overrides)
         # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
         except Exception as exc:
-            raise PluginStartupError(plugin_name, "resolve", exc) from exc
+            raise PluginStartupError(plugin_name, "resolve", exc, settings_module=settings_module) from exc
         if resolved is None:
             continue
         config_cls, resolved_config, secrets, plugin_apps, plugin_middleware = resolved
