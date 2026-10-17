@@ -781,3 +781,143 @@ class PluginSettingsSchemaTestCase(SimpleTestCase):
             whole["retries"] = 99
             self.assertEqual(get_plugin_config(self.NAME, "retries"), 3)
             self.assertEqual(get_plugin_config("unknown_plugin"), {})
+
+
+class PluginSecretRedactionTestCase(SimpleTestCase):
+    """Secret-flagged values never reach the startup error, the log or the diagnostics rows."""
+
+    NAME = "test_secret_plugin"
+    SCHEMA = {
+        "endpoint": {"type": "str", "default": "https://visible.example"},
+        "api_key": {"type": "str", "required": True, "secret": True},
+        "pin": {"type": "int", "secret": True},
+        "ratio": {"type": "float", "secret": True},
+        "debug": {"type": "bool", "secret": True},
+    }
+
+    def setUp(self):
+        self._snapshot = {
+            key: (value.copy() if hasattr(value, "copy") else value)
+            for key, value in vars(registry).items()
+            if key.startswith("_plugin")
+        }
+
+    def tearDown(self):
+        for key, value in self._snapshot.items():
+            setattr(registry, key, value)
+        sys.modules.pop(self.NAME, None)
+
+    def _resolve(self, plugin_config, environ=None, **attrs):
+        module = types.ModuleType(self.NAME)
+        module.config = _config(self.NAME, settings_schema=self.SCHEMA, **attrs)
+        sys.modules[self.NAME] = module
+        dummy = DummySettings()
+        dummy.SECRET_KEY = "django-secret-key-value"
+        dummy.PLUGINS = [self.NAME]
+        dummy.PLUGINS_CONFIG = plugin_config
+        with patch.dict("os.environ", environ or {}, clear=False):
+            load_plugins(dummy)
+        return dummy
+
+    def _fail_in_ready(self, dummy, message, environ=None):
+        """Run the plugin's ready() with a cause that leaks ``message``; return (error, log output)."""
+        config_cls = sys.modules[self.NAME].config
+
+        def ready(self):
+            raise RuntimeError(message)
+
+        failing = type("FailingConfig", (config_cls,), {"__module__": self.NAME, "ready": ready})
+        with (
+            override_settings(
+                PLUGINS_RESOLVED_CONFIG=dummy.PLUGINS_RESOLVED_CONFIG,
+                PLUGINS_SECRET_KEYS=dummy.PLUGINS_SECRET_KEYS,
+                SECRET_KEY=dummy.SECRET_KEY,
+            ),
+            patch.dict("os.environ", environ or {}, clear=False),
+            patch("itambox.plugins.assembly.compose_plugin"),
+            self.assertLogs("itambox.plugins", level="ERROR") as logs,
+            self.assertRaises(PluginStartupError) as ctx,
+        ):
+            try:
+                failing.__new__(failing).ready()
+            except PluginStartupError as exc:
+                # The startup log of the host records the error message, never the cause.
+                runtime.logger.error("%s", exc)
+                raise
+        return ctx.exception, "\n".join(logs.output)
+
+    def test_json_secret_is_absent_from_error_and_log(self):
+        dummy = self._resolve({self.NAME: {"api_key": "json-secret-123"}})
+        error, log = self._fail_in_ready(dummy, "call to https://visible.example with json-secret-123 failed")
+        for text in (str(error), log):
+            self.assertNotIn("json-secret-123", text)
+            self.assertIn("https://visible.example", text)
+            self.assertIn("[redacted]", text)
+        self.assertEqual((error.plugin_name, error.phase), (self.NAME, "ready"))
+        self.assertIsInstance(error.cause, RuntimeError)
+        self.assertIn("json-secret-123", str(error.cause))
+        self.assertIs(error.__cause__, error.cause)
+
+    def test_env_override_secret_is_absent_from_error_and_log(self):
+        variable = override_variable_name(self.NAME, "api_key")
+        env = {variable: "env-secret-456"}
+        dummy = self._resolve({self.NAME: {"api_key": "json-loses-789"}}, env)
+        self.assertEqual(dummy.PLUGINS_RESOLVED_CONFIG[self.NAME]["api_key"], "env-secret-456")
+        error, log = self._fail_in_ready(dummy, "token env-secret-456 rejected by https://visible.example", env)
+        for text in (str(error), log):
+            self.assertNotIn("env-secret-456", text)
+            self.assertIn("https://visible.example", text)
+
+    def test_raw_env_override_text_of_a_numeric_secret_is_redacted(self):
+        env = {override_variable_name(self.NAME, "pin"): " 0042 "}
+        dummy = self._resolve({self.NAME: {"api_key": "json-secret-123"}}, env)
+        self.assertEqual(dummy.PLUGINS_RESOLVED_CONFIG[self.NAME]["pin"], 42)
+        error, _ = self._fail_in_ready(dummy, "bad pin 0042 for https://visible.example", env)
+        self.assertNotIn("0042", str(error))
+        self.assertIn("https://visible.example", str(error))
+
+    def test_short_and_numeric_secrets_are_redacted(self):
+        dummy = self._resolve({self.NAME: {"api_key": "zq", "pin": 9917, "ratio": 0.375, "debug": True}})
+        error, log = self._fail_in_ready(dummy, "key=zq pin=9917 ratio=0.375 debug=True at https://visible.example")
+        for text in (str(error), log):
+            for secret in ("zq", "9917", "0.375"):
+                self.assertNotIn(secret, text)
+            self.assertIn("debug=True", text)
+            self.assertIn("https://visible.example", text)
+        diagnostic = runtime._redacted_error(RuntimeError("pin 9917 key zq"), dummy)
+        self.assertEqual(diagnostic, "pin [redacted] key [redacted]")
+
+    def test_secret_key_keeps_the_three_character_rule(self):
+        dummy = self._resolve({self.NAME: {"api_key": "json-secret-123"}})
+        dummy.SECRET_KEY = "ab"
+        self.assertEqual(runtime._redact_text("ab cd", dummy), "ab cd")
+        dummy.SECRET_KEY = "abc"
+        self.assertEqual(runtime._redact_text("abc cd", dummy), "[redacted] cd")
+
+    def test_resolve_phase_error_uses_the_settings_module_being_loaded(self):
+        dummy = self._resolve({self.NAME: {"api_key": "json-secret-123"}})
+        error = PluginStartupError(self.NAME, "resolve", ValueError("saw json-secret-123"), settings_module=dummy)
+        self.assertEqual(str(error), 'Plugin "%s" failed during resolve: ValueError: saw [redacted]' % self.NAME)
+
+    def test_secret_from_json_and_env_is_absent_from_diagnostics_rows(self):
+        variable = override_variable_name(self.NAME, "api_key")
+        for plugin_config, env, secret in (
+            ({self.NAME: {"api_key": "json-secret-123"}}, {}, "json-secret-123"),
+            ({}, {variable: "env-secret-456"}, "env-secret-456"),
+        ):
+            with self.subTest(secret=secret):
+                dummy = self._resolve(plugin_config, env)
+                with (
+                    patch.dict("os.environ", env, clear=False),
+                    self.assertLogs("itambox.plugins.runtime", level="WARNING") as logs,
+                ):
+                    runtime.record_plugin_skip(
+                        self.NAME,
+                        RuntimeError(f"skipped: {secret} at https://visible.example"),
+                        settings_module=dummy,
+                    )
+                row = dummy.PLUGINS_DIAGNOSTICS[-1]
+                self.assertNotIn(secret, repr(row))
+                self.assertIn("https://visible.example", row["error"])
+                self.assertNotIn(secret, "\n".join(logs.output))
+                self.assertIn("https://visible.example", "\n".join(logs.output))
