@@ -10,6 +10,7 @@ from django.db import models
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy as _lazy
 
+from assets.forms.category_form import CategoryForm
 from assets.models import (
     Asset,
     AssetMaintenance,
@@ -467,8 +468,6 @@ class CategoryBulkImportForm(_ReferenceDataBulkImportForm):
     @staticmethod
     def _parse_applies_to(value):
         """Targets as a comma list; an export's mapping notation reads back unchanged."""
-        from assets.forms.category_form import CategoryForm
-
         known = [choice for choice, _label in CategoryForm.APPLIES_TO_CHOICES]
         if value.startswith("{"):
             try:
