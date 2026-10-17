@@ -263,7 +263,8 @@ Set to `0` to keep records forever. See [data-retention.md](data-retention.md) f
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ITAMBOX_PLUGINS` | Optional | *(empty)* | Comma-separated importable plugin package names. Each package must be installed in the Python environment. Example: `itambox_esign`. See `itambox/docs/plugins/` for the plugin development guide. |
+| `ITAMBOX_PLUGINS` | Optional | *(empty)* | Comma-separated importable plugin package names. Each package must be installed in the Python environment. Example: `example_plugin`. See `itambox/docs/plugins/` for the plugin development guide. |
+| `ITAMBOX_PLUGINS_CONFIG` | Optional | `{}` | JSON object keyed by plugin package name; validated against each plugin's `settings_schema`. Malformed JSON or a non-object value stops startup. A single value (for example a secret) can instead be injected as `ITAMBOX_PLUGIN_<NAME>_<KEY>` (package name and key upper-cased, every character outside `A-Z0-9` replaced by `_`), which wins over the JSON value. See [plugin configuration](../plugins/api_reference.md#configuration). |
 
 ---
 
