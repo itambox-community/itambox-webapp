@@ -38,7 +38,7 @@ The supported ITAMbox-owned surface is intentionally small:
 A plugin may contain other Django/Python code, including models, but those internals are not additional ITAMbox API guarantees. The package layout below is illustrative; only the symbols and paths named in the [API Reference](api_reference.md) are supported.
 
 ```text
-itambox_esign/
+example_plugin/
 ├── __init__.py           # Declares PluginConfig class
 ├── urls.py               # Web UI routes (optional)
 ├── navigation.py         # Sidebar menu registration (optional)
@@ -58,23 +58,23 @@ itambox_esign/
 
 The entry point of any plugin is its `__init__.py` which must subclass `PluginConfig` from `itambox.plugins`.
 
-Create `itambox_esign/__init__.py`:
+Create `example_plugin/__init__.py`:
 
 ```python
 from itambox.plugins import PluginConfig
 
-class EsignPluginConfig(PluginConfig):
-    name = 'itambox_esign'
-    verbose_name = 'DocuSign Integration'
+class ExamplePluginConfig(PluginConfig):
+    name = 'example_plugin'
+    verbose_name = 'Example Integration'
     version = '1.0.0'
-    author = 'DocuSign Dev Team'
-    author_email = 'dev@docusign.com'
-    description = 'DocuSign envelopes for assets'
+    author = 'Example Dev Team'
+    author_email = 'dev@example.test'
+    description = 'Example integration for assets'
     itambox_range = '>=1.1,<1.2'  # supported ITAMbox major.minor range
 
     settings_schema = {
-        'DOCUSIGN_API_KEY': {'type': 'str', 'required': True, 'secret': True},
-        'DOCUSIGN_SANDBOX': {'type': 'bool', 'default': True},
+        'api_key': {'type': 'str', 'required': True, 'secret': True},
+        'sandbox': {'type': 'bool', 'default': True},
     }
 
     def ready(self):
@@ -82,7 +82,7 @@ class EsignPluginConfig(PluginConfig):
         # Resources (template extensions, menu, viewsets, GraphQL) are declared
         # on the config or in conventional modules; the host registers them.
 
-config = EsignPluginConfig
+config = ExamplePluginConfig
 ```
 
 ---
@@ -93,7 +93,7 @@ To enable your plugin, add its package name to the `ITAMBOX_PLUGINS` environment
 variable (comma-separated). Product source is never edited:
 
 ```bash
-ITAMBOX_PLUGINS=itambox_esign
+ITAMBOX_PLUGINS=example_plugin
 ```
 
 Operator settings are validated against your `settings_schema`. Supply them as JSON in
@@ -101,11 +101,11 @@ Operator settings are validated against your `settings_schema`. Supply them as J
 `ITAMBOX_PLUGIN_<NAME>_<KEY>`, which wins over the JSON:
 
 ```bash
-ITAMBOX_PLUGINS_CONFIG='{"itambox_esign": {"DOCUSIGN_SANDBOX": false}}'
-ITAMBOX_PLUGIN_ITAMBOX_ESIGN_DOCUSIGN_API_KEY=your-api-key-here
+ITAMBOX_PLUGINS_CONFIG='{"example_plugin": {"sandbox": false}}'
+ITAMBOX_PLUGIN_EXAMPLE_PLUGIN_API_KEY=your-api-key-here
 ```
 
-Read the validated values at runtime with `itambox.plugins.get_plugin_config('itambox_esign', 'DOCUSIGN_SANDBOX')`. See [Configuration](api_reference.md#configuration).
+Read the validated values at runtime with `itambox.plugins.get_plugin_config('example_plugin', 'sandbox')`. See [Configuration](api_reference.md#configuration).
 
 ## Trust and failure behavior
 

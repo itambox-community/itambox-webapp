@@ -770,6 +770,60 @@ class PluginSettingsSchemaTestCase(SimpleTestCase):
         self.assertIn("https://visible.example", error)
         self.assertIn("[redacted]", error)
 
+    def test_override_name_collision_is_a_resolve_error_by_name_only(self):
+        # "a-b" / "c" and "a" / "b_c" both normalise to ITAMBOX_PLUGIN_A_B_C; no variable is set.
+        first, second = "cfg_collide_a_b", "cfg_collide_a"
+        for name, schema in ((first, {"c": {"type": "str"}}), (second, {"b_c": {"type": "str"}})):
+            module = types.ModuleType(name)
+            module.config = _config(name, settings_schema=schema)
+            sys.modules[name] = module
+            self._installed.append(name)
+        # same normalised variable: ITAMBOX_PLUGIN_CFG_COLLIDE_A_B_C
+        self.assertEqual(override_variable_name(first, "c"), override_variable_name(second, "b_c"))
+        dummy = DummySettings()
+        dummy.PLUGINS = [first, second]
+        with patch.dict("os.environ", {}, clear=False):
+            with self.assertRaises(PluginStartupError) as ctx:
+                load_plugins(dummy)
+        message = str(ctx.exception)
+        self.assertEqual((ctx.exception.plugin_name, ctx.exception.phase), (second, "resolve"))
+        for expected in (first, second, "'c'", "'b_c'", "ITAMBOX_PLUGIN_CFG_COLLIDE_A_B_C"):
+            self.assertIn(expected, message)
+
+    def test_override_name_collision_message_never_contains_a_value(self):
+        first, second = "cfg_collide_a_b", "cfg_collide_a"
+        for name, schema in ((first, {"c": {"type": "str"}}), (second, {"b_c": {"type": "str"}})):
+            module = types.ModuleType(name)
+            module.config = _config(name, settings_schema=schema)
+            sys.modules[name] = module
+            self._installed.append(name)
+        dummy = DummySettings()
+        dummy.PLUGINS = [first, second]
+        env = {"ITAMBOX_PLUGIN_CFG_COLLIDE_A_B_C": "hunter2-secret"}
+        with patch.dict("os.environ", env, clear=False):
+            with self.assertRaises(PluginStartupError) as ctx:
+                load_plugins(dummy)
+        self.assertNotIn("hunter2", str(ctx.exception))
+
+    def test_optional_key_without_default_is_absent_from_resolved_config(self):
+        schema = {"note": {"type": "str"}, "limit": {"type": "int", "default": 2}}
+        resolved = self._resolve({}, schema=schema).PLUGINS_RESOLVED_CONFIG[self.NAME]
+        self.assertEqual(resolved, {"limit": 2})
+        self.assertNotIn("note", resolved)
+
+    def test_environment_variable_for_an_undeclared_key_is_ignored(self):
+        env = {
+            override_variable_name(self.NAME, "api_key"): "k-123456",
+            override_variable_name(self.NAME, "undeclared"): "whatever",
+        }
+        resolved = self._resolve({}, env).PLUGINS_RESOLVED_CONFIG[self.NAME]
+        self.assertNotIn("undeclared", resolved)
+        self.assertEqual(resolved["api_key"], "k-123456")
+
+    def test_config_entry_for_a_plugin_not_in_plugins_is_ignored(self):
+        dummy = self._resolve({self.NAME: {"api_key": "k-123456"}, "not_configured_plugin": {"anything": 1}})
+        self.assertEqual(set(dummy.PLUGINS_RESOLVED_CONFIG), {self.NAME})
+
     def test_get_plugin_config_reads_resolved_values(self):
         from itambox.plugins import get_plugin_config
 
@@ -781,3 +835,34 @@ class PluginSettingsSchemaTestCase(SimpleTestCase):
             whole["retries"] = 99
             self.assertEqual(get_plugin_config(self.NAME, "retries"), 3)
             self.assertEqual(get_plugin_config("unknown_plugin"), {})
+
+
+class PluginsConfigSettingsLoadTestCase(SimpleTestCase):
+    """ITAMBOX_PLUGINS_CONFIG is parsed at settings load like the ITAMBOX_TENANT_*_CONFIGS variables."""
+
+    def _load(self, raw):
+        from core.settings import base
+
+        with patch.dict("os.environ", {"ITAMBOX_PLUGINS_CONFIG": raw}, clear=False):
+            return base._load_tenant_json_config("ITAMBOX_PLUGINS_CONFIG")
+
+    def test_valid_json_object_is_returned(self):
+        self.assertEqual(
+            self._load('{"example_plugin": {"endpoint": "https://x"}}'), {"example_plugin": {"endpoint": "https://x"}}
+        )
+
+    def test_malformed_json_reports_position_only(self):
+        with self.assertRaises(ImproperlyConfigured) as ctx:
+            self._load('{"example_plugin": {"api_key": "s3cr3t-token", }}')
+        message = str(ctx.exception)
+        self.assertIn("ITAMBOX_PLUGINS_CONFIG", message)
+        self.assertIn("line 1, column", message)
+        self.assertNotIn("s3cr3t-token", message)
+
+    def test_non_object_top_level_is_rejected(self):
+        for raw in ('["s3cr3t-token"]', '"s3cr3t-token"', "42"):
+            with self.subTest(raw=raw):
+                with self.assertRaises(ImproperlyConfigured) as ctx:
+                    self._load(raw)
+                self.assertIn("must contain a JSON object", str(ctx.exception))
+                self.assertNotIn("s3cr3t-token", str(ctx.exception))

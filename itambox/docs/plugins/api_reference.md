@@ -22,7 +22,7 @@ Operators configure plugins through one channel and never edit product source.
     ITAMBOX_PLUGINS_CONFIG='{"example_plugin": {"endpoint": "https://example.test", "retries": 5}}'
     ```
 
-2. Per-key environment overrides, so a secret store can inject single values: `ITAMBOX_PLUGIN_<NAME>_<KEY>`. `<NAME>` is the package name and `<KEY>` the schema key, both upper-cased with every character outside `A-Z0-9` replaced by `_` (`example_plugin` / `api_key` becomes `ITAMBOX_PLUGIN_EXAMPLE_PLUGIN_API_KEY`). An override wins over the JSON value. Override values are text and are converted to the declared type; `bool` accepts `true/false/1/0/yes/no/on/off`, `list` and `dict` take JSON.
+2. Per-key environment overrides, so a secret store can inject single values: `ITAMBOX_PLUGIN_<NAME>_<KEY>`. `<NAME>` is the package name and `<KEY>` the schema key, both upper-cased with every character outside `A-Z0-9` replaced by `_` (`example_plugin` / `api_key` becomes `ITAMBOX_PLUGIN_EXAMPLE_PLUGIN_API_KEY`). An override wins over the JSON value. Override values are text and are converted to the declared type; `bool` accepts `true/false/1/0/yes/no/on/off`, `list` and `dict` take JSON. This `ITAMBOX_PLUGIN_<NAME>_<KEY>` family is a published naming rule: it is stable for 1.x. Two keys (of the same or of different configured plugins) whose names normalise to the same variable abort startup with an error naming both plugins, both keys and the variable, whether or not the variable is set.
 
 A plugin declares what it accepts with `settings_schema`, a mapping of key to a spec:
 

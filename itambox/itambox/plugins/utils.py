@@ -15,7 +15,7 @@ from itambox.plugins.runtime import (
     is_plugin_active,
     record_plugin_skip,
 )
-from itambox.plugins.settings_schema import resolve_plugin_settings, secret_keys, validate_schema
+from itambox.plugins.settings_schema import claim_override_names, resolve_plugin_settings, secret_keys, validate_schema
 
 
 class PluginCompatibilityError(Exception):
@@ -107,9 +107,10 @@ def _reject_removed_attributes(plugin_name, config_cls):
             )
 
 
-def _resolve_plugin_settings(plugin_name, config_cls, plugins_config, environ):
+def _resolve_plugin_settings(plugin_name, config_cls, plugins_config, environ, claimed_overrides):
     _reject_removed_attributes(plugin_name, config_cls)
     schema = validate_schema(plugin_name, getattr(config_cls, "settings_schema", {}))
+    claim_override_names(plugin_name, schema, claimed_overrides)
     return resolve_plugin_settings(plugin_name, schema, plugins_config, environ), secret_keys(schema)
 
 
@@ -136,7 +137,7 @@ def _append_unique(target, values):
             target.append(value)
 
 
-def _resolve_plugin(settings_module, plugin_name, plugins_config, environ):
+def _resolve_plugin(settings_module, plugin_name, plugins_config, environ, claimed_overrides):
     """Resolve phase for one plugin; returns None for a skip or the resolved data."""
     config_cls = _load_plugin_config(plugin_name)
     _validate_config_metadata(plugin_name, config_cls)
@@ -144,7 +145,9 @@ def _resolve_plugin(settings_module, plugin_name, plugins_config, environ):
     if incompatibility is not None:
         record_plugin_skip(plugin_name, PluginCompatibilityError(incompatibility), settings_module=settings_module)
         return None
-    resolved_config, secrets = _resolve_plugin_settings(plugin_name, config_cls, plugins_config, environ)
+    resolved_config, secrets = _resolve_plugin_settings(
+        plugin_name, config_cls, plugins_config, environ, claimed_overrides
+    )
     _validate_middleware(plugin_name, config_cls)
     plugin_apps = [*getattr(config_cls, "django_apps", ()), f"{plugin_name}.{config_cls.__name__}"]
     if any(not isinstance(app_name, str) or not app_name.strip() for app_name in plugin_apps):
@@ -170,9 +173,10 @@ def load_plugins(settings_module):
     settings_module.PLUGINS_DISABLED = []
     settings_module.PLUGINS_DIAGNOSTICS = []
 
+    claimed_overrides = {}
     for plugin_name in plugins:
         try:
-            resolved = _resolve_plugin(settings_module, plugin_name, plugins_config, environ)
+            resolved = _resolve_plugin(settings_module, plugin_name, plugins_config, environ, claimed_overrides)
         # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
         except Exception as exc:
             raise PluginStartupError(plugin_name, "resolve", exc) from exc
