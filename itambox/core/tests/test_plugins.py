@@ -892,6 +892,14 @@ class PluginSecretRedactionTestCase(SimpleTestCase):
             setattr(registry, key, value)
         sys.modules.pop(self.NAME, None)
 
+    def test_secret_value_strings_cover_containers_and_bool(self):
+        collect = runtime._secret_value_strings
+        self.assertEqual(collect({"a": "x", "b": [7, "yz"], "c": {"d": 1.5}}), {"x", "7", "yz", "1.5"})
+        self.assertEqual(collect(("t1", ["t2"])), {"t1", "t2"})
+        self.assertEqual(collect(True), set())
+        self.assertEqual(collect(b"raw"), set())
+        self.assertEqual(collect(None), set())
+
     def _resolve(self, plugin_config, environ=None, **attrs):
         module = types.ModuleType(self.NAME)
         module.config = _config(self.NAME, settings_schema=self.SCHEMA, **attrs)
