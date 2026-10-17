@@ -72,10 +72,9 @@ class EsignPluginConfig(PluginConfig):
     description = 'DocuSign envelopes for assets'
     itambox_range = '>=1.1,<1.2'  # supported ITAMbox major.minor range
 
-    required_settings = ['DOCUSIGN_API_KEY']
-    default_settings = {
-        'DOCUSIGN_API_KEY': None,
-        'DOCUSIGN_SANDBOX': True,
+    settings_schema = {
+        'DOCUSIGN_API_KEY': {'type': 'str', 'required': True, 'secret': True},
+        'DOCUSIGN_SANDBOX': {'type': 'bool', 'default': True},
     }
 
     def ready(self):
@@ -91,30 +90,22 @@ config = EsignPluginConfig
 ## 2. Registering the Plugin
 
 To enable your plugin, add its package name to the `ITAMBOX_PLUGINS` environment
-variable (comma-separated), or configure it directly in `core/settings/base.py`:
+variable (comma-separated). Product source is never edited:
 
-```python
-# Environment variable (preferred — survives updates):
-# ITAMBOX_PLUGINS=itambox_esign
-
-# Or in code:
-PLUGINS = [
-    'itambox_esign',
-]
+```bash
+ITAMBOX_PLUGINS=itambox_esign
 ```
 
-If your plugin requires custom settings, configure them under `PLUGINS_CONFIG`:
+Operator settings are validated against your `settings_schema`. Supply them as JSON in
+`ITAMBOX_PLUGINS_CONFIG`, and inject secrets as single values with
+`ITAMBOX_PLUGIN_<NAME>_<KEY>`, which wins over the JSON:
 
-```python
-PLUGINS_CONFIG = {
-    'itambox_esign': {
-        'DOCUSIGN_API_KEY': 'your-api-key-here',
-        'DOCUSIGN_SANDBOX': True,
-    }
-}
+```bash
+ITAMBOX_PLUGINS_CONFIG='{"itambox_esign": {"DOCUSIGN_SANDBOX": false}}'
+ITAMBOX_PLUGIN_ITAMBOX_ESIGN_DOCUSIGN_API_KEY=your-api-key-here
 ```
 
-These settings are deep-merged with your plugin's `default_settings` and made available at runtime via `settings.PLUGINS_RESOLVED_CONFIG['itambox_esign']`.
+Read the validated values at runtime with `itambox.plugins.get_plugin_config('itambox_esign', 'DOCUSIGN_SANDBOX')`. See [Configuration](api_reference.md#configuration).
 
 ## Trust and failure behavior
 
