@@ -8,6 +8,13 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
+    if sys.argv[1:2] == ["plugins"] and "--check" in sys.argv:
+        # The pre-flight must work when a broken plugin makes the settings import
+        # (and therefore Django itself) abort, so it runs before Django is set up.
+        # inline import: cycle: importing the plugin package must not load settings
+        from itambox.plugins.preflight import main as preflight_main
+
+        sys.exit(preflight_main(sys.argv[2:]))
     try:
         # inline import: optional-dependency: Django may be missing; the except
         # branch is the whole point of this block.
