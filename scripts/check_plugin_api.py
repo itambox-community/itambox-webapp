@@ -122,23 +122,23 @@ def parse_doc_tiers(text):
     return tiers
 
 
-def check(manifest, derived, doc_tiers, fixture_names, fixture_plugin=FIXTURE_PLUGIN):
-    """Return the list of drift problems; an empty list means the surface is pinned."""
-    problems = []
+def _config_attribute_problems(manifest, derived):
     stable = manifest["stable"]
     experimental = manifest["experimental"]["config_attributes"]
-
-    # 1. Every PluginConfig attribute is pinned to exactly one tier.
+    problems = []
     pinned_attributes = set(stable["config_attributes"]) | set(experimental)
     for name in sorted(set(derived["config_attributes"]) - pinned_attributes):
         problems.append(f"PluginConfig attribute {name!r} is not in the manifest (add it to a tier)")
     for name in sorted(pinned_attributes - set(derived["config_attributes"])):
         problems.append(f"manifest pins PluginConfig attribute {name!r} that no longer exists")
-    overlap = set(stable["config_attributes"]) & set(experimental)
-    for name in sorted(overlap):
+    for name in sorted(set(stable["config_attributes"]) & set(experimental)):
         problems.append(f"PluginConfig attribute {name!r} is pinned to two tiers")
+    return problems
 
-    # 2. Default resource locations match the manifest exactly.
+
+def _resource_problems(manifest, derived):
+    stable = manifest["stable"]
+    problems = []
     if derived["resource_defaults"] != stable["resource_defaults"]:
         problems.append(
             f"resource defaults drifted: derived {derived['resource_defaults']} "
@@ -147,15 +147,19 @@ def check(manifest, derived, doc_tiers, fixture_names, fixture_plugin=FIXTURE_PL
     for key in stable["resource_defaults"]:
         if key not in stable["config_attributes"]:
             problems.append(f"resource {key!r} is not a pinned PluginConfig attribute")
+    return problems
 
-    # 3. Public symbols of the API modules match the manifest exactly.
+
+def _public_symbol_problems(manifest, derived):
+    stable = manifest["stable"]
     if derived["public_symbols"] != stable["public_symbols"]:
-        problems.append(
-            f"public symbols drifted: derived {derived['public_symbols']} != manifest {stable['public_symbols']}"
-        )
+        return [f"public symbols drifted: derived {derived['public_symbols']} != manifest {stable['public_symbols']}"]
+    return []
 
-    # 4. The fixture plugin exercises every Stable extension point (C10).
-    for key in stable["resource_defaults"]:
+
+def _fixture_problems(manifest, fixture_names, fixture_plugin):
+    problems = []
+    for key in manifest["stable"]["resource_defaults"]:
         if key == "graphql_schema":
             covered = (fixture_plugin / "graphql" / "schema.py").is_file()
         else:
@@ -166,8 +170,11 @@ def check(manifest, derived, doc_tiers, fixture_names, fixture_plugin=FIXTURE_PL
         problems.append("no fixture declares the Stable settings_schema")
     if not (fixture_plugin / "urls.py").is_file():
         problems.append("fixture plugin does not exercise the Stable UI urlconf (urls.py)")
+    return problems
 
-    # 5. The public reference tier table lists exactly the manifest's documented identifiers.
+
+def _doc_tier_problems(manifest, doc_tiers):
+    problems = []
     for tier in TIERS:
         listed = set(doc_tiers.get(tier, set()))
         expected = set(manifest["documented"][tier])
@@ -175,17 +182,32 @@ def check(manifest, derived, doc_tiers, fixture_names, fixture_plugin=FIXTURE_PL
             problems.append(f"public reference lacks {identifier!r} under tier {tier}")
         for identifier in sorted(listed - expected):
             problems.append(f"public reference lists {identifier!r} under tier {tier} but the manifest does not")
+    return problems
 
-    # 6. Every Stable resource, public symbol and settings entry point is documented as Stable.
+
+def _stable_documentation_problems(manifest):
+    stable = manifest["stable"]
     required = {f"PluginConfig.{key}" for key in stable["resource_defaults"]}
     required.add("PluginConfig.settings_schema")
     required.add("get_plugin_config")
     required.add("urls.py")
     required.update(name for names in stable["public_symbols"].values() for name in names)
-    for identifier in sorted(required - set(manifest["documented"]["Stable"])):
-        problems.append(f"Stable surface member {identifier!r} is missing from the Stable tier documentation")
+    return [
+        f"Stable surface member {identifier!r} is missing from the Stable tier documentation"
+        for identifier in sorted(required - set(manifest["documented"]["Stable"]))
+    ]
 
-    return problems
+
+def check(manifest, derived, doc_tiers, fixture_names, fixture_plugin=FIXTURE_PLUGIN):
+    """Return the list of drift problems; an empty list means the surface is pinned."""
+    return (
+        _config_attribute_problems(manifest, derived)
+        + _resource_problems(manifest, derived)
+        + _public_symbol_problems(manifest, derived)
+        + _fixture_problems(manifest, fixture_names, fixture_plugin)
+        + _doc_tier_problems(manifest, doc_tiers)
+        + _stable_documentation_problems(manifest)
+    )
 
 
 def load_manifest(path=MANIFEST):
