@@ -613,7 +613,8 @@ IS_TESTING = _TEST_INVOCATION
 # can instead be injected as ITAMBOX_PLUGIN_<NAME>_<KEY>, which wins over the
 # JSON entry. The core ships no plugin configuration.
 #   Example: ITAMBOX_PLUGINS_CONFIG='{"example_plugin": {"endpoint": "https://x"}}'
-PLUGINS_CONFIG: dict[str, dict] = _load_tenant_json_config("ITAMBOX_PLUGINS_CONFIG")
+ITAMBOX_PLUGINS_CONFIG = _load_tenant_json_config("ITAMBOX_PLUGINS_CONFIG")
+PLUGINS_CONFIG: dict[str, dict] = ITAMBOX_PLUGINS_CONFIG
 
 # Load and validate plugins dynamically
 

@@ -22,7 +22,7 @@ Operators configure plugins through one channel and never edit product source.
     ITAMBOX_PLUGINS_CONFIG='{"example_plugin": {"endpoint": "https://example.test", "retries": 5}}'
     ```
 
-2. Per-key environment overrides, so a secret store can inject single values: `ITAMBOX_PLUGIN_<NAME>_<KEY>`. `<NAME>` is the package name and `<KEY>` the schema key, both upper-cased with every character outside `A-Z0-9` replaced by `_` (`example_plugin` / `api_key` becomes `ITAMBOX_PLUGIN_EXAMPLE_PLUGIN_API_KEY`). An override wins over the JSON value. Override values are text and are converted to the declared type; `bool` accepts `true/false/1/0/yes/no/on/off`, `list` and `dict` take JSON.
+2. Per-key environment overrides, so a secret store can inject single values: `ITAMBOX_PLUGIN_<NAME>_<KEY>`. `<NAME>` is the package name and `<KEY>` the schema key, both upper-cased with every character outside `A-Z0-9` replaced by `_` (`example_plugin` / `api_key` becomes `ITAMBOX_PLUGIN_EXAMPLE_PLUGIN_API_KEY`). An override wins over the JSON value. Override values are text and are converted to the declared type; `bool` accepts `true/false/1/0/yes/no/on/off`, `list` and `dict` take JSON. This `ITAMBOX_PLUGIN_<NAME>_<KEY>` family is a published naming rule: it is stable for 1.x. Two keys (of the same or of different configured plugins) whose names normalise to the same variable abort startup with an error naming both plugins, both keys and the variable, whether or not the variable is set.
 
 A plugin declares what it accepts with `settings_schema`, a mapping of key to a spec:
 
@@ -31,7 +31,7 @@ A plugin declares what it accepts with `settings_schema`, a mapping of key to a 
 | `type` | `str` (default), `int`, `float`, `bool`, `list` or `dict`. |
 | `default` | Used when the operator sets nothing. Not allowed together with `required` or `secret`. |
 | `required` | The operator must supply a value. |
-| `secret` | The value is never written to logs, diagnostics or error messages. |
+| `secret` | The value is never written to logs, diagnostics or error messages. Any non-empty string and any `int` or `float` value is redacted, whether it comes from the JSON or from an environment override; `bool` values are not. |
 | `choices` | Allowed values (scalar types). |
 
 ```python
@@ -42,7 +42,7 @@ settings_schema = {
 }
 ```
 
-Validation runs in the resolve phase. A missing required key, a wrong type, a value outside `choices`, a key the schema does not declare, or a malformed schema aborts startup with a message that names the plugin and the key but never a configured value. Read validated values with `itambox.plugins.get_plugin_config(plugin_name, key)`.
+Validation runs in the resolve phase. A missing required key, a wrong type, a value outside `choices`, a key the schema does not declare, or a malformed schema aborts startup with a message that names the plugin and the key but never a configured value. When plugin code fails during startup, the `PluginStartupError` message replaces every `secret` value with `[redacted]`. The original exception stays chained as its cause, so a full traceback printed by Python or Django still shows the plugin's own exception text; keep secrets out of the messages your plugin raises. Read validated values with `itambox.plugins.get_plugin_config(plugin_name, key)`.
 
 ## `PluginConfig`
 

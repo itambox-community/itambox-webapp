@@ -100,6 +100,23 @@ def validate_schema(plugin_name, schema):
     return schema
 
 
+def claim_override_names(plugin_name, schema, claimed):
+    """Record the override variable of every key; two keys on one variable are a configuration error.
+
+    ``claimed`` maps variable name -> (plugin, key) over the configured plugin set. The check is
+    by name only, whether or not the variable is set, and the message never contains a value.
+    """
+    for key in schema:
+        variable = override_variable_name(plugin_name, key)
+        other = claimed.get(variable)
+        if other is not None:
+            raise ImproperlyConfigured(
+                f"Plugin {plugin_name!r} key {key!r} and plugin {other[0]!r} key {other[1]!r} "
+                f"map to the same override environment variable {variable}; rename one of the keys"
+            )
+        claimed[variable] = (plugin_name, key)
+
+
 def secret_keys(schema):
     return frozenset(key for key, spec in schema.items() if spec.get("secret"))
 
