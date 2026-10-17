@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Protocol, cast
 
 from django.core.exceptions import ImproperlyConfigured
@@ -37,8 +38,7 @@ class PluginRouter(DefaultRouter):
 
 
 class _SchemaDescriptor(Protocol):
-    def __get__(self, instance: object | None, owner: type) -> object:
-        raise NotImplementedError
+    __get__: Callable[[object | None, type], object]
 
 
 class _HostOwnedSchemaDescriptor:
