@@ -1,9 +1,23 @@
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.routers import DefaultRouter
 from rest_framework.settings import api_settings
 
+from core.managers import TenantScopeDeclaration, tenant_scope_declaration
 from itambox.api.viewsets import ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet
 from itambox.plugins.runtime import PluginStartupError
 from itambox.registry import registry
+
+
+def _require_host_tenant_scope(queryset):
+    model = getattr(queryset, "model", None)
+    if model is None:
+        return
+    declaration = tenant_scope_declaration(model)
+    scoped = declaration.strategy != TenantScopeDeclaration.NONE or declaration.has_tenant_group
+    if scoped and not callable(getattr(queryset, "filter_by_tenant", None)):
+        raise ImproperlyConfigured(
+            f"Tenant-scoped plugin viewsets require a queryset with filter_by_tenant() support for {model._meta.label}."
+        )
 
 
 class PluginRouter(DefaultRouter):
@@ -38,14 +52,17 @@ class _HostOwnedViewSetDefaults:
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if hasattr(queryset, "filter_by_tenant"):
-            queryset = queryset.filter_by_tenant()
+        filter_by_tenant = getattr(queryset, "filter_by_tenant", None)
+        if callable(filter_by_tenant):
+            return filter_by_tenant()
+        _require_host_tenant_scope(queryset)
         return queryset
 
 
 def _host_owned_viewset(plugin_name, viewset):
     if not issubclass(viewset, (ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet)):
         raise TypeError(f"viewset {viewset!r} does not use a supported core model viewset base")
+    _require_host_tenant_scope(getattr(viewset, "queryset", None))
     suffix = plugin_name.replace(".", "_")
     return type(
         f"{viewset.__name__}_{suffix}_HostOwned",

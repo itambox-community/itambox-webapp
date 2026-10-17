@@ -60,6 +60,11 @@ class DerivationAgainstSourceTests(unittest.TestCase):
             for name in names:
                 self.assertFalse(name.startswith("_"), name)
         self.assertIn("PluginTemplateContent", symbols["itambox.plugins.views"])
+        self.assertEqual(
+            symbols["itambox.api.viewsets"],
+            ["ITAMBoxModelViewSet", "ITAMBoxReadOnlyModelViewSet"],
+        )
+        self.assertNotIn("BaseViewSet", symbols["itambox.api.viewsets"])
 
     def test_fixture_plugin_exercises_each_stable_resource(self):
         names = gate.fixture_exercised_names()

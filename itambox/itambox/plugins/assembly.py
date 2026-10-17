@@ -117,7 +117,7 @@ def _compose_permission_targets(config, value):
 
 def _validate_graphql(module):
     if hasattr(module, "Mutation"):
-        raise TypeError("plugin GraphQL is queries only; a Mutation contribution is not supported")
+        raise TypeError("Plugin GraphQL supports queries only; Mutation contributions are not supported.")
     if not hasattr(module, "Query"):
         raise TypeError("graphql schema module must define a Query type")
     return module.Query

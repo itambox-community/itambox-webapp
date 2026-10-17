@@ -325,6 +325,37 @@ class PluginComposeTestCase(SimpleTestCase):
         unscoped = object()
         self.assertIs(ViewSet(unscoped).get_queryset(), unscoped)
 
+    def test_host_owned_viewset_rejects_unscoped_tenant_models_at_assembly(self):
+        from django.core.exceptions import ImproperlyConfigured
+        from django.db.models import QuerySet
+
+        from itambox.api.viewsets import ITAMBoxModelViewSet
+        from itambox.plugins.urls import _host_owned_viewset
+        from organization.models import Role
+
+        class UnscopedRoleViewSet(ITAMBoxModelViewSet):
+            queryset = QuerySet(model=Role, using="default")
+
+        with self.assertRaises(ImproperlyConfigured):
+            _host_owned_viewset("test_plugin", UnscopedRoleViewSet)
+
+    def test_host_owned_queryset_rejects_unscoped_dynamic_tenant_models(self):
+        from django.core.exceptions import ImproperlyConfigured
+        from django.db.models import QuerySet
+
+        from itambox.plugins.urls import _HostOwnedViewSetDefaults
+        from organization.models import Role
+
+        class Base:
+            def get_queryset(self):
+                return QuerySet(model=Role, using="default")
+
+        class DynamicViewSet(_HostOwnedViewSetDefaults, Base):
+            pass
+
+        with self.assertRaises(ImproperlyConfigured):
+            DynamicViewSet().get_queryset()
+
     def test_duplicate_viewset_prefix_is_rejected(self):
         registry._register_plugin_viewset("p", "things", object)
         with self.assertRaises(ValueError):

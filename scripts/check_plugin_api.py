@@ -34,6 +34,10 @@ PUBLIC_MODULES = {
     "itambox.plugins.views": "views.py",
 }
 
+# Only these host API viewsets are part of the plugin-facing contract. BaseViewSet
+# remains internal; the explicit allow-list avoids freezing unrelated REST internals.
+PUBLIC_HOST_VIEWSET_SYMBOLS = frozenset({"ITAMBoxModelViewSet", "ITAMBoxReadOnlyModelViewSet"})
+
 # Tier rows of the public reference: | `identifier` | Tier | ...
 TIER_ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*(Stable|Experimental|Private)\s*\|", re.MULTILINE)
 
@@ -91,6 +95,9 @@ def derive_public_symbols(plugin_package=PLUGIN_PACKAGE):
             for node in tree.body
             if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and not node.name.startswith("_")
         )
+    host_viewsets = _parse(plugin_package.parent / "api" / "viewsets.py")
+    host_names = {node.name for node in host_viewsets.body if isinstance(node, (ast.ClassDef, ast.FunctionDef))}
+    surface["itambox.api.viewsets"] = sorted(PUBLIC_HOST_VIEWSET_SYMBOLS & host_names)
     return surface
 
 

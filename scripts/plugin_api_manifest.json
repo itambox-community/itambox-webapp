@@ -26,6 +26,10 @@
       "viewsets": "api.viewsets.viewsets"
     },
     "public_symbols": {
+      "itambox.api.viewsets": [
+        "ITAMBoxModelViewSet",
+        "ITAMBoxReadOnlyModelViewSet"
+      ],
       "itambox.plugins": [
         "PluginConfig",
         "get_plugin_config"
@@ -65,6 +69,8 @@
       "PluginNavigationMenu",
       "PluginTemplateContent",
       "get_plugin_config",
+      "ITAMBoxModelViewSet",
+      "ITAMBoxReadOnlyModelViewSet",
       "urls.py"
     ],
     "Experimental": [
