@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Protocol, cast
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
@@ -36,20 +36,30 @@ class PluginRouter(DefaultRouter):
     pass
 
 
+class _SchemaDescriptor(Protocol):
+    def __get__(self, instance: object | None, owner: type) -> object:
+        raise NotImplementedError
+
+
+class _HostOwnedSchemaDescriptor:
+    def __init__(self) -> None:
+        self._schema = cast(_SchemaDescriptor, api_settings.DEFAULT_SCHEMA_CLASS())
+
+    def __get__(self, instance: object | None, owner: type) -> object:
+        if instance is None:
+            return self._schema
+        return self._schema.__get__(instance, owner)
+
+    def __set__(self, instance: object, _plugin_schema: object) -> None:
+        self._schema.__get__(instance, type(instance))
+
+
 class _HostOwnedViewSetDefaults:
     """Enforce the host API defaults on every mounted plugin viewset."""
 
     authentication_classes = api_settings.DEFAULT_AUTHENTICATION_CLASSES
     permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES
-
-    @property
-    def schema(self):
-        return api_settings.DEFAULT_SCHEMA_CLASS()
-
-    @schema.setter
-    def schema(self, _plugin_schema):
-        # Router/action kwargs cannot replace the host schema.
-        return None
+    schema = _HostOwnedSchemaDescriptor()
 
     def get_authenticators(self):
         return [auth() for auth in api_settings.DEFAULT_AUTHENTICATION_CLASSES]

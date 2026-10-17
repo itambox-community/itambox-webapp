@@ -411,6 +411,37 @@ class PluginComposeTestCase(SimpleTestCase):
         with self.assertRaises(ImproperlyConfigured):
             HostViewSet().filter_queryset(QuerySet(model=Role, using="default"))
 
+    def test_host_owned_schema_generates_openapi_for_plugin_viewset(self):
+        from django.urls import path
+        from drf_spectacular.generators import SchemaGenerator
+        from rest_framework import serializers
+        from rest_framework.settings import api_settings
+
+        from itambox.api.viewsets import ITAMBoxModelViewSet
+        from itambox.plugins.urls import _host_owned_viewset
+        from organization.models import Role
+
+        class RoleSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = Role
+                fields = ("id", "tenant", "name")
+
+        class PluginRoleViewSet(ITAMBoxModelViewSet):
+            queryset = Role._base_manager.none()
+            serializer_class = RoleSerializer
+            schema = None
+
+        viewset = _host_owned_viewset("schema_probe", PluginRoleViewSet)
+        view = viewset()
+        view.schema = None
+        self.assertIsInstance(view.schema, api_settings.DEFAULT_SCHEMA_CLASS)
+        self.assertIs(view.schema.view, view)
+
+        patterns = [path("api/plugins/schema_probe/roles/", viewset.as_view({"get": "list"}), name="role-list")]
+        schema = SchemaGenerator(title="Plugin API", patterns=patterns).get_schema(public=True)
+
+        self.assertIn("/api/plugins/schema_probe/roles/", schema["paths"])
+
     def test_duplicate_viewset_prefix_is_rejected(self):
         registry._register_plugin_viewset("p", "things", object)
         with self.assertRaises(ValueError):
