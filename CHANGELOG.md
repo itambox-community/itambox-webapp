@@ -7,6 +7,7 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ## [Unreleased]
 
 ### Changed
+- The `requestedScope` argument of the GraphQL `assets` and `asset` queries is now optional and defaults to the scope of the current session; an explicit selector still overrides it and invalid selectors still fail with `INVALID_SCOPE`.
 - GraphQL list and detail queries for accessories, consumables, kits, components and licenses now follow the session scope, so a tenant-group or all-accessible session returns the same objects as the REST API instead of only tenantless rows.
 - Plugins are configured through `ITAMBOX_PLUGINS_CONFIG` (JSON keyed by plugin package) with per-key environment overrides `ITAMBOX_PLUGIN_<NAME>_<KEY>` for secrets, validated against the new `settings_schema` manifest attribute. `settings_schema` replaces `default_settings` and `required_settings`, which a plugin may no longer declare; unknown keys, missing required keys, wrong types and values outside `choices` abort startup with a message naming the plugin and the key, and keys flagged `secret` never appear in logs, diagnostics or errors. This includes the message of a startup error raised by plugin code and secret values of any length, including numbers.
 
