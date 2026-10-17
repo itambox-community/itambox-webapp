@@ -4,6 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
+from core.managers import Scope
 from core.slugs import generate_unique_slug
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,37 @@ def request_from_info(info):
 
 def active_tenant_from_info(info):
     return getattr(request_from_info(info), "active_tenant", None)
+
+
+def read_scope_from_info(info):
+    """The resolved read ``Scope`` of the request behind ``info``.
+
+    Every GraphQL root resolver takes its read scope from here, so a tenant,
+    a tenant-group and an all-accessible session narrow exactly like the REST
+    API does (``for_scope``). Resolvers never filter by ``active_tenant``.
+    """
+    request_from_info(info)  # fail early on a context without a request
+    return Scope.current()
+
+
+def scoped_queryset(info, queryset):
+    """Narrow ``queryset`` (a manager or queryset) to the request's read scope."""
+    return queryset.for_scope(read_scope_from_info(info))
+
+
+def requested_selector_from_scope(scope):
+    """The explicit scope selector (as a plain mapping) equivalent to ``scope``.
+
+    Returns ``None`` for a scope that reads nothing. Used where a root accepts
+    an optional ``requestedScope`` override and defaults to the request scope.
+    """
+    if scope.kind == Scope.TENANT:
+        return {"mode": "tenant", "tenant_id": int(scope.tenant.pk), "tenant_group_id": None}
+    if scope.kind == Scope.GROUP:
+        return {"mode": "tenant_group", "tenant_id": None, "tenant_group_id": int(scope.group.pk)}
+    if scope.kind in (Scope.ALL_ACCESSIBLE, Scope.SYSTEM):
+        return {"mode": "all_accessible", "tenant_id": None, "tenant_group_id": None}
+    return None
 
 
 def check_permission(info, perm, obj=None):

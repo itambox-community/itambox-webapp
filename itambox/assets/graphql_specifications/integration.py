@@ -26,6 +26,7 @@ from assets.services.specifications.loader import (
     _assemble_fieldsets,
     _load_fieldset_memberships,
 )
+from core.graphql_utils import read_scope_from_info, requested_selector_from_scope
 from core.managers import Scope
 from extras.models import CustomFieldChoiceSet
 from extras.services._definition_command_support import resource_revision_for_definition
@@ -128,8 +129,15 @@ def require_global_permission(info: object, permission: str) -> object:
     return user
 
 
-def resolve_read_scope(info: object, requested_scope: Mapping[str, object] | object) -> ScopeReadView | None:
+def resolve_read_scope(
+    info: object, requested_scope: Mapping[str, object] | object | None = None
+) -> ScopeReadView | None:
+    """Resolve the asset read scope; an omitted selector defaults to the request scope."""
     user = authenticated_user(info)
+    if requested_scope is None:
+        requested_scope = requested_selector_from_scope(read_scope_from_info(info))
+        if requested_scope is None:
+            return None
     mode = _enum_value(_input_value(requested_scope, "mode"))
     tenant_id = positive_id_or_none(_input_value(requested_scope, "tenant_id", "tenantId"), "tenant_id")
     tenant_group_id = positive_id_or_none(

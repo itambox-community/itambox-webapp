@@ -5,8 +5,7 @@ import strawberry_django
 
 from assets.schema import SupplierNode, TenantNode
 from core.graphql_choice_enums import choice_enum
-from core.graphql_utils import active_tenant_from_info, check_permission, paginate_queryset
-from core.managers import Scope
+from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
 from software.schema import SoftwareNode
 
 from .models import License
@@ -65,11 +64,7 @@ class Query:
         name: str | None = None,
     ) -> list[LicenseNode | None] | None:
         check_permission(info, "licenses.view_license")
-        qs = (
-            License.objects.for_scope(Scope.current())
-            .select_related(*_RELATED)
-            .filter(tenant=active_tenant_from_info(info))
-        )
+        qs = scoped_queryset(info, License.objects).select_related(*_RELATED)
         if name is not None:
             qs = qs.filter(name=name)
         if sort_by and sort_by in LICENSE_SORTABLE_FIELDS:
@@ -80,11 +75,6 @@ class Query:
     def license(self, info: strawberry.Info, id: strawberry.ID) -> LicenseNode | None:
         check_permission(info, "licenses.view_license")
         try:
-            return (
-                License.objects.for_scope(Scope.current())
-                .select_related(*_RELATED)
-                .filter(tenant=active_tenant_from_info(info))
-                .get(pk=id)
-            )
+            return scoped_queryset(info, License.objects).select_related(*_RELATED).get(pk=id)
         except License.DoesNotExist:
             return None
