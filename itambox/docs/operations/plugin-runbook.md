@@ -2,6 +2,94 @@
 
 Plugins are Experimental, trusted, in-process code. This runbook is for a deployment operator. ITAMbox 1.0 does not provide install, uninstall, upgrade, runtime enable/disable, package-management, or automatic orphan-data cleanup orchestration.
 
+## Recover from an aborted startup
+
+Plugin startup is fail-fast. If a configured plugin cannot be imported, has an invalid manifest or configuration, or fails while its resources are composed or assembled (including an invalid GraphQL type, a URLconf error, or an exception in its `ready()`), the process does not start. The only exception is a version incompatibility: that plugin is skipped with a warning and everything else starts normally.
+
+**The whole recovery path runs outside the web process.** Every step below uses the container log and a one-off management command in the same image. None of it needs the web application, `/health/`, the UI, or the API to be up. A plugin problem can therefore always be diagnosed and fixed while the app is down.
+
+### 1. Locate and read the startup log
+
+The application logs to stdout/stderr, so the container runtime holds the startup log. The error names the plugin, the phase (resolve, compose, assemble), and the cause.
+
+```bash
+docker compose logs --tail=200 app worker
+```
+
+Without Compose, use the orchestrator's equivalent (`docker logs <container>`, `kubectl logs <pod> --previous`, `journalctl -u <unit>`). If the container restarts in a loop, read the logs of the most recent failed start. Note the plugin name and phase, and do not paste secret values into a ticket.
+
+### 2. Run the pre-flight in the same image and target version
+
+Run `--check` in the **same image tag** that failed to start, so the check resolves plugins against the same product version and the same installed plugin packages. A one-off container does not depend on the stopped web service:
+
+```bash
+docker compose run --rm app python manage.py plugins --check
+echo "exit code: $?"
+```
+
+Outside Docker, run it in the same environment and release as the failing process:
+
+```bash
+uv run --locked --no-dev python manage.py plugins --check
+```
+
+`--check` resolves every configured plugin, runs the resolve, compose, and assemble phases without serving requests, and reports one outcome per plugin plus pending plugin migrations.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | No configured plugin would abort startup. Plugins are `ok` or `skipped`. |
+| non-zero | At least one plugin would abort startup. The same condition makes the real start exit non-zero. |
+
+Pending migrations are reported, but they do not by themselves make the exit code non-zero.
+
+### 3. Interpret the output
+
+| Outcome | Meaning | Effect on startup |
+| --- | --- | --- |
+| `ok` | Plugin resolved, composed, and assembled. | Starts. |
+| `skipped` | Version incompatibility. Output shows the declared range and the running ITAMbox version. | Starts without the plugin, with a warning. |
+| `would abort` | Failure with plugin name, phase, and cause (for example missing package, import failure, invalid manifest, invalid or missing configuration, compose or assemble error, `ready()` exception). | Startup aborts. |
+
+Pending migrations list plugin migrations that are not yet applied. Plugin migrations are owned by the plugin and are outside the core migration audit. Apply them as part of the planned upgrade, after the plugin set is fixed:
+
+```bash
+docker compose run --rm app python manage.py migrate
+```
+
+### 4. Fix it
+
+Pick the row that matches the `--check` result. Change one thing at a time, then repeat step 2 until the exit code is `0`.
+
+| `--check` result | Action |
+| --- | --- |
+| `would abort`: package missing or import failure | Install the plugin package into the image (plugins are installed at image build time, not at runtime), or correct the name in `ITAMBOX_PLUGINS`. Rebuild or pull the image, then re-run `--check`. |
+| `would abort`: invalid manifest, or invalid/missing/unknown configuration | Fix `ITAMBOX_PLUGINS_CONFIG` (JSON object keyed by plugin) or the per-key secret environment override for the named key. Re-run `--check`. |
+| `would abort`: compose or assemble error, or `ready()` exception | A plugin defect. Install a compatible plugin release that fixes it, or remove the plugin (next row) until one exists. |
+| `skipped`: version incompatibility | Install a plugin release whose declared range includes the running ITAMbox version, or accept the skip. This does not block startup. |
+| Cannot be fixed now, or the root cause is unknown | Remove the plugin from `ITAMBOX_PLUGINS` (step 5), restart, and investigate in staging. |
+| Pending plugin migrations only | Not a startup blocker. Apply with `manage.py migrate` during the planned change. |
+
+### 5. Remove the plugin from `ITAMBOX_PLUGINS`
+
+This is the guaranteed way back to a running system. Edit the deployment configuration (for example `.env`) and delete the plugin's package name from the comma-separated list:
+
+```bash
+# before
+ITAMBOX_PLUGINS=plugin_a,plugin_b
+# after: plugin_b removed
+ITAMBOX_PLUGINS=plugin_a
+```
+
+Then verify before and after switching over:
+
+```bash
+docker compose run --rm app python manage.py plugins --check   # expect exit code 0
+docker compose up -d
+docker compose logs --tail=50 app
+```
+
+Removing a plugin does not delete its tables, `ContentType` rows, or changelog rows. See [Disable or remove a plugin](#disable-or-remove-a-plugin).
+
 ## Check the current state
 
 1. Record the deployed ITAMbox revision and the plugin package revision.
