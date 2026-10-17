@@ -18,10 +18,14 @@ class PluginConfig(AppConfig):
     ``menu`` (``navigation.menu``), ``menu_items`` (``navigation.menu_items``),
     ``viewsets`` (``api.viewsets.viewsets``) and ``graphql_schema``
     (``graphql.schema``, queries only).
+
+    Operator configuration is declared by ``settings_schema`` (key -> ``type``,
+    ``default``, ``required``, ``secret``, ``choices``); see
+    :mod:`itambox.plugins.settings_schema`. Read validated values with
+    :func:`itambox.plugins.get_plugin_config`.
     """
 
-    default_settings = {}
-    required_settings = []
+    settings_schema = {}
     middleware = []
     django_apps = []
 
@@ -65,3 +69,18 @@ class PluginConfig(AppConfig):
 
         ready._itambox_composed = True
         cls.ready = ready
+
+
+def get_plugin_config(plugin_name, key=None, default=None):
+    """Return the validated operator configuration of an active plugin.
+
+    Without ``key`` the whole resolved mapping is returned (a copy); with ``key`` the
+    single value, or ``default`` when the plugin declares no value for it.
+    """
+    # inline import: app-registry: django.conf is only safe to read after settings finished loading
+    from django.conf import settings
+
+    resolved = getattr(settings, "PLUGINS_RESOLVED_CONFIG", {}).get(plugin_name, {})
+    if key is None:
+        return dict(resolved)
+    return resolved.get(key, default)

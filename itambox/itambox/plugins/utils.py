@@ -1,4 +1,5 @@
 import importlib
+import os
 import re
 from collections.abc import Sequence
 
@@ -7,7 +8,6 @@ from django.utils.module_loading import import_string
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
 
-from itambox.dictutils import deep_merge
 from itambox.plugins import PluginConfig
 from itambox.plugins.runtime import (
     PluginStartupError,
@@ -15,6 +15,7 @@ from itambox.plugins.runtime import (
     is_plugin_active,
     record_plugin_skip,
 )
+from itambox.plugins.settings_schema import resolve_plugin_settings, secret_keys, validate_schema
 
 
 class PluginCompatibilityError(Exception):
@@ -97,17 +98,19 @@ def _validate_config_metadata(plugin_name, config_cls):
         raise TypeError(f"Plugin {plugin_name!r} base_url must be a non-empty string or None")
 
 
-def _resolve_plugin_settings(plugin_name, config_cls, plugins_config):
-    merged_config = deep_merge(
-        getattr(config_cls, "default_settings", {}),
-        plugins_config.get(plugin_name, {}),
-    )
-    for key in getattr(config_cls, "required_settings", []):
-        if key not in merged_config or merged_config[key] is None:
+def _reject_removed_attributes(plugin_name, config_cls):
+    for attribute in ("default_settings", "required_settings"):
+        if getattr(config_cls, attribute, None):
             raise ImproperlyConfigured(
-                f"Plugin {plugin_name!r} requires setting {key!r} to be defined in PLUGINS_CONFIG."
+                f"Plugin {plugin_name!r} declares {attribute!r}, which settings_schema replaced; "
+                "declare the keys in settings_schema instead"
             )
-    return merged_config
+
+
+def _resolve_plugin_settings(plugin_name, config_cls, plugins_config, environ):
+    _reject_removed_attributes(plugin_name, config_cls)
+    schema = validate_schema(plugin_name, getattr(config_cls, "settings_schema", {}))
+    return resolve_plugin_settings(plugin_name, schema, plugins_config, environ), secret_keys(schema)
 
 
 def _validate_middleware(plugin_name, config_cls):
@@ -133,7 +136,7 @@ def _append_unique(target, values):
             target.append(value)
 
 
-def _resolve_plugin(settings_module, plugin_name, plugins_config):
+def _resolve_plugin(settings_module, plugin_name, plugins_config, environ):
     """Resolve phase for one plugin; returns None for a skip or the resolved data."""
     config_cls = _load_plugin_config(plugin_name)
     _validate_config_metadata(plugin_name, config_cls)
@@ -141,12 +144,12 @@ def _resolve_plugin(settings_module, plugin_name, plugins_config):
     if incompatibility is not None:
         record_plugin_skip(plugin_name, PluginCompatibilityError(incompatibility), settings_module=settings_module)
         return None
-    resolved_config = _resolve_plugin_settings(plugin_name, config_cls, plugins_config)
+    resolved_config, secrets = _resolve_plugin_settings(plugin_name, config_cls, plugins_config, environ)
     _validate_middleware(plugin_name, config_cls)
     plugin_apps = [*getattr(config_cls, "django_apps", ()), f"{plugin_name}.{config_cls.__name__}"]
     if any(not isinstance(app_name, str) or not app_name.strip() for app_name in plugin_apps):
         raise TypeError(f"Plugin {plugin_name!r} django_apps must contain strings")
-    return config_cls, resolved_config, plugin_apps, list(getattr(config_cls, "middleware", ()))
+    return config_cls, resolved_config, secrets, plugin_apps, list(getattr(config_cls, "middleware", ()))
 
 
 def load_plugins(settings_module):
@@ -159,23 +162,26 @@ def load_plugins(settings_module):
     """
     plugins = list(getattr(settings_module, "PLUGINS", ()))
     plugins_config = getattr(settings_module, "PLUGINS_CONFIG", {}) or {}
+    environ = os.environ
 
     settings_module.PLUGINS_RESOLVED_CONFIG = {}
+    settings_module.PLUGINS_SECRET_KEYS = {}
     settings_module.PLUGINS_ACTIVE = []
     settings_module.PLUGINS_DISABLED = []
     settings_module.PLUGINS_DIAGNOSTICS = []
 
     for plugin_name in plugins:
         try:
-            resolved = _resolve_plugin(settings_module, plugin_name, plugins_config)
+            resolved = _resolve_plugin(settings_module, plugin_name, plugins_config, environ)
         # broad except: boundary-isolation: plugin code is wrapped with its name and re-raised
         except Exception as exc:
             raise PluginStartupError(plugin_name, "resolve", exc) from exc
         if resolved is None:
             continue
-        config_cls, resolved_config, plugin_apps, plugin_middleware = resolved
+        config_cls, resolved_config, secrets, plugin_apps, plugin_middleware = resolved
         config_cls._plugin_settings_module = settings_module
         settings_module.PLUGINS_RESOLVED_CONFIG[plugin_name] = resolved_config
+        settings_module.PLUGINS_SECRET_KEYS[plugin_name] = secrets
         _append_unique(settings_module.INSTALLED_APPS, plugin_apps)
         _append_unique(settings_module.MIDDLEWARE, plugin_middleware)
         settings_module.PLUGINS_ACTIVE.append(plugin_name)
@@ -185,7 +191,6 @@ def load_plugins(settings_module):
 
 __all__ = [
     "PluginCompatibilityError",
-    "deep_merge",
     "get_plugin_diagnostics",
     "is_plugin_active",
     "load_plugins",

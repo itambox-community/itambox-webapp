@@ -608,8 +608,12 @@ PLUGINS = [p.strip() for p in os.environ.get("ITAMBOX_PLUGINS", "").split(",") i
 
 IS_TESTING = _TEST_INVOCATION
 
-# Per-plugin settings live under the plugin's own key; the core ships none.
-PLUGINS_CONFIG: dict[str, dict] = {}
+# Operator configuration channel: one JSON object keyed by plugin package name,
+# validated against each plugin's ``settings_schema``. Single values (secrets)
+# can instead be injected as ITAMBOX_PLUGIN_<NAME>_<KEY>, which wins over the
+# JSON entry. The core ships no plugin configuration.
+#   Example: ITAMBOX_PLUGINS_CONFIG='{"example_plugin": {"endpoint": "https://x"}}'
+PLUGINS_CONFIG: dict[str, dict] = _load_tenant_json_config("ITAMBOX_PLUGINS_CONFIG")
 
 # Load and validate plugins dynamically
 

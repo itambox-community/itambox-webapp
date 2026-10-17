@@ -7,9 +7,42 @@ This page is normative. A symbol, attribute, module, or hook not listed here is 
 
 ## Activation and configuration
 
-Only deployment operators activate plugins by placing an importable package name in `settings.PLUGINS` (normally through the comma-separated `ITAMBOX_PLUGINS` environment variable). Per-plugin values belong in `settings.PLUGINS_CONFIG` and are deep-merged with `default_settings`.
+Only deployment operators activate plugins by placing an importable package name in `settings.PLUGINS` (normally through the comma-separated `ITAMBOX_PLUGINS` environment variable). Per-plugin values come from the operator configuration channel described under [Configuration](#configuration) and are validated against the plugin's `settings_schema`.
 
 A missing package, an import failure, an invalid manifest or invalid configuration, or an error raised while the plugin is composed aborts startup with a message that names the plugin and the phase (`resolve`, `compose`, `ready`, `assemble`). Fix the configuration or remove the plugin from `ITAMBOX_PLUGINS`. The single exception is a version incompatibility: a plugin whose `itambox_range` excludes the running release is skipped with a logged warning and an entry in `manage.py plugins`, before it enters `INSTALLED_APPS`; the rest of the system starts normally. See the [plugin runbook](../operations/plugin-runbook.md).
+
+## Configuration
+
+Operators configure plugins through one channel and never edit product source.
+
+1. `ITAMBOX_PLUGINS_CONFIG`: a JSON object keyed by plugin package name, in the same style as the `ITAMBOX_TENANT_*_CONFIGS` variables.
+
+    ```bash
+    ITAMBOX_PLUGINS=example_plugin
+    ITAMBOX_PLUGINS_CONFIG='{"example_plugin": {"endpoint": "https://example.test", "retries": 5}}'
+    ```
+
+2. Per-key environment overrides, so a secret store can inject single values: `ITAMBOX_PLUGIN_<NAME>_<KEY>`. `<NAME>` is the package name and `<KEY>` the schema key, both upper-cased with every character outside `A-Z0-9` replaced by `_` (`example_plugin` / `api_key` becomes `ITAMBOX_PLUGIN_EXAMPLE_PLUGIN_API_KEY`). An override wins over the JSON value. Override values are text and are converted to the declared type; `bool` accepts `true/false/1/0/yes/no/on/off`, `list` and `dict` take JSON.
+
+A plugin declares what it accepts with `settings_schema`, a mapping of key to a spec:
+
+| Spec field | Meaning |
+|---|---|
+| `type` | `str` (default), `int`, `float`, `bool`, `list` or `dict`. |
+| `default` | Used when the operator sets nothing. Not allowed together with `required` or `secret`. |
+| `required` | The operator must supply a value. |
+| `secret` | The value is never written to logs, diagnostics or error messages. |
+| `choices` | Allowed values (scalar types). |
+
+```python
+settings_schema = {
+    "endpoint": {"type": "str", "default": "https://api.example.test"},
+    "retries": {"type": "int", "default": 3},
+    "api_key": {"type": "str", "required": True, "secret": True},
+}
+```
+
+Validation runs in the resolve phase. A missing required key, a wrong type, a value outside `choices`, a key the schema does not declare, or a malformed schema aborts startup with a message that names the plugin and the key but never a configured value. Read validated values with `itambox.plugins.get_plugin_config(plugin_name, key)`.
 
 ## `PluginConfig`
 
@@ -23,7 +56,7 @@ Required manifest fields: `name` (the package), `description` and `itambox_range
 | `description` | `str` | Required non-empty summary. |
 | `itambox_range` | `str` | Required supported ITAMbox range `>=<major.minor>,<<next-major.minor>>`, for example `>=1.1,<1.2`. Patch releases inside the range are accepted. Malformed ranges abort startup. |
 | `verbose_name`, `version`, `author`, `author_email` | `str` | Metadata. `version` is the plugin's own release. |
-| `default_settings` / `required_settings` | `dict` / `list[str]` | Defaults deep-merged with `PLUGINS_CONFIG[name]`; keys that must be present. |
+| `settings_schema` | `dict` | Declares the operator settings (see [Configuration](#configuration)). Replaces `default_settings` / `required_settings`, which a plugin must no longer declare. |
 | `middleware`, `django_apps` | `list[str]` | Added at startup. |
 | `base_url` | `str` or `None` | URL slug for the optional `urls.py` (default: package name). |
 | `template_extensions` | list or dotted path | `PluginTemplateContent` subclasses; each names its `models = ["app.model"]`. Default: `<pkg>.template_content.template_extensions`. |

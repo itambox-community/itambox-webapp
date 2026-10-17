@@ -33,12 +33,22 @@ def _setting_value_strings(value):
     return set()
 
 
+def _secret_config_strings(settings_module):
+    """Strings of every value whose schema key is flagged ``secret`` (no value guessing)."""
+    resolved = getattr(settings_module, "PLUGINS_RESOLVED_CONFIG", {})
+    result = set()
+    for plugin_name, keys in getattr(settings_module, "PLUGINS_SECRET_KEYS", {}).items():
+        values = resolved.get(plugin_name, {})
+        for key in keys:
+            result.update(_setting_value_strings(values.get(key)))
+    return result
+
+
 def _redacted_error(exc, settings_module):
     message = str(exc)
     secret_values = set()
     if settings_module is not None:
-        secret_values.update(_setting_value_strings(getattr(settings_module, "PLUGINS_CONFIG", {})))
-        secret_values.update(_setting_value_strings(getattr(settings_module, "PLUGINS_RESOLVED_CONFIG", {})))
+        secret_values.update(_secret_config_strings(settings_module))
         secret_values.update(_setting_value_strings(getattr(settings_module, "SECRET_KEY", "")))
     for secret in sorted(secret_values, key=len, reverse=True):
         message = message.replace(secret, "[redacted]")

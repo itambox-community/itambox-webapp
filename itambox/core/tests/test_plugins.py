@@ -11,10 +11,12 @@ from django.utils.html import escape
 
 from core.templatetags.plugins import plugin_template_content
 from itambox.context_processors import plugin_diagnostics_processor
+from itambox.dictutils import deep_merge
 from itambox.plugins import PluginConfig, assembly, runtime
 from itambox.plugins.navigation import PluginNavigationItem, PluginNavigationMenu
 from itambox.plugins.runtime import PluginStartupError
-from itambox.plugins.utils import deep_merge, load_plugins, parse_itambox_range
+from itambox.plugins.settings_schema import override_variable_name
+from itambox.plugins.utils import load_plugins, parse_itambox_range
 from itambox.plugins.views import PluginTemplateContent
 from itambox.registry import registry
 
@@ -100,8 +102,11 @@ class PluginLoaderTestCase(SimpleTestCase):
         dummy = self._load(
             name,
             {name: {"req": "x", "b": "over"}},
-            default_settings={"a": "da", "b": "db"},
-            required_settings=["req"],
+            settings_schema={
+                "a": {"default": "da"},
+                "b": {"default": "db"},
+                "req": {"required": True, "secret": True},
+            },
             middleware=[f"{name}.middleware.MockMiddleware"],
             django_apps=[f"{name}.auxiliary"],
         )
@@ -114,7 +119,7 @@ class PluginLoaderTestCase(SimpleTestCase):
 
     def test_missing_required_setting_aborts_startup(self):
         with self.assertRaises(PluginStartupError) as ctx:
-            self._load("test_mock_missing", required_settings=["crucial"])
+            self._load("test_mock_missing", settings_schema={"crucial": {"required": True}})
         self.assertEqual(ctx.exception.plugin_name, "test_mock_missing")
         self.assertEqual(ctx.exception.phase, "resolve")
         self.assertIn("test_mock_missing", str(ctx.exception))
@@ -177,7 +182,7 @@ class PluginLoaderTestCase(SimpleTestCase):
 
     def test_one_bad_plugin_aborts_even_with_a_good_one(self):
         self._install("test_good", _config("test_good"))
-        self._install("test_bad", _config("test_bad", required_settings=["x"]))
+        self._install("test_bad", _config("test_bad", settings_schema={"x": {"required": True}}))
         dummy = DummySettings()
         dummy.PLUGINS = ["test_good", "test_bad"]
         with self.assertRaises(PluginStartupError):
@@ -594,3 +599,185 @@ class PluginUrlMountingTestCase(SimpleTestCase):
         finally:
             for name in ("ui_plugin_pkg", "ui_plugin_pkg.urls", "bare_plugin_pkg"):
                 sys.modules.pop(name, None)
+
+
+class PluginSettingsSchemaTestCase(SimpleTestCase):
+    """Operator configuration channel: schema validation, override precedence, secret redaction."""
+
+    NAME = "test_cfg_plugin"
+    SCHEMA = {
+        "endpoint": {"type": "str", "default": "https://default.example"},
+        "retries": {"type": "int", "default": 3},
+        "sandbox": {"type": "bool", "default": True},
+        "mode": {"type": "str", "choices": ["fast", "safe"], "default": "safe"},
+        "api_key": {"type": "str", "required": True, "secret": True},
+    }
+
+    def setUp(self):
+        self._installed = []
+
+    def tearDown(self):
+        for name in self._installed:
+            sys.modules.pop(name, None)
+
+    def _resolve(self, plugin_config=None, environ=None, schema=None):
+        module = types.ModuleType(self.NAME)
+        module.config = _config(self.NAME, settings_schema=self.SCHEMA if schema is None else schema)
+        sys.modules[self.NAME] = module
+        self._installed.append(self.NAME)
+        dummy = DummySettings()
+        dummy.PLUGINS = [self.NAME]
+        dummy.PLUGINS_CONFIG = plugin_config if plugin_config is not None else {}
+        with patch.dict("os.environ", environ or {}, clear=False):
+            load_plugins(dummy)
+        return dummy
+
+    def test_valid_values_and_defaults(self):
+        dummy = self._resolve({self.NAME: {"api_key": "k-123456", "retries": 5}})
+        self.assertEqual(
+            dummy.PLUGINS_RESOLVED_CONFIG[self.NAME],
+            {
+                "endpoint": "https://default.example",
+                "retries": 5,
+                "sandbox": True,
+                "mode": "safe",
+                "api_key": "k-123456",
+            },
+        )
+
+    def test_missing_required_key_names_plugin_and_key(self):
+        with self.assertRaises(PluginStartupError) as ctx:
+            self._resolve({})
+        message = str(ctx.exception)
+        self.assertEqual(ctx.exception.phase, "resolve")
+        self.assertIn(self.NAME, message)
+        self.assertIn("'api_key'", message)
+        self.assertIn(override_variable_name(self.NAME, "api_key"), message)
+
+    def test_invalid_values_abort_startup_naming_plugin_and_key(self):
+        for bad, key in (
+            ({"retries": "five"}, "retries"),
+            ({"retries": True}, "retries"),
+            ({"sandbox": "yes"}, "sandbox"),
+            ({"mode": "turbo"}, "mode"),
+        ):
+            with self.subTest(bad=bad):
+                with self.assertRaises(PluginStartupError) as ctx:
+                    self._resolve({self.NAME: {"api_key": "k-123456", **bad}})
+                self.assertIn(self.NAME, str(ctx.exception))
+                self.assertIn(repr(key), str(ctx.exception))
+
+    def test_unknown_key_is_a_configuration_error(self):
+        with self.assertRaises(PluginStartupError) as ctx:
+            self._resolve({self.NAME: {"api_key": "k-123456", "retires": 1}})
+        self.assertIn("retires", str(ctx.exception))
+        self.assertIn(self.NAME, str(ctx.exception))
+
+    def test_entry_must_be_an_object(self):
+        with self.assertRaises(PluginStartupError):
+            self._resolve({self.NAME: ["api_key"]})
+
+    def test_removed_attributes_are_rejected(self):
+        for attribute, value in (("default_settings", {"a": 1}), ("required_settings", ["a"])):
+            with self.subTest(attribute=attribute):
+                module = types.ModuleType(self.NAME)
+                module.config = _config(self.NAME, **{attribute: value})
+                sys.modules[self.NAME] = module
+                self._installed.append(self.NAME)
+                dummy = DummySettings()
+                dummy.PLUGINS = [self.NAME]
+                with self.assertRaises(PluginStartupError) as ctx:
+                    load_plugins(dummy)
+                self.assertIn(attribute, str(ctx.exception))
+
+    def test_malformed_schema_aborts_startup(self):
+        bad_schemas = (
+            {"k": {"type": "decimal"}},
+            {"k": {"surprise": 1}},
+            {"k": {"default": 1}},
+            {"k": {"required": True, "default": "x"}},
+            {"k": {"secret": True, "default": "x"}},
+            {"k": {"type": "int", "default": "x"}},
+            {"k": {"choices": []}},
+            {"k": {"type": "list", "choices": [[1]]}},
+            {"k": {"choices": ["a"], "default": "b"}},
+            {"k": {"choices": [1]}},
+            {"k": {"required": "yes"}},
+            {"not valid": {}},
+            {"k": "str"},
+            ["k"],
+        )
+        for schema in bad_schemas:
+            with self.subTest(schema=schema):
+                with self.assertRaises(PluginStartupError):
+                    self._resolve({}, schema=schema)
+
+    def test_environment_override_beats_json(self):
+        variable = override_variable_name(self.NAME, "api_key")
+        self.assertEqual(variable, "ITAMBOX_PLUGIN_TEST_CFG_PLUGIN_API_KEY")
+        dummy = self._resolve({self.NAME: {"api_key": "from-json-1", "mode": "fast"}}, {variable: "from-env-1"})
+        resolved = dummy.PLUGINS_RESOLVED_CONFIG[self.NAME]
+        self.assertEqual(resolved["api_key"], "from-env-1")
+        self.assertEqual(resolved["mode"], "fast")
+
+    def test_environment_override_can_supply_a_required_key_alone(self):
+        variable = override_variable_name(self.NAME, "api_key")
+        dummy = self._resolve({}, {variable: "only-env-1"})
+        self.assertEqual(dummy.PLUGINS_RESOLVED_CONFIG[self.NAME]["api_key"], "only-env-1")
+
+    def test_environment_values_are_converted_to_the_declared_type(self):
+        env = {
+            override_variable_name(self.NAME, "api_key"): "k-123456",
+            override_variable_name(self.NAME, "retries"): " 7 ",
+            override_variable_name(self.NAME, "sandbox"): "Off",
+        }
+        resolved = self._resolve({}, env).PLUGINS_RESOLVED_CONFIG[self.NAME]
+        self.assertEqual((resolved["retries"], resolved["sandbox"]), (7, False))
+        schema = {"items": {"type": "list"}, "opts": {"type": "dict"}, "ratio": {"type": "float"}}
+        env = {
+            override_variable_name(self.NAME, "items"): "[1, 2]",
+            override_variable_name(self.NAME, "opts"): '{"a": 1}',
+            override_variable_name(self.NAME, "ratio"): "0.5",
+        }
+        resolved = self._resolve({}, env, schema=schema).PLUGINS_RESOLVED_CONFIG[self.NAME]
+        self.assertEqual(resolved, {"items": [1, 2], "opts": {"a": 1}, "ratio": 0.5})
+
+    def test_bad_environment_values_do_not_echo_the_value(self):
+        for key, bad in (("retries", "hunter2-secret"), ("sandbox", "hunter2-secret"), ("items", "hunter2-secret")):
+            with self.subTest(key=key):
+                env = {
+                    override_variable_name(self.NAME, "api_key"): "k-123456",
+                    override_variable_name(self.NAME, key): bad,
+                }
+                schema = {**self.SCHEMA, "items": {"type": "list"}}
+                with self.assertRaises(PluginStartupError) as ctx:
+                    self._resolve({}, env, schema=schema)
+                self.assertIn(repr(key), str(ctx.exception))
+                self.assertNotIn("hunter2", str(ctx.exception))
+                self.assertIsNone(ctx.exception.__cause__.__cause__)
+
+    def test_invalid_value_error_never_contains_the_secret(self):
+        schema = {"token": {"type": "int", "secret": True}}
+        with self.assertRaises(PluginStartupError) as ctx:
+            self._resolve({self.NAME: {"token": "s3cr3t-token"}}, schema=schema)
+        self.assertNotIn("s3cr3t-token", str(ctx.exception))
+
+    def test_secret_values_are_redacted_by_flag_not_by_guessing(self):
+        dummy = self._resolve({self.NAME: {"api_key": "s3cr3t-token", "endpoint": "https://visible.example"}})
+        self.assertEqual(dummy.PLUGINS_SECRET_KEYS[self.NAME], frozenset({"api_key"}))
+        error = runtime._redacted_error(RuntimeError("failed calling https://visible.example with s3cr3t-token"), dummy)
+        self.assertNotIn("s3cr3t-token", error)
+        self.assertIn("https://visible.example", error)
+        self.assertIn("[redacted]", error)
+
+    def test_get_plugin_config_reads_resolved_values(self):
+        from itambox.plugins import get_plugin_config
+
+        dummy = self._resolve({self.NAME: {"api_key": "k-123456"}})
+        with override_settings(PLUGINS_RESOLVED_CONFIG=dummy.PLUGINS_RESOLVED_CONFIG):
+            self.assertEqual(get_plugin_config(self.NAME, "retries"), 3)
+            self.assertEqual(get_plugin_config(self.NAME, "absent", "fallback"), "fallback")
+            whole = get_plugin_config(self.NAME)
+            whole["retries"] = 99
+            self.assertEqual(get_plugin_config(self.NAME, "retries"), 3)
+            self.assertEqual(get_plugin_config("unknown_plugin"), {})
