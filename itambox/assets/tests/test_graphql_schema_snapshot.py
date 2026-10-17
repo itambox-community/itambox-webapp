@@ -100,7 +100,7 @@ class GraphQLSchemaSnapshotTests(SimpleTestCase):
         self.assertEqual(
             {name: str(arg.type) for name, arg in query_type.fields["assets"].args.items()},
             {
-                "requestedScope": "RequestedScopeSelector!",
+                "requestedScope": "RequestedScopeSelector",
                 "limit": "Int",
                 "offset": "Int",
                 "sortBy": "String",

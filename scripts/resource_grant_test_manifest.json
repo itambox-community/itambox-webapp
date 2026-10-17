@@ -43,6 +43,7 @@
     "itambox/core/tests/test_csv_import_auto_slug.py",
     "itambox/core/tests/test_csv_import_error_contracts.py",
     "itambox/core/tests/test_data_transfer_policy.py",
+    "itambox/core/tests/test_graphql_root_scope.py",
     "itambox/core/tests/test_graphql_throttle.py",
     "itambox/core/tests/test_htmx.py",
     "itambox/core/tests/test_hybrid_catalogue_import.py",
@@ -129,7 +130,9 @@
     "scripts/tests/test_security_gate.py",
     "scripts/tests/test_select_e2e_scopes.py",
     "scripts/tests/test_specification_vocabulary_contract.py",
-    "itambox/assets/tests/test_graphql_software_products_scope.py"
+    "itambox/assets/tests/test_graphql_software_products_scope.py",
+    "itambox/assets/tests/test_graphql.py",
+    "itambox/assets/tests/test_graphql_schema_snapshot.py"
   ],
   "baseline_tests": [
     "itambox/assets/api/tests/test_error_boundary_disclosure.py",
@@ -693,6 +696,7 @@
     "itambox/core/tests/test_form_scoping.py",
     "itambox/core/tests/test_framework_import_boundaries.py",
     "itambox/core/tests/test_global_label_template_permissions.py",
+    "itambox/core/tests/test_graphql_root_scope.py",
     "itambox/core/tests/test_graphql_throttle.py",
     "itambox/core/tests/test_group_scope_accessible_tenants.py",
     "itambox/core/tests/test_hosted_runner_workflows.py",

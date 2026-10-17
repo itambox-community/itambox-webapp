@@ -5,8 +5,7 @@ import strawberry_django
 
 from assets.schema import ManufacturerNode
 from core.graphql_choice_enums import choice_enum
-from core.graphql_utils import check_permission, paginate_queryset
-from core.managers import Scope
+from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
 
 from .models import Software
 
@@ -60,7 +59,7 @@ class Query:
         version: str | None = None,
     ) -> list[SoftwareNode | None] | None:
         check_permission(info, "software.view_software")
-        qs = Software.objects.for_scope(Scope.current()).select_related("manufacturer").all()
+        qs = scoped_queryset(info, Software.objects).select_related("manufacturer").all()
         for key, val in (("name", name), ("version", version)):
             if val is not None:
                 qs = qs.filter(**{key: val})
@@ -72,6 +71,6 @@ class Query:
     def software(self, info: strawberry.Info, id: strawberry.ID) -> SoftwareNode | None:
         check_permission(info, "software.view_software")
         try:
-            return Software.objects.for_scope(Scope.current()).select_related("manufacturer").get(pk=id)
+            return scoped_queryset(info, Software.objects).select_related("manufacturer").get(pk=id)
         except Software.DoesNotExist:
             return None

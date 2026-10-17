@@ -334,8 +334,8 @@ type PageInfo {
 }
 
 type Query {
-  assets(requestedScope: RequestedScopeSelector!, limit: Int = null, offset: Int = null, sortBy: String = null, name: String = null, assetTag: String = null, serialNumber: String = null, statusId: ID = null, locationId: ID = null): [Asset]
-  asset(id: ID!, requestedScope: RequestedScopeSelector!): Asset
+  assets(requestedScope: RequestedScopeSelector = null, limit: Int = null, offset: Int = null, sortBy: String = null, name: String = null, assetTag: String = null, serialNumber: String = null, statusId: ID = null, locationId: ID = null): [Asset]
+  asset(id: ID!, requestedScope: RequestedScopeSelector = null): Asset
   assetType(id: ID!): AssetType
   assetTypes(first: Int! = 50, after: Cursor = null): AssetTypeConnection!
   specificationFields(first: Int! = 50, after: Cursor = null): SpecificationFieldConnection!
