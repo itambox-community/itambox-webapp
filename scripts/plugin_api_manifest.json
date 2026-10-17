@@ -1,0 +1,76 @@
+{
+  "schema": "itambox-plugin-api-inventory/1",
+  "description": "Reviewed snapshot of the plugin API surface. scripts/check_plugin_api.py derives the same facts from source and fails on any drift. Change the surface only by editing this file and the public API reference in the same change.",
+  "stable": {
+    "config_attributes": [
+      "author",
+      "author_email",
+      "base_url",
+      "description",
+      "graphql_schema",
+      "itambox_range",
+      "menu",
+      "menu_items",
+      "settings_schema",
+      "template_extensions",
+      "version",
+      "viewsets"
+    ],
+    "resource_defaults": {
+      "graphql_schema": "graphql.schema",
+      "menu": "navigation.menu",
+      "menu_items": "navigation.menu_items",
+      "template_extensions": "template_content.template_extensions",
+      "viewsets": "api.viewsets.viewsets"
+    },
+    "public_symbols": {
+      "itambox.plugins": [
+        "PluginConfig",
+        "get_plugin_config"
+      ],
+      "itambox.plugins.navigation": [
+        "PluginNavigationItem",
+        "PluginNavigationMenu"
+      ],
+      "itambox.plugins.views": [
+        "PluginTemplateContent"
+      ]
+    }
+  },
+  "experimental": {
+    "config_attributes": [
+      "django_apps",
+      "middleware"
+    ]
+  },
+  "documented": {
+    "Stable": [
+      "PluginConfig",
+      "PluginConfig.author",
+      "PluginConfig.author_email",
+      "PluginConfig.base_url",
+      "PluginConfig.description",
+      "PluginConfig.graphql_schema",
+      "PluginConfig.itambox_range",
+      "PluginConfig.menu",
+      "PluginConfig.menu_items",
+      "PluginConfig.settings_schema",
+      "PluginConfig.template_extensions",
+      "PluginConfig.version",
+      "PluginConfig.viewsets",
+      "PluginNavigationItem",
+      "PluginNavigationMenu",
+      "PluginTemplateContent",
+      "get_plugin_config",
+      "urls.py"
+    ],
+    "Experimental": [
+      "PluginConfig.django_apps",
+      "PluginConfig.middleware"
+    ],
+    "Private": [
+      "PluginModel",
+      "Registry"
+    ]
+  }
+}
