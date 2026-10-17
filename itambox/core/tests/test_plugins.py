@@ -263,6 +263,7 @@ class PluginComposeTestCase(SimpleTestCase):
             "initial",
             "check_permissions",
             "check_object_permissions",
+            "permission_denied",
             "get_object",
             "list",
             "retrieve",
@@ -275,6 +276,15 @@ class PluginComposeTestCase(SimpleTestCase):
                 )
                 with self.assertRaisesRegex(TypeError, method_name):
                     assembly._compose_viewsets("p", [(f"things_{method_name}", viewset)])
+
+        class PermissionDeniedMixin:
+            permission_denied = unsafe_override
+
+        class InheritedPermissionDeniedViewSet(PermissionDeniedMixin, ITAMBoxModelViewSet):
+            pass
+
+        with self.assertRaisesRegex(TypeError, "permission_denied"):
+            assembly._compose_viewsets("p", [("things_inherited", InheritedPermissionDeniedViewSet)])
 
     def test_permission_targets_validate_and_register_owned_models(self):
         config = types.SimpleNamespace(name="widget_plugin")

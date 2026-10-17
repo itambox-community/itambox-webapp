@@ -32,6 +32,7 @@ _HOST_OWNED_VIEWSET_HOOKS = (
     "initial",
     "check_permissions",
     "check_object_permissions",
+    "permission_denied",
     "get_object",
     "list",
     "retrieve",
