@@ -29,6 +29,8 @@ ROOTS = (
     ("softwareList", "api:software_api:software-list", "software.view_software"),
 )
 
+PERMISSIONS = [r[2] for r in ROOTS] + ["subscriptions.view_subscriptionassignment"]
+
 
 class GraphQLRootScopeTests(TenantTestMixin, TestCase):
     def setUp(self):
@@ -37,13 +39,16 @@ class GraphQLRootScopeTests(TenantTestMixin, TestCase):
         self.tenant_b = Tenant.objects.create(name="GQ B", slug="gq-b", group=self.group, managed_by=self.tenant_a)
         self.tenant_c = Tenant.objects.create(name="GQ C", slug="gq-c", managed_by=self.tenant_a)
         self.user = User.objects.create_user("gq_reader", "gq@example.com", "pw")
-        role = Role.objects.create(tenant=self.tenant_a, name="GQ Reader", permissions=[r[2] for r in ROOTS] + ["subscriptions.view_subscriptionassignment"],
+        role = Role.objects.create(
+            tenant=self.tenant_a,
+            name="GQ Reader",
+            permissions=PERMISSIONS,
         )
         self.grant(self.user, self.tenant_a, role, managed_scope="all")
         mfr = Manufacturer.objects.create(name="GQ Mfr", slug="gq-mfr")
         supplier = Supplier.objects.create(name="GQ Sup", slug="gq-sup")
         for key, tenant in (("a", self.tenant_a), ("b", self.tenant_b), ("c", self.tenant_c)):
-            Accessory.objects.create(name=f"acc-{key}", slug=f"acc-{key}", manufacturer=mfr, tenant=tenant)
+            target = Accessory.objects.create(name=f"acc-{key}", slug=f"acc-{key}", manufacturer=mfr, tenant=tenant)
             Consumable.objects.create(name=f"con-{key}", manufacturer=mfr, tenant=tenant)
             Kit.objects.create(name=f"kit-{key}", tenant=tenant)
             Component.objects.create(name=f"cmp-{key}", manufacturer=mfr, tenant=tenant)
@@ -51,7 +56,7 @@ class GraphQLRootScopeTests(TenantTestMixin, TestCase):
             License.objects.create(name=f"lic-{key}", software=software, seats=1, tenant=tenant)
             sub = Subscription.objects.create(name=f"sub-{key}", supplier=supplier, tenant=tenant)
             SubscriptionAssignment.objects.create(
-                subscription=sub, content_type=ContentType.objects.get_for_model(Manufacturer), object_id=mfr.pk
+                subscription=sub, content_type=ContentType.objects.get_for_model(Accessory), object_id=target.pk
             )
         self.client.force_login(self.user)
 
@@ -99,10 +104,10 @@ class GraphQLRootScopeTests(TenantTestMixin, TestCase):
     def test_single_roots_resolve_in_group_scope(self):
         self._session(active_tenant_group_id=self.group.pk)
         for root, model, name in (
-            ("accessory", Accessory, "acc-b"),
-            ("consumable", Consumable, "con-b"),
-            ("kit", Kit, "kit-b"),
-            ("component", Component, "cmp-b"),
+            ("accessory", Accessory, "acc-a"),
+            ("consumable", Consumable, "con-a"),
+            ("kit", Kit, "kit-a"),
+            ("component", Component, "cmp-a"),
         ):
             pk = model.objects.get(name=name).pk
             query = 'query { %s(id: "%s") { name } }' % (root, pk)
@@ -112,7 +117,7 @@ class GraphQLRootScopeTests(TenantTestMixin, TestCase):
             payload = response.json()
             self.assertNotIn("errors", payload, payload)
             self.assertEqual(payload["data"][root], {"name": name}, root)
-        assignment = SubscriptionAssignment.objects.get(subscription__name="sub-b")
+        assignment = SubscriptionAssignment.objects.get(subscription__name="sub-a")
         query = 'query { subscriptionAssignment(id: "%s") { id } }' % assignment.pk
         response = self.client.post(
             reverse("graphql"), data=json.dumps({"query": query}), content_type="application/json"
