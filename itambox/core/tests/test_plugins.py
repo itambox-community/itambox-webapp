@@ -288,6 +288,37 @@ class PluginComposeTestCase(SimpleTestCase):
             with self.assertRaises(ValueError):
                 assembly._compose_permission_targets(config, ["widget_plugin.widget"])
 
+    def test_last_plugin_refreshes_early_role_matrix_import_in_place(self):
+        import organization.forms.role_form as role_form
+        from organization.forms import role_matrix
+
+        matrix_models = role_matrix.MATRIX_MODELS
+        original = matrix_models.copy()
+        target_key = "plugin_11_late_plugin_latermodel"
+        target_row = {
+            "label": "Late target",
+            "app": "late_plugin",
+            "model_name": "latermodel",
+            "group": "Late plugin",
+        }
+        try:
+            matrix_models.clear()
+            matrix_models.update(role_matrix.ROLE_PERMISSION_PRESENTATION)
+            with (
+                override_settings(PLUGINS_ACTIVE=["early_plugin", "late_plugin"]),
+                patch.object(role_matrix, "_plugin_permission_presentations", return_value={target_key: target_row}),
+                patch.object(registry, "get_plugin_graphql", return_value=()),
+                patch.object(registry, "_freeze_plugins"),
+                patch("itambox.plugins.assembly.importlib.import_module"),
+            ):
+                assembly.assemble_after_last_plugin(types.SimpleNamespace(name="late_plugin"))
+
+            self.assertIs(role_form.MATRIX_MODELS, matrix_models)
+            self.assertEqual(matrix_models[target_key], target_row)
+        finally:
+            matrix_models.clear()
+            matrix_models.update(original)
+
     def test_technician_seed_scope_uses_declared_plugin_models(self):
         from core.management.commands._seed.access import _technician_plugin_models
         from organization.services.role_permission_policy import RolePermissionTarget
@@ -938,6 +969,7 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
 
         from core.tests.mixins import grant
         from organization.models import Role
+        from users.models import Token
 
         user = get_user_model().objects.create_user(username="no_role_reader", password="test")
         denied_role = Role.objects.create(tenant=self.tenant, name="No view role", permissions=[])
@@ -945,6 +977,12 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
         self.client_login_to_tenant(user, self.tenant)
         response = self.client.get("/api/plugins/rest_probe/roles/")
         self.assertEqual(response.status_code, 403)
+
+        token = Token.objects.create(user=user, tenant=self.tenant)
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        token_response = self.client.get("/api/plugins/rest_probe/roles/")
+        self.assertEqual(token_response.status_code, 403)
 
     def test_plugin_rest_endpoint_is_the_supported_write_surface(self):
         from django.contrib.auth import get_user_model

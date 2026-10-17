@@ -363,3 +363,10 @@ def build_matrix_models():
 
 
 MATRIX_MODELS = build_matrix_models()
+
+
+def refresh_matrix_models() -> None:
+    """Refresh exported rows in place after the final plugin registers its targets."""
+    refreshed = build_matrix_models()
+    MATRIX_MODELS.clear()
+    MATRIX_MODELS.update(refreshed)

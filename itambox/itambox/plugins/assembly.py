@@ -3,6 +3,7 @@
 import importlib
 import importlib.util
 import re
+import sys
 
 import strawberry
 from django.apps import apps
@@ -146,11 +147,19 @@ def _trial_build(query):
     strawberry.Schema(query=query)
 
 
+def _refresh_loaded_role_permission_matrix() -> None:
+    module = sys.modules.get("organization.forms.role_matrix")
+    refresh = getattr(module, "refresh_matrix_models", None)
+    if callable(refresh):
+        refresh()
+
+
 def assemble_after_last_plugin(config):
     """Assemble and freeze once the last active plugin has composed."""
     active = list(getattr(settings, "PLUGINS_ACTIVE", ()))
     if not active or config.name != active[-1]:
         return
+    _refresh_loaded_role_permission_matrix()
     for name, query in registry.get_plugin_graphql():
         try:
             _trial_build(query)
