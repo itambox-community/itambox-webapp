@@ -7,7 +7,7 @@ class Config(PluginConfig):
     name = "fxbad_config"
     description = "Requires a setting the operator never provided."
     itambox_range = current_range()
-    required_settings = ["api_token"]
+    settings_schema = {"api_token": {"type": "str", "required": True}}
 
 
 config = Config
