@@ -292,7 +292,7 @@ class Query:
     def assets(
         self,
         info: strawberry.Info,
-        requested_scope: RequestedScopeSelectorInput | None = None,
+        requested_scope: RequestedScopeSelectorInput,
         limit: int | None = None,
         offset: int | None = None,
         sort_by: str | None = None,
@@ -327,10 +327,7 @@ class Query:
 
     @strawberry.field
     def asset(
-        self,
-        info: strawberry.Info,
-        id: strawberry.ID,
-        requested_scope: RequestedScopeSelectorInput | None = None,
+        self, info: strawberry.Info, id: strawberry.ID, requested_scope: RequestedScopeSelectorInput
     ) -> AssetNode | None:
         authenticated_user(info)
         scope = resolve_read_scope(info, requested_scope)
