@@ -433,6 +433,11 @@ class BulkImportForm(forms.Form):
         self.updated_list = updated
         return ImportResult(imported, errors)
 
+    @staticmethod
+    def _differs(instance, key, value):
+        """Whether a mapped value changes the stored one; forms override for non-scalar fields."""
+        return str(getattr(instance, key, None)) != str(value)
+
     def _import_row(self, row, row_number):
         mapped = self.map_row(row)
         self._validate_row(mapped, row_number)
@@ -440,7 +445,7 @@ class BulkImportForm(forms.Form):
         instance = self._find_existing(mapped)
         if instance is not None:
             self._authorize_update(instance)
-            if not any(str(getattr(instance, key, None)) != str(val) for key, val in mapped.items()):
+            if not any(self._differs(instance, key, val) for key, val in mapped.items()):
                 raise RowSkipped(_("record already exists and is unchanged; skipped."))
             if hasattr(instance, "snapshot"):
                 instance.snapshot()

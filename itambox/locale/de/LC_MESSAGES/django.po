@@ -15611,3 +15611,22 @@ msgstr "Quellbezeichnung"
 
 msgid "The source label is not changed here. Only the translation is saved."
 msgstr "Die Quellbezeichnung wird hier nicht geändert. Es wird nur die Übersetzung gespeichert."
+
+msgid "6-digit hex colour, for example 00ff00. A leading # is accepted."
+msgstr "6-stellige Hex-Farbe, zum Beispiel 00ff00. Ein führendes # wird akzeptiert."
+
+msgid "Comma-separated targets: asset, accessory, consumable, component. Targets that are not listed do not apply."
+msgstr "Kommagetrennte Ziele: asset, accessory, consumable, component. Nicht aufgeführte Ziele gelten nicht."
+
+msgid "Enter a whole number of months greater than zero."
+msgstr "Geben Sie eine ganze Zahl von Monaten größer als null ein."
+
+msgid "Enter the targets as a comma-separated list."
+msgstr "Geben Sie die Ziele als kommagetrennte Liste ein."
+
+msgid "Positive whole number of months. Leave empty for no required cadence."
+msgstr "Positive ganze Zahl von Monaten. Leer lassen, wenn kein Prüfrhythmus erforderlich ist."
+
+#, python-format
+msgid "unknown target '%(value)s'. Use: %(choices)s."
+msgstr "Unbekanntes Ziel '%(value)s'. Verwenden Sie: %(choices)s."

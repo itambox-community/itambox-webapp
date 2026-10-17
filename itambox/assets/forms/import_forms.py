@@ -1,4 +1,6 @@
+import ast
 import json
+import re
 from functools import lru_cache
 from typing import NamedTuple
 
@@ -377,7 +379,7 @@ class _ReferenceDataBulkImportForm(BulkImportForm):
                 instance = self._find_existing(mapped)
                 if instance is not None:
                     self._authorize_update(instance)
-                    if not any(str(getattr(instance, key, None)) != str(value) for key, value in mapped.items()):
+                    if not any(self._differs(instance, key, value) for key, value in mapped.items()):
                         notes.append(
                             _("Row %(row)s: %(reason)s")
                             % {"row": number, "reason": _("record already exists and is unchanged; skipped.")}
@@ -431,7 +433,82 @@ class CategoryBulkImportForm(_ReferenceDataBulkImportForm):
     model = Category
     update_key = ("name",)
     required_fields = ["name"]
-    optional_fields = ["slug"]
+    optional_fields = ["slug", "description", "color", "applies_to", "audit_interval_months"]
+    # The target list reuses the category form's own choices (applies_to_flags).
+    field_descriptions = {
+        "color": _lazy("6-digit hex colour, for example 00ff00. A leading # is accepted."),
+        "applies_to": _lazy(
+            "Comma-separated targets: asset, accessory, consumable, component. "
+            "Targets that are not listed do not apply."
+        ),
+        "audit_interval_months": _lazy("Positive whole number of months. Leave empty for no required cadence."),
+    }
+
+    def map_row(self, row):
+        handled = {"color", "applies_to", "audit_interval_months"}
+        mapped = super().map_row({key: value for key, value in row.items() if key not in handled})
+        color = str(row.get("color") or "").strip()
+        if color:
+            mapped["color"] = self._clean_color(color)
+        applies_to = str(row.get("applies_to") or "").strip()
+        if applies_to:
+            mapped["applies_to"] = self._parse_applies_to(applies_to)
+        if "audit_interval_months" in row:
+            mapped["audit_interval_months"] = self._parse_audit_interval(row["audit_interval_months"])
+        return mapped
+
+    @staticmethod
+    def _clean_color(value):
+        color = value[1:] if value.startswith("#") else value
+        if not re.fullmatch(r"[0-9A-Fa-f]{6}", color):
+            raise ValidationError({"color": _("Enter a valid 6-digit hex color (0-9, A-F).")})
+        return color
+
+    @staticmethod
+    def _parse_applies_to(value):
+        """Targets as a comma list; an export's mapping notation reads back unchanged."""
+        from assets.forms.category_form import CategoryForm
+
+        known = [choice for choice, _label in CategoryForm.APPLIES_TO_CHOICES]
+        if value.startswith("{"):
+            try:
+                parsed = ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                parsed = None
+            if not isinstance(parsed, dict):
+                raise ValidationError({"applies_to": _("Enter the targets as a comma-separated list.")})
+            requested = [str(key).strip().lower() for key, flag in parsed.items() if flag]
+            names = [str(key).strip().lower() for key in parsed]
+        else:
+            requested = names = [part.strip().lower() for part in value.split(",") if part.strip()]
+        unknown = [name for name in names if name not in known]
+        if unknown:
+            raise ValidationError(
+                {
+                    "applies_to": _("unknown target '%(value)s'. Use: %(choices)s.")
+                    % {"value": ", ".join(unknown), "choices": ", ".join(known)}
+                }
+            )
+        return {choice: choice in requested for choice in known}
+
+    @staticmethod
+    def _parse_audit_interval(value):
+        text = str(value if value is not None else "").strip()
+        if not text:
+            return None
+        try:
+            months = int(text)
+        except ValueError:
+            months = 0
+        if months < 1:
+            raise ValidationError({"audit_interval_months": _("Enter a whole number of months greater than zero.")})
+        return months
+
+    def _differs(self, instance, key, value):
+        if key == "applies_to":
+            current = {name for name, flag in (instance.applies_to or {}).items() if flag}
+            return current != {name for name, flag in value.items() if flag}
+        return super()._differs(instance, key, value)
 
 
 @register_import_form
