@@ -1,9 +1,43 @@
 # ITAMbox Plugin API Reference
 
-!!! warning "Status: Experimental"
-    Plugins are opt-in through `settings.PLUGINS` and are not part of the Stable compatibility promise. Pin the ITAMbox revision and the plugin revision together; Experimental interfaces may change in any release.
+This page is normative. A symbol, attribute, module, or hook not listed here is private and may be renamed, moved, or removed without a deprecation period.
 
-This page is normative. A symbol, attribute, module, or hook not listed here is private/unstable and may be renamed, moved, or removed without a deprecation period.
+## API tiers
+
+Every public name carries one tier:
+
+| Tier | Meaning |
+|---|---|
+| Stable | Covered by the compatibility promise. A change ships only with a new ITAMbox major.minor release and a changelog entry, and is pinned by the plugin API inventory. |
+| Experimental | Documented and allowed, but outside the compatibility promise. May change in any release. |
+| Private | Not part of the plugin API. Do not depend on it. |
+
+Pin the ITAMbox revision and the plugin revision together. The inventory behind this table lives in `scripts/plugin_api_manifest.json`, and the `scripts/check_plugin_api.py` gate fails CI when the source and the table drift apart.
+
+| Identifier | Tier |
+|---|---|
+| `PluginConfig` | Stable |
+| `PluginConfig.author` | Stable |
+| `PluginConfig.author_email` | Stable |
+| `PluginConfig.base_url` | Stable |
+| `PluginConfig.description` | Stable |
+| `PluginConfig.graphql_schema` | Stable |
+| `PluginConfig.itambox_range` | Stable |
+| `PluginConfig.menu` | Stable |
+| `PluginConfig.menu_items` | Stable |
+| `PluginConfig.settings_schema` | Stable |
+| `PluginConfig.template_extensions` | Stable |
+| `PluginConfig.version` | Stable |
+| `PluginConfig.viewsets` | Stable |
+| `PluginNavigationItem` | Stable |
+| `PluginNavigationMenu` | Stable |
+| `PluginTemplateContent` | Stable |
+| `get_plugin_config` | Stable |
+| `urls.py` | Stable |
+| `PluginConfig.django_apps` | Experimental |
+| `PluginConfig.middleware` | Experimental |
+| `PluginModel` | Private |
+| `Registry` | Private |
 
 ## Activation and configuration
 
