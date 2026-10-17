@@ -8,6 +8,7 @@ once per configured plugin and once for the complete set, and reports the
 outcome of each. No web process is involved.
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -39,12 +40,22 @@ try:
 # broad except: boundary-isolation: any startup failure is reported, never raised
 except BaseException as exc:
     plugin = getattr(exc, "plugin_name", None)
+    cause = getattr(exc, "cause", exc)
+    try:
+        import html
+
+        from django.conf import settings
+        from itambox.plugins.runtime import _redacted_error
+
+        cause_text = html.unescape(_redacted_error(cause, settings))
+    except Exception:
+        cause_text = str(cause)
     emit(
         {
             "status": "abort",
             "plugin": plugin,
             "phase": getattr(exc, "phase", None),
-            "cause": "%%s: %%s" %% (type(getattr(exc, "cause", exc)).__name__, getattr(exc, "cause", exc)),
+            "cause": "%%s: %%s" %% (type(cause).__name__, cause_text),
         }
     )
     sys.exit(0)
@@ -134,34 +145,73 @@ def _plugin_outcome(name, result):
     return {"plugin": name, "outcome": SKIPPED, "cause": skip["reason"] if skip else "version incompatibility"}
 
 
+def _plugin_reports(names, isolated_results, combined):
+    if combined["status"] != "ok":
+        return [_plugin_outcome(name, result) for name, result in zip(names, isolated_results, strict=True)]
+
+    plugins = []
+    for name, isolated_result in zip(names, isolated_results, strict=True):
+        row = _plugin_outcome(name, combined)
+        if row["outcome"] == OK:
+            isolated_row = _plugin_outcome(name, isolated_result)
+            if isolated_row["outcome"] == OK:
+                row["pending_migrations"] = isolated_row.get("pending_migrations")
+            else:
+                row["pending_migrations"] = combined.get("pending_migrations")
+        plugins.append(row)
+    return plugins
+
+
+def _combined_failure(combined, plugins):
+    if combined["status"] != "abort":
+        return None
+    owner = combined.get("plugin")
+    if any(row["outcome"] == ABORT and row["plugin"] == owner for row in plugins):
+        return None
+    return {
+        "plugin": owner or HOST,
+        "outcome": ABORT,
+        "phase": combined.get("phase"),
+        "cause": combined["cause"],
+    }
+
+
+def _pending_migrations(plugins, combined):
+    pending = []
+    pending_unknown = False
+    for row in plugins:
+        if row["outcome"] != OK:
+            continue
+        plugin_pending = row.get("pending_migrations", [])
+        if plugin_pending is None:
+            pending_unknown = True
+        else:
+            pending.extend(plugin_pending)
+    combined_pending = combined.get("pending_migrations", [])
+    if combined["status"] == "ok" and combined.get("active") and combined_pending is None:
+        pending_unknown = True
+    elif combined_pending:
+        pending.extend(combined_pending)
+    return None if pending_unknown else sorted(set(pending))
+
+
 def run_preflight(environ=None, runner=None):
     """Return the pre-flight report; ``report["abort"]`` is true when startup would abort."""
-    runner = runner or run_startup
+
+    def default_runner(plugin_names):
+        return run_startup(plugin_names, environ=environ)
+
+    run = runner or default_runner
     names = configured_plugins(environ)
-    plugins = [_plugin_outcome(name, runner([name])) for name in names]
-    combined = runner(names) if names else {"status": "ok", "active": [], "skipped": []}
-    abort = any(row["outcome"] == ABORT for row in plugins)
-    host = None
-    if combined["status"] == "abort":
-        abort = True
-        owner = combined.get("plugin")
-        # A failure the single-plugin runs did not show comes from the combination (or the host).
-        if not any(row["outcome"] == ABORT and row["plugin"] == owner for row in plugins):
-            host = {
-                "plugin": owner or HOST,
-                "outcome": ABORT,
-                "phase": combined.get("phase"),
-                "cause": combined["cause"],
-            }
-    pending = []
-    for row in plugins:
-        pending.extend(row.get("pending_migrations") or ())
-    pending.extend(combined.get("pending_migrations") or ())
+    isolated_results = [run([name]) for name in names]
+    combined = run(names)
+    abort = combined["status"] == "abort"
+    plugins = _plugin_reports(names, isolated_results, combined)
     return {
         "abort": abort,
         "plugins": plugins,
-        "set": host,
-        "pending_migrations": sorted(set(pending)),
+        "set": _combined_failure(combined, plugins),
+        "pending_migrations": _pending_migrations(plugins, combined),
         "version": combined.get("version"),
     }
 
@@ -181,15 +231,27 @@ def format_report(report, output_format="table"):
     if not report["plugins"]:
         lines.append("(none configured)")
     pending = report["pending_migrations"]
-    lines.append("Pending plugin migrations: " + (", ".join(pending) if pending else "none"))
+    pending_text = "unknown (database unavailable)" if pending is None else (", ".join(pending) if pending else "none")
+    lines.append("Pending plugin migrations: " + pending_text)
     lines.append("Startup would ABORT." if report["abort"] else "Startup would succeed.")
     return "\n".join(lines)
 
 
 def main(argv, stdout=None):
     """Entry point used by ``manage.py`` before Django loads; returns the process exit code."""
+    parser = argparse.ArgumentParser(prog="manage.py plugins")
+    parser.add_argument("--check", action="store_true", help="Run the plugin startup pre-flight.")
+    parser.add_argument("--format", choices=("table", "json"), default="table")
+    parser.add_argument("--settings", help="The Python path to a settings module.")
+    parser.add_argument("--pythonpath", help="A directory to add to the Python path.")
+    options = parser.parse_args(argv)
+    if options.settings:
+        os.environ["DJANGO_SETTINGS_MODULE"] = options.settings
+    if options.pythonpath:
+        current_pythonpath = os.environ.get("PYTHONPATH")
+        os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, (options.pythonpath, current_pythonpath)))
+
     stdout = stdout or sys.stdout
-    output_format = "json" if "json" in argv else "table"
     report = run_preflight()
-    stdout.write(format_report(report, output_format) + "\n")
+    stdout.write(format_report(report, options.format) + "\n")
     return 1 if report["abort"] else 0

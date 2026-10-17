@@ -67,6 +67,21 @@ class PreflightReportTests(SimpleTestCase):
         report = self._report({("b",): skipped}, ["b"])
         self.assertFalse(report["abort"])
 
+    def test_combined_startup_is_authoritative_over_isolated_probes(self):
+        one = {"status": "ok", "active": ["a"], "skipped": [], "pending_migrations": ["a.0001"]}
+        isolated_failure = {"status": "abort", "plugin": "b", "phase": "compose", "cause": "missing sibling"}
+        combined = {
+            "status": "ok",
+            "active": ["a", "b"],
+            "skipped": [],
+            "pending_migrations": ["a.0001", "b.0001"],
+        }
+        report = self._report({("a",): one, ("b",): isolated_failure, ("a", "b"): combined}, ["a", "b"])
+
+        self.assertFalse(report["abort"])
+        self.assertEqual([row["outcome"] for row in report["plugins"]], ["ok", "ok"])
+        self.assertEqual(report["pending_migrations"], ["a.0001", "b.0001"])
+
     def test_set_level_failure_aborts_even_when_each_plugin_is_ok(self):
         one = {"status": "ok", "active": ["a"], "skipped": []}
         two = {"status": "ok", "active": ["b"], "skipped": []}
@@ -77,17 +92,38 @@ class PreflightReportTests(SimpleTestCase):
         self.assertIn("duplicate prefix", preflight.format_report(report))
 
     def test_empty_configuration_is_ok(self):
-        report = self._report({}, [])
+        result = {"status": "ok", "active": [], "skipped": [], "pending_migrations": [], "version": "1.2.3"}
+        report = self._report({(): result}, [])
         self.assertFalse(report["abort"])
         self.assertIn("none configured", preflight.format_report(report))
+        self.assertEqual(report["version"], "1.2.3")
         self.assertFalse(json.loads(preflight.format_report(report, "json"))["abort"])
 
     def test_main_exit_codes(self):
         stdout = io.StringIO()
         with mock.patch.object(preflight, "run_preflight", return_value=ABORTS):
-            self.assertEqual(preflight.main([], stdout), 1)
+            self.assertEqual(preflight.main(["--check"], stdout), 1)
         with mock.patch.object(preflight, "run_preflight", return_value=NO_ABORT):
-            self.assertEqual(preflight.main(["--format", "json"], stdout), 0)
+            json_out = io.StringIO()
+            self.assertEqual(preflight.main(["--check", "--format=json"], json_out), 0)
+            self.assertFalse(json.loads(json_out.getvalue())["abort"])
+
+    def test_default_runner_receives_explicit_environment(self):
+        environ = {"ITAMBOX_PLUGINS": "a"}
+        result = {"status": "ok", "active": ["a"], "skipped": [], "pending_migrations": []}
+        with mock.patch.object(preflight, "run_startup", return_value=result) as run_startup:
+            report = preflight.run_preflight(environ=environ)
+
+        self.assertFalse(report["abort"])
+        self.assertEqual(run_startup.call_count, 2)
+        self.assertTrue(all(call.kwargs["environ"] is environ for call in run_startup.call_args_list))
+
+    def test_unknown_pending_migrations_are_not_reported_as_none(self):
+        unknown = {"status": "ok", "active": ["a"], "skipped": [], "pending_migrations": None}
+        report = self._report({("a",): unknown}, ["a"])
+
+        self.assertIsNone(report["pending_migrations"])
+        self.assertIn("Pending plugin migrations: unknown", preflight.format_report(report))
 
     def test_configured_plugins_reads_environment_then_dotenv(self):
         self.assertEqual(preflight.configured_plugins({"ITAMBOX_PLUGINS": " a, b ,"}), ["a", "b"])
@@ -96,7 +132,51 @@ class PreflightReportTests(SimpleTestCase):
             base.mkdir()
             (Path(tmp) / ".env").write_text("# c\nITAMBOX_PLUGINS='x,y'\n", encoding="utf-8")
             self.assertEqual(preflight.configured_plugins({}, base_dir=base), ["x", "y"])
-            self.assertEqual(preflight.configured_plugins({}, base_dir=Path(tmp) / "none"), [])
+            empty = Path(tmp) / "a" / "b"
+            empty.mkdir(parents=True)
+            self.assertEqual(preflight.configured_plugins({}, base_dir=empty), [])
+
+
+class PluginInventoryTests(SimpleTestCase):
+    @override_settings(
+        PLUGINS_ACTIVE=["plugin_active"],
+        PLUGINS_DIAGNOSTICS=[{"plugin": "plugin_skipped"}],
+    )
+    def test_manifest_load_state_and_pending_migrations(self):
+        manifest = {"version": "2.3.4", "itambox_range": ">=2.3,<2.4"}
+        with (
+            mock.patch.object(diagnostics, "_manifest", return_value=manifest),
+            mock.patch.object(diagnostics, "plugin_app_labels", return_value=["plugin_active"]),
+            mock.patch.object(diagnostics, "pending_migrations", return_value=["plugin_active.0001_initial"]),
+        ):
+            inventory = diagnostics.plugin_inventory()
+
+        self.assertEqual(
+            inventory,
+            [
+                {
+                    "plugin": "plugin_active",
+                    "state": "active",
+                    **manifest,
+                    "pending_migrations": ["plugin_active.0001_initial"],
+                },
+                {"plugin": "plugin_skipped", "state": "skipped", **manifest, "pending_migrations": []},
+            ],
+        )
+
+
+class PluginHealthTests(SimpleTestCase):
+    def test_health_exposes_plugin_state_without_failing(self):
+        database = mock.MagicMock()
+        with mock.patch("django.db.connection", database):
+            response = self.client.get(reverse("health"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["checks"]["plugins"], "ok")
+
+        with mock.patch("django.db.connection", database), override_settings(PLUGINS_DISABLED=["old"]):
+            response = self.client.get(reverse("health"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["checks"]["plugins"], "skipped")
 
 
 class PreflightRealStartupTests(SimpleTestCase):
@@ -137,6 +217,33 @@ class PreflightRealStartupTests(SimpleTestCase):
         self.assertEqual(bad["phase"], "resolve")
         self.assertIn("boom at import", bad["cause"])
 
+    def test_preflight_redacts_secret_setting_from_startup_cause(self):
+        self._package(
+            "pf_secret",
+            """
+            from itambox.plugins import PluginConfig, get_plugin_config
+
+            class Cfg(PluginConfig):
+                name = "pf_secret"
+                description = "fixture"
+                version = "2.3.4"
+                itambox_range = ">=0.1,<99.0"
+                settings_schema = {"token": {"required": True, "secret": True}}
+
+                def ready(self):
+                    raise RuntimeError(get_plugin_config(self.name, "token"))
+
+            config = Cfg
+            """,
+        )
+        environ = self._environ(["pf_secret"])
+        environ["ITAMBOX_PLUGINS_CONFIG"] = json.dumps({"pf_secret": {"token": "pf-super-secret-token"}})
+        result = preflight.run_startup(["pf_secret"], environ=environ)
+
+        self.assertEqual(result["status"], "abort")
+        self.assertIn("[redacted]", result["cause"])
+        self.assertNotIn("pf-super-secret-token", result["cause"])
+
     def test_manage_check_exit_codes_without_a_serving_process(self):
         self._package("pf_good", GOOD.format(name="pf_good", rng=">=0.1,<99.0"))
         self._package("pf_bad", "raise RuntimeError('boom at import')\n")
@@ -160,7 +267,7 @@ class PreflightRealStartupTests(SimpleTestCase):
         self.assertEqual(report["plugins"][0]["phase"], "resolve")
 
 
-class PluginsCommandTests(TestCase):
+class PluginsPreflightCommandTests(SimpleTestCase):
     def test_check_command_exits_nonzero_when_startup_would_abort(self):
         with mock.patch.object(preflight, "run_preflight", return_value=ABORTS):
             with self.assertRaises(CommandError) as raised:
@@ -173,6 +280,8 @@ class PluginsCommandTests(TestCase):
             call_command("plugins", "--check", stdout=out)
         self.assertIn("Startup would succeed.", out.getvalue())
 
+
+class PluginsDiagnosticsCommandTests(TestCase):
     def test_json_diagnostics_have_manifest_state_migrations_and_orphans(self):
         out = io.StringIO()
         call_command("plugins", "--format", "json", stdout=out)
@@ -192,10 +301,3 @@ class PluginsCommandTests(TestCase):
             cursor.execute("CREATE TABLE gone_plugin_widget (id integer)")
         self.assertIn("gone_plugin_widget", diagnostics.find_orphans()["tables"])
         self.assertNotIn("django_migrations", diagnostics.find_orphans()["tables"])
-
-    def test_health_exposes_plugin_state_without_failing(self):
-        self.assertEqual(self.client.get(reverse("health")).json()["checks"]["plugins"], "ok")
-        with override_settings(PLUGINS_DISABLED=["old"]):
-            response = self.client.get(reverse("health"))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["checks"]["plugins"], "skipped")
