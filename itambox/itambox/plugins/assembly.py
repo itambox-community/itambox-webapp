@@ -24,6 +24,18 @@ _DEFAULTS = {
     "permission_targets": ("permissions", "targets"),
     "graphql_schema": ("graphql.schema", None),
 }
+_HOST_OWNED_VIEWSET_HOOKS = (
+    "as_view",
+    "dispatch",
+    "initialize_request",
+    "perform_authentication",
+    "initial",
+    "check_permissions",
+    "check_object_permissions",
+    "get_object",
+    "list",
+    "retrieve",
+)
 
 
 def _resolve(config, attr):
@@ -81,6 +93,14 @@ def _compose_navigation(config):
         registry._register_plugin_menu_item(config.name, item)
 
 
+def _validate_viewset_hooks(viewset, allowed_bases):
+    base_index = next(index for index, base in enumerate(viewset.__mro__) if base in allowed_bases)
+    for plugin_base in viewset.__mro__[:base_index]:
+        for hook in _HOST_OWNED_VIEWSET_HOOKS:
+            if hook in plugin_base.__dict__:
+                raise TypeError(f"viewset {viewset.__name__} cannot override host-owned method {hook!r}")
+
+
 def _compose_viewsets(plugin_name, value):
     # inline import: app-registry: the API viewset base loads models that need the app registry
     from itambox.api.viewsets import ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet
@@ -92,6 +112,7 @@ def _compose_viewsets(plugin_name, value):
             viewset = import_string(viewset)
         if not (isinstance(viewset, type) and issubclass(viewset, allowed_bases)):
             raise TypeError(f"viewset {viewset!r} must derive from ITAMBoxModelViewSet or ITAMBoxReadOnlyModelViewSet")
+        _validate_viewset_hooks(viewset, allowed_bases)
         if not isinstance(prefix, str) or not re.match(r"^[a-z0-9][a-z0-9_-]*$", prefix):
             raise ValueError(f"viewset prefix {prefix!r} must be a simple lowercase path segment")
         registry._register_plugin_viewset(plugin_name, prefix, viewset, rest[0] if rest else None)

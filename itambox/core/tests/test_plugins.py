@@ -249,6 +249,33 @@ class PluginComposeTestCase(SimpleTestCase):
         with self.assertRaises(TypeError):
             assembly._compose_viewsets("p", [("things", object)])
 
+    def test_viewset_cannot_override_host_security_and_scope_hooks(self):
+        from itambox.api.viewsets import ITAMBoxModelViewSet
+
+        def unsafe_override(self, *args, **kwargs):
+            return None
+
+        for method_name in (
+            "as_view",
+            "dispatch",
+            "initialize_request",
+            "perform_authentication",
+            "initial",
+            "check_permissions",
+            "check_object_permissions",
+            "get_object",
+            "list",
+            "retrieve",
+        ):
+            with self.subTest(method=method_name):
+                viewset = type(
+                    f"Unsafe{method_name.title()}ViewSet",
+                    (ITAMBoxModelViewSet,),
+                    {method_name: unsafe_override},
+                )
+                with self.assertRaisesRegex(TypeError, method_name):
+                    assembly._compose_viewsets("p", [(f"things_{method_name}", viewset)])
+
     def test_permission_targets_validate_and_register_owned_models(self):
         config = types.SimpleNamespace(name="widget_plugin")
         model = types.SimpleNamespace(
@@ -966,6 +993,8 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
 
     def test_host_token_permission_cannot_be_disabled_by_plugin(self):
         from django.contrib.auth import get_user_model
+        from django.urls import resolve
+        from rest_framework.settings import api_settings
 
         from core.tests.mixins import grant
         from organization.models import Role
@@ -985,6 +1014,26 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
             HTTP_AUTHORIZATION=f"Token {token.key}",
         )
         self.assertEqual(token_response.status_code, 403)
+
+        allowed_user = get_user_model().objects.create_user(username="token_role_reader", password="test")
+        allowed_role = Role.objects.create(
+            tenant=self.tenant,
+            name="Token view role",
+            permissions=["organization.view_role"],
+        )
+        grant(allowed_user, self.tenant, allowed_role)
+        allowed_token = Token.objects.create(user=allowed_user, tenant=self.tenant)
+        allowed_response = self.client.get(
+            "/api/plugins/rest_probe/roles/",
+            HTTP_AUTHORIZATION=f"Token {allowed_token.key}",
+        )
+        self.assertEqual(allowed_response.status_code, 200, allowed_response.content.decode())
+
+        view_class = resolve("/api/plugins/rest_probe/roles/").func.cls
+        self.assertEqual(
+            [auth.__class__ for auth in view_class().get_authenticators()],
+            api_settings.DEFAULT_AUTHENTICATION_CLASSES,
+        )
 
     def test_plugin_rest_endpoint_is_the_supported_write_surface(self):
         from django.contrib.auth import get_user_model
