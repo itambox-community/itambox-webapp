@@ -10,7 +10,7 @@ from graphql import GraphQLError
 from assets.services.specifications._command_support import load_prospective_definition
 from core.graphql_choice_enums import choice_enum
 from core.graphql_scalars import JSONString
-from core.graphql_utils import paginate_queryset
+from core.graphql_utils import paginate_queryset, read_scope_from_info, requested_selector_from_scope
 from core.managers import Scope
 from organization.models import Location, Tenant
 
@@ -286,13 +286,22 @@ class AssetTypeConnectionType:
     page_info: PageInfoType
 
 
+def _read_scope(info, requested_scope):
+    """An explicit selector overrides; otherwise the request's resolved scope applies."""
+    if requested_scope is None:
+        requested_scope = requested_selector_from_scope(read_scope_from_info(info))
+        if requested_scope is None:
+            return None
+    return resolve_read_scope(info, requested_scope)
+
+
 @strawberry.type
 class Query:
     @strawberry.field
     def assets(
         self,
         info: strawberry.Info,
-        requested_scope: RequestedScopeSelectorInput,
+        requested_scope: RequestedScopeSelectorInput | None = None,
         limit: int | None = None,
         offset: int | None = None,
         sort_by: str | None = None,
@@ -303,7 +312,7 @@ class Query:
         location_id: strawberry.ID | None = None,
     ) -> list[AssetNode | None] | None:
         authenticated_user(info)
-        scope = resolve_read_scope(info, requested_scope)
+        scope = _read_scope(info, requested_scope)
         if scope is None:
             return []
         loader = request_loader_for_info(info)
@@ -327,10 +336,10 @@ class Query:
 
     @strawberry.field
     def asset(
-        self, info: strawberry.Info, id: strawberry.ID, requested_scope: RequestedScopeSelectorInput
+        self, info: strawberry.Info, id: strawberry.ID, requested_scope: RequestedScopeSelectorInput | None = None
     ) -> AssetNode | None:
         authenticated_user(info)
-        scope = resolve_read_scope(info, requested_scope)
+        scope = _read_scope(info, requested_scope)
         if scope is None:
             return None
         loader = request_loader_for_info(info)

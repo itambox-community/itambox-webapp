@@ -7,8 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from assets.schema import SupplierNode, TenantNode
 from core.graphql_choice_enums import choice_enum
 from core.graphql_scalars import BigInt
-from core.graphql_utils import active_tenant_from_info, check_permission, paginate_queryset
-from core.managers import Scope
+from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
 
 from .models import Subscription, SubscriptionAssignment
 
@@ -109,7 +108,7 @@ class Query:
         check_permission(info, "subscriptions.view_subscription")
         # TenantScopingSoftDeleteManager handles tenant scoping and active filtering.
         qs = (
-            Subscription.objects.for_scope(Scope.current())
+            scoped_queryset(info, Subscription.objects)
             .select_related("supplier", "linked_contract", "tenant", "owner")
             .all()
         )
@@ -125,7 +124,7 @@ class Query:
         check_permission(info, "subscriptions.view_subscription")
         try:
             return (
-                Subscription.objects.for_scope(Scope.current())
+                scoped_queryset(info, Subscription.objects)
                 .select_related("supplier", "linked_contract", "tenant", "owner")
                 .get(pk=id)
             )
@@ -142,11 +141,7 @@ class Query:
     ) -> list[SubscriptionAssignmentNode | None] | None:
         check_permission(info, "subscriptions.view_subscriptionassignment")
         # SubscriptionAssignment has no direct tenant field, scope via its subscription
-        qs = (
-            SubscriptionAssignment.objects.for_scope(Scope.current())
-            .select_related(*_ASSIGNMENT_RELATED)
-            .filter(subscription__tenant=active_tenant_from_info(info))
-        )
+        qs = scoped_queryset(info, SubscriptionAssignment.objects).select_related(*_ASSIGNMENT_RELATED)
         if subscription_id is not None:
             qs = qs.filter(subscription_id=subscription_id)
         return list(paginate_queryset(qs, limit, offset))
@@ -155,11 +150,6 @@ class Query:
     def subscription_assignment(self, info: strawberry.Info, id: strawberry.ID) -> SubscriptionAssignmentNode | None:
         check_permission(info, "subscriptions.view_subscriptionassignment")
         try:
-            return (
-                SubscriptionAssignment.objects.for_scope(Scope.current())
-                .select_related(*_ASSIGNMENT_RELATED)
-                .filter(subscription__tenant=active_tenant_from_info(info))
-                .get(pk=id)
-            )
+            return scoped_queryset(info, SubscriptionAssignment.objects).select_related(*_ASSIGNMENT_RELATED).get(pk=id)
         except SubscriptionAssignment.DoesNotExist:
             return None

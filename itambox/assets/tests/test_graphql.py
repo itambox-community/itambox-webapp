@@ -255,7 +255,7 @@ class GraphQLTestCase(TestCase):
         res_data = response.json()
         self.assertNotIn("errors", res_data)
 
-    def test_asset_list_requires_explicit_scope(self):
+    def test_asset_list_defaults_to_session_scope(self):
         response = self.client.post(
             self.graphql_url,
             data=json.dumps({"query": "{ assets { name } }"}),
@@ -263,15 +263,14 @@ class GraphQLTestCase(TestCase):
             HTTP_AUTHORIZATION=f"Token {self.token_a.key}",
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertNotIn("data", payload)
-        self.assertEqual(
-            payload["errors"][0]["message"],
-            "Argument 'Query.assets(requestedScope:)' of type 'RequestedScopeSelector!' is required, but it was not provided.",
-        )
+        self.assertNotIn("errors", payload)
+        names = {row["name"] for row in payload["data"]["assets"]}
+        self.assertIn(self.asset_a.name, names)
+        self.assertNotIn(self.asset_b.name, names)
 
-    def test_asset_lookup_requires_explicit_scope(self):
+    def test_asset_lookup_defaults_to_session_scope(self):
         query = f"{{ asset(id: {json.dumps(str(self.asset_a.pk))}) {{ name }} }}"
         response = self.client.post(
             self.graphql_url,
@@ -280,13 +279,10 @@ class GraphQLTestCase(TestCase):
             HTTP_AUTHORIZATION=f"Token {self.token_a.key}",
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertNotIn("data", payload)
-        self.assertEqual(
-            payload["errors"][0]["message"],
-            "Argument 'Query.asset(requestedScope:)' of type 'RequestedScopeSelector!' is required, but it was not provided.",
-        )
+        self.assertNotIn("errors", payload)
+        self.assertEqual(payload["data"]["asset"]["name"], self.asset_a.name)
 
     def test_tenant_isolation_boundary_query(self):
         # When querying under Tenant A, only Asset A should be returned

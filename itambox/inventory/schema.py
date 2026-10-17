@@ -4,7 +4,7 @@ import strawberry
 import strawberry_django
 
 from assets.schema import CategoryNode, ManufacturerNode, SupplierNode, TenantNode
-from core.graphql_utils import active_tenant_from_info, check_permission, paginate_queryset
+from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
 
 from .models import Accessory, Component, Consumable, Kit
 
@@ -116,7 +116,7 @@ class Query:
         name: str | None = None,
     ) -> list[AccessoryNode | None] | None:
         check_permission(info, "inventory.view_accessory")
-        qs = Accessory.objects.select_related(*_ACCESSORY_RELATED).filter(tenant=active_tenant_from_info(info))
+        qs = scoped_queryset(info, Accessory.objects).select_related(*_ACCESSORY_RELATED)
         if name is not None:
             qs = qs.filter(name=name)
         if sort_by and sort_by in ACCESSORY_SORTABLE_FIELDS:
@@ -127,11 +127,7 @@ class Query:
     def accessory(self, info: strawberry.Info, id: strawberry.ID) -> AccessoryNode | None:
         check_permission(info, "inventory.view_accessory")
         try:
-            return (
-                Accessory.objects.select_related(*_ACCESSORY_RELATED)
-                .filter(tenant=active_tenant_from_info(info))
-                .get(pk=id)
-            )
+            return scoped_queryset(info, Accessory.objects).select_related(*_ACCESSORY_RELATED).get(pk=id)
         except Accessory.DoesNotExist:
             return None
 
@@ -145,7 +141,7 @@ class Query:
         name: str | None = None,
     ) -> list[ConsumableNode | None] | None:
         check_permission(info, "inventory.view_consumable")
-        qs = Consumable.objects.select_related(*_CONSUMABLE_RELATED).filter(tenant=active_tenant_from_info(info))
+        qs = scoped_queryset(info, Consumable.objects).select_related(*_CONSUMABLE_RELATED)
         if name is not None:
             qs = qs.filter(name=name)
         if sort_by and sort_by in CONSUMABLE_SORTABLE_FIELDS:
@@ -156,11 +152,7 @@ class Query:
     def consumable(self, info: strawberry.Info, id: strawberry.ID) -> ConsumableNode | None:
         check_permission(info, "inventory.view_consumable")
         try:
-            return (
-                Consumable.objects.select_related(*_CONSUMABLE_RELATED)
-                .filter(tenant=active_tenant_from_info(info))
-                .get(pk=id)
-            )
+            return scoped_queryset(info, Consumable.objects).select_related(*_CONSUMABLE_RELATED).get(pk=id)
         except Consumable.DoesNotExist:
             return None
 
@@ -174,7 +166,7 @@ class Query:
         name: str | None = None,
     ) -> list[KitNode | None] | None:
         check_permission(info, "inventory.view_kit")
-        qs = Kit.objects.select_related(*_KIT_RELATED).filter(tenant=active_tenant_from_info(info))
+        qs = scoped_queryset(info, Kit.objects).select_related(*_KIT_RELATED)
         if name is not None:
             qs = qs.filter(name=name)
         if sort_by and sort_by in KIT_SORTABLE_FIELDS:
@@ -185,7 +177,7 @@ class Query:
     def kit(self, info: strawberry.Info, id: strawberry.ID) -> KitNode | None:
         check_permission(info, "inventory.view_kit")
         try:
-            return Kit.objects.select_related(*_KIT_RELATED).filter(tenant=active_tenant_from_info(info)).get(pk=id)
+            return scoped_queryset(info, Kit.objects).select_related(*_KIT_RELATED).get(pk=id)
         except Kit.DoesNotExist:
             return None
 
@@ -199,7 +191,7 @@ class Query:
         name: str | None = None,
     ) -> list[ComponentNode | None] | None:
         check_permission(info, "inventory.view_component")
-        qs = Component.objects.select_related(*_COMPONENT_RELATED).filter(tenant=active_tenant_from_info(info))
+        qs = scoped_queryset(info, Component.objects).select_related(*_COMPONENT_RELATED)
         if name is not None:
             qs = qs.filter(name=name)
         if sort_by and sort_by in COMPONENT_SORTABLE_FIELDS:
@@ -210,10 +202,6 @@ class Query:
     def component(self, info: strawberry.Info, id: strawberry.ID) -> ComponentNode | None:
         check_permission(info, "inventory.view_component")
         try:
-            return (
-                Component.objects.select_related(*_COMPONENT_RELATED)
-                .filter(tenant=active_tenant_from_info(info))
-                .get(pk=id)
-            )
+            return scoped_queryset(info, Component.objects).select_related(*_COMPONENT_RELATED).get(pk=id)
         except Component.DoesNotExist:
             return None
