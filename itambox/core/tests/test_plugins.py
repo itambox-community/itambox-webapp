@@ -980,8 +980,10 @@ class PluginRESTSurfaceTestCase(TenantTestMixin, TestCase):
 
         token = Token.objects.create(user=user, tenant=self.tenant)
         self.client.logout()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
-        token_response = self.client.get("/api/plugins/rest_probe/roles/")
+        token_response = self.client.get(
+            "/api/plugins/rest_probe/roles/",
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
         self.assertEqual(token_response.status_code, 403)
 
     def test_plugin_rest_endpoint_is_the_supported_write_surface(self):
