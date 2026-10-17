@@ -10,6 +10,7 @@ class FixturePluginConfig(PluginConfig):
     version = "1.0.0"
     base_url = "fixture"
     itambox_range = current_range()
+    permission_targets = None
 
 
 config = FixturePluginConfig

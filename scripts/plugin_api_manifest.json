@@ -11,6 +11,7 @@
       "itambox_range",
       "menu",
       "menu_items",
+      "permission_targets",
       "settings_schema",
       "template_extensions",
       "version",
@@ -20,6 +21,7 @@
       "graphql_schema": "graphql.schema",
       "menu": "navigation.menu",
       "menu_items": "navigation.menu_items",
+      "permission_targets": "permissions.targets",
       "template_extensions": "template_content.template_extensions",
       "viewsets": "api.viewsets.viewsets"
     },
@@ -54,6 +56,7 @@
       "PluginConfig.itambox_range",
       "PluginConfig.menu",
       "PluginConfig.menu_items",
+      "PluginConfig.permission_targets",
       "PluginConfig.settings_schema",
       "PluginConfig.template_extensions",
       "PluginConfig.version",

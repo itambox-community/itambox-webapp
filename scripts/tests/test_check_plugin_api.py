@@ -48,6 +48,7 @@ class DerivationAgainstSourceTests(unittest.TestCase):
                 "graphql_schema": "graphql.schema",
                 "menu": "navigation.menu",
                 "menu_items": "navigation.menu_items",
+                "permission_targets": "permissions.targets",
                 "template_extensions": "template_content.template_extensions",
                 "viewsets": "api.viewsets.viewsets",
             },

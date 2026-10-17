@@ -158,6 +158,7 @@ class Registry:
         self._plugin_menu_items = []
         self._plugin_menu_item_sources = []
         self._plugin_viewsets = defaultdict(list)
+        self._plugin_permission_targets = defaultdict(list)
         self._plugin_graphql = []
         self._plugins_frozen = False
         self._generic_presentation_lock = RLock()
@@ -529,6 +530,15 @@ class Registry:
     def get_plugin_viewsets(self):
         return self._plugin_viewsets
 
+    def _register_plugin_permission_target(self, plugin_name, model_label):
+        self._guard_plugin_registration()
+        if any(model_label in labels for labels in self._plugin_permission_targets.values()):
+            raise ValueError(f"permission target {model_label!r} is already registered")
+        self._plugin_permission_targets[plugin_name].append(model_label)
+
+    def get_plugin_permission_targets(self):
+        return {name: tuple(labels) for name, labels in self._plugin_permission_targets.items()}
+
     def _register_plugin_graphql(self, plugin_name, query_type):
         self._guard_plugin_registration()
         self._plugin_graphql.append((plugin_name, query_type))
@@ -558,6 +568,7 @@ class Registry:
         self._plugin_menu_items.clear()
         self._plugin_menu_item_sources.clear()
         self._plugin_viewsets.clear()
+        self._plugin_permission_targets.clear()
         self._plugin_graphql.clear()
         self._plugins_frozen = False
 

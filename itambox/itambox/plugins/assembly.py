@@ -20,6 +20,7 @@ _DEFAULTS = {
     "menu": ("navigation", "menu"),
     "menu_items": ("navigation", "menu_items"),
     "viewsets": ("api.viewsets", "viewsets"),
+    "permission_targets": ("permissions", "targets"),
     "graphql_schema": ("graphql.schema", None),
 }
 
@@ -81,17 +82,37 @@ def _compose_navigation(config):
 
 def _compose_viewsets(plugin_name, value):
     # inline import: app-registry: the API viewset base loads models that need the app registry
-    from itambox.api.viewsets import BaseViewSet
+    from itambox.api.viewsets import ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet
 
+    allowed_bases = (ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet)
     for entry in _as_list(value, "viewsets"):
         prefix, viewset, *rest = entry
         if isinstance(viewset, str):
             viewset = import_string(viewset)
-        if not (isinstance(viewset, type) and issubclass(viewset, BaseViewSet)):
-            raise TypeError(f"viewset {viewset!r} must derive from the core API viewset base")
+        if not (isinstance(viewset, type) and issubclass(viewset, allowed_bases)):
+            raise TypeError(f"viewset {viewset!r} must derive from ITAMBoxModelViewSet or ITAMBoxReadOnlyModelViewSet")
         if not isinstance(prefix, str) or not re.match(r"^[a-z0-9][a-z0-9_-]*$", prefix):
             raise ValueError(f"viewset prefix {prefix!r} must be a simple lowercase path segment")
         registry._register_plugin_viewset(plugin_name, prefix, viewset, rest[0] if rest else None)
+
+
+def _compose_permission_targets(config, value):
+    labels = _as_list(value, "permission_targets")
+    validated = []
+    seen = set()
+    for label in labels:
+        if not isinstance(label, str) or not _LABEL.fullmatch(label):
+            raise ValueError(f"permission target {label!r} is not an 'app_label.model' label")
+        if label in seen:
+            raise ValueError(f"permission target {label!r} is declared more than once")
+        model = apps.get_model(label)
+        owner = model._meta.app_config.name
+        if owner != config.name and not owner.startswith(config.name + "."):
+            raise ValueError(f"permission target {label!r} is not owned by plugin {config.name!r}")
+        seen.add(label)
+        validated.append(label)
+    for label in validated:
+        registry._register_plugin_permission_target(config.name, label)
 
 
 def _validate_graphql(module):
@@ -113,6 +134,9 @@ def compose_plugin(config):
     viewsets = _resolve(config, "viewsets")
     if viewsets is not None:
         _compose_viewsets(config.name, viewsets)
+    permission_targets = _resolve(config, "permission_targets")
+    if permission_targets is not None:
+        _compose_permission_targets(config, permission_targets)
     schema_module = _resolve(config, "graphql_schema")
     if schema_module is not None:
         registry._register_plugin_graphql(config.name, _validate_graphql(schema_module))

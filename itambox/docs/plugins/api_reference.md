@@ -25,6 +25,7 @@ Pin the ITAMbox revision and the plugin revision together. The inventory behind 
 | `PluginConfig.itambox_range` | Stable |
 | `PluginConfig.menu` | Stable |
 | `PluginConfig.menu_items` | Stable |
+| `PluginConfig.permission_targets` | Stable |
 | `PluginConfig.settings_schema` | Stable |
 | `PluginConfig.template_extensions` | Stable |
 | `PluginConfig.version` | Stable |
@@ -95,7 +96,8 @@ Required manifest fields: `name` (the package), `description` and `itambox_range
 | `base_url` | `str` or `None` | URL slug for the optional `urls.py` (default: package name). |
 | `template_extensions` | list or dotted path | `PluginTemplateContent` subclasses; each names its `models = ["app.model"]`. Default: `<pkg>.template_content.template_extensions`. |
 | `menu`, `menu_items` | class(es) or dotted path | `PluginNavigationMenu` / `PluginNavigationItem`. Default: `<pkg>.navigation.menu` / `menu_items`. |
-| `viewsets` | list of `(prefix, viewset[, basename])` or dotted path | Viewsets must derive from the core API viewset base; mounted at `/api/plugins/<name>/<prefix>/`. Default: `<pkg>.api.viewsets.viewsets`. |
+| `viewsets` | list of `(prefix, viewset[, basename])` or dotted path | Viewsets must derive from `ITAMBoxModelViewSet` or `ITAMBoxReadOnlyModelViewSet`; mounted at `/api/plugins/<name>/<prefix>/`. The host enforces its authentication, permission, tenant-scope, and schema defaults. Default: `<pkg>.api.viewsets.viewsets`. |
+| `permission_targets` | list of `"app_label.model"` strings or dotted path | Declares plugin-owned models included in SSO role policy, Technician seed permissions, and the tenant role matrix. Default: `<pkg>.permissions.targets`. |
 | `graphql_schema` | module path | Module exporting a Strawberry `Query` (queries only; a `Mutation` aborts startup). Default: `<pkg>.graphql.schema`. |
 
 Startup runs in phases: **resolve** (settings time: import, validate, version range), **compose** (host validates and registers declared resources), **ready** (your own `ready()`, after compose), **assemble** (GraphQL schema trial build, URL mounting; registrations are then frozen). Every phase failure names the plugin.
@@ -127,13 +129,14 @@ Declare resources on the config (see the table above). The host validates and re
 
 - **Template extensions**: `PluginTemplateContent` subclasses implement `head`, `navbar`, `alerts`, `buttons`, `left_panel`, `right_panel`, `full_width_panel`. Returned content is plugin-authored HTML and must follow ITAMbox's escaping/CSP rules.
 - **Navigation**: a `PluginNavigationMenu` (`label`, `icon_class`, `groups`) and standalone `PluginNavigationItem`s (`link`, `link_text`, `permissions`, `auth_required`, `staff_only`, `buttons`).
-- **REST viewsets**: mounted below `/api/plugins/<plugin_name>/`.
+- **REST viewsets**: mounted below `/api/plugins/<plugin_name>/`. Use `ITAMBoxModelViewSet` for writable resources or `ITAMBoxReadOnlyModelViewSet` for read-only resources. Plugin declarations cannot replace the host authentication/permission defaults or schema; tenant scoping is re-applied by the host wrapper. Plugin REST viewsets are the supported write surface.
+- **Permission targets**: declare only models owned by the plugin, for example `targets = ["example_plugin.auditrecord"]` in `permissions.py`. The host validates the model label and plugin namespace. These targets extend the role matrix and semantic SSO policy; declared plugin targets are also included in Technician seed permissions.
 
 A plugin package may also expose an optional `urls.py` module when `base_url` is set (or when it accepts the package-name default). ITAMbox mounts that URLconf below `/plugins/<base_url>/`. The module's `urlpatterns` is the complete supported contract; URLconf helpers and view internals remain plugin-owned. A URL import failure aborts startup naming the plugin.
 
 ## GraphQL extension
 
-Set `graphql_schema` (or use `graphql/schema.py`) to a module exporting a Strawberry `Query`. Queries only: plugin mutations are not supported and abort startup. Fields remain subject to the normal authentication, tenant, permission and operation-budget contracts.
+Set `graphql_schema` (or use `graphql/schema.py`) to a module exporting a Strawberry `Query`. Queries only: plugin mutations are not supported and abort startup. Plugin GraphQL is read-only; writes must be exposed through the host-owned REST viewset. Fields remain subject to the normal authentication, tenant, permission and operation-budget contracts.
 
 ## Private and unstable surface
 
