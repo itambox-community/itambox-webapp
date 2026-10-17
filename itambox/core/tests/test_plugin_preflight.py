@@ -10,10 +10,11 @@ from unittest import mock
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import connection
+from django.db import OperationalError, connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
+from core.management.commands import plugins as plugins_command
 from itambox.plugins import diagnostics, preflight
 
 MANAGE = Path(__file__).resolve().parents[2] / "manage.py"
@@ -136,6 +137,48 @@ class PreflightReportTests(SimpleTestCase):
             empty.mkdir(parents=True)
             self.assertEqual(preflight.configured_plugins({}, base_dir=empty), [])
 
+    def test_dotenv_skips_noise_and_reads_unquoted_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "app"
+            base.mkdir()
+            (base / ".env").write_text("\nnot a pair\nOTHER=1\nITAMBOX_PLUGINS = z \n", encoding="utf-8")
+            self.assertEqual(preflight.configured_plugins({}, base_dir=base), ["z"])
+            (base / ".env").write_text("OTHER=1\n", encoding="utf-8")
+            self.assertEqual(preflight.configured_plugins({}, base_dir=base), [])
+
+    def test_run_startup_reads_the_child_result_or_reports_the_last_error_line(self):
+        marker_line = preflight.RESULT_MARKER + json.dumps({"status": "ok", "active": ["a"]})
+        done = subprocess.CompletedProcess([], 0, stdout="noise\n" + marker_line + "\n", stderr="")
+        with mock.patch.object(preflight.subprocess, "run", return_value=done) as run:
+            self.assertEqual(preflight.run_startup(["a", "b"], environ={}), {"status": "ok", "active": ["a"]})
+        self.assertEqual(run.call_args.kwargs["env"]["ITAMBOX_PLUGINS"], "a,b")
+
+        crashed = subprocess.CompletedProcess([], 1, stdout="", stderr="Traceback\nSystemError: boom\n")
+        with mock.patch.object(preflight.subprocess, "run", return_value=crashed):
+            result = preflight.run_startup(["a"], environ={})
+        self.assertEqual(result["status"], "abort")
+        self.assertEqual(result["phase"], "startup")
+        self.assertEqual(result["cause"], "SystemError: boom")
+
+    def test_table_shows_phase_and_cause(self):
+        report = {
+            "abort": True,
+            "plugins": [{"plugin": "a", "outcome": preflight.ABORT, "phase": "compose", "cause": "ValueError: x"}],
+            "set": None,
+            "pending_migrations": [],
+        }
+        self.assertIn("a  would abort startup  compose: ValueError: x", preflight.format_report(report))
+
+    def test_main_honours_settings_and_pythonpath(self):
+        with (
+            mock.patch.dict(os.environ, {"PYTHONPATH": "existing"}),
+            mock.patch.object(preflight, "run_preflight", return_value=NO_ABORT),
+        ):
+            code = preflight.main(["--check", "--settings=core.settings", "--pythonpath=extra"], io.StringIO())
+            self.assertEqual(code, 0)
+            self.assertEqual(os.environ["DJANGO_SETTINGS_MODULE"], "core.settings")
+            self.assertEqual(os.environ["PYTHONPATH"], os.pathsep.join(("extra", "existing")))
+
 
 class PluginInventoryTests(SimpleTestCase):
     @override_settings(
@@ -163,6 +206,19 @@ class PluginInventoryTests(SimpleTestCase):
                 {"plugin": "plugin_skipped", "state": "skipped", **manifest, "pending_migrations": []},
             ],
         )
+
+    def test_manifest_reads_the_plugin_config(self):
+        module = mock.Mock(config=mock.Mock(version="2.3.4", itambox_range=">=2.3"))
+        with mock.patch.object(diagnostics.importlib, "import_module", return_value=module):
+            self.assertEqual(diagnostics._manifest("pf_x"), {"version": "2.3.4", "itambox_range": ">=2.3"})
+
+    def test_database_errors_are_reported_not_raised(self):
+        self.assertEqual(diagnostics.pending_migrations([]), [])
+        with mock.patch.object(diagnostics, "MigrationExecutor", side_effect=OperationalError("down")):
+            self.assertIsNone(diagnostics.pending_migrations(["pf_x"]))
+        with mock.patch.object(diagnostics, "connection") as database:
+            database.introspection.table_names.side_effect = OperationalError("down")
+            self.assertEqual(diagnostics.find_orphans(), {"error": diagnostics.DATABASE_UNAVAILABLE})
 
 
 class PluginHealthTests(SimpleTestCase):
@@ -279,6 +335,37 @@ class PluginsPreflightCommandTests(SimpleTestCase):
         with mock.patch.object(preflight, "run_preflight", return_value=NO_ABORT):
             call_command("plugins", "--check", stdout=out)
         self.assertIn("Startup would succeed.", out.getvalue())
+
+    def test_table_lists_state_versions_migrations_and_orphans(self):
+        inventory = [
+            {"plugin": "a", "state": "active", "version": "1.0", "itambox_range": ">=1.0", "pending_migrations": None},
+            {"plugin": "b", "state": "skipped", "version": "", "itambox_range": None, "pending_migrations": []},
+        ]
+        skipped = [
+            {"plugin": "b", "failure_class": "PluginCompatibilityError", "stage": "compatibility", "compatibility": "x"}
+        ]
+        orphans = {"tables": ["gone_widget"], "content_types": [], "migrations": ["gone.0001_initial"]}
+        out = io.StringIO()
+        with (
+            mock.patch.object(plugins_command, "get_plugin_diagnostics", return_value=skipped),
+            mock.patch.object(diagnostics, "plugin_inventory", return_value=inventory),
+            mock.patch.object(diagnostics, "find_orphans", return_value=orphans),
+        ):
+            call_command("plugins", stdout=out)
+        text = out.getvalue()
+        self.assertIn("a  active  1.0  >=1.0  unknown", text)
+        self.assertIn("b  skipped  -  -  0  PluginCompatibilityError at compatibility (x)", text)
+        self.assertIn("1 tables, 0 content types, 1 migration records", text)
+        self.assertIn("  table gone_widget", text)
+
+        out = io.StringIO()
+        with (
+            mock.patch.object(plugins_command, "get_plugin_diagnostics", return_value=[]),
+            mock.patch.object(diagnostics, "plugin_inventory", return_value=[]),
+            mock.patch.object(diagnostics, "find_orphans", return_value={"error": "database unavailable"}),
+        ):
+            call_command("plugins", stdout=out)
+        self.assertIn("Orphaned data: database unavailable", out.getvalue())
 
 
 class PluginsDiagnosticsCommandTests(TestCase):
