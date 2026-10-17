@@ -3,16 +3,19 @@
 import json
 
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 
 from assets.models import Manufacturer, Supplier
+from core.graphql_utils import requested_selector_from_scope
+from core.managers import Scope
 from core.tests.mixins import TenantTestMixin
 from inventory.models import Accessory, Component, Consumable, Kit
 from licenses.models import License
 from organization.models import Role, Tenant, TenantGroup
 from software.models import Software
-from subscriptions.models import Subscription
+from subscriptions.models import Subscription, SubscriptionAssignment
 
 User = get_user_model()
 
@@ -34,7 +37,8 @@ class GraphQLRootScopeTests(TenantTestMixin, TestCase):
         self.tenant_b = Tenant.objects.create(name="GQ B", slug="gq-b", group=self.group, managed_by=self.tenant_a)
         self.tenant_c = Tenant.objects.create(name="GQ C", slug="gq-c", managed_by=self.tenant_a)
         self.user = User.objects.create_user("gq_reader", "gq@example.com", "pw")
-        role = Role.objects.create(tenant=self.tenant_a, name="GQ Reader", permissions=[r[2] for r in ROOTS])
+        role = Role.objects.create(tenant=self.tenant_a, name="GQ Reader", permissions=[r[2] for r in ROOTS] + ["subscriptions.view_subscriptionassignment"],
+        )
         self.grant(self.user, self.tenant_a, role, managed_scope="all")
         mfr = Manufacturer.objects.create(name="GQ Mfr", slug="gq-mfr")
         supplier = Supplier.objects.create(name="GQ Sup", slug="gq-sup")
@@ -45,7 +49,10 @@ class GraphQLRootScopeTests(TenantTestMixin, TestCase):
             Component.objects.create(name=f"cmp-{key}", manufacturer=mfr, tenant=tenant)
             software = Software.objects.create(name=f"sw-{key}", manufacturer=mfr, tenant=tenant)
             License.objects.create(name=f"lic-{key}", software=software, seats=1, tenant=tenant)
-            Subscription.objects.create(name=f"sub-{key}", supplier=supplier, tenant=tenant)
+            sub = Subscription.objects.create(name=f"sub-{key}", supplier=supplier, tenant=tenant)
+            SubscriptionAssignment.objects.create(
+                subscription=sub, content_type=ContentType.objects.get_for_model(Manufacturer), object_id=mfr.pk
+            )
         self.client.force_login(self.user)
 
     def _session(self, **values):
@@ -88,3 +95,48 @@ class GraphQLRootScopeTests(TenantTestMixin, TestCase):
     def test_all_accessible_scope_includes_every_tenant(self):
         self._session(active_all_accessible=True)
         self._assert_equivalent({"a"})
+
+    def test_single_roots_resolve_in_group_scope(self):
+        self._session(active_tenant_group_id=self.group.pk)
+        for root, model, name in (
+            ("accessory", Accessory, "acc-b"),
+            ("consumable", Consumable, "con-b"),
+            ("kit", Kit, "kit-b"),
+            ("component", Component, "cmp-b"),
+        ):
+            pk = model.objects.get(name=name).pk
+            query = 'query { %s(id: "%s") { name } }' % (root, pk)
+            response = self.client.post(
+                reverse("graphql"), data=json.dumps({"query": query}), content_type="application/json"
+            )
+            payload = response.json()
+            self.assertNotIn("errors", payload, payload)
+            self.assertEqual(payload["data"][root], {"name": name}, root)
+        assignment = SubscriptionAssignment.objects.get(subscription__name="sub-b")
+        query = 'query { subscriptionAssignment(id: "%s") { id } }' % assignment.pk
+        response = self.client.post(
+            reverse("graphql"), data=json.dumps({"query": query}), content_type="application/json"
+        )
+        payload = response.json()
+        self.assertNotIn("errors", payload, payload)
+        self.assertIsNotNone(payload["data"]["subscriptionAssignment"])
+
+    def test_requested_selector_mirrors_each_scope_kind(self):
+        self.assertEqual(
+            requested_selector_from_scope(Scope(Scope.GROUP, group=self.group)),
+            {"mode": "tenant_group", "tenant_id": None, "tenant_group_id": self.group.pk},
+        )
+        for kind in (Scope.ALL_ACCESSIBLE, Scope.SYSTEM):
+            self.assertEqual(
+                requested_selector_from_scope(Scope(kind)),
+                {"mode": "all_accessible", "tenant_id": None, "tenant_group_id": None},
+            )
+        self.assertIsNone(requested_selector_from_scope(Scope(Scope.DENIED)))
+
+    def test_assets_read_scope_denied_session_reads_nothing(self):
+        from unittest import mock
+
+        from assets import schema as assets_schema
+
+        with mock.patch.object(assets_schema, "read_scope_from_info", return_value=Scope(Scope.DENIED)):
+            self.assertIsNone(assets_schema._read_scope(None, None))
