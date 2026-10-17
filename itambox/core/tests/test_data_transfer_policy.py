@@ -1,8 +1,12 @@
 """Contract: every installed model carries an explicit import and export declaration."""
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import translation
@@ -30,7 +34,7 @@ from core.data_transfer import (
 from core.importers.bulk_forms import get_registered_import_form, is_model_importable
 from core.models import Job
 from core.tests.mixins import TenantTestMixin
-from organization.models import Contact, ContactAssignment, ContactRole, Region, Role, SiteGroup, Tenant
+from organization.models import Contact, ContactAssignment, ContactRole, Region, Role, Site, SiteGroup, Tenant
 from organization.services import is_container_scoped_unfiltered
 
 # Lifecycle rows a domain service owns. A raw-field import could put them into
@@ -73,6 +77,33 @@ class DataTransferPolicyContractTests(SimpleTestCase):
         self.assertIsNotNone(form)
         self.assertEqual(form.update_key, ())
 
+    def test_site_is_declared_with_a_curated_importer(self):
+        model = apps.get_model("organization", "Site")
+        form = get_registered_import_form(model)
+
+        self.assertTrue(policy_for(model).import_)
+        if form is None:
+            self.fail("Site must have a curated importer.")
+        self.assertEqual(form.update_key, ("name",))
+        self.assertEqual(form.required_fields, ["name"])
+        self.assertEqual(
+            form.optional_fields,
+            [
+                "slug",
+                "status",
+                "region",
+                "group",
+                "facility",
+                "time_zone",
+                "description",
+                "physical_address",
+                "shipping_address",
+                "latitude",
+                "longitude",
+                "comments",
+            ],
+        )
+
     def test_every_installed_model_has_an_explicit_declaration(self):
         labels = {model._meta.label_lower for model in apps.get_models()}
         undeclared = sorted(labels - set(DECLARATIONS))
@@ -102,6 +133,7 @@ class DataTransferPolicyContractTests(SimpleTestCase):
             "assets.category",
             "assets.assetrole",
             "organization.region",
+            "organization.site",
             "organization.sitegroup",
             "organization.contactrole",
             "organization.contact",
@@ -143,6 +175,49 @@ class DataTransferPolicyContractTests(SimpleTestCase):
                     self.assertFalse(field.primary_key, "an update key must be a natural key, never the pk")
                     columns = list(form.required_fields) + list(form.optional_fields)
                 self.assertIn(name, columns, "an update key must be an importable column")
+
+
+class SiteBulkImportFormInternalBranchTests(SimpleTestCase):
+    def setUp(self):
+        form_class = get_registered_import_form(Site)
+        if form_class is None:
+            raise AssertionError("Site must have a curated importer.")
+        self.form = form_class()
+
+    def test_validate_row_requires_an_active_tenant(self):
+        with patch("assets.forms.import_forms.get_current_tenant", return_value=None):
+            with self.assertRaisesMessage(ValidationError, "Select an active tenant before importing sites."):
+                self.form._validate_row({}, row_number=2)
+
+    def test_find_existing_requires_an_active_tenant(self):
+        with (
+            patch("assets.forms.import_forms.get_current_tenant", return_value=None),
+            patch.object(Site.objects, "filter") as site_filter,
+        ):
+            with self.assertRaisesMessage(ValidationError, "Select an active tenant before importing sites."):
+                self.form._find_existing({"name": "Example"})
+        site_filter.assert_not_called()
+
+    def test_find_existing_returns_none_when_the_update_key_is_missing(self):
+        tenant = SimpleNamespace(pk=17)
+        with (
+            patch("assets.forms.import_forms.get_current_tenant", return_value=tenant),
+            patch.object(Site.objects, "filter") as site_filter,
+        ):
+            self.assertIsNone(self.form._find_existing({}))
+        site_filter.assert_not_called()
+
+    def test_find_existing_rejects_multiple_update_key_matches(self):
+        tenant = SimpleNamespace(pk=17)
+        queryset = MagicMock()
+        queryset.__getitem__.return_value = [object(), object()]
+        with (
+            patch("assets.forms.import_forms.get_current_tenant", return_value=tenant),
+            patch.object(Site.objects, "filter", return_value=queryset) as site_filter,
+        ):
+            with self.assertRaisesMessage(ValidationError, "More than one existing object matches the update key."):
+                self.form._find_existing({"name": "Duplicate"})
+        site_filter.assert_called_once_with(tenant_id=tenant.pk, name="Duplicate")
 
 
 class ExportContractTests(SimpleTestCase):
@@ -221,6 +296,7 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         ("assets", "category"),
         ("assets", "assetrole"),
         ("organization", "region"),
+        ("organization", "site"),
         ("organization", "sitegroup"),
         ("organization", "contactrole"),
         ("organization", "contact"),
@@ -332,6 +408,15 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                 ("Ref Contact", "after"),
                 "description",
             ),
+            (
+                "organization",
+                "site",
+                Site,
+                ("name", "description"),
+                ("Reference Import Site", "before"),
+                ("Reference Import Site", "after"),
+                "description",
+            ),
         )
         add_permissions = {f"{app}.add_{model}" for app, model, *_ in models}
         change_permissions = {f"{app}.change_{model}" for app, model, *_ in models}
@@ -350,7 +435,7 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
                     self.fail("A valid import preview must allow confirmation.")
                 self.assertEqual(response.status_code, 302)
                 created = model._base_manager.get(
-                    name=initial[0], **({"tenant": self.tenant} if model is Contact else {})
+                    name=initial[0], **({"tenant": self.tenant} if model in (Contact, Site) else {})
                 )
                 created_value = getattr(created, updated_field)
                 self.assertEqual(created_value, initial[fields.index(updated_field)])
@@ -635,12 +720,219 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         self.assertIn("Geben Sie den Slug oder den Namen des übergeordneten Eintrags an.", parent_info["description"])
         self.assertNotIn("ID", parent_info["description"])
 
-    def test_site_import_remains_closed_in_this_slice(self):
-        user = self._member("site-import-boundary", {"organization.add_site"})
-        self.client_login_to_tenant(user, self.tenant)
-        url = reverse("generic_import", kwargs={"app_label": "organization", "model_name": "site"})
+    def test_site_import_creates_in_active_tenant_and_uses_site_references(self):
+        user = self._member("site-import-positive", {"organization.add_site"})
+        region = Region.objects.create(name="Site Import Region", slug="site-import-region")
+        group = SiteGroup.objects.create(name="Site Import Group", slug="site-import-group")
 
-        self.assertEqual(self.client.get(url).status_code, 404)
+        preview, response = self._import(
+            user,
+            "organization",
+            "site",
+            "name,status,region,group,facility,time_zone,description,physical_address,shipping_address,"
+            "latitude,longitude,comments\n"
+            "Imported Campus,planned,site-import-region,Site Import Group,Main Building,Europe/Berlin,"
+            "Primary office,1 Example Street,2 Example Street,48.123456,9.123456,Import note\n",
+        )
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertFalse(preview.context["form"].errors)
+        if response is None:
+            raise AssertionError("A valid site import preview must allow confirmation.")
+        self.assertEqual(response.status_code, 302)
+        imported = Site._base_manager.get(name="Imported Campus", tenant=self.tenant)
+        self.assertEqual(imported.slug, "imported-campus")
+        self.assertEqual(imported.status, Site.STATUS_PLANNED)
+        self.assertEqual(imported.region_id, region.pk)
+        self.assertEqual(imported.group_id, group.pk)
+        self.assertEqual(imported.facility, "Main Building")
+        self.assertEqual(imported.time_zone, "Europe/Berlin")
+        self.assertEqual(imported.description, "Primary office")
+        self.assertEqual(imported.physical_address, "1 Example Street")
+        self.assertEqual(imported.shipping_address, "2 Example Street")
+        self.assertEqual(str(imported.latitude), "48.123456")
+        self.assertEqual(str(imported.longitude), "9.123456")
+        self.assertEqual(imported.comments, "Import note")
+
+    def test_site_region_and_group_resolution_order_and_numeric_region_name(self):
+        user = self._member("site-import-reference-order", {"organization.add_site"})
+
+        for field, model, prefix in (
+            ("region", Region, "site-region-order"),
+            ("group", SiteGroup, "site-group-order"),
+        ):
+            with self.subTest(field=field):
+                slug_exact_value = prefix + "-slug-exact"
+                slug_exact = model.objects.create(name=prefix + " slug exact target", slug=slug_exact_value)
+                model.objects.create(name=slug_exact_value, slug=prefix + "-name-exact-target")
+
+                name_exact_value = prefix + "-NameExact"
+                name_exact = model.objects.create(name=name_exact_value, slug=prefix + "-exact-name-target")
+                model.objects.create(
+                    name=prefix + " slug case competitor",
+                    slug=name_exact_value.lower(),
+                )
+
+                slug_ci_value = prefix + "-SlugCI"
+                slug_ci = model.objects.create(
+                    name=prefix + " slug ci target",
+                    slug=slug_ci_value.lower(),
+                )
+                model.objects.create(name=slug_ci_value.upper(), slug=prefix + "-name-ci-competitor")
+
+                name_ci_value = prefix + "-NameCI"
+                name_ci = model.objects.create(name=name_ci_value.upper(), slug=prefix + "-name-ci-target")
+
+                for suffix, value, expected in (
+                    ("slug-exact", slug_exact_value, slug_exact),
+                    ("name-exact", name_exact_value, name_exact),
+                    ("slug-ci", slug_ci_value, slug_ci),
+                    ("name-ci", name_ci_value, name_ci),
+                ):
+                    site_name = prefix + " imported " + suffix
+                    preview, response = self._import(
+                        user,
+                        "organization",
+                        "site",
+                        "name," + field + "\n" + site_name + "," + value + "\n",
+                    )
+                    self.assertEqual(preview.status_code, 200)
+                    self.assertFalse(preview.context["form"].errors)
+                    if response is None:
+                        raise AssertionError("A valid site import preview must allow confirmation.")
+                    imported = Site._base_manager.get(name=site_name, tenant=self.tenant)
+                    self.assertEqual(getattr(imported, field + "_id"), expected.pk)
+
+        pk_target = Region.objects.create(name="Numeric region pk target", slug="numeric-region-pk-target")
+        numeric_name = Region.objects.create(name=str(pk_target.pk), slug="numeric-region-name")
+        site_name = "Site with numeric region name"
+        preview, response = self._import(
+            user,
+            "organization",
+            "site",
+            "name,region\n" + site_name + "," + str(pk_target.pk) + "\n",
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertFalse(preview.context["form"].errors)
+        if response is None:
+            raise AssertionError("A valid site import preview must allow confirmation.")
+        imported = Site._base_manager.get(name=site_name, tenant=self.tenant)
+        self.assertEqual(imported.region_id, numeric_name.pk)
+        self.assertNotEqual(imported.region_id, pk_target.pk)
+
+    def test_unknown_site_region_and_group_fail_per_row_without_creating_references(self):
+        user = self._member("site-import-unknown-references", {"organization.add_site"})
+        for field, model, value in (
+            ("region", Region, "Missing Site Region"),
+            ("group", SiteGroup, "Missing Site Group"),
+        ):
+            with self.subTest(field=field):
+                site_name = "Site with missing " + field
+                preview, response = self._import(
+                    user,
+                    "organization",
+                    "site",
+                    "name," + field + "\n" + site_name + "," + value + "\n",
+                )
+                self.assertEqual(preview.status_code, 200)
+                self.assertIsNone(response)
+                messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
+                self.assertIn("Row 2", messages)
+                self.assertIn(field + ": unknown", messages)
+                self.assertIn(value, messages)
+                self.assertIn("never created by a site import", messages)
+                self.assertFalse(Site._base_manager.filter(name=site_name).exists())
+                self.assertFalse(model._base_manager.filter(name=value).exists())
+
+    def test_site_parent_column_fails_the_row_with_a_readable_message(self):
+        user = self._member("site-import-parent-rejected", {"organization.add_site"})
+        site_name = "Site parent must be rejected"
+        preview, response = self._import(
+            user,
+            "organization",
+            "site",
+            "name,parent\n" + site_name + ",not-a-parent\n",
+        )
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertIsNone(response)
+        messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
+        self.assertIn("Row 2", messages)
+        self.assertIn("parent:", messages)
+        self.assertIn("Sites have no parent site", messages)
+        self.assertIn("use region or group", messages)
+        self.assertIn("locations", messages)
+        self.assertFalse(Site._base_manager.filter(name=site_name).exists())
+
+    def test_ambiguous_site_region_and_group_fail_per_row(self):
+        user = self._member("site-import-ambiguous-references", {"organization.add_site"})
+        value = "SiteReferenceAmbiguous"
+        for field, model in (("region", Region), ("group", SiteGroup)):
+            with self.subTest(field=field):
+                model.objects.create(name=value.lower(), slug=field + "-ambiguous-one")
+                model.objects.create(name=value.upper(), slug=field + "-ambiguous-two")
+                site_name = "Site with ambiguous " + field
+                preview, response = self._import(
+                    user,
+                    "organization",
+                    "site",
+                    "name," + field + "\n" + site_name + "," + value + "\n",
+                )
+
+                self.assertEqual(preview.status_code, 200)
+                self.assertIsNone(response)
+                messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
+                self.assertIn("Row 2", messages)
+                self.assertIn(field + ":", messages)
+                self.assertIn("matches more than one", messages)
+                self.assertIn("unique Slug or Name", messages)
+                self.assertFalse(Site._base_manager.filter(name=site_name).exists())
+
+    def test_site_name_collision_in_another_tenant_fails_without_disclosing_tenant(self):
+        foreign_tenant = Tenant._base_manager.create(name="Private Site Tenant", slug="private-site-tenant")
+        foreign_site = Site._base_manager.create(
+            name="Shared Site Name Collision",
+            slug="shared-site-name-collision",
+            tenant=foreign_tenant,
+            description="Keep unchanged",
+        )
+        user = self._member("site-import-name-collision", {"organization.add_site"})
+        preview, response = self._import(
+            user,
+            "organization",
+            "site",
+            "name,description\nShared Site Name Collision,attempted overwrite\n",
+        )
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertIsNone(response)
+        messages = " ".join(str(message) for message in preview.context["form"].errors["__all__"])
+        self.assertIn("Row 2", messages)
+        self.assertIn("name: a site with this name already exists", messages)
+        self.assertNotIn(foreign_tenant.name, messages)
+        self.assertNotIn(foreign_tenant.name, preview.content.decode())
+        self.assertFalse(Site._base_manager.filter(name=foreign_site.name, tenant=self.tenant).exists())
+        foreign_site.refresh_from_db()
+        self.assertEqual(foreign_site.description, "Keep unchanged")
+
+    def test_site_import_ignores_export_id(self):
+        id_target = Site._base_manager.create(name="Site id target", slug="site-id-target", tenant=self.tenant)
+        user = self._member("site-import-ignored-id", {"organization.add_site"})
+        site_name = "Site id column ignored"
+        preview, response = self._import(
+            user,
+            "organization",
+            "site",
+            "name,id\n" + site_name + "," + str(id_target.pk) + "\n",
+        )
+
+        self.assertEqual(preview.status_code, 200)
+        self.assertFalse(preview.context["form"].errors)
+        if response is None:
+            raise AssertionError("A valid site import preview must allow confirmation.")
+        self.assertEqual(response.status_code, 302)
+        imported = Site._base_manager.get(name=site_name, tenant=self.tenant)
+        self.assertNotEqual(imported.pk, id_target.pk)
 
 
 class ExportInventoryDetailTests(SimpleTestCase):

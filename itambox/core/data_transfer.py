@@ -187,7 +187,7 @@ DECLARATIONS = {
     "organization.role": _deny(R_AUTHZ, "role permission sets are authorization metadata"),
     "organization.rolegrant": _deny(R_AUTHZ, "grants are authorization metadata"),
     "organization.rolegrantscope": _deny(R_AUTHZ, "grants are authorization metadata"),
-    "organization.site": _allow(SCOPE_MANAGER),
+    "organization.site": _allow(SCOPE_MANAGER, import_=True),
     "organization.sitegroup": _allow(SCOPE_GLOBAL, import_=True),
     "organization.tenant": _allow(SCOPE_MANAGER),
     "organization.tenantgroup": _allow(SCOPE_MANAGER),
