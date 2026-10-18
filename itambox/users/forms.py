@@ -73,7 +73,19 @@ class UserForm(TenantScopedFormMixin, forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         self.request_user = user
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
+        # A password set on an EXISTING account replaces that account's credential,
+        # and a Django password is global: it authenticates the person everywhere
+        # they are a member, not only in the tenant whose role granted the
+        # operator their permission. It is therefore the same class of global
+        # account capability as is_staff / can_login below, and no tenant-scoped
+        # permission can authorize it. Provisioning a NEW account has no existing
+        # credential to replace and keeps the field.
+        self.can_set_password = not (self.instance and self.instance.pk) or bool(
+            self.request_user and self.request_user.is_superuser
+        )
+        if not self.can_set_password:
+            del self.fields["password"]
+        elif self.instance and self.instance.pk:
             self.fields["password"].required = False
             self.fields["password"].help_text = _("Leave blank to keep the current password.")
         else:
@@ -92,32 +104,38 @@ class UserForm(TenantScopedFormMixin, forms.ModelForm):
         self.helper = FormHelper(self)
         self.helper.form_method = "post"
         self.helper.form_tag = True
-        self.helper.layout = Layout(
+        layout_rows = [
             Row(
                 Column("username", css_class="col-md-8"),
                 Column("is_active", css_class="col-md-4"),
                 css_class="row g-3",
-            ),
-            "password",
-            Row(
-                Column("first_name", css_class="col-md-6"),
-                Column("last_name", css_class="col-md-6"),
-                css_class="row g-3",
-            ),
-            "email",
-            Fieldset(
-                _("Permissions"),
+            )
+        ]
+        if self.can_set_password:
+            layout_rows.append("password")
+        layout_rows.extend(
+            [
                 Row(
-                    Column("can_login", css_class="col-md-12"),
+                    Column("first_name", css_class="col-md-6"),
+                    Column("last_name", css_class="col-md-6"),
                     css_class="row g-3",
                 ),
-                Row(
-                    Column("is_staff", css_class="col-md-6"),
-                    Column("is_superuser", css_class="col-md-6"),
-                    css_class="row g-3",
+                "email",
+                Fieldset(
+                    _("Permissions"),
+                    Row(
+                        Column("can_login", css_class="col-md-12"),
+                        css_class="row g-3",
+                    ),
+                    Row(
+                        Column("is_staff", css_class="col-md-6"),
+                        Column("is_superuser", css_class="col-md-6"),
+                        css_class="row g-3",
+                    ),
                 ),
-            ),
+            ]
         )
+        self.helper.layout = Layout(*layout_rows)
         add_standard_buttons(self.helper, self.instance, "users:user_list")
 
     def clean_is_superuser(self):
