@@ -2,24 +2,28 @@ import importlib
 import sys
 import types
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.core.exceptions import ImproperlyConfigured
 from django.template.loader import render_to_string
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import resolve
 from django.utils.html import escape
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from core.templatetags.plugins import plugin_template_content
 from core.tests.mixins import TenantTestMixin
 from itambox.context_processors import plugin_diagnostics_processor
 from itambox.dictutils import deep_merge
 from itambox.plugins import PluginConfig, assembly, runtime
+from itambox.plugins.api_views import PluginDiagnosticsView
 from itambox.plugins.navigation import PluginNavigationItem, PluginNavigationMenu
 from itambox.plugins.runtime import PluginStartupError
 from itambox.plugins.settings_schema import override_variable_name
 from itambox.plugins.utils import load_plugins, parse_itambox_range
 from itambox.plugins.views import PluginTemplateContent
 from itambox.registry import registry
+from organization.models import Role
 
 
 class DummySettings:
@@ -668,6 +672,134 @@ class PluginDiagnosticsSurfaceTest(TenantTestMixin, TestCase):
 
         self.assertIn("operator_plugin", rendered)
         self.assertIn("plugin-startup-diagnostics", rendered)
+
+
+class PluginDiagnosticsViewUnitTests(SimpleTestCase):
+    def test_permission_rejection_does_not_read_inventory(self):
+        request = APIRequestFactory().get("/api/plugins/")
+        user = Mock(is_authenticated=True)
+        user.has_perm.return_value = False
+        force_authenticate(request, user=user)
+
+        with patch("itambox.plugins.diagnostics.plugin_inventory") as inventory:
+            response = PluginDiagnosticsView.as_view()(request)
+
+        self.assertEqual(response.status_code, 403)
+        inventory.assert_not_called()
+
+    def test_response_serializer_excludes_unrecognized_settings(self):
+        request = APIRequestFactory().get("/api/plugins/")
+        user = Mock(is_authenticated=True)
+        user.has_perm.return_value = True
+        force_authenticate(request, user=user)
+        plugin = {
+            "plugin": "example_plugin",
+            "version": "1.2.0",
+            "itambox_range": ">=1.2,<1.3",
+            "state": "active",
+            "running_version": "1.2.4",
+            "resources": {
+                "template_extensions": [],
+                "menu": [],
+                "menu_items": [],
+                "viewsets": [],
+                "permission_targets": [],
+                "graphql_schema": [],
+            },
+            "applied_migrations": [],
+            "pending_migrations": [],
+            "settings": {"api_token": "secret-plugin-value"},
+        }
+        expected_plugin = {key: value for key, value in plugin.items() if key != "settings"}
+        with patch("itambox.plugins.diagnostics.plugin_inventory", return_value=[plugin]):
+            response = PluginDiagnosticsView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"plugins": [expected_plugin]})
+        self.assertNotIn("secret-plugin-value", repr(response.data))
+
+    def test_non_get_methods_are_rejected(self):
+        request = APIRequestFactory().post("/api/plugins/")
+        user = Mock(is_authenticated=True)
+        user.has_perm.return_value = True
+        force_authenticate(request, user=user)
+
+        response = PluginDiagnosticsView.as_view()(request)
+
+        self.assertEqual(response.status_code, 405)
+
+
+class PluginDiagnosticsEndpointTest(TenantTestMixin, TestCase):
+    permission = "core.view_plugin_diagnostics"
+
+    def setUp(self):
+        super().setUp()
+        self.setup_tenant_context(name="Plugin API Tenant", slug="plugin-api")
+
+    def _login_with_diagnostics_permission(self):
+        role = Role.objects.create(
+            tenant=self.tenant,
+            name="Plugin API operators",
+            permissions=[self.permission],
+        )
+        role_grant = self.grant(self.tenant_user, self.tenant, role)
+        self.client_login_to_tenant(self.tenant_user, self.tenant)
+        self.assertFalse(self.tenant_user.is_superuser)
+        with self.tenant_context(self.tenant, role_grant.membership):
+            self.assertTrue(self.tenant_user.has_perm(self.permission))
+
+    def test_inventory_is_not_computed_without_the_dedicated_permission(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant)
+        with patch("itambox.plugins.diagnostics.plugin_inventory") as inventory:
+            response = self.client.get("/api/plugins/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("secret-plugin-value", response.content.decode())
+        inventory.assert_not_called()
+
+    def test_role_grant_reads_pinned_inventory_and_only_get_is_allowed(self):
+        self._login_with_diagnostics_permission()
+        inventory = [
+            {
+                "plugin": "example_plugin",
+                "version": "1.2.0",
+                "itambox_range": ">=1.2,<1.3",
+                "state": "active",
+                "running_version": "1.2.4",
+                "resources": {
+                    "template_extensions": [{"model": "assets.asset", "class_name": "example.PluginContent"}],
+                    "menu": ["example.PluginMenu"],
+                    "menu_items": [],
+                    "viewsets": [{"prefix": "assets", "viewset": "example.AssetViewSet", "basename": "asset"}],
+                    "permission_targets": ["example.asset"],
+                    "graphql_schema": [],
+                },
+                "applied_migrations": ["example.0001_initial"],
+                "pending_migrations": ["example.0002_add_field"],
+                "settings": {"api_token": "secret-plugin-value"},
+            }
+        ]
+        expected_inventory = [{key: value for key, value in inventory[0].items() if key != "settings"}]
+        with patch("itambox.plugins.diagnostics.plugin_inventory", return_value=inventory):
+            response = self.client.get("/api/plugins/")
+
+        self.assertEqual(resolve("/api/plugins/").view_name, "plugin_diagnostics")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"plugins": expected_inventory})
+        self.assertNotIn("secret-plugin-value", response.content.decode())
+        for method in ("post", "put", "patch", "delete"):
+            with self.subTest(method=method):
+                response = getattr(self.client, method)("/api/plugins/", data="{}", content_type="application/json")
+                self.assertEqual(response.status_code, 405)
+
+    def test_authorized_zero_plugin_inventory_is_an_empty_list(self):
+        self._login_with_diagnostics_permission()
+        with patch("itambox.plugins.diagnostics.plugin_inventory", return_value=[]) as inventory:
+            response = self.client.get("/api/plugins/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"plugins": []})
+        inventory.assert_called_once_with()
 
 
 class PluginAssemblyTestCase(SimpleTestCase):

@@ -112,16 +112,30 @@ Removing a plugin does not delete its tables, `ContentType` rows, or changelog r
    skipped for a version incompatibility. It is informational and never fails
    the probe: a process that answers has a consistent plugin set.
 
-### Grant access to the in-product diagnostics notice
+### Read plugin diagnostics in the application
 
-The startup diagnostics notice is visible to authenticated users holding
-`core.view_plugin_diagnostics`. To grant access, create or edit a role in
-**Organization > Roles & Permissions**, select **Can view plugin diagnostics**
-under custom permissions, save the role, and assign it to the intended operator.
-Superusers retain access automatically. This permission only controls the
-in-product notice; plugin activation and recovery remain deployment operations.
+The plugin diagnostics notice and the read-only API inventory are available to
+authenticated users holding `core.view_plugin_diagnostics` in their active
+tenant. Superusers retain access automatically. To grant access, create or edit
+a role in **Organization > Roles & Permissions**, select **Can view plugin
+diagnostics** under custom permissions, save the role, and assign it to the
+intended operator.
 
-A plugin that cannot be imported, is malformed, or raises while composing aborts startup with a message naming the plugin and the phase; remove it from `ITAMBOX_PLUGINS` and restart to recover. The one skip case is a version incompatibility: a plugin whose `itambox_range` excludes the running release is skipped with a warning and shown in `manage.py plugins`.
+`GET /api/plugins/` returns the configured plugins' manifest versions and
+compatibility ranges, active or skipped state, the running ITAMbox version,
+contributed resources by extension point, and applied and pending migrations.
+A user without the permission receives HTTP 403; other methods are not
+available. The endpoint is read-only and does not include plugin settings or
+configuration values. If the database is unavailable, migration fields are
+`null` rather than an empty list.
+
+This permission controls the notice and the read-only inventory only; plugin
+activation and recovery remain deployment operations. A plugin that cannot be
+imported, is malformed, or raises while composing aborts startup with a message
+naming the plugin and the phase; remove it from `ITAMBOX_PLUGINS` and restart to
+recover. The one skip case is a version incompatibility: a plugin whose
+`itambox_range` excludes the running release is skipped with a warning and shown
+in `manage.py plugins`.
 
 ## Disable or remove a plugin
 

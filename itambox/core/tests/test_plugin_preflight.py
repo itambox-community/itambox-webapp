@@ -184,13 +184,39 @@ class PluginInventoryTests(SimpleTestCase):
     @override_settings(
         PLUGINS_ACTIVE=["plugin_active"],
         PLUGINS_DIAGNOSTICS=[{"plugin": "plugin_skipped"}],
+        PLUGINS_CONFIG={"plugin_active": {"token": "inventory-private-sentinel"}},
+        PLUGINS_RESOLVED_CONFIG={"plugin_active": {"token": "inventory-private-sentinel"}},
+        PLUGINS_SECRET_KEYS={"plugin_active": ["token"]},
+        VERSION="3.1.0",
     )
-    def test_manifest_load_state_and_pending_migrations(self):
+    def test_manifest_state_resources_and_applied_pending_migrations(self):
         manifest = {"version": "2.3.4", "itambox_range": ">=2.3,<2.4"}
+        resources = {
+            "template_extensions": [{"model": "assets.asset", "class_name": "plugin_active.Content"}],
+            "menu": [],
+            "menu_items": [],
+            "viewsets": [],
+            "permission_targets": [],
+            "graphql_schema": [],
+        }
+        migration_rows = {
+            "plugin_active": {
+                "applied_migrations": ["plugin_active.0001_initial"],
+                "pending_migrations": ["plugin_active.0002_add_field"],
+            },
+            "plugin_skipped": {
+                "applied_migrations": ["plugin_skipped.0001_initial"],
+                "pending_migrations": [],
+            },
+        }
         with (
             mock.patch.object(diagnostics, "_manifest", return_value=manifest),
             mock.patch.object(diagnostics, "plugin_app_labels", return_value=["plugin_active"]),
-            mock.patch.object(diagnostics, "pending_migrations", return_value=["plugin_active.0001_initial"]),
+            mock.patch.object(diagnostics, "_skipped_plugin_app_labels", return_value=["plugin_skipped"]),
+            mock.patch.object(diagnostics, "migration_state", return_value=migration_rows) as migration_state,
+            mock.patch.object(
+                diagnostics, "plugin_resources", side_effect=[resources, diagnostics.empty_plugin_resources()]
+            ),
         ):
             inventory = diagnostics.plugin_inventory()
 
@@ -201,10 +227,112 @@ class PluginInventoryTests(SimpleTestCase):
                     "plugin": "plugin_active",
                     "state": "active",
                     **manifest,
-                    "pending_migrations": ["plugin_active.0001_initial"],
+                    "running_version": "3.1.0",
+                    "resources": resources,
+                    **migration_rows["plugin_active"],
                 },
-                {"plugin": "plugin_skipped", "state": "skipped", **manifest, "pending_migrations": []},
+                {
+                    "plugin": "plugin_skipped",
+                    "state": "skipped",
+                    **manifest,
+                    "running_version": "3.1.0",
+                    "resources": diagnostics.empty_plugin_resources(),
+                    **migration_rows["plugin_skipped"],
+                },
             ],
+        )
+        self.assertNotIn("inventory-private-sentinel", repr(inventory))
+        migration_state.assert_called_once_with({"plugin_active", "plugin_skipped"}, loaded_labels={"plugin_active"})
+
+    def test_inventory_with_no_plugins_does_not_query_migration_state(self):
+        with (
+            mock.patch.object(diagnostics, "migration_state") as migration_state,
+            override_settings(PLUGINS_ACTIVE=[], PLUGINS_DIAGNOSTICS=[]),
+        ):
+            self.assertEqual(diagnostics.plugin_inventory(), [])
+
+        migration_state.assert_not_called()
+
+    def test_migration_state_reads_all_labels_with_one_executor(self):
+        migration = mock.Mock()
+        migration.app_label = "plugin_a"
+        migration.name = "0002_second"
+        executor = mock.Mock()
+        executor.loader.applied_migrations = {("plugin_a", "0001_initial"): object()}
+        executor.loader.graph.leaf_nodes.return_value = [("plugin_a", "0002_second")]
+        executor.migration_plan.return_value = [(migration, False)]
+
+        with mock.patch.object(diagnostics, "MigrationExecutor", return_value=executor) as create_executor:
+            state = diagnostics.migration_state({"plugin_a", "plugin_b"}, loaded_labels={"plugin_a", "plugin_b"})
+
+        self.assertEqual(
+            state,
+            {
+                "plugin_a": {
+                    "applied_migrations": ["plugin_a.0001_initial"],
+                    "pending_migrations": ["plugin_a.0002_second"],
+                },
+                "plugin_b": {"applied_migrations": [], "pending_migrations": []},
+            },
+        )
+        create_executor.assert_called_once_with(diagnostics.connection)
+        executor.migration_plan.assert_called_once_with([("plugin_a", "0002_second")])
+
+    def test_plugin_resources_group_all_extension_points_by_owner(self):
+        class Content:
+            pass
+
+        class OtherContent:
+            pass
+
+        class Menu:
+            pass
+
+        class MenuItem:
+            pass
+
+        class ViewSet:
+            pass
+
+        class Query:
+            pass
+
+        registry = mock.Mock()
+        registry._plugin_template_contents = {"assets.asset": [Content, OtherContent]}
+        registry._plugin_template_content_sources = {"assets.asset": ["inventory_plugin", "other_plugin"]}
+        registry._plugin_menus = [Menu]
+        registry._plugin_menu_sources = ["inventory_plugin"]
+        registry.get_plugin_menus.return_value = [Menu]
+        registry._plugin_menu_items = [MenuItem]
+        registry._plugin_menu_item_sources = ["inventory_plugin"]
+        registry.get_plugin_menu_items.return_value = [MenuItem]
+        registry.get_plugin_viewsets.return_value = {
+            "inventory_plugin": [("assets", ViewSet, "asset")],
+            "other_plugin": [("roles", OtherContent, "role")],
+        }
+        registry.get_plugin_permission_targets.return_value = {
+            "inventory_plugin": ("inventory_plugin.asset",),
+            "other_plugin": ("other_plugin.role",),
+        }
+        registry.get_plugin_graphql.return_value = (("inventory_plugin", Query), ("other_plugin", OtherContent))
+
+        with mock.patch.object(diagnostics, "registry", registry):
+            resources = diagnostics.plugin_resources("inventory_plugin")
+
+        self.assertEqual(
+            resources,
+            {
+                "template_extensions": [
+                    {"model": "assets.asset", "class_name": f"{Content.__module__}.{Content.__qualname__}"}
+                ],
+                "menu": [f"{Menu.__module__}.{Menu.__qualname__}"],
+                "menu_items": [f"{MenuItem.__module__}.{MenuItem.__qualname__}"],
+                "viewsets": [
+                    {"prefix": "assets", "viewset": f"{ViewSet.__module__}.{ViewSet.__qualname__}", "basename": "asset"}
+                ],
+                "permission_targets": ["inventory_plugin.asset"],
+                "graphql_schema": [f"{Query.__module__}.{Query.__qualname__}"],
+            },
         )
 
     def test_manifest_reads_the_plugin_config(self):

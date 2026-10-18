@@ -45,6 +45,7 @@ from extras.attachment_views import (
 )
 from extras.dashboard import views as dashboard_views
 from extras.export_views import LabelPrintView, LabelSelectView, ObjectExportView
+from itambox.plugins.api_views import PluginDiagnosticsView
 from itambox.plugins.runtime import PluginStartupError
 from itambox.views.features import ObjectChangeListView, ObjectChangeView
 from itambox.views.generic import (
@@ -194,6 +195,7 @@ urlpatterns = [
     path("user/", include("users.urls")),  # Include the users app URLs
     # API Paths (prefixed with /api/) - Point directly to the main api.urls
     path("api/", include("itambox.api.urls", namespace="api")),  # Added namespace='api'
+    path("api/plugins/", PluginDiagnosticsView.as_view(), name="plugin_diagnostics"),
     path("api/plugins/", include("itambox.plugins.urls", namespace="plugins-api")),
     path("graphql/", PrivateGraphQLView.as_view(schema=schema), name="graphql"),
     # Path for core app non-API views if any (e.g., User Preferences UI view)
