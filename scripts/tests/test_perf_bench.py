@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tempfile
 import types
 import unittest
@@ -64,7 +65,7 @@ class _FixtureApplication(BaseHTTPRequestHandler):
             self.send_response(404)
             body = b"not found"
         request_id = self.headers.get("X-Perf-Request-ID")
-        if request_id:
+        if request_id is not None and re.fullmatch(r"[0-9a-f]{32}", request_id):
             self.send_header("X-Perf-Request-ID", request_id)
             self.send_header("X-Perf-Worker-PID", "1234")
             self.send_header("X-Perf-Worker-Instance", "fixture-worker")
