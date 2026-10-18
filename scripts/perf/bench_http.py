@@ -224,7 +224,13 @@ def summarize_samples(samples: list[float], unit: str) -> dict[str, Any]:
 
 
 def measure_http_path(
-    session: HttpSession, name: str, path: str, repeats: int, warmups: int, json_body: dict[str, Any] | None = None
+    session: HttpSession,
+    name: str,
+    path: str,
+    repeats: int,
+    warmups: int,
+    json_body: dict[str, Any] | None = None,
+    expected_text: str | None = None,
 ) -> dict[str, Any]:
     headers = None
     if json_body is not None:
@@ -239,7 +245,7 @@ def measure_http_path(
             data=json.dumps(json_body).encode("utf-8") if json_body is not None else None,
             headers=headers,
         )
-        validate_http_response(status, final_url, body, name, json_body is not None)
+        validate_http_response(status, final_url, body, name, json_body is not None, expected_text)
     samples = []
     for _ in range(repeats):
         status, final_url, body, elapsed = session.request(
@@ -248,18 +254,27 @@ def measure_http_path(
             data=json.dumps(json_body).encode("utf-8") if json_body is not None else None,
             headers=headers,
         )
-        validate_http_response(status, final_url, body, name, json_body is not None)
+        validate_http_response(status, final_url, body, name, json_body is not None, expected_text)
         samples.append(elapsed * 1_000)
     return {"path": name, **summarize_samples(samples, "ms")}
 
 
-def validate_http_response(status: int, final_url: str, body: str, name: str, is_json: bool) -> None:
+def validate_http_response(
+    status: int, final_url: str, body: str, name: str, is_json: bool, expected_text: str | None = None
+) -> None:
     if status != 200 or "/accounts/login/" in final_url or "/mfa/" in final_url:
         raise RuntimeError(f"{name} failed over HTTP (status={status}, final_url={final_url})")
     if is_json:
         payload = json.loads(body)
         if payload.get("errors"):
             raise RuntimeError(f"GraphQL query {name} returned errors: {payload['errors']}")
+    if name == "rest_asset_list":
+        payload = json.loads(body)
+        results = payload.get("results") if isinstance(payload, dict) else payload
+        if not isinstance(results, list) or not results:
+            raise RuntimeError("REST asset list returned no benchmark records")
+    if expected_text is not None and expected_text not in body:
+        raise RuntimeError(f"{name} did not return the expected benchmark record")
 
 
 def collect_query_counts(manifest: dict[str, Any], username: str) -> dict[str, int]:
@@ -269,16 +284,24 @@ def collect_query_counts(manifest: dict[str, Any], username: str) -> dict[str, i
     benchmark = manifest["benchmark"]
     scope = f"?switch_tenant_group={benchmark['tenant_group_id']}"
     paths = {
-        "asset_list_first_page": reverse("assets:asset_list") + scope,
-        "asset_list_filtered_page": reverse("assets:asset_list") + scope + "&q=" + benchmark["filtered_q"],
-        "asset_detail": reverse("assets:asset_detail", args=[benchmark["asset_id"]]) + scope,
+        "asset_list_first_page": (reverse("assets:asset_list") + scope, "PF882-"),
+        "asset_list_filtered_page": (
+            reverse("assets:asset_list") + scope + "&q=" + benchmark["filtered_q"],
+            "Perf 882 Asset 000123",
+        ),
+        "asset_detail": (
+            reverse("assets:asset_detail", args=[benchmark["asset_id"]]) + scope,
+            "PF882-000000",
+        ),
     }
     result = {}
-    for name, path in paths.items():
+    for name, (path, expected_text) in paths.items():
         with CaptureQueriesContext(connection) as queries:
             response = client.get(path)
         if response.status_code != 200:
             raise RuntimeError(f"query-count probe {name} returned HTTP {response.status_code}")
+        if expected_text not in response.content.decode("utf-8", errors="replace"):
+            raise RuntimeError(f"query-count probe {name} did not return the expected benchmark record")
         result[name] = len(queries)
     return result
 
@@ -467,16 +490,33 @@ def main() -> int:
     scope = f"?switch_tenant_group={benchmark['tenant_group_id']}"
     api_path = reverse("api:assets_api:asset-list") + scope
     graph_path = reverse("graphql") + scope
-    list_query = "query PerfAssets { assets(limit: 25, offset: 0) { id name assetTag serialNumber } }"
+    graph_scope = "{ mode: TENANT_GROUP, tenantGroupId: " + json.dumps(str(benchmark["tenant_group_id"])) + " }"
+    list_query = (
+        "query PerfAssets { assets(requestedScope: "
+        + graph_scope
+        + ", limit: 25, offset: 0) { id name assetTag serialNumber } }"
+    )
     detail_query = (
         'query PerfAsset { asset(id: "'
         + str(benchmark["asset_id"])
-        + '") { id name assetTag serialNumber status { name } location { name } } }'
+        + '", requestedScope: '
+        + graph_scope
+        + ") { id name assetTag serialNumber status { name } location { name } } }"
     )
     http_paths = [
-        ("asset_list_first_page", reverse("assets:asset_list") + scope, None),
-        ("asset_list_filtered_page", reverse("assets:asset_list") + scope + "&q=" + benchmark["filtered_q"], None),
-        ("asset_detail", reverse("assets:asset_detail", args=[benchmark["asset_id"]]) + scope, None),
+        ("asset_list_first_page", reverse("assets:asset_list") + scope, None, "PF882-"),
+        (
+            "asset_list_filtered_page",
+            reverse("assets:asset_list") + scope + "&q=" + benchmark["filtered_q"],
+            None,
+            "Perf 882 Asset 000123",
+        ),
+        (
+            "asset_detail",
+            reverse("assets:asset_detail", args=[benchmark["asset_id"]]) + scope,
+            None,
+            "PF882-000000",
+        ),
         (
             "global_search",
             reverse("search")
@@ -484,14 +524,15 @@ def main() -> int:
             + benchmark["search_term"]
             + f"&switch_tenant_group={benchmark['tenant_group_id']}",
             None,
+            "Perf 882 Asset 000042",
         ),
-        ("rest_asset_list", api_path, None),
-        ("graphql_asset_list", graph_path, {"query": list_query}),
-        ("graphql_asset_detail", graph_path, {"query": detail_query}),
+        ("rest_asset_list", api_path, None, "PF882-"),
+        ("graphql_asset_list", graph_path, {"query": list_query}, "PF882-"),
+        ("graphql_asset_detail", graph_path, {"query": detail_query}, "PF882-000000"),
     ]
     latencies = [
-        measure_http_path(session, name, path, args.repeats, args.warmups, payload)
-        for name, path, payload in http_paths
+        measure_http_path(session, name, path, args.repeats, args.warmups, payload, expected_text)
+        for name, path, payload, expected_text in http_paths
     ]
     query_counts = collect_query_counts(manifest, args.username)
     query_ceiling = compare_query_ceilings(query_counts, args.baseline_results)
