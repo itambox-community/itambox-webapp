@@ -34,6 +34,9 @@ class PluginRouter(DefaultRouter):
     Allows registering viewsets mapped to /api/plugins/<plugin_name>/<prefix>/.
     """
 
+    # The host reserves the namespace root for its permission-gated inventory.
+    include_root_view = False
+
     pass
 
 

@@ -1143,6 +1143,13 @@ export interface paths {
     delete: operations["organization_tenants_destroy"];
     patch: operations["organization_tenants_partial_update"];
   };
+  "/api/plugins/": {
+    /**
+     * List configured plugins and their diagnostics
+     * @description Requires an authenticated user with core.view_plugin_diagnostics.
+     */
+    get: operations["plugin_diagnostics_list"];
+  };
   "/api/procurement/contracts/": {
     /**
      * @description CRUD API for Contracts.
@@ -6229,6 +6236,36 @@ export interface components {
       /** @description Backoff in seconds between retries */
       retry_backoff?: number;
     };
+    PluginInventory: {
+      plugin: string;
+      version: string;
+      itambox_range: string | null;
+      state: components["schemas"]["StateEnum"];
+      running_version: string;
+      resources: components["schemas"]["PluginResources"];
+      applied_migrations: string[] | null;
+      pending_migrations: string[] | null;
+    };
+    PluginInventoryResponse: {
+      plugins: components["schemas"]["PluginInventory"][];
+    };
+    PluginResources: {
+      template_extensions: components["schemas"]["PluginTemplateExtension"][];
+      menu: string[];
+      menu_items: string[];
+      viewsets: components["schemas"]["PluginViewSet"][];
+      permission_targets: string[];
+      graphql_schema: string[];
+    };
+    PluginTemplateExtension: {
+      model: string;
+      class_name: string;
+    };
+    PluginViewSet: {
+      prefix: string;
+      viewset: string;
+      basename: string | null;
+    };
     /**
      * @description * `primary` - Primary
      * * `secondary` - Secondary
@@ -6681,6 +6718,12 @@ export interface components {
       set?: unknown;
       clear?: string[];
     };
+    /**
+     * @description * `active` - active
+     * * `skipped` - skipped
+     * @enum {string}
+     */
+    StateEnum: "active" | "skipped";
     StatusLabel: {
       id: number;
       name: string;
@@ -33348,6 +33391,37 @@ export interface operations {
       };
       /** @description The request could not be completed. */
       428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  /**
+   * List configured plugins and their diagnostics
+   * @description Requires an authenticated user with core.view_plugin_diagnostics.
+   */
+  plugin_diagnostics_list: {
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["PluginInventoryResponse"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
         content: {
           "application/json": components["schemas"]["APIError"];
         };

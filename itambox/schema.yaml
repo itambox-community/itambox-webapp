@@ -32078,6 +32078,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/APIError'
+  /api/plugins/:
+    get:
+      operationId: plugin_diagnostics_list
+      description: Requires an authenticated user with core.view_plugin_diagnostics.
+      summary: List configured plugins and their diagnostics
+      tags:
+      - Plugin Diagnostics
+      security:
+      - TokenAuth: []
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginInventoryResponse'
+          description: ''
+        '400':
+          description: The request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: The request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: The request could not be completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+      x-itambox-maturity: experimental
   /api/procurement/contracts/:
     get:
       operationId: procurement_contracts_list
@@ -49038,6 +49075,108 @@ components:
           maximum: 32767
           minimum: 0
           description: Backoff in seconds between retries
+    PluginInventory:
+      type: object
+      properties:
+        plugin:
+          type: string
+        version:
+          type: string
+        itambox_range:
+          type: string
+          nullable: true
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        running_version:
+          type: string
+        resources:
+          $ref: '#/components/schemas/PluginResources'
+        applied_migrations:
+          type: array
+          items:
+            type: string
+          nullable: true
+        pending_migrations:
+          type: array
+          items:
+            type: string
+          nullable: true
+      required:
+      - applied_migrations
+      - itambox_range
+      - pending_migrations
+      - plugin
+      - resources
+      - running_version
+      - state
+      - version
+    PluginInventoryResponse:
+      type: object
+      properties:
+        plugins:
+          type: array
+          items:
+            $ref: '#/components/schemas/PluginInventory'
+      required:
+      - plugins
+    PluginResources:
+      type: object
+      properties:
+        template_extensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PluginTemplateExtension'
+        menu:
+          type: array
+          items:
+            type: string
+        menu_items:
+          type: array
+          items:
+            type: string
+        viewsets:
+          type: array
+          items:
+            $ref: '#/components/schemas/PluginViewSet'
+        permission_targets:
+          type: array
+          items:
+            type: string
+        graphql_schema:
+          type: array
+          items:
+            type: string
+      required:
+      - graphql_schema
+      - menu
+      - menu_items
+      - permission_targets
+      - template_extensions
+      - viewsets
+    PluginTemplateExtension:
+      type: object
+      properties:
+        model:
+          type: string
+        class_name:
+          type: string
+      required:
+      - class_name
+      - model
+    PluginViewSet:
+      type: object
+      properties:
+        prefix:
+          type: string
+        viewset:
+          type: string
+        basename:
+          type: string
+          nullable: true
+      required:
+      - basename
+      - prefix
+      - viewset
     PriorityEnum:
       enum:
       - primary
@@ -50149,6 +50288,14 @@ components:
           items:
             type: string
             minLength: 1
+    StateEnum:
+      enum:
+      - active
+      - skipped
+      type: string
+      description: |-
+        * `active` - active
+        * `skipped` - skipped
     StatusLabel:
       type: object
       properties:
