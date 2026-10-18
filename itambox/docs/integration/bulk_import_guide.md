@@ -74,7 +74,16 @@ Import updates an existing record only when the form declares an **update key**,
 |-------|-----------|
 | **Asset** | `asset_tag` |
 | **Manufacturer** | `name` |
+| **Category** | `name` |
+| **Asset Role** | `name` |
+| **Region** | `name` |
+| **Site Group** | `name` |
+| **Site** | `name` |
+| **Contact Role** | `name` |
+| **Contact** | `name` |
+| **Component** | `manufacturer`, `name` |
 | **Asset Holder** | `upn` |
+| **Software** | `name` |
 
 All other importable models only create records.
 

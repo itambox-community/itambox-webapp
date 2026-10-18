@@ -36,7 +36,7 @@ A receipt is created only when checkout resolves a matching active template for 
 | **Signature Canvas** | Base64 canvas stroke vector string representing the user's manual signature. | Text | No |
 | **Signature Data** | The signature data of the custody receipt. | Text | No |
 | **Signature Hash** | Cryptographic SHA-256 hash of the signature image data. | String | No |
-| **Signature Provider** | Service handling the signature (e.g., `local` canvas or `docusign`). | String | Yes |
+| **Signature Provider** | Service handling the signature: `local` for the on-platform canvas, or a provider registered by a plugin. | String | Yes |
 | **Signed At** | The timestamp when the digital signature occurred. | DateTime | Yes |
 | **Token** | The token of the custody receipt. | String | Yes |
 | **User Agent** | Browser header info logged at the time of signing. | Text | No |

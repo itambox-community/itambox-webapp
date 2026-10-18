@@ -9,14 +9,15 @@ schema and the schema fields for the revision you deploy; this prerelease
 interface may change.
 
 - **REST API**: A traditional, resource-oriented API with namespaced routes, pagination, and filtering.
-- **GraphQL API**: Read-only queries for core resources. An installed plugin
-  may contribute query fields or a mutation root; core writes use REST.
+- **GraphQL API**: Read-only queries for core resources and plugin query
+  fields. Plugin mutation contributions are rejected; use the plugin REST
+  resources or core REST endpoints for writes.
 
 Both APIs enforce the authenticated user's active tenant and permissions. Integrations should use least-privilege service accounts and test against a pinned ITAMbox revision.
 
 ## Authentication
 
-ITAMbox uses token-based authentication for API access. All API requests must include a valid token in the HTTP header.
+Token authentication is the recommended credential for integrations. Browser-based same-origin requests may also use session authentication where the endpoint permits it; check the deployed OpenAPI schema for endpoint requirements. A browser session is not a service credential.
 
 ### Token Authentication
 
@@ -51,7 +52,7 @@ https://your-itambox-instance.com/api/
 | Module            | Endpoint Path                                       | Description                                             |
 |-------------------|-----------------------------------------------------|---------------------------------------------------------|
 | **API Root**      | `/api/`                                             | API root — lists all available endpoints                |
-| **Status**        | `/api/status/`                                      | Deployment status (version, revision info)              |
+| **Status**        | `/api/status/`                                      | ITAMbox, Django, and Python versions; no Git revision identifier |
 | **Auth Check**    | `/api/auth-check/`                                  | Authentication verification endpoint                    |
 | **Core**          | `/api/core/object-changes/`                         | Audit changelog (ObjectChange records)                  |
 | **Assets**        | `/api/assets/assets/`                               | List, create, update, and delete assets                 |
@@ -79,8 +80,10 @@ https://your-itambox-instance.com/api/
 |                   | `/api/extras/custom-fieldsets/`                     | Manage custom field sets                                |
 |                   | `/api/extras/event-rules/`                          | Manage event rules                                      |
 |                   | `/api/extras/webhook-endpoints/`                    | Manage webhook endpoints                                |
+|                   | `/api/extras/webhook-deliveries/`                   | Read webhook delivery attempts                          |
 |                   | `/api/extras/notification-channels/`                | Manage notification channels                            |
 |                   | `/api/extras/alert-rules/`                          | Manage alert rules                                      |
+|                   | `/api/extras/alert-logs/`                           | Read alert evaluation logs                              |
 |                   | `/api/extras/journal-entries/`                      | Journal entries                                         |
 | **Inventory**     | `/api/inventory/accessories/`                       | Manage accessories                                      |
 |                   | `/api/inventory/accessory-stocks/`                  | Accessory stock levels                                  |
@@ -106,6 +109,7 @@ https://your-itambox-instance.com/api/
 |                   | `/api/organization/contacts/`                       | Manage contacts                                         |
 |                   | `/api/organization/contact-roles/`                  | Manage contact roles                                    |
 |                   | `/api/organization/contact-assignments/`            | Manage contact assignments                              |
+|                   | `/api/organization/resource-grant-audit/`           | Read resource-grant audit history                       |
 | **Procurement**   | `/api/procurement/contracts/`                       | Manage contracts                                        |
 |                   | `/api/procurement/purchase-orders/`                 | Manage purchase orders                                  |
 |                   | `/api/procurement/purchase-order-lines/`            | Purchase order line items                               |
@@ -254,13 +258,13 @@ query {
 
 ### Core GraphQL is read-only
 
-The built-in schema publishes no mutation root. Use the matching REST resource
-for writes, including `POST/PATCH/DELETE /api/assets/assets/`; the other domains
-have REST resources, and custom-field choice sets and choices are available
-under `/api/extras/custom-field-choice-sets/` and
-`/api/extras/custom-field-choices/`. A registered plugin may contribute its
-own mutation root, so inspect the schema for the deployed installation before
-assuming plugin behavior.
+The built-in schema publishes no mutation root. Installed plugins may add
+read-only query fields, but the plugin contract rejects `Mutation` contributions
+at startup. Use the matching REST resource for writes, including
+`POST/PATCH/DELETE /api/assets/assets/`; custom-field choice sets and choices
+are available under `/api/extras/custom-field-choice-sets/` and
+`/api/extras/custom-field-choices/`. Inspect the deployed schema to see which
+plugin query fields are registered.
 
 ## Destructive workflow safety
 

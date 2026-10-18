@@ -94,7 +94,7 @@ Required manifest fields: `name` (the package), `description` and `itambox_range
 |---|---|---|
 | `name` | `str` | Django app name; must equal the package name. |
 | `description` | `str` | Required non-empty summary. |
-| `itambox_range` | `str` | Required supported ITAMbox range `>=<major.minor>,<<next-major.minor>>`, for example `>=1.1,<1.2`. Patch releases inside the range are accepted. Malformed ranges abort startup. |
+| `itambox_range` | `str` | Required supported ITAMbox range `>=<major.minor>,<<next-major.minor>>`, for example `>=1.0,<1.1`. Patch releases inside the range are accepted. Malformed ranges abort startup. |
 | `verbose_name`, `version`, `author`, `author_email` | `str` | Metadata. `version` is the plugin's own release. |
 | `settings_schema` | `dict` | Declares the operator settings (see [Configuration](#configuration)). Replaces `default_settings` / `required_settings`, which a plugin must no longer declare. |
 | `middleware`, `django_apps` | `list[str]` | Added at startup. |
@@ -122,7 +122,7 @@ class ExamplePluginConfig(PluginConfig):
     verbose_name = "Example plugin"
     description = "Example integration"
     version = "2.4.0"
-    itambox_range = ">=1.1,<1.2"
+    itambox_range = ">=1.0,<1.1"
 
 
 config = ExamplePluginConfig

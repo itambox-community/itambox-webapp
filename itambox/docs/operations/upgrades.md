@@ -328,10 +328,9 @@ If an update fails before any migration runs, returning to the previous source r
 
 ## Identifying the deployed revision
 
-`/api/status/`, the login page, and the application footer report ITAMbox version metadata. That value identifies the declared software version (currently prerelease metadata), not the exact deployed Git commit. Use it as a sanity check and record the source revision separately in the deployment system:
+`/api/status/`, the login page, and the application footer report version metadata. This identifies the declared software version, not the exact deployed Git commit. `/api/status/` follows the deployment's API authentication policy; use an authenticated browser session or a client that reads credentials from an approved secret source when authentication is required. Do not place an API token literally in a command line. Record the source revision separately in the deployment system:
 
 ```bash
-curl -fsS https://itam.example.com/api/status/
 git rev-parse HEAD
 git status --short
 docker compose images
