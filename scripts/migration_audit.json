@@ -2444,6 +2444,46 @@
     },
     {
       "dependencies": [
+        "core.0100_issue88_shard_38_core_relations",
+        "users.0100_issue88_shard_62_users_relations"
+      ],
+      "id": "core.0101_plugin_diagnostics_permission",
+      "is_replacement": false,
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/core/migrations/0101_plugin_diagnostics_permission.py",
+      "replaces": [],
+      "reviewed_disposition": null,
+      "run_before": [],
+      "special_users_bootstrap": false,
+      "swappable_user_dependency": false,
+      "syntactic_facts": {
+        "has_custom_operations": {
+          "BtreeGistExtension": false,
+          "RunPython": false,
+          "RunSQL": false,
+          "SeparateDatabaseAndState": false
+        }
+      }
+    },
+    {
+      "dependencies": [
         "assets.0100_issue88_shard_02_assets_schema"
       ],
       "id": "extras.0100_issue88_shard_03_extras_schema",
@@ -6342,6 +6382,7 @@
     "compliance.0105_custodyhandoffdelivery",
     "compliance.0106_remove_custodyreceipt_accepted",
     "compliance.0107_custodyreceipt_assignment_superseded",
+    "core.0101_plugin_diagnostics_permission",
     "extras.0101_issue88_drop_legacy_webhook_name_like",
     "extras.0102_alter_event_action",
     "extras.0103_remove_reporttemplate_advanced_mode_and_more",
@@ -6468,7 +6509,7 @@
     "global_roots": [],
     "missing_replacement_targets": 0,
     "per_app_local_roots_and_leaves": {},
-    "post_transition_migrations": 72,
+    "post_transition_migrations": 73,
     "replacement_shards": 62,
     "replacement_targets": 262
   }

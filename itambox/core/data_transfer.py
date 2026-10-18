@@ -121,6 +121,7 @@ DECLARATIONS = {
     "core.notification": _deny(R_PERSONAL, "personal notifications"),
     "core.objectchange": _deny(R_SYSTEM, "audit log"),
     "core.recyclebin": _deny(R_SYSTEM, "system recycle-bin projection"),
+    "core.plugindiagnosticspermission": _deny(R_SYSTEM, "permission-only proxy has no transferred records"),
     # django_q
     "django_q.failure": _deny(R_SYSTEM, "framework or third-party system table"),
     "django_q.ormq": _deny(R_SYSTEM, "framework or third-party system table"),

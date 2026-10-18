@@ -12,7 +12,6 @@ from crispy_forms.layout import Layout
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
-from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -28,26 +27,17 @@ from .role_matrix import MATRIX_MODELS
 
 
 # Custom (non-CRUD) permissions exposed as named checkboxes alongside the matrix.
-# Derived dynamically from the live permission table (everything declared via
-# ``Meta.permissions``) so newly added custom codenames are never invisible to
-# the role editor. This keeps newly declared prepare/export permissions visible.
+# A standard CRUD permission is the action plus its own content type's model
+# name; custom codenames may also start with ``view_``/``add_`` and still need a
+# dedicated checkbox (for example ``core.view_plugin_diagnostics``).
 def get_custom_permissions():
     """All non-CRUD permissions as ``(field_key, label, full_codename)`` tuples.
 
     ``field_key`` combines app label and codename so the generated ``perm_*``
     form fields stay unique even when two apps declare the same codename.
     """
-    non_crud = (
-        ~Q(codename__startswith="view_")
-        & ~Q(codename__startswith="add_")
-        & ~Q(codename__startswith="change_")
-        & ~Q(codename__startswith="delete_")
-    )
-    permissions = (
-        Permission.objects.select_related("content_type")
-        .filter(non_crud)
-        .order_by("content_type__app_label", "codename")
-    )
+    permissions = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
+    crud_actions = ("view", "add", "change", "delete")
     return [
         (
             f"{permission.content_type.app_label}_{permission.codename}",
@@ -55,6 +45,7 @@ def get_custom_permissions():
             f"{permission.content_type.app_label}.{permission.codename}",
         )
         for permission in permissions
+        if permission.codename not in {f"{action}_{permission.content_type.model}" for action in crud_actions}
     ]
 
 

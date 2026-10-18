@@ -2503,6 +2503,9 @@ msgstr "Testempfänger"
 msgid "Can view Recycle Bin"
 msgstr "Kann Papierkorb anzeigen"
 
+msgid "Can view plugin diagnostics"
+msgstr "Kann Plugin-Diagnosen ansehen"
+
 msgid "Can restore from Recycle Bin"
 msgstr "Kann aus dem Papierkorb wiederherstellen"
 

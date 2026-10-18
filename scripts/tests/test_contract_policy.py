@@ -189,6 +189,7 @@ class DerivationSurfaceTests(unittest.TestCase):
                 "approve_assetrequest",
                 "fulfill_assetrequest",
                 "view_recyclebin",
+                "view_plugin_diagnostics",
                 "change_recyclebin",
                 "delete_recyclebin",
                 "receive_purchaseorder",
