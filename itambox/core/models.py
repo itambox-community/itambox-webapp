@@ -800,3 +800,12 @@ class RecycleBin(models.Model):
             ("change_recyclebin", _("Can restore from Recycle Bin")),
             ("delete_recyclebin", _("Can purge from Recycle Bin")),
         ]
+
+
+class PluginDiagnosticsPermission(RecycleBin):
+    """Permission anchor for plugin diagnostics, which are stored in settings."""
+
+    class Meta:  # type: ignore[reportIncompatibleVariableOverride]
+        proxy = True
+        default_permissions = ()
+        permissions = [("view_plugin_diagnostics", _("Can view plugin diagnostics"))]

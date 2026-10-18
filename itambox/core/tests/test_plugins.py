@@ -586,23 +586,52 @@ class TemplateTagTestCase(TestCase):
         self.assertNotIn("<!--", rendered)
 
 
-def _request_for(*, is_superuser=None, anonymous=False):
-    user = types.SimpleNamespace(is_authenticated=not anonymous, is_superuser=bool(is_superuser))
-    return types.SimpleNamespace(user=user)
+class PluginDiagnosticsSurfaceTest(TenantTestMixin, TestCase):
+    permission = "core.view_plugin_diagnostics"
 
+    def setUp(self):
+        super().setUp()
+        self.setup_tenant_context(name="Plugin Diagnostics Tenant", slug="plugin-diagnostics")
 
-class PluginDiagnosticsSurfaceTest(SimpleTestCase):
-    def test_diagnostics_hidden_from_non_operators(self):
+    def test_diagnostics_hidden_from_authenticated_role_without_permission(self):
         diagnostic = {"plugin": "hidden_plugin", "failure_class": "ValueError", "error": "boom"}
-        with self.settings(PLUGINS_DIAGNOSTICS=[diagnostic]):
-            for request in (None, _request_for(is_superuser=False), _request_for(anonymous=True)):
-                context = plugin_diagnostics_processor(request)
+        anonymous = types.SimpleNamespace(is_authenticated=False)
+        with patch("itambox.context_processors.get_plugin_diagnostics", return_value=[diagnostic]) as get_diagnostics:
+            for request, tenant_context in (
+                (None, None),
+                (types.SimpleNamespace(user=anonymous), None),
+                (types.SimpleNamespace(user=self.tenant_user), self.tenant_membership),
+            ):
+                if tenant_context is None:
+                    context = plugin_diagnostics_processor(request)
+                else:
+                    with self.tenant_context(self.tenant, tenant_context):
+                        self.assertFalse(self.tenant_user.has_perm(self.permission))
+                        context = plugin_diagnostics_processor(request)
                 self.assertEqual(context["plugin_diagnostics"], [])
                 rendered = render_to_string("global_includes/_plugin_diagnostics.html", context)
                 self.assertNotIn("hidden_plugin", rendered)
                 self.assertNotIn("plugin-startup-diagnostics", rendered)
+        get_diagnostics.assert_not_called()
 
-    def test_diagnostic_is_visible_and_html_escaped(self):
+    def test_role_matrix_grant_shows_diagnostic_to_non_superuser_and_escapes_html(self):
+        from organization.forms.role_form import RoleForm
+
+        form = RoleForm(
+            data={
+                "name": "Plugin diagnostics operators",
+                "description": "",
+                "perm_core_view_plugin_diagnostics": True,
+            },
+            user=self.tenant_admin,
+            tenant=self.tenant,
+        )
+        self.assertIn("perm_core_view_plugin_diagnostics", form.fields)
+        self.assertTrue(form.is_valid(), form.errors)
+        role = form.save()
+        self.assertIn(self.permission, role.permissions)
+        role_grant = self.grant(self.tenant_user, self.tenant, role)
+
         diagnostic = {
             "plugin": "unsafe_plugin",
             "failure_class": "ValueError",
@@ -614,9 +643,12 @@ class PluginDiagnosticsSurfaceTest(SimpleTestCase):
             "value_present": True,
             "error": escape("bad <script>alert('secret')</script>"),
         }
-        with self.settings(PLUGINS_DIAGNOSTICS=[diagnostic]):
-            context = plugin_diagnostics_processor(_request_for(is_superuser=True))
-            rendered = render_to_string("global_includes/_plugin_diagnostics.html", context)
+        self.assertFalse(self.tenant_user.is_superuser)
+        with self.tenant_context(self.tenant, role_grant.membership):
+            self.assertTrue(self.tenant_user.has_perm(self.permission))
+            with patch("itambox.context_processors.get_plugin_diagnostics", return_value=[diagnostic]):
+                context = plugin_diagnostics_processor(types.SimpleNamespace(user=self.tenant_user))
+                rendered = render_to_string("global_includes/_plugin_diagnostics.html", context)
 
         self.assertIn("unsafe_plugin", rendered)
         self.assertNotIn("plugin-api-experimental-warning", rendered)
@@ -625,6 +657,17 @@ class PluginDiagnosticsSurfaceTest(SimpleTestCase):
         self.assertIn("disabled", rendered)
         self.assertIn("&lt;script&gt;", rendered)
         self.assertNotIn("<script>", rendered)
+
+    def test_superusers_can_still_view_diagnostics(self):
+        diagnostic = {"plugin": "operator_plugin", "failure_class": "ValueError"}
+        with self.tenant_context(self.tenant):
+            self.assertTrue(self.tenant_admin.has_perm(self.permission))
+            with patch("itambox.context_processors.get_plugin_diagnostics", return_value=[diagnostic]):
+                context = plugin_diagnostics_processor(types.SimpleNamespace(user=self.tenant_admin))
+                rendered = render_to_string("global_includes/_plugin_diagnostics.html", context)
+
+        self.assertIn("operator_plugin", rendered)
+        self.assertIn("plugin-startup-diagnostics", rendered)
 
 
 class PluginAssemblyTestCase(SimpleTestCase):

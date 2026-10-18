@@ -37,7 +37,6 @@ from importlib import import_module
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
-from django.db.models import Q
 from django.test import TestCase
 from django.urls import reverse
 
@@ -147,23 +146,19 @@ class RoleFormCustomPermissionExposureTests(TenantTestMixin, TestCase):
         self.assertIn("perm_compliance_export_custodyreceipt", form.fields)
 
     def test_role_editor_covers_every_non_crud_permission(self):
-        # The "never a gap again" gate: the derived list equals the live
-        # non-CRUD permission table (everything declared via Meta.permissions).
+        # Every live permission except a model's actual default CRUD codenames
+        # must be offered, including custom permissions that happen to start
+        # with a CRUD action (for example core.view_plugin_diagnostics).
+        actions = ("view", "add", "change", "delete")
+        permissions = Permission.objects.select_related("content_type")
         expected = {
-            f"{app_label}.{codename}"
-            for app_label, codename in (
-                Permission.objects.select_related("content_type")
-                .filter(
-                    ~Q(codename__startswith="view_"),
-                    ~Q(codename__startswith="add_"),
-                    ~Q(codename__startswith="change_"),
-                    ~Q(codename__startswith="delete_"),
-                )
-                .values_list("content_type__app_label", "codename")
-            )
+            f"{permission.content_type.app_label}.{permission.codename}"
+            for permission in permissions
+            if permission.codename not in {f"{action}_{permission.content_type.model}" for action in actions}
         }
         offered = {full for _field_key, _label, full in role_form_module.get_custom_permissions()}
         self.assertEqual(offered, expected)
+        self.assertIn("core.view_plugin_diagnostics", offered)
 
     def test_custom_permission_grant_persists_full_codename(self):
         # Granting a custom permission through the form stores the full

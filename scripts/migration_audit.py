@@ -41,6 +41,7 @@ POST_TRANSITION_MIGRATIONS = {
     "compliance.0105_custodyhandoffdelivery",
     "compliance.0106_remove_custodyreceipt_accepted",
     "compliance.0107_custodyreceipt_assignment_superseded",
+    "core.0101_plugin_diagnostics_permission",
     "extras.0101_issue88_drop_legacy_webhook_name_like",
     "extras.0102_alter_event_action",
     "extras.0103_remove_reporttemplate_advanced_mode_and_more",

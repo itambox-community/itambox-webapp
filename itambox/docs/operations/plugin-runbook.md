@@ -112,6 +112,15 @@ Removing a plugin does not delete its tables, `ContentType` rows, or changelog r
    skipped for a version incompatibility. It is informational and never fails
    the probe: a process that answers has a consistent plugin set.
 
+### Grant access to the in-product diagnostics notice
+
+The startup diagnostics notice is visible to authenticated users holding
+`core.view_plugin_diagnostics`. To grant access, create or edit a role in
+**Organization > Roles & Permissions**, select **Can view plugin diagnostics**
+under custom permissions, save the role, and assign it to the intended operator.
+Superusers retain access automatically. This permission only controls the
+in-product notice; plugin activation and recovery remain deployment operations.
+
 A plugin that cannot be imported, is malformed, or raises while composing aborts startup with a message naming the plugin and the phase; remove it from `ITAMBOX_PLUGINS` and restart to recover. The one skip case is a version incompatibility: a plugin whose `itambox_range` excludes the running release is skipped with a warning and shown in `manage.py plugins`.
 
 ## Disable or remove a plugin

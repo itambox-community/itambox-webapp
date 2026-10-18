@@ -275,7 +275,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
         self.assertEqual(len(manifest["historical_ids"]), 262)
         self.assertEqual(len(manifest["replacement_ids"]), 62)
         self.assertEqual(len(manifest["replacement_target_ids"]), 262)
-        self.assertEqual(len(manifest["post_transition_ids"]), 72)
+        self.assertEqual(len(manifest["post_transition_ids"]), 73)
         self.assertTrue(
             {
                 "assets.0127_core_vocabulary_german_translations",
@@ -286,6 +286,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
                 "assets.0118_assetdisposal_cancellation_reason_and_more",
                 "assets.0121_supplier_scoping_and_commercial_fields",
                 "assets.0122_repair_maintenance_anchor",
+                "core.0101_plugin_diagnostics_permission",
                 "extras.0114_asset_type_definition_library_schema",
                 "extras.0115_asset_type_definition_conversion",
                 "extras.0116_asset_type_definition_cutover",
@@ -300,6 +301,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
             [
                 "assets.0127_core_vocabulary_german_translations",
                 "compliance.0107_custodyreceipt_assignment_superseded",
+                "core.0101_plugin_diagnostics_permission",
                 "inventory.0105_remove_accessory_inventory_accessory_unique_manufacturer_name_and_more",
                 "procurement.0103_remove_fulfillmentlink_unique_request_po_line_link_and_more",
                 "software.0101_asset_archive_leaf_markers",
