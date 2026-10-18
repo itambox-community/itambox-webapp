@@ -472,7 +472,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.missing_ids, ())
         self.assertEqual(result.counts["post_transition_observed"], 45)
-        self.assertEqual(result.counts["post_transition_expected"], 71)
+        self.assertEqual(result.counts["post_transition_expected"], 73)
         # Migration is still required: only the ordinary executor may run.
         self.assertIn("v1.0.0-beta.3", result.remediation)
         self.assertIn("ordinary migration executor", result.remediation)
@@ -493,7 +493,7 @@ class MigrationBaselineManifestTests(SimpleTestCase):
         # introduce is a partially upgraded / version-skipping attempt.
         manifest = load_manifest()
         later_rows = sorted(set(manifest["post_transition_ids"]) - set(BETA3_POST_TRANSITION_IDS))
-        self.assertEqual(len(later_rows), 26)
+        self.assertEqual(len(later_rows), 28)
         applied = _beta3_recorder(manifest, post_transition_ids=[*BETA3_POST_TRANSITION_IDS, *later_rows[:12]])
         self.assertEqual(len(applied), 381)
 
