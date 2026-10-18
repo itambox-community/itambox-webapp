@@ -92,3 +92,63 @@ docker exec itambox-dev-pg psql -U itambox -d postgres -v ON_ERROR_STOP=1 \
 ## Acceptance envelope
 
 Do not set latency ceilings in advance. First run beta.4 and preserve its exact per-path sample distributions and query counts. Then define and document the candidate envelope from the measured baseline and observed run-to-run variability; do not substitute guessed performance numbers. Query-count ceilings are exactly the beta.4 list, filtered-list, and detail counts, with no increase accepted. If a candidate path falls outside the documented latency envelope or a query ceiling, file a separate sanitized defect issue with the measurements before claiming qualification.
+
+---
+
+## HTTP performance benchmark (`bench.py`)
+
+`scripts/perf/bench.py` is development tooling only. It measures the application over authenticated HTTP; the query-count mode is separate and explicitly is not latency. A full run requires a disposable PostgreSQL database named `perf_qual_*`, Django development settings, a benchmark manifest from the dataset seeder, and a benchmark principal with the required read/import permissions.
+
+Credentials are read only from environment variables:
+
+- `ITAMBOX_BENCH_USERNAME`
+- `ITAMBOX_BENCH_PASSWORD`
+
+Do not put credentials in command arguments or commit local environment files. The harness never copies credential values to JSON, Markdown, or error output.
+
+### Full run
+
+Run from the repository root. The application server and qcluster must already be running against the same disposable database. `--workers` records the Gunicorn worker count used by the target. `--qcluster-workers` must match Django's configured qcluster worker count when supplied. Concurrency defaults to 1. Import and queue paths write test data, so they require both a loopback target and `--confirm-disposable`.
+
+```sh
+export ITAMBOX_ENV=dev
+export DJANGO_SETTINGS_MODULE=core.settings.dev
+export ITAMBOX_DB_NAME=perf_qual_smoke
+# Supply ITAMBOX_BENCH_USERNAME and ITAMBOX_BENCH_PASSWORD from the local secret store.
+uv run --locked --group dev python scripts/perf/bench.py \
+  --manifest artifacts/perf-manifest.json \
+  --base-url http://127.0.0.1:8010 \
+  --workers 3 --qcluster-workers 2 \
+  --confirm-disposable
+```
+
+The default base URL is `https://qual.itambox.dev`. Read-only-only runs may target qual with `--paths`; they still require Django development settings and a PostgreSQL manifest database name that matches the configured connection, but do not require the runner's DB host to be loopback because they do not write to it. Use `--base-url http://127.0.0.1:8010` for a loopback-only disposable stack; write paths are intentionally refused for non-loopback hosts. Read-only paths can be selected explicitly, for example:
+
+```sh
+uv run --locked --group dev python scripts/perf/bench.py \
+  --manifest artifacts/perf-manifest.json \
+  --base-url http://127.0.0.1:8010 \
+  --paths asset_list_first_page asset_detail global_search \
+  --workers 3
+```
+
+The default workload reports each of these separately: asset list first page, filtered asset list, asset detail, global search, REST asset list, GraphQL list, GraphQL detail, a 1,000-row CSV import, and qcluster batch throughput. HTTP paths use `--iterations` measured runs after discarded `--warmups`; import and qcluster use their own `--import-repeats` / `--queue-repeats` and the same warmup count. The qcluster batch size is set by `--queue-tasks` (default 1,000). Every result includes p50, p95, p99, raw samples, HTTP request count, error count, concurrency, and per-path iteration/warmup counts. Login setup request count is reported separately. Import rows/second and qcluster tasks/second are reported separately. Qcluster tasks are enqueued through Django-Q's async API and drained by qcluster; its HTTP request count is therefore zero, not a missing measurement.
+
+The raw JSON is written to `artifacts/perf-results.json` by default and a sibling Markdown table to `artifacts/perf-results.md`. The Markdown table is also printed to stdout. Override the JSON path with `--output`; the matching `.md` path is derived from it.
+
+### SQL query counts (not latency)
+
+This mode uses Django's in-process test client and `CaptureQueriesContext`; it is not an HTTP latency measurement. It reports SQL counts separately for the first asset page, filtered asset page, and asset detail. It requires the same disposable database/manifest and only the benchmark username; no password is used.
+
+```sh
+uv run --locked --group dev python scripts/perf/bench.py \
+  --manifest artifacts/perf-manifest.json \
+  --count-queries \
+  --output artifacts/perf-query-counts.json
+```
+
+Both the JSON `mode` field and Markdown heading say `QUERY COUNTS, NOT LATENCY`. The query-count output does not include p50/p95/p99 values.
+
+### Manifest contract
+
+The JSON manifest must contain a `benchmark` object with `asset_id`, `tenant_group_id`, `filtered_q`, `search_term`, `import_tenant_id`, `asset_type_id`, and `status_id`. It may also provide `asset_tag_prefix`, `filtered_result_text`, `detail_result_text`, and `search_result_text`; the defaults are the labels emitted by the target-volume seeder. If the manifest contains `database`, it must match `ITAMBOX_DB_NAME`.
