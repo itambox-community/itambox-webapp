@@ -38,6 +38,11 @@
         "PluginNavigationItem",
         "PluginNavigationMenu"
       ],
+      "itambox.plugins.testing": [
+        "PluginReport",
+        "PluginVerificationError",
+        "verify_plugins"
+      ],
       "itambox.plugins.views": [
         "PluginTemplateContent"
       ]
@@ -67,8 +72,11 @@
       "PluginConfig.viewsets",
       "PluginNavigationItem",
       "PluginNavigationMenu",
+      "PluginReport",
       "PluginTemplateContent",
+      "PluginVerificationError",
       "get_plugin_config",
+      "verify_plugins",
       "ITAMBoxModelViewSet",
       "ITAMBoxReadOnlyModelViewSet",
       "urls.py"

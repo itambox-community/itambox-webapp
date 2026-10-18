@@ -15,6 +15,8 @@ from pathlib import Path
 
 from django.test import SimpleTestCase
 
+from itambox.plugins.testing import PluginVerificationError, verify_plugins
+
 FIXTURES = Path(__file__).resolve().parent / "plugin_fixtures"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -123,6 +125,10 @@ def probe_payload(completed):
 
 
 class PluginStartupFixtureTests(SimpleTestCase):
+    def test_fixture_plugin_passes_the_published_test_helper(self):
+        report = verify_plugins("fixture_plugin", pythonpath=[FIXTURES])
+        self.assertEqual(report.active, ("fixture_plugin",))
+
     def test_fixture_plugin_loads_through_django_setup(self):
         completed = boot("fixture_plugin", HEALTHY_PROBE)
         self.assertEqual(completed.returncode, 0, completed.stderr)
@@ -145,6 +151,12 @@ class PluginStartupFixtureTests(SimpleTestCase):
         self.assertEqual(payload["api_actions"].get("post"), "create")
 
     def assert_aborts(self, plugin, phase, detail=None):
+        with self.assertRaises(PluginVerificationError) as raised:
+            verify_plugins(plugin, pythonpath=[FIXTURES])
+        self.assertEqual((raised.exception.plugin, raised.exception.phase), (plugin, phase))
+        if detail:
+            self.assertIn(detail, str(raised.exception))
+        # The abort itself is still proven through the real startup path.
         completed = boot(plugin)
         self.assertNotEqual(completed.returncode, 0, "startup should have aborted:\n" + completed.stdout)
         self.assertIn("PluginStartupError", completed.stderr)
