@@ -544,6 +544,81 @@ def _user_scope_tenant_ids(user):
     return set()
 
 
+def scope_user_queryset(queryset, user, *, tenant_ids=None):
+    """Narrow a ``User`` queryset to the workspace scope of ``user``.
+
+    The one place that decides whether a principal may see a user record at
+    all. ``User`` is the odd model out in this codebase: a person holds
+    memberships in several tenants, so there is no single owning tenant for the
+    row and neither the scoped managers' ``filter_by_tenant()`` nor
+    ``has_perm(..., obj=user)`` can narrow it — both would fall back to the
+    ambient tenant. Visibility is therefore derived from memberships, which is
+    the same rule the list view has always applied.
+    """
+    if user.is_superuser:
+        return queryset
+    if tenant_ids is None:
+        tenant_ids = _user_scope_tenant_ids(user)
+    return queryset.filter(memberships__tenant__in=tenant_ids).distinct()
+
+
+def _shared_membership_tenant_ids(target, tenant_ids):
+    """Ids from ``tenant_ids`` in which ``target`` actually holds a membership."""
+    return set(target.memberships.filter(tenant_id__in=tenant_ids).values_list("tenant_id", flat=True))
+
+
+class UserObjectScopeMixin:
+    """The tenant boundary every single-object ``User`` view shares.
+
+    Two halves, both needed because ``User`` carries no ``tenant`` field:
+
+    * ``get_queryset`` narrows the row set to the principal's workspace scope,
+      so an out-of-scope pk 404s exactly like any other tenant-scoped object
+      view (a 403 would confirm that the row exists);
+    * ``has_permission`` anchors the permission check at a tenant inside that
+      scope in which the target really holds a membership. Passing the target
+      user to ``has_perms`` cannot do this: the backend resolves the tenant
+      from ``obj.tenant``, finds none, and silently checks the actor's own
+      tenant instead.
+
+    A create form (no pk) has no target to anchor at and keeps the base
+    behaviour.
+    """
+
+    def get_scope_tenant_ids(self):
+        if not hasattr(self, "_scope_tenant_ids"):
+            self._scope_tenant_ids = _user_scope_tenant_ids(self.request.user)
+        return self._scope_tenant_ids
+
+    def get_queryset(self):
+        return scope_user_queryset(
+            super().get_queryset(),
+            self.request.user,
+            tenant_ids=self.get_scope_tenant_ids(),
+        )
+
+    def get_permission_target(self):
+        """The user record this request acts on, or ``None`` for a create form."""
+        if not (self.kwargs.get("pk") or self.kwargs.get("slug")):
+            return None
+        return self.get_object()
+
+    def has_permission(self):
+        if not super().has_permission():
+            return False
+        target = self.get_permission_target()
+        if target is None or self.request.user.is_superuser:
+            return True
+        perms = self.get_permission_required()
+        shared_ids = _shared_membership_tenant_ids(target, self.get_scope_tenant_ids())
+        if not shared_ids:
+            return False
+        return any(
+            self.request.user.has_perms(perms, obj=tenant)
+            for tenant in Tenant.objects.filter(pk__in=shared_ids, deleted_at__isnull=True)
+        )
+
+
 class UserListView(ObjectListView):
     queryset = User.objects.all()
     filterset = UserFilterSet
@@ -552,10 +627,7 @@ class UserListView(ObjectListView):
     action_buttons = ("add",)
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        if self.request.user.is_superuser:
-            return qs
-        return qs.filter(memberships__tenant__in=_user_scope_tenant_ids(self.request.user)).distinct()
+        return scope_user_queryset(super().get_queryset(), self.request.user)
 
 
 class UserBulkEditView(ObjectBulkEditView):
@@ -569,9 +641,7 @@ class UserBulkEditView(ObjectBulkEditView):
 
     def _get_queryset(self, pks, *, with_tenant=False):
         qs = super()._get_queryset(pks, with_tenant=with_tenant)
-        if self.request.user.is_superuser:
-            return qs
-        return qs.filter(memberships__tenant__in=_user_scope_tenant_ids(self.request.user)).distinct()
+        return scope_user_queryset(qs, self.request.user)
 
     def post(self, request, *args, **kwargs):
         pks = request.POST.getlist("pk")
@@ -646,7 +716,7 @@ class UserBulkEditView(ObjectBulkEditView):
         }
 
 
-class UserDetailView(ObjectDetailView):
+class UserDetailView(UserObjectScopeMixin, ObjectDetailView):
     queryset = User.objects.prefetch_related(
         "memberships__tenant",
         "memberships__role_grants__role",
@@ -654,18 +724,12 @@ class UserDetailView(ObjectDetailView):
     )
     template_name = "users/user_detail.html"
 
-    def has_permission(self):
-        return self.request.user.has_perms(self.get_permission_required())
 
-
-class UserEditView(ObjectEditView):
+class UserEditView(UserObjectScopeMixin, ObjectEditView):
     queryset = User.objects.all()
     model = User
     model_form = UserForm
     template_name = "generic/object_edit.html"
-
-    def has_permission(self):
-        return self.request.user.has_perms(self.get_permission_required())
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -673,14 +737,11 @@ class UserEditView(ObjectEditView):
         return kwargs
 
 
-class UserDeleteView(ObjectDeleteView):
+class UserDeleteView(UserObjectScopeMixin, ObjectDeleteView):
     queryset = User.objects.all()
     model = User
     template_name = "generic/object_confirm_delete.html"
     success_url = reverse_lazy("users:user_list")
-
-    def has_permission(self):
-        return self.request.user.has_perms(self.get_permission_required())
 
     def post(self, request, *args, **kwargs):
         user_to_delete = self.get_object()

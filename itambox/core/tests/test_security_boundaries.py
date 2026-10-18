@@ -303,3 +303,76 @@ class MultiRoleSecurityBoundaryTestCase(TestCase):
         su = User.objects.create_superuser(username="mrsb_su", password="pass")
         self.assertTrue(su.has_perm("assets.view_asset"))
         self.assertTrue(su.has_perm("assets.view_asset", obj=self.asset_b))
+
+
+# ---------------------------------------------------------------------------
+# Security boundary tests for the user object views (detail / edit / delete)
+# ---------------------------------------------------------------------------
+
+
+class UserObjectViewTenantBoundaryTestCase(TestCase):
+    """The tenant boundary of the user object views, pinned at the boundary layer.
+
+    ``User`` has no ``tenant`` field, so the generic tenant scoping (queryset
+    managers, ``has_perm(..., obj=...)``) cannot narrow a user row: both resolve
+    the tenant from ``obj.tenant``, find none, and fall back to the ambient
+    tenant. The user object views therefore carry their own membership-derived
+    boundary; this class pins it next to the other cross-tenant invariants.
+    The exhaustive matrix lives in ``users/tests/test_user_object_scope.py``.
+    """
+
+    def setUp(self):
+        self.tenant_a = Tenant.objects.create(name="UOV-A", slug="uov-a")
+        self.tenant_b = Tenant.objects.create(name="UOV-B", slug="uov-b")
+
+        self.operator = User.objects.create_user(username="uov_operator", password="password123")
+        self.role_a = Role.objects.create(
+            tenant=self.tenant_a,
+            name="UOV-User-Admin-A",
+            permissions=["users.view_user", "users.change_user", "users.delete_user"],
+        )
+        grant(self.operator, self.tenant_a, self.role_a)
+
+        self.target_a = User.objects.create_user(username="uov_target_a", password="password123")
+        grant(self.target_a, self.tenant_a, self.role_a)
+
+        self.target_b = User.objects.create_user(username="uov_target_b", password="password123")
+        self.role_b = Role.objects.create(tenant=self.tenant_b, name="UOV-No-Rights-B", permissions=[])
+        grant(self.target_b, self.tenant_b, self.role_b)
+
+    def _login(self, user, tenant):
+        self.client.force_login(user)
+        session = self.client.session
+        session["active_tenant_id"] = tenant.pk
+        session.save()
+
+    def test_cross_tenant_user_objects_are_not_reachable(self):
+        self._login(self.operator, self.tenant_a)
+        # The objectless gate passes on the strength of tenant A alone.
+        self.assertTrue(self.operator.has_perm("users.view_user"))
+        self.assertTrue(self.operator.has_perm("users.change_user"))
+
+        self.assertEqual(
+            self.client.get(reverse("users:user_detail", kwargs={"pk": self.target_b.pk})).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(reverse("users:user_update", kwargs={"pk": self.target_b.pk})).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(reverse("users:user_delete", kwargs={"pk": self.target_b.pk}), {}).status_code,
+            404,
+        )
+        self.assertTrue(User.objects.filter(pk=self.target_b.pk).exists())
+
+    def test_same_tenant_user_object_stays_reachable(self):
+        self._login(self.operator, self.tenant_a)
+        self.assertEqual(
+            self.client.get(reverse("users:user_detail", kwargs={"pk": self.target_a.pk})).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(reverse("users:user_update", kwargs={"pk": self.target_a.pk})).status_code,
+            200,
+        )

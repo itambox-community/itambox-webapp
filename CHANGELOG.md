@@ -14,6 +14,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - GraphQL list and detail queries for accessories, consumables, kits, components and licenses now follow the session scope, so a tenant-group or all-accessible session returns the same objects as the REST API instead of only tenantless rows.
 - Plugins are configured through `ITAMBOX_PLUGINS_CONFIG` (JSON keyed by plugin package) with per-key environment overrides `ITAMBOX_PLUGIN_<NAME>_<KEY>` for secrets, validated against the new `settings_schema` manifest attribute. `settings_schema` replaces `default_settings` and `required_settings`, which a plugin may no longer declare; unknown keys, missing required keys, wrong types and values outside `choices` abort startup with a message naming the plugin and the key, and keys flagged `secret` never appear in logs, diagnostics or errors. This includes the message of a startup error raised by plugin code and secret values of any length, including numbers.
 
+### Security
+- The user detail, edit and delete pages now enforce the workspace tenant boundary. A non-superuser reaches only users who hold a membership in a tenant of their current workspace scope, exactly as the user list already did, and the permission is evaluated in a tenant the target user is actually a member of rather than in the actor's own tenant; a pk outside the scope answers 404. A password on an existing account is a global credential and is now restricted to superusers, like the staff, superuser and login-capability flags next to it, so it can no longer be reset through that page by a tenant-scoped role; creating a new account keeps its provisioning password.
+
 ## [1.0.0-beta.4] - 2026-10-13
 
 ### Added
