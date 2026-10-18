@@ -17,6 +17,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Security
 - The user detail, edit and delete pages now enforce the workspace tenant boundary. A non-superuser reaches only users who hold a membership in a tenant of their current workspace scope, exactly as the user list already did, and the permission is evaluated in a tenant the target user is actually a member of rather than in the actor's own tenant; a pk outside the scope answers 404. A password on an existing account is a global credential and is now restricted to superusers, like the staff, superuser and login-capability flags next to it, so it can no longer be reset through that page by a tenant-scoped role; creating a new account keeps its provisioning password.
 
+### Fixed
+- `manage.py migration_baseline_preflight` now recognizes the release's declared supported upgrade origin `v1.0.0-beta.3`. The checked manifest declares its exact recorder state as a third supported predecessor (`supported-predecessor-beta3`: the 262 replaced historical identities, the 62 replacement shards, and that release's own 45 post-transition rows), so an upgrade from `v1.0.0-beta.3` no longer stops as `partial-post-transition-state` / `POST_TRANSITION_INCOMPLETE` before the ordinary migration executor runs. Recognition still requires the exact predecessor recorder rows: a partial set, a set with rows from later releases, a missing replacement shard, and unknown first-party rows all remain fail-closed. No schema change and no migration.
+
 ## [1.0.0-beta.4] - 2026-10-13
 
 ### Added

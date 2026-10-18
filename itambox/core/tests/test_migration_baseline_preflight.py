@@ -23,6 +23,71 @@ from core.migration_preflight import (
     recorder_unavailable_result,
 )
 
+# Frozen recorder state of the declared upgrade origin `v1.0.0-beta.3`
+# (revision c159636a1f723e490e509e15a9b1814b5e475fbc). It is copied verbatim from
+# that release's checked manifest (`post_transition_ids`), which is what the
+# release itself classifies as its current normalized baseline. The 25 rows that
+# `v1.0.0-beta.4` adds and the one row added afterwards are deliberately absent.
+BETA3_POST_TRANSITION_IDS = (
+    "assets.0101_seed_canonical_missing_status",
+    "assets.0102_asset_type_composition_schema",
+    "assets.0103_asset_type_specification_conversion",
+    "assets.0104_asset_type_core_vocabulary",
+    "assets.0105_asset_type_provenance_capture",
+    "assets.0106_asset_type_composition_cutover",
+    "assets.0107_asset_type_specification_guards",
+    "assets.0118_assetdisposal_cancellation_reason_and_more",
+    "assets.0119_warranty_supplier",
+    "assets.0120_repair_episode",
+    "assets.0121_supplier_scoping_and_commercial_fields",
+    "compliance.0101_alter_custodyreceipt_signed_at",
+    "compliance.0102_clear_unsigned_receipt_timestamps",
+    "compliance.0103_alter_custodyreceipt_options",
+    "compliance.0104_custodysigningsession",
+    "compliance.0105_custodyhandoffdelivery",
+    "extras.0101_issue88_drop_legacy_webhook_name_like",
+    "extras.0102_alter_event_action",
+    "extras.0103_remove_reporttemplate_advanced_mode_and_more",
+    "extras.0104_issue183_alert_tenant_reconciliation",
+    "extras.0105_reporttemplate_advanced_mode_and_more",
+    "extras.0106_scheduledreportscopeauthorization",
+    "extras.0107_scheduledreportscopeauthorization_revocation",
+    "extras.0108_alertlog_delivery_outcome",
+    "extras.0109_webhookdelivery",
+    "extras.0110_issue445_task_paths",
+    "extras.0111_webhookdelivery_target_claim",
+    "extras.0112_backfill_webhookdelivery_targets",
+    "extras.0113_upgrade_legacy_webhook_retry_schedules",
+    "extras.0114_asset_type_definition_library_schema",
+    "extras.0115_asset_type_definition_conversion",
+    "extras.0116_asset_type_definition_cutover",
+    "extras.0117_asset_type_definition_guards",
+    "extras.0122_journalentry_tenant_group",
+    "inventory.0101_alter_accessoryassignment_options_and_more",
+    "organization.0101_membership_external_id_and_more",
+    "organization.0102_alter_tenantresourcegrant_options",
+    "organization.0103_tenant_resource_grant_expiry",
+    "procurement.0101_alter_purchaseorder_options",
+    "subscriptions.0101_remove_subscription_auto_renewal_and_more",
+    "subscriptions.0102_commercial_vendor_and_terms",
+    "subscriptions.0103_unified_vendor_cutover",
+    "users.0101_user_scim_id_usergroup_external_id_usergroup_scim_id_and_more",
+    "users.0102_token_updated_at",
+    "users.0103_oidcidentity",
+)
+
+
+def _beta3_predecessor(manifest):
+    return next(predecessor for predecessor in manifest["recognized_states"] if predecessor["name"] == "v1.0.0-beta.3")
+
+
+def _beta3_recorder(manifest, *, post_transition_ids=None):
+    """Recorder rows of a database that is exactly at the declared origin."""
+
+    rows = set(manifest["historical_ids"]) | set(manifest["replacement_ids"])
+    rows |= set(BETA3_POST_TRANSITION_IDS if post_transition_ids is None else post_transition_ids)
+    return rows
+
 
 def _manifest(*, layout="transitional"):
     historical_ids = ["assets.0001_initial", "assets.0002_second"]
@@ -347,7 +412,11 @@ class MigrationBaselineManifestTests(SimpleTestCase):
 
     def test_checked_manifest_declares_the_measured_predecessor_recognition_shapes(self):
         manifest = load_manifest()
-        pre_squash, transition = manifest["recognized_states"]
+        self.assertEqual(
+            [predecessor["name"] for predecessor in manifest["recognized_states"]],
+            ["issue88-pre-squash", "issue88-transition-release", "v1.0.0-beta.3"],
+        )
+        pre_squash, transition, _beta3 = manifest["recognized_states"]
 
         self.assertEqual(pre_squash["name"], "issue88-pre-squash")
         self.assertEqual(pre_squash["recognition"]["state"], "supported-predecessor-pre-squash")
@@ -361,6 +430,108 @@ class MigrationBaselineManifestTests(SimpleTestCase):
             transition["recognition"]["post_transition_ids"],
             ["extras.0101_issue88_drop_legacy_webhook_name_like"],
         )
+
+    def test_checked_manifest_declares_the_declared_upgrade_origin_as_a_predecessor(self):
+        manifest = load_manifest()
+        beta3 = _beta3_predecessor(manifest)
+
+        # v1.0.0-beta.3 is the release's documented supported upgrade origin.
+        self.assertEqual(beta3["revision"], "c159636a1f723e490e509e15a9b1814b5e475fbc")
+        self.assertEqual(beta3["state"], "complete-replacement-recognition")
+        self.assertEqual(beta3["recognition"]["state"], "supported-predecessor-beta3")
+        self.assertEqual(beta3["recognition"]["replacement"], "complete")
+        # The declared set is the complete recorder state of that release, not a count
+        # and not a subset of the current post-transition graph.
+        self.assertEqual(tuple(beta3["recognition"]["post_transition_ids"]), BETA3_POST_TRANSITION_IDS)
+        self.assertLess(set(BETA3_POST_TRANSITION_IDS), set(manifest["post_transition_ids"]))
+        # The release's own leaves are part of its recorder state.
+        self.assertTrue(
+            {
+                "compliance.0105_custodyhandoffdelivery",
+                "inventory.0101_alter_accessoryassignment_options_and_more",
+                "organization.0103_tenant_resource_grant_expiry",
+                "procurement.0101_alter_purchaseorder_options",
+                "subscriptions.0103_unified_vendor_cutover",
+                "users.0103_oidcidentity",
+            }.issubset(set(BETA3_POST_TRANSITION_IDS))
+        )
+
+    def test_checked_manifest_recognizes_the_declared_upgrade_origin_recorder_shape(self):
+        # A database at v1.0.0-beta.3 records the 262 replaced historical identities,
+        # the 62 replacement shards and that release's own 45 post-transition rows
+        # (369 rows in total). Django records the replaced identities for a squashed
+        # migration, so a fresh install at that revision has the same recorder state.
+        manifest = load_manifest()
+        applied = _beta3_recorder(manifest)
+        self.assertEqual(len(applied), 369)
+
+        result = classify_applied_migrations(applied, manifest)
+
+        self.assertEqual(result.state, "supported-predecessor-beta3")
+        self.assertEqual(result.reason_code, "SUPPORTED_PREDECESSOR_BETA3")
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.missing_ids, ())
+        self.assertEqual(result.counts["post_transition_observed"], 45)
+        self.assertEqual(result.counts["post_transition_expected"], 71)
+        # Migration is still required: only the ordinary executor may run.
+        self.assertIn("v1.0.0-beta.3", result.remediation)
+        self.assertIn("ordinary migration executor", result.remediation)
+
+    def test_checked_manifest_rejects_a_partial_declared_origin_set(self):
+        manifest = load_manifest()
+        applied = _beta3_recorder(manifest, post_transition_ids=BETA3_POST_TRANSITION_IDS[:-1])
+
+        result = classify_applied_migrations(applied, manifest)
+
+        self.assertEqual(result.state, "partial-post-transition-state")
+        self.assertEqual(result.reason_code, "POST_TRANSITION_INCOMPLETE")
+        self.assertEqual(result.exit_code, 1)
+        self.assertFalse(result.state.startswith("supported-predecessor"))
+
+    def test_checked_manifest_rejects_a_skipped_release_state(self):
+        # The declared origin plus a handful of the rows that only later releases
+        # introduce is a partially upgraded / version-skipping attempt.
+        manifest = load_manifest()
+        later_rows = sorted(set(manifest["post_transition_ids"]) - set(BETA3_POST_TRANSITION_IDS))
+        self.assertEqual(len(later_rows), 26)
+        applied = _beta3_recorder(manifest, post_transition_ids=[*BETA3_POST_TRANSITION_IDS, *later_rows[:12]])
+        self.assertEqual(len(applied), 381)
+
+        result = classify_applied_migrations(applied, manifest)
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertFalse(result.state.startswith("supported-predecessor"))
+
+    def test_checked_manifest_rejects_the_declared_origin_with_a_missing_replacement_shard(self):
+        manifest = load_manifest()
+        applied = _beta3_recorder(manifest) - {manifest["replacement_ids"][0]}
+
+        result = classify_applied_migrations(applied, manifest)
+
+        self.assertEqual(result.state, "mixed-or-unknown-first-party-state")
+        self.assertEqual(result.reason_code, "POST_TRANSITION_WITHOUT_BASELINE")
+        self.assertEqual(result.exit_code, 1)
+
+    def test_checked_manifest_rejects_the_declared_origin_rows_without_the_replacement_layer(self):
+        manifest = load_manifest()
+        applied = set(manifest["historical_ids"]) | set(BETA3_POST_TRANSITION_IDS)
+
+        result = classify_applied_migrations(applied, manifest)
+
+        self.assertEqual(result.state, "mixed-or-unknown-first-party-state")
+        self.assertEqual(result.reason_code, "POST_TRANSITION_WITHOUT_BASELINE")
+        self.assertEqual(result.exit_code, 1)
+
+    def test_checked_manifest_rejects_an_unknown_row_on_the_declared_origin(self):
+        manifest = load_manifest()
+        applied = _beta3_recorder(manifest) | {"assets.9999_unknown"}
+
+        result = classify_applied_migrations(applied, manifest)
+
+        self.assertEqual(result.state, "mixed-or-unknown-first-party-state")
+        self.assertEqual(result.reason_code, "UNKNOWN_FIRST_PARTY_MIGRATION")
+        self.assertEqual(result.unexpected_ids, ("assets.9999_unknown",))
+        self.assertEqual(result.exit_code, 1)
 
     def test_checked_manifest_rejects_a_partial_predecessor_replacement_set(self):
         manifest = load_manifest()
@@ -494,6 +665,24 @@ class MigrationBaselineCommandTests(SimpleTestCase):
         rendered = stdout.getvalue().lower()
         for forbidden in ("password", "database_url", "secret", "token"):
             self.assertNotIn(forbidden, rendered)
+
+    def test_command_reports_the_declared_upgrade_origin_as_supported(self):
+        manifest = load_manifest()
+        applied = {(item.split(".", 1)[0], item.split(".", 1)[1]) for item in _beta3_recorder(manifest)}
+        stdout = io.StringIO()
+        with patch("core.management.commands.migration_baseline_preflight.MigrationRecorder") as recorder_cls:
+            recorder = recorder_cls.return_value
+            recorder.has_table.return_value = True
+            recorder.applied_migrations.return_value = applied
+            call_command("migration_baseline_preflight", format="json", stdout=stdout)
+            recorder.record_applied.assert_not_called()
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["state"], "supported-predecessor-beta3")
+        self.assertEqual(payload["reason_code"], "SUPPORTED_PREDECESSOR_BETA3")
+        self.assertEqual(payload["exit_code"], 0)
+        self.assertEqual(payload["counts"]["post_transition_observed"], 45)
+        self.assertIn("ordinary", payload["remediation"])
 
     def test_command_rejects_unsupported_state_with_safe_remediation(self):
         stdout = io.StringIO()

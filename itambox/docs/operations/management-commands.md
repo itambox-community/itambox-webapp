@@ -269,11 +269,12 @@ application data.
 | **When to use** | Before a migration cleanup or recovery retry, after a successful ordinary migration run, and in the CI fresh-database qualification. |
 
 The checked manifest recognizes these states: the current normalized baseline,
-the two supported predecessor states (`supported-predecessor-pre-squash`,
-`supported-predecessor-transition-release`), a partial normalized baseline
+the supported predecessor states (`supported-predecessor-pre-squash`,
+`supported-predecessor-transition-release`, and `supported-predecessor-beta3`
+for the declared upgrade origin `v1.0.0-beta.3`), a partial normalized baseline
 (replacement rows missing), an incomplete post-transition state,
 empty/unmigrated databases, and mixed or unknown first-party rows. The current
-baseline and the two recognized supported predecessor states return exit code
+baseline and the recognized supported predecessor states return exit code
 `0`; predecessor states are recognized as safe to upgrade and still require the
 ordinary migration executor, and every other state returns a non-zero status
 with a safe reason code and remediation text.
