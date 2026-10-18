@@ -232,11 +232,12 @@ recognized shapes:
 - `current-normalized-baseline`: all replacement rows, their complete
   historical recognition set, and every current post-transition leaf are
   present; no migration action is required.
-- `supported-predecessor-pre-squash` and
-  `supported-predecessor-transition-release`: the recorder is exactly at one of
-  the two supported predecessor states declared in the checked manifest. The
-  database is recognized and safe to upgrade with the ordinary migration
-  executor; the migration itself is still required.
+- A supported predecessor state declared in the checked manifest — currently
+  `supported-predecessor-pre-squash`, `supported-predecessor-transition-release`
+  and the declared upgrade origin `v1.0.0-beta.3`
+  (`supported-predecessor-beta3`): the recorder is exactly at that predecessor
+  state. The database is recognized and safe to upgrade with the ordinary
+  migration executor; the migration itself is still required.
 
 A non-zero result is a stop condition. It distinguishes a partial normalized
 baseline (for example a database that never ran the replacement layer, or only
@@ -256,12 +257,12 @@ fresh schema/protected-canary comparisons before retrying.
 This prerelease still supports no arbitrary version skipping. The supported
 starting points for a release are the previously tagged release — the supported
 upgrade-origin chain begins at `v1.0.0-beta.2`, and each release's changelog
-states its declared origin — and, in addition, the two predecessor revisions
+states its declared origin — and, in addition, the predecessor revisions
 recorded in the checked manifest (`recognized_states`): the pre-squash
-revision and the transition release. Databases created by transitional
-development states of the #479 work are explicitly not supported; the executor
-fails closed with a clear recorder inconsistency instead of rewriting their
-history.
+revision, the transition release, and each declared upgrade origin (currently
+`v1.0.0-beta.3`). Databases created by transitional development states of the
+#479 work are explicitly not supported; the executor fails closed with a clear
+recorder inconsistency instead of rewriting their history.
 
 ## Source-built Compose update
 
