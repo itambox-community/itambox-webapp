@@ -545,7 +545,11 @@ The following commands have dedicated documentation pages or are covered in deta
 | `import_snipeit` | [Migrate from Snipe-IT](../integration/migrate-from-snipe-it.md) |
 | `sync_intune` | [Discovery & Sync](../integration/discovery-sync.md) |
 | `prune_changelog` | [Data Retention](data-retention.md) |
-| `seed_data` | [Installation](installation.md) — development/demo only; **never run against production** |
+| `seed_data` | [Installation](installation.md) — `python manage.py seed_data`, development/demo only; **never run against production** |
+| `bind_oidc_identity` | [Upgrades](upgrades.md) — binds an external identity to an existing local user |
+| `eventrule_withdrawn_report` | [Webhooks and automation](../usage/webhooks-and-automation.md) — reports active event rules whose conditions are withdrawn for 1.0 |
+| `plugins` | [Plugin runbook](plugin-runbook.md) — plugin inventory, plus `--check` for a startup pre-flight |
+| `restore_resource_grant` | [Resource-grant expiry](resource-grant-expiry.md) — restores one revoked grant with a corrected or cleared deadline |
 
 ---
 

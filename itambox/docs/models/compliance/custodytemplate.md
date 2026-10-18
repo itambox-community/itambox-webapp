@@ -19,7 +19,7 @@ Templates may be scoped to a tenant, a tenant group, or globally. Checkout selec
 | **Name** | Descriptive name for this template (e.g. *Standard Laptop EULA*). | String | Yes |
 | **QMS Reference** | Reference ID mapping to an internal Quality Management System document. | String | No |
 | **Require Acceptance** | If checked, checkout creates a pending receipt; it does not delay checkout or assignment until signature. | Boolean | Yes |
-| **Signature Provider** | The service handling the signature process (e.g., `local` for on-platform canvas, or plugin integrations like `docusign`). | String | Yes |
+| **Signature Provider** | The service handling the signature process: `local` for the on-platform canvas, or a provider registered by a plugin. | String | Yes |
 | **Tenant** | The specific Tenant scope that this template applies to. | Foreign Key | No |
 | **Tenant Group** | The Tenant Group scope that this template applies to. | Foreign Key | No |
 

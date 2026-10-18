@@ -3,7 +3,7 @@
 This page collects the deployment-facing security controls an operator
 configures, verifies, and maintains. Feature-specific guidance lives in the
 linked pages; here you find the operational overview. The standalone
-[SECURITY.md](https://github.com/itambox/itambox-webapp/blob/main/SECURITY.md)
+[SECURITY.md](https://github.com/itambox-community/itambox-webapp/blob/main/SECURITY.md)
 covers vulnerability reporting — **do not report vulnerabilities through
 public GitHub issues**; contact [security@itambox.dev](mailto:security@itambox.dev).
 
@@ -130,6 +130,28 @@ that protection is only as good as the key handling around it:
   the live database does not retroactively protect a backup taken before the
   prune (see [Data Retention](../operations/data-retention.md)).
 
+## Application-defined permission codenames
+
+Tenant role permissions store identifiers as `app_label.codename`. The
+following explicit custom permissions are defined by ITAMbox; standard Django
+model permissions are separate. These identifiers name the permission, not a
+blanket grant: the corresponding operation still applies its tenant, object,
+and workflow authorization checks.
+
+| Codename | Meaning |
+|---|---|
+| `assets.add_delegated_assetrequest` | Request assets on behalf of others |
+| `assets.approve_assetrequest` | Approve asset requests |
+| `assets.fulfill_assetrequest` | Fulfill or claim asset requests |
+| `assets.dispose_asset` | Record asset disposal or end-of-life |
+| `compliance.prepare_custodyreceipt` | Prepare custody-receipt signing sessions |
+| `compliance.export_custodyreceipt` | Export custody receipts |
+| `core.view_recyclebin` | View the Recycle Bin |
+| `core.change_recyclebin` | Restore from the Recycle Bin |
+| `core.delete_recyclebin` | Purge from the Recycle Bin |
+| `procurement.approve_purchaseorder` | Approve or submit a purchase order |
+| `procurement.receive_purchaseorder` | Receive stock from a purchase order |
+
 ## Plugin trust model
 
 Plugins are **trusted, unsandboxed, in-process Python/Django code**: enabling
@@ -141,7 +163,7 @@ anything.
 
 ## Security reporting
 
-Follow [SECURITY.md](https://github.com/itambox/itambox-webapp/blob/main/SECURITY.md):
+Follow [SECURITY.md](https://github.com/itambox-community/itambox-webapp/blob/main/SECURITY.md):
 report privately through [security@itambox.dev](mailto:security@itambox.dev)
 with the subject prefix `[ITAMbox Security]`, or via GitHub Private
 Vulnerability Reporting — never through public issues. The latest published

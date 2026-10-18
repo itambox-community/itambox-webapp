@@ -42,7 +42,7 @@ the [release image policy](release-image-policy.md).
 ## 1. Clone and pin the source
 
 ```bash
-git clone https://github.com/itambox/itambox-webapp.git
+git clone https://github.com/itambox-community/itambox-webapp.git
 cd itambox-webapp
 DEPLOY_REVISION='full-reviewed-commit-sha'
 git checkout --detach "$DEPLOY_REVISION"
@@ -303,18 +303,6 @@ Each variable accepts a JSON object keyed by tenant slug. These configure per-te
 
 ---
 
-#### 2.2.17 DocuSign e-signature integration
-
-Used by the optional `itambox_esign` plugin for digital signature workflows on custody receipts and other documents.
-
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `DOCUSIGN_INTEGRATION_KEY` | Conditional | *(empty)* | DocuSign integration key (client ID) from the DocuSign Admin console. Required if using the e-signature plugin. |
-| `DOCUSIGN_USER_ID` | Conditional | *(empty)* | DocuSign user ID (GUID) of the impersonated system user. Required if using the e-signature plugin. |
-| `DOCUSIGN_ACCOUNT_ID` | Conditional | *(empty)* | DocuSign account ID. Required if using the e-signature plugin. |
-| `DOCUSIGN_RSA_PRIVATE_KEY` | Conditional | *(empty)* | RSA private key for JWT assertion authentication with DocuSign. Must be the full PEM-encoded key including `-----BEGIN RSA PRIVATE KEY-----` and footer. Required if using the e-signature plugin. |
-| `DOCUSIGN_SANDBOX` | Optional | `True` | Use DocuSign demo/sandbox environment (`account-d.docusign.com`) instead of production (`account.docusign.com`). Set to `False` before processing real signatures. |
-
 ## 3. Build and initialize
 
 ```bash
@@ -325,7 +313,12 @@ docker compose run --rm app python manage.py createsuperuser
 
 The image builds frontend assets and runs `collectstatic`; WhiteNoise serves those assets from the application image. A separate static-file volume or web-server mapping is not required by the included stack.
 
-Do not run the full `seed_data` command against production. Its demo dataset contains public credentials and, without `--skip-drop`, clears domain data. Use the development evaluation path instead.
+Do not run `python manage.py seed_data` against production. Its demo dataset
+contains public credentials and, without `--skip-drop`, clears domain data. For
+an isolated development/demo run only, `ITAMBOX_SEED_PASSWORD` overrides the
+password assigned to seeded demo users. Set any local value outside version
+control and never reuse it in production. `--skip-drop` avoids the data-clear
+path but does not make demo seed credentials suitable for production.
 
 !!! warning "PostgreSQL `btree_gist` extension required"
     Migration `assets.0051` creates the `btree_gist` extension for reservation overlap constraints. The bundled PostgreSQL role can create it. For a managed or least-privilege external database, create the extension as an administrator before running migrations:

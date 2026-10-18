@@ -80,9 +80,11 @@ python manage.py capabilities
   [Capability Maturity](capability-maturity.md).
 - **`error` state** — the capability's probe could not run (for example the
   database is unreachable); the exception *type* is shown, never the message.
-- **Plugin missing or failed** — see the plugin diagnostics banner in the UI
-  and `python manage.py plugins`; a failed plugin is disabled without blocking
-  Stable core ([plugin runbook](plugin-runbook.md)).
+- **Plugin version mismatch or startup failure** — a version-incompatible
+  plugin is skipped; a missing package, invalid configuration, or other
+  startup failure aborts the process. Run `python manage.py plugins --check`
+  in the same image and configuration before restart; see the
+  [plugin runbook](plugin-runbook.md).
 
 ## 4. Data inconsistencies or suspected cross-tenant issues
 
@@ -151,5 +153,5 @@ proposed for repair as `TenantResourceGrant` payloads via `--proposals`.
 - Cross-check the data model page for the affected object (context-sensitive
   help in the UI) and the [management commands](management-commands.md)
   reference.
-- Ask in [GitHub Discussions](https://github.com/itambox/itambox-webapp/discussions)
+- Ask in [GitHub Discussions](https://github.com/itambox-community/itambox-webapp/discussions)
   with sanitized logs — never paste secrets, tokens, or real hostnames.

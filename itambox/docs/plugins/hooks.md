@@ -25,15 +25,15 @@ Inherit from `itambox.plugins.views.PluginTemplateContent` and override any of t
 
 ### Example Template Injector
 
-Create `itambox_esign/template_content.py`:
+Create `example_esign/template_content.py`:
 
 ```python
 from django.utils.html import format_html
 from itambox.plugins.views import PluginTemplateContent
 
-class AssetDocuSignContent(PluginTemplateContent):
+class AssetEsignContent(PluginTemplateContent):
     def head(self):
-        return '<link rel="stylesheet" href="/static/itambox_esign/esign.css">'
+        return '<link rel="stylesheet" href="/static/example_esign/esign.css">'
 
     def left_panel(self):
         asset = self.context['object']
@@ -41,7 +41,7 @@ class AssetDocuSignContent(PluginTemplateContent):
         # application-authored HTML structure as safe.
         return format_html(
             '<div class="card mb-3">'
-            '<div class="card-header"><h3 class="card-title">DocuSign Status</h3></div>'
+            '<div class="card-header"><h3 class="card-title">E-Signature Status</h3></div>'
             '<div class="card-body">No pending envelopes for {}.</div>'
             '</div>',
             asset.name,
@@ -54,7 +54,7 @@ escape every value derived from an asset, user, or other data with
 interpolate data into an f-string or mark an interpolated string safe: doing so
 can inject attacker-controlled HTML into the page.
 
-Declare the model on the class (`models = ['assets.asset']`) and export `template_extensions = [AssetDocuSignContent]` from `template_content.py`; the host registers it.
+Declare the model on the class (`models = ['assets.asset']`) and export `template_extensions = [AssetEsignContent]` from `template_content.py`; the host registers it.
 
 ---
 
@@ -65,7 +65,7 @@ Plugins can register menu items and custom menus to display on the ITAMbox sideb
 ### Menus and Items
 
 - `PluginNavigationItem`: Represents an individual navigation link.
-  - `link` (str): Reversed URL name (e.g. `'plugins:itambox_esign:dashboard'`) or a raw URL path starting with `/`.
+  - `link` (str): Reversed URL name (e.g. `'plugins:example_esign:dashboard'`) or a raw URL path starting with `/`.
   - `link_text` (str): Visual text shown in the sidebar.
   - `permissions` (tuple): Required permissions to view.
   - `auth_required` (bool): If True, only logged-in users see it.
@@ -77,21 +77,21 @@ Plugins can register menu items and custom menus to display on the ITAMbox sideb
 
 ### Example Menu Definition
 
-Create `itambox_esign/navigation.py`:
+Create `example_esign/navigation.py`:
 
 ```python
 from itambox.plugins.navigation import PluginNavigationMenu, PluginNavigationItem
 
 class EsignNavigationItem(PluginNavigationItem):
-    link = 'plugins:itambox_esign:dashboard'
-    link_text = 'DocuSign Envelopes'
+    link = 'plugins:example_esign:dashboard'
+    link_text = 'Signed Envelopes'
 
 class EsignGroup:
     label = 'E-Signature'
     items = (EsignNavigationItem,)
 
 class EsignNavigationMenu(PluginNavigationMenu):
-    label = 'DocuSign'
+    label = 'E-Signature'
     icon_class = 'mdi mdi-file-sign'
     groups = (EsignGroup,)
 ```
@@ -106,32 +106,45 @@ To serve web pages, define views in `views.py` and register URL routes in `urls.
 
 ### Example Routing
 
-Create `itambox_esign/urls.py`:
+Create `example_esign/urls.py`:
 
 ```python
 from django.urls import path
-from .views import DocuSignDashboardView
+from .views import EsignDashboardView
 
-app_name = 'itambox_esign'
+app_name = 'example_esign'
 
 urlpatterns = [
-    path('dashboard/', DocuSignDashboardView.as_view(), name='dashboard'),
+    path('dashboard/', EsignDashboardView.as_view(), name='dashboard'),
 ]
 ```
 
-These views are dynamically mounted under `/plugins/itambox_esign/` and can be reversed in views/templates as `plugins:itambox_esign:dashboard`.
+These views are dynamically mounted under `/plugins/example_esign/` and can be reversed in views/templates as `plugins:example_esign:dashboard`.
 
 ---
 
-## 4. REST API Routing
+## 4. REST API resources
 
-Plugins can register Django REST Framework (DRF) viewsets directly into the central router.
+Plugin viewsets are declared resources; plugins do not register routes directly
+with ITAMbox's central router. Export a `viewsets` list from `api/viewsets.py`,
+or point `PluginConfig.viewsets` at that attribute:
 
-### Example Viewset
+```python
+viewsets = [
+    ('audit-records', 'example_plugin.api.views.AuditRecordViewSet'),
+]
+```
 
-Export `viewsets = [('', DocuSignViewSet, 'itambox_esign')]` from `api/viewsets.py` (viewsets derive from the core API viewset base).
+Each viewset must derive from `ITAMBoxModelViewSet` or
+`ITAMBoxReadOnlyModelViewSet`. The host owns route mounting, authentication,
+permission checks, schema generation, and tenant-scoping lifecycle; plugin
+viewsets cannot override its reserved request and authorization methods.
 
-This viewset is mounted at `/api/plugins/itambox_esign/`.
+Declare plugin-owned models through `PluginConfig.permission_targets` (or the
+conventional `permissions.py` `targets` attribute), for example
+`['example_plugin.auditrecord']`. The host validates ownership and registers
+the model's permission targets for role configuration. See the normative
+[Plugin API Reference](api_reference.md) for the supported declarations.
 
 ---
 
@@ -141,22 +154,22 @@ To extend the GraphQL schema, set `graphql_schema` in your config class and defi
 
 ### Example Schema
 
-Create `itambox_esign/graphql/schema.py`:
+Create `example_esign/graphql/schema.py`:
 
 ```python
 import strawberry
 
 
 @strawberry.type
-class DocuSignStatusType:
+class EsignStatusType:
     status: str
 
 
 @strawberry.type
 class Query:
     @strawberry.field
-    def docusign_status(self) -> DocuSignStatusType:
-        return DocuSignStatusType(status="Sent")
+    def esign_status(self) -> EsignStatusType:
+        return EsignStatusType(status="Sent")
 ```
 
 ITAMbox merges this query alongside all core GraphQL queries at startup. An import error, a `Mutation` type or an invalid type aborts startup naming the plugin.

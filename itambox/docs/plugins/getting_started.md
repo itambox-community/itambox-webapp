@@ -29,11 +29,13 @@ ITAMbox has a bounded Experimental plugin system. Plugins are ordinary Django ap
 
 The supported ITAMbox-owned surface is intentionally small:
 
-- **Plugin metadata and settings** through the documented `PluginConfig` attributes.
-- **UI routes** through the optional package `urls.py` URLconf mounted below the plugin base URL.
-- **REST viewsets, menus, menu items, and template content** through the four documented registry extension points.
-- **GraphQL** through `PluginConfig.graphql_schema`.
-- **Middleware and auxiliary Django apps** through the documented configuration attributes.
+- **Plugin settings** use `PluginConfig.settings_schema`, operator JSON in `ITAMBOX_PLUGINS_CONFIG`, and per-key secret overrides in `ITAMBOX_PLUGIN_<NAME>_<KEY>`.
+- **REST resources** are declared through `PluginConfig.viewsets` (or the conventional `api/viewsets.py` module) and must use the host-owned ITAMbox viewset bases.
+- **Model permission targets** are declared through `PluginConfig.permission_targets` (or the conventional `permissions.py` module) and must name models owned by that plugin.
+- **UI routes** use the optional package `urls.py` URLconf mounted below the plugin base URL.
+- **Menus, menu items, and template content** use the documented `PluginConfig` attributes or conventional modules.
+- **GraphQL** uses `PluginConfig.graphql_schema` for query fields only; plugin mutation contributions are rejected.
+- **Middleware and auxiliary Django apps** use the documented configuration attributes.
 
 A plugin may contain other Django/Python code, including models, but those internals are not additional ITAMbox API guarantees. The package layout below is illustrative; only the symbols and paths named in the [API Reference](api_reference.md) are supported.
 
@@ -47,9 +49,11 @@ example_plugin/
 ├── graphql/
 │   ├── __init__.py
 │   └── schema.py         # GraphQL schema extension (optional)
-└── api/
-    ├── __init__.py
-    └── views.py          # REST API viewsets (optional)
+├── api/
+│   ├── __init__.py
+│   ├── viewsets.py       # viewsets declaration (optional)
+│   └── views.py          # REST viewset classes (optional)
+└── permissions.py       # targets declaration (optional)
 ```
 
 ---
@@ -70,17 +74,18 @@ class ExamplePluginConfig(PluginConfig):
     author = 'Example Dev Team'
     author_email = 'dev@example.test'
     description = 'Example integration for assets'
-    itambox_range = '>=1.1,<1.2'  # supported ITAMbox major.minor range
+    itambox_range = '>=1.0,<1.1'  # example range for the current 1.0 line
 
     settings_schema = {
         'api_key': {'type': 'str', 'required': True, 'secret': True},
         'sandbox': {'type': 'bool', 'default': True},
     }
+    viewsets = 'example_plugin.api.viewsets.viewsets'
+    permission_targets = 'example_plugin.permissions.targets'
 
     def ready(self):
         super().ready()
-        # Resources (template extensions, menu, viewsets, GraphQL) are declared
-        # on the config or in conventional modules; the host registers them.
+        # The host validates and registers declared resources before ready().
 
 config = ExamplePluginConfig
 ```
@@ -115,14 +120,24 @@ Installing or enabling a plugin is therefore equivalent to installing trusted
 Python code. There is no capability sandbox, signature verification, or
 per-tenant activation.
 
-Activation happens only at startup. If a configured plugin is missing,
-incompatible, malformed, or raises while composing its hooks, ITAMbox disables
-that plugin, keeps Stable core and other valid plugins running, and publishes a
-redacted diagnostic in the UI and through `python manage.py plugins`. A failed
-plugin contributes no routes, middleware, REST router, GraphQL schema, menu, or
-template hook.
+Activation happens only at startup. A plugin whose declared `itambox_range`
+excludes the running ITAMbox release is skipped with a warning; the application
+starts without that plugin. A missing package, import or manifest error, invalid
+configuration, or failure during composition, `ready()`, or assembly aborts
+startup; ITAMbox does not keep serving core with the failed plugin silently
+disabled.
 
-"Disabled" has a precise meaning. A plugin that fails import, configuration or compatibility checks is skipped before Django app population: its `django_apps`, its middleware and its `PluginConfig` are not added to the running application, so it loads no models, no migrations and no app-level signal receivers. Its package `__init__.py` is still imported during that check, so module-level code in it runs. A plugin that fails in `ready()` is different: that failure happens after app population, so models or signal receivers that were registered before the exception may remain loaded. The diagnostic in the UI and `python manage.py plugins` tells you which stage failed.
+Before restarting, run `python manage.py plugins --check` in the same image and
+configuration. It runs the startup preflight in a child process and exits nonzero
+when the application would abort. The ordinary `python manage.py plugins`
+inventory is available when the application settings load successfully. See
+the [plugin removal and recovery runbook](../operations/plugin-runbook.md).
+
+"Skipped" specifically means version incompatibility: the plugin is not
+activated or added to `INSTALLED_APPS`, and its declared resources are not
+registered. Other startup failures abort the process. A failure in `ready()`
+happens after Django app population, so it is not a safe plugin-disable or
+rollback mechanism; use the preflight and recovery procedure instead.
 
 Removal and reinstall are manual operations. Removing a name from
 `PLUGINS`/`ITAMBOX_PLUGINS` does not remove database tables, ContentTypes,
