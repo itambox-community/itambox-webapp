@@ -54,8 +54,12 @@ def base_template_processor(request):
 
 
 def plugin_diagnostics_processor(request):
-    """Expose startup-failure rows to users with the operator diagnostics permission."""
+    """Expose startup-failure rows for the in-product notice, to operators only.
+
+    TODO(F9): replace the superuser check with a dedicated operator permission
+    (``core.view_plugin_diagnostics``) once the plugin-foundation design lands it.
+    """
     user = getattr(request, "user", None)
-    if user is None or not user.is_authenticated or not user.has_perm("core.view_plugin_diagnostics"):
+    if not (user is not None and user.is_authenticated and user.is_superuser):
         return {"plugin_diagnostics": []}
     return {"plugin_diagnostics": get_plugin_diagnostics()}
