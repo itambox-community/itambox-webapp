@@ -35,10 +35,21 @@ from django.utils import timezone  # noqa: E402
 from assets.choices import StatusTypeChoices  # noqa: E402
 from assets.models import Asset, AssetType, Manufacturer, StatusLabel  # noqa: E402
 from extras.models import CustomField, JournalEntry  # noqa: E402
-from organization.models import AssetHolder, Location, Site, Tenant, TenantGroup  # noqa: E402
+from organization.models import (  # noqa: E402
+    AssetHolder,
+    Location,
+    Membership,
+    Role,
+    RoleGrant,
+    RoleGrantScope,
+    Site,
+    Tenant,
+    TenantGroup,
+)
 from scripts.perf.safety import require_local_database  # noqa: E402
 
 BATCH_SIZE = 2_000
+BENCHMARK_READER_ROLE = "Perf 882 Group Reader"
 
 
 class ReferenceData(TypedDict):
@@ -53,6 +64,13 @@ class ReferenceData(TypedDict):
     tenant_count: int
     holder_count: int
     custom_field_count: int
+    provider_tenant_count: int
+    managed_tenant_count: int
+    benchmark_membership_count: int
+    benchmark_role_count: int
+    benchmark_role_grant_count: int
+    benchmark_role_scope_count: int
+    benchmark_group_scope_count: int
 
 
 def parse_args() -> argparse.Namespace:
@@ -111,7 +129,31 @@ def create_admin(username: str) -> Any:
     )
 
 
-def create_reference_data(tenant_count: int, holder_count: int, asset_count: int) -> ReferenceData:
+def create_benchmark_authorization(user: Any, group: TenantGroup, tenants: list[Tenant]) -> None:
+    provider = tenants[0]
+    provider.is_provider = True
+    Tenant._base_manager.filter(pk=provider.pk).update(is_provider=True)
+    Tenant._base_manager.filter(pk__in=[tenant.pk for tenant in tenants[1:]]).update(managed_by_id=provider.pk)
+    membership = Membership.objects.create(user=user, tenant=provider)
+    role = Role.objects.create(
+        tenant=provider,
+        name=BENCHMARK_READER_ROLE,
+        permissions=["assets.view_asset"],
+    )
+    grant = RoleGrant.objects.create(
+        membership=membership,
+        role=role,
+        reason="Synthetic performance benchmark read scope",
+    )
+    RoleGrantScope.objects.create(role_grant=grant, scope_type=RoleGrantScope.SCOPE_OWN)
+    RoleGrantScope.objects.create(
+        role_grant=grant,
+        scope_type=RoleGrantScope.SCOPE_TENANT_GROUP,
+        tenant_group=group,
+    )
+
+
+def create_reference_data(user: Any, tenant_count: int, holder_count: int, asset_count: int) -> ReferenceData:
     group = TenantGroup.objects.create(name="Perf 882 Target", slug="perf-882-target")
     tenants = Tenant._base_manager.bulk_create(
         [
@@ -121,6 +163,7 @@ def create_reference_data(tenant_count: int, holder_count: int, asset_count: int
         batch_size=BATCH_SIZE,
     )
     tenant_ids = [tenant.pk for tenant in tenants]
+    create_benchmark_authorization(user, group, tenants)
 
     sites = Site._base_manager.bulk_create(
         [
@@ -224,6 +267,13 @@ def create_reference_data(tenant_count: int, holder_count: int, asset_count: int
         "tenant_count": tenant_count,
         "holder_count": holder_count,
         "custom_field_count": len(custom_fields),
+        "provider_tenant_count": 1,
+        "managed_tenant_count": tenant_count - 1,
+        "benchmark_membership_count": 1,
+        "benchmark_role_count": 1,
+        "benchmark_role_grant_count": 1,
+        "benchmark_role_scope_count": 2,
+        "benchmark_group_scope_count": 1,
     }
 
 
@@ -307,6 +357,13 @@ def build_manifest(
             "asset_holders": holder_count,
             "tenants": references["tenant_count"],
             "tenant_groups": 1,
+            "provider_tenants": references["provider_tenant_count"],
+            "managed_tenants": references["managed_tenant_count"],
+            "benchmark_memberships": references["benchmark_membership_count"],
+            "benchmark_roles": references["benchmark_role_count"],
+            "benchmark_role_grants": references["benchmark_role_grant_count"],
+            "benchmark_role_grant_scopes": references["benchmark_role_scope_count"],
+            "benchmark_role_tenant_group_scopes": references["benchmark_group_scope_count"],
             "journal_entries": journal_count,
             "sites": references["tenant_count"],
             "locations": references["location_count"],
@@ -342,7 +399,7 @@ def main() -> int:
     journal_count = scaled_count(args.journals, args.scale)
     started = time.perf_counter()
     user = create_admin(args.username)
-    references = create_reference_data(tenant_count, holder_count, asset_count)
+    references = create_reference_data(user, tenant_count, holder_count, asset_count)
     # The relationship map and generated identities are deterministic for the seed.
     asset_ids, asset_tenants = create_assets(args.seed, asset_count, references)
     create_journal_entries(args.seed, journal_count, asset_ids, asset_tenants, user.pk)

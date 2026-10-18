@@ -50,7 +50,17 @@ from django_q.models import Task  # noqa: E402
 from assets.models import Asset, AssetType, Manufacturer  # noqa: E402
 from core.models import Job  # noqa: E402
 from extras.models import CustomField, JournalEntry  # noqa: E402
-from organization.models import AssetHolder, Location, Site, Tenant, TenantGroup  # noqa: E402
+from organization.models import (  # noqa: E402
+    AssetHolder,
+    Location,
+    Membership,
+    Role,
+    RoleGrant,
+    RoleGrantScope,
+    Site,
+    Tenant,
+    TenantGroup,
+)
 from scripts.perf.safety import require_local_database, require_loopback_http_url  # noqa: E402
 
 
@@ -177,6 +187,11 @@ def source_identity(args: argparse.Namespace) -> tuple[str, str]:
 
 def verify_dataset(manifest: dict[str, Any], username: str) -> None:
     counts = manifest["counts"]
+    benchmark = manifest["benchmark"]
+    role_queryset = Role._base_manager.filter(
+        tenant_id=benchmark["tenant_id"],
+        name="Perf 882 Group Reader",
+    )
     custom_field_presence = Asset._base_manager.aggregate(
         department=Count("pk", filter=Q(custom_field_data__has_key="perf882_department")),
         service_band=Count("pk", filter=Q(custom_field_data__has_key="perf882_service_band")),
@@ -187,6 +202,29 @@ def verify_dataset(manifest: dict[str, Any], username: str) -> None:
         "asset_holders": AssetHolder._base_manager.count(),
         "tenants": Tenant._base_manager.count(),
         "tenant_groups": TenantGroup._base_manager.count(),
+        "provider_tenants": Tenant._base_manager.filter(
+            group_id=benchmark["tenant_group_id"], is_provider=True
+        ).count(),
+        "managed_tenants": Tenant._base_manager.filter(
+            group_id=benchmark["tenant_group_id"], managed_by_id=benchmark["tenant_id"]
+        ).count(),
+        "benchmark_memberships": Membership._base_manager.filter(
+            user__username=username, tenant_id=benchmark["tenant_id"]
+        ).count(),
+        "benchmark_roles": role_queryset.count(),
+        "benchmark_role_grants": RoleGrant._base_manager.filter(
+            membership__user__username=username, role__in=role_queryset
+        ).count(),
+        "benchmark_role_grant_scopes": RoleGrantScope._base_manager.filter(
+            role_grant__membership__user__username=username,
+            role_grant__role__in=role_queryset,
+        ).count(),
+        "benchmark_role_tenant_group_scopes": RoleGrantScope._base_manager.filter(
+            role_grant__membership__user__username=username,
+            role_grant__role__in=role_queryset,
+            scope_type=RoleGrantScope.SCOPE_TENANT_GROUP,
+            tenant_group_id=benchmark["tenant_group_id"],
+        ).count(),
         "journal_entries": JournalEntry._base_manager.count(),
         "sites": Site._base_manager.count(),
         "locations": Location._base_manager.count(),
@@ -200,8 +238,8 @@ def verify_dataset(manifest: dict[str, Any], username: str) -> None:
     }
     if mismatches:
         raise RuntimeError(f"target dataset count verification failed: {mismatches}")
-    user = get_user_model()._base_manager.filter(username=username, is_superuser=True).exists()
-    if not user:
+    user = get_user_model()._base_manager.filter(username=username, is_superuser=True).first()
+    if user is None:
         raise RuntimeError(f"benchmark superuser {username!r} is missing")
 
 
@@ -297,7 +335,7 @@ def collect_query_counts(manifest: dict[str, Any], username: str) -> dict[str, i
     result = {}
     for name, (path, expected_text) in paths.items():
         with CaptureQueriesContext(connection) as queries:
-            response = client.get(path)
+            response = client.get(path, HTTP_HOST="127.0.0.1")
         if response.status_code != 200:
             raise RuntimeError(f"query-count probe {name} returned HTTP {response.status_code}")
         if expected_text not in response.content.decode("utf-8", errors="replace"):

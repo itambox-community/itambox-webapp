@@ -10,14 +10,17 @@ import base64
 import ipaddress
 import json
 import uuid
+from functools import lru_cache
 from typing import Callable
 
-from django.contrib.auth import authenticate
-from django.core.wsgi import get_wsgi_application
 
-_django_application = get_wsgi_application()
+@lru_cache(maxsize=1)
+def _get_django_application():
+    # inline import: optional-dependency: the loopback denial probe must work without Django installed.
+    from django.core.wsgi import get_wsgi_application
 
-from django_q.tasks import async_task  # noqa: E402
+    return get_wsgi_application()
+
 
 _MAX_TASKS_PER_REQUEST = 10_000
 
@@ -50,6 +53,10 @@ def _authenticated_superuser(environ: dict):
         username, password = base64.b64decode(header[6:], validate=True).decode("utf-8").split(":", 1)
     except ValueError:
         return None
+    _get_django_application()
+    # inline import: app-registry: import only after get_wsgi_application initializes Django.
+    from django.contrib.auth import authenticate
+
     user = authenticate(None, username=username, password=password)
     return user if user and user.is_active and user.is_superuser else None
 
@@ -70,6 +77,9 @@ def _enqueue(environ: dict, start_response: Callable) -> list[bytes]:
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         return _respond(start_response, "400 Bad Request", {"error": "invalid task batch"})
 
+    # inline import: app-registry: import only after get_wsgi_application initializes Django.
+    from django_q.tasks import async_task
+
     batch_id = uuid.uuid4().hex[:12]
     task_ids = [
         async_task("operator.add", index, 1, task_name=f"perf-882-{batch_id}-{index:05d}") for index in range(count)
@@ -82,4 +92,4 @@ def application(environ: dict, start_response: Callable):
         return _respond(start_response, "403 Forbidden", {"error": "loopback access required"})
     if environ.get("PATH_INFO") == "/__perf__/enqueue":
         return _enqueue(environ, start_response)
-    return _django_application(environ, start_response)
+    return _get_django_application()(environ, start_response)

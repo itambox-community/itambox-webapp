@@ -8,12 +8,13 @@ The default seed creates exactly:
 
 - 100,000 assets
 - 2,000 AssetHolder profiles
-- 500 tenants in one tenant group
+- 500 tenants in one tenant group (one provider and 499 managed tenants)
+- One benchmark membership, read-only role, grant, and two grant scopes (provider-own plus tenant-group)
 - 250,000 journal entries
 - 500 sites, 1,000 locations, 25 manufacturers, 100 asset types
 - 3 global asset custom-field definitions and 300,000 populated custom-field values
 
-Synthetic keys, references, and relationships are deterministic for `--seed 882`. Assets span the 500-tenant group, so list, filter, detail, REST, GraphQL, and global-search probes execute with an explicit tenant-group scope. The generator uses PostgreSQL `bulk_create` in batches of 2,000 and refuses unless `--confirm-disposable` is present, the DB name begins `perf_qual_`, the backend is PostgreSQL, and the core tables are empty. After any partial failure, discard that database and retry with a new disposable name.
+Synthetic keys, references, and relationships are deterministic for `--seed 882`. The provider-own scope plus tenant-group scope authorizes all 500 tenants, including the provider itself, so list, filter, detail, REST, GraphQL, and global-search probes execute with a complete explicit tenant-group scope. The generator uses PostgreSQL `bulk_create` in batches of 2,000 and refuses unless `--confirm-disposable` is present, the DB name begins `perf_qual_`, the backend is PostgreSQL, and the core tables are empty. After any partial failure, discard that database and retry with a new disposable name.
 
 `--scale` is only for smoke testing. The manifest records `target_deviation` for any non-default count. Do not cite a scaled run as target-volume qualification.
 
