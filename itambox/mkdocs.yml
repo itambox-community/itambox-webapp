@@ -181,6 +181,7 @@ nav:
           - Getting Started: 'plugins/getting_started.md'
           - Extension Hooks: 'plugins/hooks.md'
           - Testing a Plugin: 'plugins/testing.md'
+          - Plugin Migrations: 'plugins/migrations.md'
   - Security: 'security/deployment-security.md'
   - API Reference:
       - REST & GraphQL: 'integration/developer_guide.md'
