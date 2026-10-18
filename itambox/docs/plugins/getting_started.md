@@ -23,6 +23,8 @@
 
 ITAMbox has a bounded Experimental plugin system. Plugins are ordinary Django apps that the host loads at startup and composes through a small set of documented extension points; the API is kept deliberately small so that it can be versioned and kept compatible. Read the [API Reference](api_reference.md) before writing a plugin. Anything not listed there is private/unstable.
 
+For how plugin database migrations relate to core migrations, and how to check pending plugin migrations, see [Plugin Migrations](migrations.md).
+
 ---
 
 ## What Can Plugins Do?

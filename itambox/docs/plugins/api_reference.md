@@ -155,7 +155,7 @@ Everything not explicitly listed in this document is private/unstable, including
 - `Registry` storage attributes, getters, reset/transaction helpers, and registration ownership internals;
 - direct mutation of registries, settings, URL patterns, GraphQL root types, or Django app registries;
 - undocumented plugin lifecycle ordering, install/uninstall/upgrade orchestration, runtime enable/disable, and per-tenant activation;
-- `PluginModel` and any model mixins unless a future API version lists them explicitly;
+- `PluginModel` and any model mixins unless a future API version lists them explicitly (see [Plugin Migrations](migrations.md) for the model and migration rules);
 - undocumented template context, navigation internals, API router internals, and middleware ordering beyond the declared `middleware` list;
 - package management, migration automation, orphan-data cleanup, sandboxing, capability restrictions, and signature verification.
 
