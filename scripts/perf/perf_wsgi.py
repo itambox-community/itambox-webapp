@@ -7,15 +7,18 @@ module. Bind it to loopback on a disposable qualification stack.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import uuid
 from typing import Callable
 
 from django.contrib.auth import authenticate
 from django.core.wsgi import get_wsgi_application
-from django_q.tasks import async_task
 
 _django_application = get_wsgi_application()
+
+from django_q.tasks import async_task  # noqa: E402
+
 _MAX_TASKS_PER_REQUEST = 10_000
 
 
@@ -30,6 +33,13 @@ def _respond(start_response: Callable, status: str, payload: dict) -> list[bytes
         ],
     )
     return [body]
+
+
+def _is_loopback_client(remote_addr: str) -> bool:
+    try:
+        return ipaddress.ip_address(remote_addr).is_loopback
+    except ValueError:
+        return False
 
 
 def _authenticated_superuser(environ: dict):
@@ -68,6 +78,8 @@ def _enqueue(environ: dict, start_response: Callable) -> list[bytes]:
 
 
 def application(environ: dict, start_response: Callable):
+    if not _is_loopback_client(str(environ.get("REMOTE_ADDR", ""))):
+        return _respond(start_response, "403 Forbidden", {"error": "loopback access required"})
     if environ.get("PATH_INFO") == "/__perf__/enqueue":
         return _enqueue(environ, start_response)
     return _django_application(environ, start_response)

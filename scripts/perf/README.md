@@ -1,6 +1,6 @@
 # Target-volume performance qualification (beta.4)
 
-This folder contains development-only performance tooling. It does not change application behavior. Run it only against an isolated PostgreSQL database and an application process bound to loopback on the dedicated Tyr dev/test host (or an equivalent disposable local stack). Never point it at the public demo or a production-like service.
+This folder contains development-only performance tooling. It does not change application behavior. Run it only against an isolated PostgreSQL database and an application process bound to loopback on the dedicated Tyr dev/test host (or an equivalent disposable local stack). The generator rejects non-dev settings and non-local database hosts; the HTTP harness rejects non-loopback URLs; and the WSGI wrapper rejects every non-loopback client, even if Gunicorn is accidentally bound to a public interface. Never point it at the public demo or a production-like service.
 
 ## Fixed workload
 

@@ -51,6 +51,7 @@ from assets.models import Asset, AssetType, Manufacturer  # noqa: E402
 from core.models import Job  # noqa: E402
 from extras.models import CustomField, JournalEntry  # noqa: E402
 from organization.models import AssetHolder, Location, Site, Tenant, TenantGroup  # noqa: E402
+from scripts.perf.safety import require_local_database, require_loopback_http_url  # noqa: E402
 
 
 class HttpSession:
@@ -131,6 +132,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--queue-tasks", type=int, default=1_000)
     parser.add_argument("--timeout-seconds", type=float, default=1_800)
     args = parser.parse_args()
+    try:
+        require_loopback_http_url(args.base_url)
+    except ValueError as error:
+        parser.error(str(error))
     if min(args.repeats, args.import_repeats, args.queue_repeats, args.import_rows, args.queue_tasks) < 1:
         parser.error("repeat and batch values must be positive")
     return args
@@ -145,6 +150,11 @@ def load_manifest(path: Path) -> dict[str, Any]:
         raise RuntimeError("manifest database name does not match the active Django database")
     if connection.vendor != "postgresql":
         raise RuntimeError("HTTP benchmark requires PostgreSQL")
+    if os.environ.get("ITAMBOX_ENV") != "dev":
+        raise RuntimeError("HTTP benchmark requires ITAMBOX_ENV=dev")
+    require_local_database(connection.settings_dict)
+    if not str(connection.settings_dict.get("NAME", "")).startswith("perf_qual_"):
+        raise RuntimeError("HTTP benchmark requires a database named with the 'perf_qual_' prefix")
     return manifest
 
 

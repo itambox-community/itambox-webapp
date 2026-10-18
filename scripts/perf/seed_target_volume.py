@@ -18,6 +18,7 @@ from typing import Any, TypedDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ITAMBOX_ROOT = REPO_ROOT / "itambox"
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(ITAMBOX_ROOT))
 os.environ.setdefault("ITAMBOX_ENV", "dev")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings.dev")
@@ -35,6 +36,7 @@ from assets.choices import StatusTypeChoices  # noqa: E402
 from assets.models import Asset, AssetType, Manufacturer, StatusLabel  # noqa: E402
 from extras.models import CustomField, JournalEntry  # noqa: E402
 from organization.models import AssetHolder, Location, Site, Tenant, TenantGroup  # noqa: E402
+from scripts.perf.safety import require_local_database  # noqa: E402
 
 BATCH_SIZE = 2_000
 
@@ -74,6 +76,9 @@ def require_disposable_database(confirmed: bool) -> str:
     database_name = str(connection.settings_dict.get("NAME", ""))
     if connection.vendor != "postgresql":
         raise RuntimeError("target-volume generation requires PostgreSQL")
+    if os.environ.get("ITAMBOX_ENV") != "dev":
+        raise RuntimeError("target-volume generation requires ITAMBOX_ENV=dev")
+    require_local_database(connection.settings_dict)
     if not confirmed:
         raise RuntimeError("refusing to write without --confirm-disposable")
     if not database_name.startswith("perf_qual_"):
