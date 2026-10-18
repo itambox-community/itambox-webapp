@@ -33,6 +33,9 @@ Pin the ITAMbox revision and the plugin revision together. The inventory behind 
 | `PluginNavigationItem` | Stable |
 | `PluginNavigationMenu` | Stable |
 | `PluginTemplateContent` | Stable |
+| `PluginReport` | Stable |
+| `PluginVerificationError` | Stable |
+| `verify_plugins` | Stable |
 | `get_plugin_config` | Stable |
 | `ITAMBoxModelViewSet` | Stable |
 | `ITAMBoxReadOnlyModelViewSet` | Stable |
@@ -139,6 +142,10 @@ A plugin package may also expose an optional `urls.py` module when `base_url` is
 ## GraphQL extension
 
 Set `graphql_schema` (or use `graphql/schema.py`) to a module exporting a Strawberry `Query`. Queries only: plugin mutations are not supported and abort startup. Plugin GraphQL is read-only; writes must be exposed through the host-owned REST viewset. Fields remain subject to the normal authentication, tenant, permission and operation-budget contracts.
+
+## Test helper
+
+`itambox.plugins.testing.verify_plugins` starts ITAMbox with your plugins and verifies every phase, raising `PluginVerificationError` (plugin and phase named) on failure. `PluginReport` is its result. All three are Stable; see [Testing a Plugin](testing.md).
 
 ## Private and unstable surface
 

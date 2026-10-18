@@ -124,6 +124,8 @@ template hook.
 
 "Disabled" has a precise meaning. A plugin that fails import, configuration or compatibility checks is skipped before Django app population: its `django_apps`, its middleware and its `PluginConfig` are not added to the running application, so it loads no models, no migrations and no app-level signal receivers. Its package `__init__.py` is still imported during that check, so module-level code in it runs. A plugin that fails in `ready()` is different: that failure happens after app population, so models or signal receivers that were registered before the exception may remain loaded. The diagnostic in the UI and `python manage.py plugins` tells you which stage failed.
 
+Verify a plugin against a real start with the [test helper](testing.md).
+
 Removal and reinstall are manual operations. Removing a name from
 `PLUGINS`/`ITAMBOX_PLUGINS` does not remove database tables, ContentTypes,
 changelog rows, or referencing configuration. ITAMbox 1.0 deliberately does

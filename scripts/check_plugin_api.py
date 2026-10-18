@@ -31,6 +31,7 @@ API_DOC = REPO_ROOT / "itambox" / "docs" / "plugins" / "api_reference.md"
 PUBLIC_MODULES = {
     "itambox.plugins": "__init__.py",
     "itambox.plugins.navigation": "navigation.py",
+    "itambox.plugins.testing": "testing.py",
     "itambox.plugins.views": "views.py",
 }
 
