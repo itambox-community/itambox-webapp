@@ -48,6 +48,10 @@ class BenchmarkError(RuntimeError):
 
 
 class HttpResponse:
+    """One HTTP response with its measured wall-clock time."""
+
+    __slots__ = ("body", "elapsed_ms", "final_url", "status")
+
     def __init__(self, status: int, final_url: str, body: str, elapsed_ms: float):
         self.status = status
         self.final_url = final_url
@@ -126,7 +130,7 @@ class HttpSession:
                 response_body,
                 (time.perf_counter() - started) * 1_000,
             )
-        except (urllib.error.URLError, TimeoutError, OSError) as error:
+        except OSError as error:
             self.error_count += 1
             if authentication_request:
                 self.login_request_count += 1
@@ -254,9 +258,11 @@ def setup_django() -> dict[str, Any]:
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings.dev")
     if os.environ.get("ITAMBOX_ENV") != "dev":
         raise BenchmarkError("benchmark tooling requires ITAMBOX_ENV=dev")
+    # inline import: app-registry: django itself is imported before django.setup() configures the app registry
     import django
 
     django.setup()
+    # inline import: app-registry: framework modules may only be imported after django.setup() ran
     from django.conf import settings
     from django.contrib.auth import get_user_model
     from django.db import connection
@@ -266,6 +272,7 @@ def setup_django() -> dict[str, Any]:
     from django_q.models import Task
     from django_q.tasks import async_task
 
+    # inline import: app-registry: application models may only be imported after django.setup() ran
     from assets.models import Asset
     from core.models import Job
 
@@ -447,6 +454,81 @@ def validate_response(response: HttpResponse, name: str, expected_text: str, res
         raise BenchmarkError(f"{name} did not return the expected benchmark data")
 
 
+class _ScenarioRunner:
+    """Run one scenario's warmup and measured phases and accumulate its totals."""
+
+    __slots__ = ("action", "concurrency", "error_types", "samples", "sessions", "totals", "uses_http")
+
+    def __init__(
+        self,
+        action: Callable[[HttpSession], float],
+        sessions: list[HttpSession],
+        *,
+        concurrency: int,
+        uses_http: bool,
+    ) -> None:
+        self.action = action
+        self.sessions = sessions
+        self.concurrency = concurrency
+        self.uses_http = uses_http
+        self.totals = {"request_count": 0, "error_count": 0, "warmup_request_count": 0, "measured_request_count": 0}
+        self.samples: list[float] = []
+        self.error_types: dict[str, int] = {}
+
+    def run_phase(self, count: int, *, measured: bool) -> None:
+        if count == 0:
+            return
+        work = [
+            (self.sessions[worker], [index for index in range(count) if index % self.concurrency == worker])
+            for worker in range(self.concurrency)
+        ]
+        with ThreadPoolExecutor(max_workers=self.concurrency) as pool:
+            phase_results = list(pool.map(self.run_worker, work))
+        for worker_results in phase_results:
+            self.accumulate(worker_results, measured=measured)
+
+    def run_worker(self, work: tuple[HttpSession, list[int]]) -> list[tuple[float | None, int, int, str | None]]:
+        session, indices = work
+        return [self.measure(session) for _ in indices]
+
+    def measure(self, session: HttpSession) -> tuple[float | None, int, int, str | None]:
+        before_requests = session.request_count
+        before_errors = session.error_count
+        try:
+            elapsed_ms = self.action(session)
+        # broad except: task-isolation: one failed iteration is recorded and must not abort the remaining iterations
+        except Exception as error:
+            return (
+                None,
+                self.request_delta(session, before_requests),
+                max(1, self.error_delta(session, before_errors)),
+                type(error).__name__,
+            )
+        return (
+            float(elapsed_ms),
+            self.request_delta(session, before_requests),
+            self.error_delta(session, before_errors),
+            None,
+        )
+
+    def request_delta(self, session: HttpSession, before: int) -> int:
+        return session.request_count - before if self.uses_http else 0
+
+    def error_delta(self, session: HttpSession, before: int) -> int:
+        return session.error_count - before if self.uses_http else 0
+
+    def accumulate(self, worker_results: list[tuple[float | None, int, int, str | None]], *, measured: bool) -> None:
+        key = "measured_request_count" if measured else "warmup_request_count"
+        for elapsed_ms, request_count, error_count, error_type in worker_results:
+            self.totals["request_count"] += request_count
+            self.totals[key] += request_count
+            self.totals["error_count"] += error_count
+            if error_type:
+                self.error_types[error_type] = self.error_types.get(error_type, 0) + 1
+            if measured and elapsed_ms is not None:
+                self.samples.append(elapsed_ms)
+
+
 def run_scenario(
     name: str,
     action: Callable[[HttpSession], float],
@@ -458,63 +540,17 @@ def run_scenario(
     uses_http: bool,
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    totals = {"request_count": 0, "error_count": 0, "warmup_request_count": 0, "measured_request_count": 0}
-    samples: list[float] = []
-    error_types: dict[str, int] = {}
-
-    def run_phase(count: int, measured: bool) -> None:
-        if count == 0:
-            return
-        buckets = [[index for index in range(count) if index % concurrency == worker] for worker in range(concurrency)]
-
-        def run_worker(worker: int) -> list[tuple[float | None, int, int, str | None]]:
-            worker_results = []
-            for _ in buckets[worker]:
-                session = sessions[worker]
-                before_requests = session.request_count if uses_http else 0
-                before_errors = session.error_count if uses_http else 0
-                started = time.perf_counter()
-                try:
-                    elapsed_ms = action(session)
-                    worker_results.append(
-                        (
-                            float(elapsed_ms),
-                            (session.request_count - before_requests) if uses_http else 0,
-                            (session.error_count - before_errors) if uses_http else 0,
-                            None,
-                        )
-                    )
-                except Exception as error:  # Continue other paths; only the error class is recorded.
-                    request_delta = (session.request_count - before_requests) if uses_http else 0
-                    error_delta = (session.error_count - before_errors) if uses_http else 0
-                    worker_results.append((None, request_delta, max(1, error_delta), type(error).__name__))
-                if not measured:
-                    continue
-            return worker_results
-
-        with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            phase_results = list(pool.map(run_worker, range(concurrency)))
-        for worker_results in phase_results:
-            for elapsed_ms, request_count, error_count, error_type in worker_results:
-                totals["request_count"] += request_count
-                key = "measured_request_count" if measured else "warmup_request_count"
-                totals[key] += request_count
-                totals["error_count"] += error_count
-                if error_type:
-                    error_types[error_type] = error_types.get(error_type, 0) + 1
-                if measured and elapsed_ms is not None:
-                    samples.append(elapsed_ms)
-
-    run_phase(warmups, measured=False)
-    run_phase(iterations, measured=True)
+    runner = _ScenarioRunner(action, sessions, concurrency=concurrency, uses_http=uses_http)
+    runner.run_phase(warmups, measured=False)
+    runner.run_phase(iterations, measured=True)
     result = {
         "path": name,
         "iterations": iterations,
         "warmups": warmups,
         "concurrency": concurrency,
-        **summarize_samples(samples),
-        **totals,
-        "error_types": error_types,
+        **summarize_samples(runner.samples),
+        **runner.totals,
+        "error_types": runner.error_types,
     }
     if details:
         result.update(details)
@@ -637,8 +673,7 @@ def queue_once(bindings: dict[str, Any], task_count: int, timeout_seconds: float
 
 
 def query_count_results(bindings: dict[str, Any], manifest: dict[str, Any], username: str) -> dict[str, Any]:
-    from django.db import connection
-
+    connection = bindings["connection"]
     benchmark = manifest["benchmark"]
     reverse = bindings["reverse"]
     user = bindings["get_user_model"]()._base_manager.filter(username=username).first()
@@ -726,6 +761,119 @@ def write_outputs(result: dict[str, Any], output: Path | None) -> tuple[Path, Pa
     return output, markdown_path, markdown
 
 
+def _resolve_qcluster_workers(args: argparse.Namespace, settings: Any) -> int | None:
+    """Resolve the qcluster worker count and validate an explicit override."""
+    configured = settings.Q_CLUSTER.get("workers")
+    q_workers = args.qcluster_workers if args.qcluster_workers is not None else configured
+    if "qcluster_throughput" not in args.paths:
+        return q_workers
+    if q_workers is None:
+        raise BenchmarkError("qcluster worker count is unknown; pass --qcluster-workers")
+    if args.qcluster_workers is not None and configured is not None and args.qcluster_workers != configured:
+        raise BenchmarkError("--qcluster-workers does not match Django's configured qcluster worker count")
+    return q_workers
+
+
+def _open_sessions(
+    args: argparse.Namespace,
+    bindings: dict[str, Any],
+    username: str | None,
+    password: str | None,
+    needs_http: bool,
+) -> tuple[list[HttpSession], int]:
+    """Create the session pool and, for HTTP paths, authenticate every session."""
+    sessions = [HttpSession(args.base_url, args.timeout_seconds) for _ in range(args.concurrency)]
+    if not needs_http:
+        return sessions, 0
+    if username is None or password is None:
+        raise BenchmarkError("HTTP paths require the benchmark principal environment variables")
+    reverse = bindings["reverse"]
+    login_path = reverse("login")
+    dashboard_path = reverse("dashboard")
+    for session in sessions:
+        session.login(login_path, dashboard_path, username, password)
+    login_requests = sum(session.login_request_count for session in sessions)
+    for session in sessions:
+        session.request_count = 0
+        session.error_count = 0
+    return sessions, login_requests
+
+
+def _read_scenario(
+    name: str, config: dict[str, Any], args: argparse.Namespace, sessions: list[HttpSession]
+) -> dict[str, Any]:
+    return run_scenario(
+        name,
+        lambda session, current=name, item=config: read_action(session, current, item),
+        sessions,
+        iterations=args.iterations,
+        warmups=args.warmups,
+        concurrency=args.concurrency,
+        uses_http=True,
+    )
+
+
+def _import_scenario(
+    args: argparse.Namespace, manifest: dict[str, Any], bindings: dict[str, Any], sessions: list[HttpSession]
+) -> dict[str, Any]:
+    row = run_scenario(
+        "import_1000_rows",
+        lambda session: import_once(session, manifest, bindings, args.job_timeout_seconds),
+        sessions,
+        iterations=args.import_repeats,
+        warmups=args.warmups,
+        concurrency=args.concurrency,
+        uses_http=True,
+        details={"rows_per_batch": IMPORT_ROWS},
+    )
+    if row["sample_count"]:
+        completed_rows = row["sample_count"] * IMPORT_ROWS
+        total_seconds = sum(row["samples_ms"]) / 1_000
+        row["completed_rows"] = completed_rows
+        row["rows_per_second"] = round(completed_rows / total_seconds, 3) if total_seconds else None
+    return row
+
+
+def _queue_scenario(
+    args: argparse.Namespace, bindings: dict[str, Any], sessions: list[HttpSession], q_workers: int | None
+) -> dict[str, Any]:
+    row = run_scenario(
+        "qcluster_throughput",
+        lambda _session: queue_once(bindings, args.queue_tasks, args.job_timeout_seconds),
+        sessions,
+        iterations=args.queue_repeats,
+        warmups=args.warmups,
+        concurrency=args.concurrency,
+        uses_http=False,
+        details={"tasks_per_batch": args.queue_tasks, "qcluster_workers": q_workers},
+    )
+    if row["sample_count"]:
+        total_tasks = row["sample_count"] * args.queue_tasks
+        total_seconds = sum(row["samples_ms"]) / 1_000
+        row["completed_tasks"] = total_tasks
+        row["tasks_per_second"] = round(total_tasks / total_seconds, 3) if total_seconds else None
+    return row
+
+
+def _run_selected_paths(
+    args: argparse.Namespace,
+    bindings: dict[str, Any],
+    manifest: dict[str, Any],
+    paths: dict[str, dict[str, Any]],
+    sessions: list[HttpSession],
+    q_workers: int | None,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for name in args.paths:
+        if name in READ_PATHS:
+            results.append(_read_scenario(name, paths[name], args, sessions))
+        elif name == "import_1000_rows":
+            results.append(_import_scenario(args, manifest, bindings, sessions))
+        elif name == "qcluster_throughput":
+            results.append(_queue_scenario(args, bindings, sessions, q_workers))
+    return results
+
+
 def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
     bindings = setup_django()
     manifest = load_manifest(args.manifest)
@@ -743,85 +891,9 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         raise BenchmarkError(
             "set ITAMBOX_BENCH_USERNAME and ITAMBOX_BENCH_PASSWORD in the environment; secret values are never logged"
         )
-    settings = bindings["settings"]
-    configured_q_workers = settings.Q_CLUSTER.get("workers")
-    q_workers = args.qcluster_workers if args.qcluster_workers is not None else configured_q_workers
-    if "qcluster_throughput" in args.paths:
-        if q_workers is None:
-            raise BenchmarkError("qcluster worker count is unknown; pass --qcluster-workers")
-        if (
-            args.qcluster_workers is not None
-            and configured_q_workers is not None
-            and args.qcluster_workers != configured_q_workers
-        ):
-            raise BenchmarkError("--qcluster-workers does not match Django's configured qcluster worker count")
-
-    sessions = [HttpSession(args.base_url, args.timeout_seconds) for _ in range(args.concurrency)]
-    login_requests = 0
-    if needs_http:
-        if username is None or password is None:
-            raise BenchmarkError("HTTP paths require the benchmark principal environment variables")
-        reverse = bindings["reverse"]
-        login_path = reverse("login")
-        dashboard_path = reverse("dashboard")
-        for session in sessions:
-            session.login(login_path, dashboard_path, username, password)
-        login_requests = sum(session.login_request_count for session in sessions)
-        for session in sessions:
-            session.request_count = 0
-            session.error_count = 0
-
-    paths = build_http_paths(bindings, manifest)
-    results: list[dict[str, Any]] = []
-    for name in args.paths:
-        if name in READ_PATHS:
-            config = paths[name]
-            results.append(
-                run_scenario(
-                    name,
-                    lambda session, current=name, item=config: read_action(session, current, item),
-                    sessions,
-                    iterations=args.iterations,
-                    warmups=args.warmups,
-                    concurrency=args.concurrency,
-                    uses_http=True,
-                )
-            )
-        elif name == "import_1000_rows":
-            row = run_scenario(
-                name,
-                lambda session: import_once(session, manifest, bindings, args.job_timeout_seconds),
-                sessions,
-                iterations=args.import_repeats,
-                warmups=args.warmups,
-                concurrency=args.concurrency,
-                uses_http=True,
-                details={"rows_per_batch": IMPORT_ROWS},
-            )
-            if row["sample_count"]:
-                completed_rows = row["sample_count"] * IMPORT_ROWS
-                total_seconds = sum(row["samples_ms"]) / 1_000
-                row["completed_rows"] = completed_rows
-                row["rows_per_second"] = round(completed_rows / total_seconds, 3) if total_seconds else None
-            results.append(row)
-        elif name == "qcluster_throughput":
-            row = run_scenario(
-                name,
-                lambda _session: queue_once(bindings, args.queue_tasks, args.job_timeout_seconds),
-                sessions,
-                iterations=args.queue_repeats,
-                warmups=args.warmups,
-                concurrency=args.concurrency,
-                uses_http=False,
-                details={"tasks_per_batch": args.queue_tasks, "qcluster_workers": q_workers},
-            )
-            if row["sample_count"]:
-                total_tasks = row["sample_count"] * args.queue_tasks
-                total_seconds = sum(row["samples_ms"]) / 1_000
-                row["completed_tasks"] = total_tasks
-                row["tasks_per_second"] = round(total_tasks / total_seconds, 3) if total_seconds else None
-            results.append(row)
-
+    q_workers = _resolve_qcluster_workers(args, bindings["settings"])
+    sessions, login_requests = _open_sessions(args, bindings, username, password, needs_http)
+    results = _run_selected_paths(args, bindings, manifest, build_http_paths(bindings, manifest), sessions, q_workers)
     totals = {
         "request_count": sum(row["request_count"] for row in results),
         "error_count": sum(row["error_count"] for row in results),
@@ -862,8 +934,8 @@ def main(argv: list[str] | None = None) -> int:
     except BenchmarkError as error:
         print(f"benchmark failed: {error}", file=sys.stderr)
         return 2
+    # broad except: boundary-isolation: unexpected framework and transport failures are redacted at the CLI boundary
     except Exception as error:
-        # Unexpected framework or transport errors may contain configuration values.
         print(f"benchmark failed ({type(error).__name__})", file=sys.stderr)
         return 2
     print(markdown, end="")

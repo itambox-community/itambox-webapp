@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import tempfile
 import types
 import unittest
@@ -26,6 +25,55 @@ from scripts.perf.bench import (
     validate_response,
     write_outputs,
 )
+
+SMOKE_SCENARIOS = (
+    ("asset_list_first_page", "/assets/", "PF882-000001"),
+    ("asset_detail", "/assets/1/", "PF882-000001"),
+    ("global_search", "/search/?q=fixture", "Perf 882 Asset 000042"),
+)
+
+
+class _FixtureApplication(BaseHTTPRequestHandler):
+    """Minimal stand-in for the running application used by the HTTP smoke test."""
+
+    def do_GET(self):
+        path = self.path.split("?", 1)[0]
+        if path != "/accounts/login/" and "sessionid=fixture-session" not in self.headers.get("Cookie", ""):
+            self.send_response(401)
+            self.end_headers()
+            return
+        if path == "/accounts/login/":
+            self.send_response(200)
+            self.send_header("Set-Cookie", "csrftoken=fixture-token; Path=/")
+            body = b'<input name="csrfmiddlewaretoken" value="fixture-token">'
+        elif path == "/dashboard/":
+            self.send_response(200)
+            body = b"dashboard"
+        elif path == "/assets/":
+            self.send_response(200)
+            body = b"PF882-000001"
+        elif path == "/assets/1/":
+            self.send_response(200)
+            body = b"PF882-000001"
+        elif path == "/search/":
+            self.send_response(200)
+            body = b"Perf 882 Asset 000042"
+        else:
+            self.send_response(404)
+            body = b"not found"
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        self.send_response(302)
+        self.send_header("Location", "/dashboard/")
+        self.send_header("Set-Cookie", "sessionid=fixture-session; Path=/")
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return
 
 
 class BenchmarkReportingTests(unittest.TestCase):
@@ -85,103 +133,64 @@ class BenchmarkReportingTests(unittest.TestCase):
             self.assertEqual(markdown_path.read_text(encoding="utf-8"), markdown)
 
     def test_local_http_smoke_writes_list_detail_and_search_table(self):
-        class Handler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                path = self.path.split("?", 1)[0]
-                if path != "/accounts/login/" and "sessionid=fixture-session" not in self.headers.get("Cookie", ""):
-                    self.send_response(401)
-                    self.end_headers()
-                    return
-                if path == "/accounts/login/":
-                    self.send_response(200)
-                    self.send_header("Set-Cookie", "csrftoken=fixture-token; Path=/")
-                    body = b'<input name="csrfmiddlewaretoken" value="fixture-token">'
-                elif path == "/dashboard/":
-                    self.send_response(200)
-                    body = b"dashboard"
-                elif path == "/assets/":
-                    self.send_response(200)
-                    body = b"PF882-000001"
-                elif path == "/assets/1/":
-                    self.send_response(200)
-                    body = b"PF882-000001"
-                elif path == "/search/":
-                    self.send_response(200)
-                    body = b"Perf 882 Asset 000042"
-                else:
-                    self.send_response(404)
-                    body = b"not found"
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def do_POST(self):
-                self.rfile.read(int(self.headers.get("Content-Length", "0")))
-                self.send_response(302)
-                self.send_header("Location", "/dashboard/")
-                self.send_header("Set-Cookie", "sessionid=fixture-session; Path=/")
-                self.end_headers()
-
-            def log_message(self, format, *args):
-                return
-
-        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _FixtureApplication)
         server_thread = Thread(target=server.serve_forever, daemon=True)
         server_thread.start()
-        base_url = f"http://127.0.0.1:{server.server_port}"
-        session = HttpSession(base_url, 2)
+        session = HttpSession(f"http://127.0.0.1:{server.server_port}", 2)
         try:
             session.login("/accounts/login/", "/dashboard/", "benchmark-test", "test-only")
             self.assertEqual(session.request_count, 3)
             self.assertEqual(session.login_request_count, 3)
-            scenarios = (
-                ("asset_list_first_page", "/assets/", "PF882-000001"),
-                ("asset_detail", "/assets/1/", "PF882-000001"),
-                ("global_search", "/search/?q=fixture", "Perf 882 Asset 000042"),
-            )
-            results = []
-            for name, path, expected in scenarios:
-                results.append(
-                    run_scenario(
-                        name,
-                        lambda current_session, current_path=path, expected_text=expected: self._http_sample(
-                            current_session, name, current_path, expected_text
-                        ),
-                        [session],
-                        iterations=2,
-                        warmups=1,
-                        concurrency=1,
-                        uses_http=True,
-                    )
-                )
-            report = {
-                "runtime": {
-                    "concurrency": 1,
-                    "iterations": 2,
-                    "warmups": 1,
-                    "worker_counts": {"gunicorn": 1, "qcluster": 1},
-                },
-                "results": results,
-                "totals": {
-                    "request_count": sum(row["request_count"] for row in results),
-                    "error_count": sum(row["error_count"] for row in results),
-                },
-            }
+            results = self._run_smoke_scenarios(session)
             with tempfile.TemporaryDirectory() as directory:
-                json_path, markdown_path, markdown = write_outputs(report, Path(directory) / "smoke.json")
-                raw_text = json_path.read_text(encoding="utf-8")
-                raw = json.loads(raw_text)
-                self.assertNotIn("benchmark-test", raw_text)
-                self.assertNotIn("test-only", raw_text)
-                self.assertEqual([row["path"] for row in raw["results"]], [name for name, _, _ in scenarios])
-                self.assertEqual(raw["totals"]["error_count"], 0)
-                self.assertTrue(markdown_path.is_file())
-                for name, _, _ in scenarios:
-                    self.assertIn(name, markdown)
+                self._assert_smoke_report(Path(directory) / "smoke.json", results)
         finally:
             server.shutdown()
             server.server_close()
             server_thread.join(timeout=2)
+
+    def _run_smoke_scenarios(self, session):
+        results = []
+        for name, path, expected in SMOKE_SCENARIOS:
+            results.append(
+                run_scenario(
+                    name,
+                    lambda current_session, current_path=path, expected_text=expected, scenario=name: self._http_sample(
+                        current_session, scenario, current_path, expected_text
+                    ),
+                    [session],
+                    iterations=2,
+                    warmups=1,
+                    concurrency=1,
+                    uses_http=True,
+                )
+            )
+        return results
+
+    def _assert_smoke_report(self, json_target, results):
+        report = {
+            "runtime": {
+                "concurrency": 1,
+                "iterations": 2,
+                "warmups": 1,
+                "worker_counts": {"gunicorn": 1, "qcluster": 1},
+            },
+            "results": results,
+            "totals": {
+                "request_count": sum(row["request_count"] for row in results),
+                "error_count": sum(row["error_count"] for row in results),
+            },
+        }
+        json_path, markdown_path, markdown = write_outputs(report, json_target)
+        raw_text = json_path.read_text(encoding="utf-8")
+        raw = json.loads(raw_text)
+        self.assertNotIn("benchmark-test", raw_text)
+        self.assertNotIn("test-only", raw_text)
+        self.assertEqual([row["path"] for row in raw["results"]], [name for name, _, _ in SMOKE_SCENARIOS])
+        self.assertEqual(raw["totals"]["error_count"], 0)
+        self.assertTrue(markdown_path.is_file())
+        for name, _, _ in SMOKE_SCENARIOS:
+            self.assertIn(name, markdown)
 
     @staticmethod
     def _http_sample(session, name, path, expected_text):
@@ -232,11 +241,6 @@ class BenchmarkSafetyTests(unittest.TestCase):
 
     def test_count_queries_cli_returns_per_path_counts(self):
         connection = types.SimpleNamespace(settings_dict={"NAME": "perf_qual_fixture"})
-        fake_django = types.ModuleType("django")
-        fake_django.__dict__["__path__"] = []
-        fake_db = types.ModuleType("django.db")
-        fake_db.__dict__["connection"] = connection
-        fake_django.__dict__["db"] = fake_db
 
         class Manager:
             def filter(self, **_kwargs):
@@ -274,6 +278,7 @@ class BenchmarkSafetyTests(unittest.TestCase):
                 return self.count
 
         bindings = {
+            "connection": connection,
             "get_user_model": lambda: UserModel,
             "Client": Client,
             "CaptureQueriesContext": CaptureQueriesContext,
@@ -293,7 +298,6 @@ class BenchmarkSafetyTests(unittest.TestCase):
                 mock_patch("scripts.perf.bench.load_manifest", return_value=manifest),
                 mock_patch("scripts.perf.bench.require_disposable_database", return_value="perf_qual_fixture"),
                 mock_patch.dict(os.environ, {"ITAMBOX_BENCH_USERNAME": "benchmark-test"}),
-                mock_patch.dict(sys.modules, {"django": fake_django, "django.db": fake_db}),
                 redirect_stdout(StringIO()),
                 redirect_stderr(StringIO()),
             ):
