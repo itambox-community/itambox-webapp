@@ -1,8 +1,12 @@
+from html.parser import HTMLParser
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from users.models import Token
+from users.forms import UserPreferencesForm
+from users.models import Token, UserPreference
 
 User = get_user_model()
 
@@ -364,3 +368,88 @@ class BookmarkAndNotificationTests(TestCase):
         notif_del = notifications.first()
         self.assertIn("deleted", notif_del.subject.lower())
         self.assertIn("Test Tenant", notif_del.message)
+
+
+class _FormInspector(HTMLParser):
+    """Collects every rendered <form>: its attributes and the named fields inside it."""
+
+    def __init__(self):
+        super().__init__()
+        self.forms = []
+        self._open = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "form":
+            record = {"attrs": dict(attrs), "fields": set()}
+            self.forms.append(record)
+            self._open.append(record)
+        elif self._open and tag in ("input", "select", "textarea"):
+            name = dict(attrs).get("name")
+            if name:
+                self._open[-1]["fields"].add(name)
+
+    def handle_endtag(self, tag):
+        if tag == "form" and self._open:
+            self._open.pop()
+
+
+class UserPreferencesLanguageTests(TestCase):
+    """#909: a language switch must reload the whole document, never swap the content pane."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="languageuser", password="testpass")
+        self.client.force_login(self.user)
+        self.url = reverse("users:user_preferences")
+        # Pin the active language via the cookie so the change/no-change comparison does not
+        # depend on the test client's Accept-Language header.
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
+
+    def _payload(self, language):
+        form = UserPreferencesForm(user=self.user)
+        return {
+            "pagination_per_page": form.fields["pagination_per_page"].choices[0][0],
+            "theme": "light",
+            "language": language,
+            "default_workspace": "",
+        }
+
+    def test_htmx_language_change_forces_full_navigation(self):
+        response = self.client.post(self.url, self._payload("de"), HTTP_HX_REQUEST="true")
+
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response["HX-Redirect"], self.url)
+        self.assertEqual(response.content, b"")
+        self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, "de")
+        self.assertEqual(UserPreference.objects.get(user=self.user).data["language"], "de")
+
+    def test_plain_language_change_redirects_with_language_cookie(self):
+        response = self.client.post(self.url, self._payload("de"))
+
+        self.assertRedirects(response, self.url, fetch_redirect_response=False)
+        self.assertNotIn("HX-Redirect", response)
+        self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, "de")
+        self.assertEqual(UserPreference.objects.get(user=self.user).data["language"], "de")
+
+    def test_htmx_save_without_language_change_keeps_redirect(self):
+        response = self.client.post(self.url, self._payload("en"), HTTP_HX_REQUEST="true")
+
+        self.assertRedirects(response, self.url, fetch_redirect_response=False)
+        self.assertNotIn("HX-Redirect", response)
+        self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, "en")
+
+    def test_plain_save_without_language_change_keeps_redirect(self):
+        response = self.client.post(self.url, self._payload("en"))
+
+        self.assertRedirects(response, self.url, fetch_redirect_response=False)
+        self.assertNotIn("HX-Redirect", response)
+        self.assertEqual(response.cookies[settings.LANGUAGE_COOKIE_NAME].value, "en")
+
+    def test_preferences_form_opts_out_of_boosting(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        inspector = _FormInspector()
+        inspector.feed(response.content.decode())
+        language_forms = [form for form in inspector.forms if "language" in form["fields"]]
+        self.assertEqual(len(language_forms), 1, inspector.forms)
+        self.assertEqual(language_forms[0]["attrs"].get("hx-boost"), "false")

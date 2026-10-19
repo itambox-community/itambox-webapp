@@ -5,7 +5,9 @@
   {% translate "Preferences" %}
 {% endblock %}
 {% block content_tab %}
-  <form method="post">
+  {# A language change re-renders the whole document, so this form must not be #}
+  {# boosted: a full page load is the only correct response. #}
+  <form method="post" hx-boost="false">
     {% csrf_token %}
     <div class="card-body">
       {# General Preferences Section #}
