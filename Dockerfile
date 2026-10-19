@@ -3,7 +3,7 @@ FROM ghcr.io/astral-sh/uv:0.11.31@sha256:ecd4de2f060c64bea0ff8ecb182ddf46ba3fccc
 
 # ---- Stage 1: build the frontend (SCSS + vendor copy + JS bundle) ----
 # Keep the readable tag beside the authoritative multi-arch index digest; Dependabot maintains these pins.
-FROM node:26-slim@sha256:193fe51b64e77981119c98c2002c9e32a70e2f006fb4d25068ce0558998917f0 AS frontend
+FROM node:26-slim@sha256:0d1e33586362bb9e608c4e751e7a9e7edb55c9ac11461ed5666af696cc461dd4 AS frontend
 WORKDIR /app
 COPY itambox/package.json itambox/package-lock.json ./
 RUN npm ci
