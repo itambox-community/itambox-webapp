@@ -8,7 +8,7 @@
 
 ```bash
 # Install the pinned resolver and synchronize tests + lint + runtime.
-python -m pip install "uv==0.11.31"
+python -m pip install "uv==0.13.1"
 uv sync --locked --group dev
 
 # Run migrations
