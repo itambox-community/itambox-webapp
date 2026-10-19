@@ -22,8 +22,13 @@ fails if a workflow file is added or removed without updating its scan list.
 | Path | Current references |
 |---|---|
 | `Dockerfile` | `ghcr.io/astral-sh/uv:0.13.1` (existing pin), `node:26-slim`, and all three `python:3.12-slim-bookworm` stages |
-| `docker-compose.yml` | Production `db` service (`postgres:16`) and `valkey` service (`valkey/valkey:8-alpine`) |
+| `docker-compose.yml` | Production `db` service (`postgres:18`) and `valkey` service (`valkey/valkey:8-alpine`) |
 | `.github/workflows/*.yml` | CI and validation service containers, plus the already pinned E2E PostgreSQL and mock OAuth2 services |
+
+The bundled `db` service runs PostgreSQL 18. `runner-validation.yml` additionally
+carries one PostgreSQL 16 compatibility job, pinned to the previous major
+version's digest, so the version existing installations run stays under test; it
+runs on dispatch only and is not part of the pull-request path.
 
 The release workflow builds both platforms, scans the release image with its
 existing Trivy gate (`--fail-on any`), and promotes the exact built digest. The
@@ -45,7 +50,7 @@ Resolve and inspect each candidate tag with Docker Buildx:
 ```bash
 docker buildx imagetools inspect node:26-slim
 docker buildx imagetools inspect python:3.12-slim-bookworm
-docker buildx imagetools inspect postgres:16
+docker buildx imagetools inspect postgres:18
 docker buildx imagetools inspect valkey/valkey:8-alpine
 docker buildx imagetools inspect ghcr.io/navikt/mock-oauth2-server:6.0.0
 ```
@@ -56,8 +61,10 @@ pin. Do not use either platform's child-manifest digest. Update Dockerfile and
 Compose references in their respective files. For a workflow-embedded image,
 update its `image:` value in the matching `.github/workflows/*.yml` service or
 container entry; PostgreSQL service references currently appear in `ci.yml`,
-`xdist-validation.yml`, `runner-heavy-validation.yml`, and `e2e.yml`, while the
-mock OAuth2 service is in `e2e.yml`.
+`xdist-validation.yml`, `runner-heavy-validation.yml`, `runner-validation.yml`
+and `e2e.yml`, while the mock OAuth2 service is in `e2e.yml`. The PostgreSQL 16
+reference in `runner-validation.yml` is the compatibility lane described above,
+so it changes only when the retained major version changes.
 
 The pull-request CI policy check enforces the pinned shape. Dockerfile and
 Compose image updates also run the two-platform release rehearsal and the
@@ -108,7 +115,7 @@ the connection values as production secrets.
 
 The approved PostgreSQL image for a recovery drill is the exact `db.image`
 reference in the candidate checkout's `docker-compose.yml`. Copy the full
-`postgres:16@sha256:...` value, including its readable tag, into
+`postgres:18@sha256:...` value, including its readable tag, into
 `POSTGRES_IMAGE`; use that same immutable image for both recovery paths. The
 Compose pin is the source of the approved digest, and this policy describes how
 it is maintained. See the [recovery qualification drill](recovery-drill.md).

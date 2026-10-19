@@ -113,7 +113,7 @@ export CANDIDATE_CHECKOUT="$DRILL_RUNTIME_DIR/candidate"
 export PREDECESSOR_IMAGE="itambox-drill-predecessor:$PREDECESSOR_REVISION"
 export CANDIDATE_IMAGE="itambox-drill-candidate:$CANDIDATE_REVISION"
 # Copy the exact tag-and-digest value from db.image in docker-compose.yml.
-export POSTGRES_IMAGE='postgres:16@sha256:<approved-postgres-16-index-digest>'
+export POSTGRES_IMAGE='postgres:18@sha256:<approved-postgres-18-index-digest>'
 export UPGRADE_OVERRIDE="$DRILL_RUNTIME_DIR/upgrade-image.yml"
 export FRESH_OVERRIDE="$DRILL_RUNTIME_DIR/fresh-image.yml"
 export ROLLBACK_OVERRIDE="$DRILL_RUNTIME_DIR/rollback-image.yml"

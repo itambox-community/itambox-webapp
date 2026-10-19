@@ -164,7 +164,11 @@ These are only applied when `ITAMBOX_ENV=prod` (or `ITAMBOX_DEBUG=False`). Leave
 
 #### 2.2.6 Database ⚠️ prod-critical
 
-PostgreSQL 15+ is required. The `btree_gist` extension must be available (see [section 3](#3-build-and-initialize)).
+PostgreSQL 16 or 18 is required. The bundled Compose stack and the primary test
+lanes run PostgreSQL 18; a PostgreSQL 16 compatibility lane keeps the major
+version existing installations run under test. Older major versions (15 and
+below) are not tested. The `btree_gist` extension must be available (see
+[section 3](#3-build-and-initialize)).
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|

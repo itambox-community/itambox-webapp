@@ -34,6 +34,112 @@ jobs:
           curl --fail --silent --show-error --max-time 15 https://api.github.com/zen >/dev/null
           echo "runner isolation boundary: PASS"
 
+  postgresql-16-compatibility:
+    # The bundled database moved to PostgreSQL 18. This job keeps the major
+    # version that existing installations still run under test, so a query, a
+    # migration or an extension assumption that only holds on 18 cannot land
+    # unnoticed. It runs on dispatch only and never on a pull request: the
+    # required checks keep their runtime, and the 16 lane never joins the
+    # PR-critical path.
+    needs: isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        env:
+          POSTGRES_DB: itambox_ci
+          POSTGRES_USER: itambox_ci
+          POSTGRES_PASSWORD: itambox_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd=pg_isready
+          --health-interval=2s
+          --health-timeout=2s
+          --health-retries=30
+
+    env:
+      ITAMBOX_ENV: dev
+      ITAMBOX_DB_NAME: itambox_ci
+      ITAMBOX_DB_USER: itambox_ci
+      ITAMBOX_DB_PASSWORD: itambox_ci
+      ITAMBOX_DB_HOST: localhost
+      ITAMBOX_DB_PORT: "5432"
+      ITAMBOX_DB_SSLMODE: disable
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.1"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install system deps for python-ldap
+        run: |
+          if command -v apt-get >/dev/null; then
+            if [ "$(id -u)" -eq 0 ]; then
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                gcc \
+                libmagic1 \
+                libldap2-dev \
+                libsasl2-dev \
+                libssl-dev \
+                xmlsec1
+            else
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends \
+                gcc \
+                libmagic1 \
+                libldap2-dev \
+                libsasl2-dev \
+                libssl-dev \
+                xmlsec1
+            fi
+          fi
+
+      - name: Install dependencies
+        run: |
+          uv lock --check
+          uv sync --locked --group dev
+
+      - name: Apply migrations to a fresh PostgreSQL 16 database
+        working-directory: ./itambox
+        run: |
+          uv run --locked --no-sync python manage.py migrate --noinput
+          uv run --locked --no-sync python manage.py migration_baseline_preflight --format=json
+
+      - name: Verify the server version and the btree_gist extension
+        working-directory: ./itambox
+        run: |
+          uv run --locked --no-sync python manage.py shell <<'PYEOF'
+          from django.db import connection
+
+          with connection.cursor() as cursor:
+              cursor.execute("SHOW server_version")
+              version = cursor.fetchone()[0]
+              cursor.execute("SELECT extversion FROM pg_extension WHERE extname = 'btree_gist'")
+              extension = cursor.fetchone()
+
+          assert version.startswith("16."), f"expected PostgreSQL 16, got {version}"
+          assert extension is not None, "btree_gist is missing on PostgreSQL 16"
+          print(f"PostgreSQL {version} with btree_gist {extension[0]}")
+          PYEOF
+
+      - name: Run the reservation overlap constraint suite
+        working-directory: ./itambox
+        run: uv run --locked --no-sync pytest assets/tests/test_sec_reservation.py -q
+
   lint:
     needs: isolation
     runs-on: ubuntu-latest
