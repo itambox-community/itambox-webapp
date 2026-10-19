@@ -1,14 +1,17 @@
 import json
 import os
+import re
 import tempfile
 import types
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import StringIO
 from pathlib import Path
 from threading import Thread
 from unittest.mock import patch as mock_patch
+from uuid import UUID
 
 from scripts.perf.bench import (
     ALL_PATHS,
@@ -16,7 +19,9 @@ from scripts.perf.bench import (
     HttpSession,
     main,
     parse_args,
+    parse_response_diagnostics,
     percentile,
+    process_observations,
     render_markdown,
     require_disposable_database,
     run_scenario,
@@ -61,6 +66,7 @@ class _FixtureApplication(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             body = b"not found"
+        self._send_perf_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -70,7 +76,24 @@ class _FixtureApplication(BaseHTTPRequestHandler):
         self.send_response(302)
         self.send_header("Location", "/dashboard/")
         self.send_header("Set-Cookie", "sessionid=fixture-session; Path=/")
+        self._send_perf_headers()
         self.end_headers()
+
+    def _send_perf_headers(self):
+        raw_request_id = self.headers.get("X-Perf-Request-ID", "")
+        if not re.fullmatch(r"[0-9a-fA-F]{32}", raw_request_id):
+            return
+        request_id = UUID(raw_request_id).hex
+        self.send_header("X-Perf-Request-ID", request_id)
+        self.send_header("X-Perf-Worker-PID", "1234")
+        self.send_header("X-Perf-Worker-Instance", "fixture-worker")
+        self.send_header("X-Perf-Query-Count", "3")
+        self.send_header("X-Perf-Query-Time-MS", "12.500")
+        self.send_header("X-Perf-Slow-Query-Count", "1")
+        self.send_header("X-Perf-Slow-Queries-B64", "W3siZmluZ2VycHJpbnQiOiJhYmNkZWYiLCJkdXJhdGlvbl9tcyI6NjAuMH1d")
+        self.send_header("X-Perf-GC-Pause-Count", "2")
+        self.send_header("X-Perf-GC-Pause-Time-MS", "1.250")
+        self.send_header("X-Perf-GC-Max-Pause-MS", "0.900")
 
     def log_message(self, format, *args):
         return
@@ -81,10 +104,27 @@ class BenchmarkReportingTests(unittest.TestCase):
         self.assertEqual(percentile([1.0, 2.0, 3.0, 4.0], 0.95), 4.0)
         self.assertEqual(summarize_samples([1.0, 2.0, 3.0, 4.0])["p50_ms"], 2.5)
 
+    def test_tail_summary_has_reproducible_bootstrap_interval(self):
+        samples = [float(value) for value in range(1, 101)]
+        summary = summarize_samples(samples, bootstrap_seed=892)
+        self.assertEqual(summary["sample_count"], 100)
+        self.assertEqual(summary["p50_ms"], 50.5)
+        self.assertEqual(summary["p90_ms"], 90.0)
+        self.assertEqual(summary["p95_ms"], 95.0)
+        self.assertEqual(summary["p99_ms"], 99.0)
+        self.assertEqual(summary["max_ms"], 100.0)
+        self.assertEqual(
+            summary["p95_bootstrap_ci_ms"], summarize_samples(samples, bootstrap_seed=892)["p95_bootstrap_ci_ms"]
+        )
+        self.assertLessEqual(summary["p95_bootstrap_ci_ms"]["lower_ms"], summary["p95_bootstrap_ci_ms"]["upper_ms"])
+
     def test_empty_samples_have_no_latency_percentiles(self):
         summary = summarize_samples([])
         self.assertEqual(summary["sample_count"], 0)
+        self.assertIsNone(summary["p90_ms"])
         self.assertIsNone(summary["p95_ms"])
+        self.assertIsNone(summary["max_ms"])
+        self.assertIsNone(summary["p95_bootstrap_ci_ms"])
 
     def test_run_scenario_counts_requests_and_failures(self):
         sessions = [HttpSession("http://127.0.0.1:8010", 1), HttpSession("http://127.0.0.1:8010", 1)]
@@ -110,6 +150,11 @@ class BenchmarkReportingTests(unittest.TestCase):
         self.assertEqual(result["sample_count"], 2)
         self.assertEqual(result["warmups"], 1)
         self.assertEqual(result["iterations"], 3)
+        self.assertEqual(result["warmup_sample_count"], 1)
+        self.assertEqual(len(result["warmup_samples_ms"]), 1)
+        self.assertEqual(len(result["sample_records"]), 4)
+        self.assertEqual(result["sample_records"][0]["phase"], "warmup")
+        self.assertEqual(sum(record["phase"] == "measured" for record in result["sample_records"]), 3)
 
     def test_markdown_query_table_is_explicitly_not_latency(self):
         text = render_markdown(
@@ -144,6 +189,47 @@ class BenchmarkReportingTests(unittest.TestCase):
             results = self._run_smoke_scenarios(session)
             with tempfile.TemporaryDirectory() as directory:
                 self._assert_smoke_report(Path(directory) / "smoke.json", results)
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=2)
+
+    def test_redirect_responses_are_recorded_with_distinct_request_ids(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _FixtureApplication)
+        server_thread = Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        session = HttpSession(f"http://127.0.0.1:{server.server_port}", 2)
+        try:
+            session.login("/accounts/login/", "/dashboard/", "benchmark-test", "test-only")
+
+            def redirect_action(current_session):
+                response = current_session.request("/redirect/", method="POST", data={"value": "fixture"})
+                self.assertEqual(response.status, 200)
+                return response.elapsed_ms
+
+            result = run_scenario(
+                "redirect_probe",
+                redirect_action,
+                [session],
+                iterations=1,
+                warmups=1,
+                concurrency=1,
+                uses_http=True,
+            )
+            records = [request for sample in result["sample_records"] for request in sample["requests"]]
+            self.assertEqual(result["request_count"], 4)
+            self.assertEqual(len(records), 4)
+            self.assertEqual([record["status"] for record in result["sample_records"][0]["requests"]], [302, 200])
+            self.assertEqual(
+                [record["path"] for record in result["sample_records"][0]["requests"]], ["/redirect/", "/dashboard/"]
+            )
+            request_ids = [record["request_id"] for record in records]
+            self.assertEqual(len(set(request_ids)), 4)
+            self.assertTrue(all(record["diagnostics"]["request_id"] == record["request_id"] for record in records))
+            summary = process_observations([result])
+            self.assertEqual(summary["request_count"], result["request_count"])
+            self.assertEqual(summary["instrumented_request_count"], 4)
+            self.assertEqual(summary["uninstrumented_request_count"], 0)
         finally:
             server.shutdown()
             server.server_close()
@@ -191,6 +277,64 @@ class BenchmarkReportingTests(unittest.TestCase):
         self.assertTrue(markdown_path.is_file())
         for name, _, _ in SMOKE_SCENARIOS:
             self.assertIn(name, markdown)
+        measured_requests = [
+            request
+            for row in raw["results"]
+            for sample in row["sample_records"]
+            if sample["phase"] == "measured"
+            for request in sample["requests"]
+        ]
+        self.assertEqual(len(measured_requests), 6)
+        self.assertTrue(all(request["diagnostics"]["available"] for request in measured_requests))
+        self.assertTrue(
+            all(request["diagnostics"]["worker_instance_id"] == "fixture-worker" for request in measured_requests)
+        )
+
+    def test_response_diagnostics_are_bound_to_the_request_id(self):
+        headers = {
+            "X-Perf-Request-ID": "request-a",
+            "X-Perf-Worker-PID": "1234",
+            "X-Perf-Worker-Instance": "worker-a",
+            "X-Perf-Slow-Queries-B64": "W10=",
+        }
+        self.assertIsNone(parse_response_diagnostics(headers, "request-b"))
+        incomplete = parse_response_diagnostics({"X-Perf-Request-ID": "request-a"}, "request-a")
+        self.assertEqual(
+            incomplete,
+            {"available": False, "request_id": "request-a", "error": "incomplete diagnostics headers"},
+        )
+
+    def test_fixture_does_not_reflect_malformed_request_ids(self):
+        for raw_request_id in ("invalid", "a" * 32 + "\r\nX-Evil: forged"):
+            with self.subTest(raw_request_id=raw_request_id):
+                handler = object.__new__(_FixtureApplication)
+                handler.headers = Message()
+                handler.headers["X-Perf-Request-ID"] = raw_request_id
+                with mock_patch.object(_FixtureApplication, "send_header") as send_header:
+                    handler._send_perf_headers()
+                    send_header.assert_not_called()
+
+    def test_process_observations_preserve_worker_restart_correlation(self):
+        results = [
+            {
+                "sample_records": [
+                    {
+                        "requests": [
+                            {"diagnostics": {"available": True, "worker_pid": 42, "worker_instance_id": "first"}}
+                        ]
+                    },
+                    {
+                        "requests": [
+                            {"diagnostics": {"available": True, "worker_pid": 42, "worker_instance_id": "second"}}
+                        ]
+                    },
+                ]
+            }
+        ]
+        observations = process_observations(results)
+        self.assertEqual(observations["instrumented_request_count"], 2)
+        self.assertEqual(len(observations["pid_reuse_or_process_restart_events"]), 1)
+        self.assertEqual(observations["pid_reuse_or_process_restart_events"][0]["previous_instance_id"], "first")
 
     @staticmethod
     def _http_sample(session, name, path, expected_text):
@@ -238,6 +382,12 @@ class BenchmarkSafetyTests(unittest.TestCase):
         args = parse_args(["--manifest", "manifest.json", "--count-queries"])
         self.assertTrue(args.count_queries)
         self.assertEqual(args.paths, list(ALL_PATHS))
+
+    def test_http_probe_sampling_defaults_to_100_and_rejects_less(self):
+        args = parse_args(["--manifest", "manifest.json", "--paths", "rest_list"])
+        self.assertEqual(args.iterations, 100)
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            parse_args(["--manifest", "manifest.json", "--paths", "rest_list", "--iterations", "99"])
 
     def test_count_queries_cli_returns_per_path_counts(self):
         connection = types.SimpleNamespace(settings_dict={"NAME": "perf_qual_fixture"})

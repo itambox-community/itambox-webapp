@@ -8,12 +8,16 @@ All write-path runs require an explicitly disposable local benchmark database.
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
+import hashlib
 import http.cookiejar
 import io
 import ipaddress
 import json
+import math
 import os
+import random
 import re
 import sys
 import time
@@ -25,6 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import median
+from threading import local
 from typing import Any, Callable
 
 DEFAULT_BASE_URL = "https://qual.itambox.dev"
@@ -41,6 +46,8 @@ READ_PATHS = (
 WRITE_PATHS = ("import_1000_rows", "qcluster_throughput")
 ALL_PATHS = READ_PATHS + WRITE_PATHS
 IMPORT_ROWS = 1_000
+MIN_HTTP_SAMPLES = 100
+BOOTSTRAP_REPLICATES = 2_000
 
 
 class BenchmarkError(RuntimeError):
@@ -50,13 +57,24 @@ class BenchmarkError(RuntimeError):
 class HttpResponse:
     """One HTTP response with its measured wall-clock time."""
 
-    __slots__ = ("body", "elapsed_ms", "final_url", "status")
+    __slots__ = ("body", "diagnostics", "elapsed_ms", "final_url", "request_id", "status")
 
-    def __init__(self, status: int, final_url: str, body: str, elapsed_ms: float):
+    def __init__(
+        self,
+        status: int,
+        final_url: str,
+        body: str,
+        elapsed_ms: float,
+        *,
+        request_id: str,
+        diagnostics: dict[str, Any] | None,
+    ):
         self.status = status
         self.final_url = final_url
         self.body = body
         self.elapsed_ms = elapsed_ms
+        self.request_id = request_id
+        self.diagnostics = diagnostics
 
 
 class CountingRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -67,10 +85,29 @@ class CountingRedirectHandler(urllib.request.HTTPRedirectHandler):
         self.session = session
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is None:
+            return None
+        request_id = next((value for key, value in req.header_items() if key.lower() == "x-perf-request-id"), "")
+        self.session.request_records.append(
+            {
+                "request_id": request_id,
+                "method": req.get_method(),
+                "path": urllib.parse.urlsplit(req.full_url).path,
+                "status": code,
+                "elapsed_ms": None,
+                "diagnostics": parse_response_diagnostics(headers, request_id),
+            }
+        )
         self.session.request_count += 1
         if self.session.authentication_request_in_flight:
             self.session.login_request_count += 1
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected_request_id = uuid.uuid4().hex
+        redirected.add_header("X-Perf-Request-ID", redirected_request_id)
+        self.session.request_state.request_id = redirected_request_id
+        self.session.request_state.method = redirected.get_method()
+        self.session.request_state.path = urllib.parse.urlsplit(redirected.full_url).path
+        return redirected
 
 
 class HttpSession:
@@ -84,6 +121,8 @@ class HttpSession:
         self.error_count = 0
         self.login_request_count = 0
         self.authentication_request_in_flight = False
+        self.request_records: list[dict[str, Any]] = []
+        self.request_state = local()
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.cookies), CountingRedirectHandler(self)
         )
@@ -103,6 +142,8 @@ class HttpSession:
         url = path if path.startswith(("http://", "https://")) else f"{self.base_url}{path}"
         request_headers = {"User-Agent": "itambox-performance-benchmark/1.0"}
         request_headers.update(headers or {})
+        request_id = uuid.uuid4().hex
+        request_headers["X-Perf-Request-ID"] = request_id
         body: bytes | None
         if isinstance(data, dict):
             body = urllib.parse.urlencode(data).encode("utf-8")
@@ -110,37 +151,73 @@ class HttpSession:
         else:
             body = data
         request = urllib.request.Request(url, data=body, headers=request_headers, method=method)
+        self.request_state.request_id = request_id
+        self.request_state.method = method
+        self.request_state.path = urllib.parse.urlsplit(url).path
         self.request_count += 1
         self.authentication_request_in_flight = authentication_request
         started = time.perf_counter()
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
                 response_body = response.read().decode("utf-8", errors="replace")
+                response_request_id = self.request_state.request_id
+                response_method = self.request_state.method
+                response_path = self.request_state.path
                 result = HttpResponse(
                     response.status,
                     response.geturl(),
                     response_body,
                     (time.perf_counter() - started) * 1_000,
+                    request_id=response_request_id,
+                    diagnostics=parse_response_diagnostics(response.headers, response_request_id),
                 )
         except urllib.error.HTTPError as error:
             response_body = error.read().decode("utf-8", errors="replace")
+            response_request_id = self.request_state.request_id
+            response_method = self.request_state.method
+            response_path = self.request_state.path
             result = HttpResponse(
                 error.code,
                 error.geturl(),
                 response_body,
                 (time.perf_counter() - started) * 1_000,
+                request_id=response_request_id,
+                diagnostics=parse_response_diagnostics(error.headers, response_request_id),
             )
         except OSError as error:
             self.error_count += 1
             if authentication_request:
                 self.login_request_count += 1
+            self.request_records.append(
+                {
+                    "request_id": self.request_state.request_id,
+                    "method": self.request_state.method,
+                    "path": self.request_state.path,
+                    "status": None,
+                    "elapsed_ms": round((time.perf_counter() - started) * 1_000, 3),
+                    "diagnostics": None,
+                }
+            )
             raise BenchmarkError(f"HTTP transport failed ({type(error).__name__})") from None
         finally:
             self.authentication_request_in_flight = False
+            self.request_state.request_id = None
+            self.request_state.method = None
+            self.request_state.path = None
         if authentication_request:
             self.login_request_count += 1
         if result.status >= 400:
             self.error_count += 1
+        self.request_records.append(
+            {
+                "request_id": result.request_id,
+                "method": response_method,
+                "path": response_path,
+                "status": result.status,
+                "elapsed_ms": round(result.elapsed_ms, 3),
+                "diagnostics": result.diagnostics,
+            }
+        )
         return result
 
     def login(self, login_path: str, dashboard_path: str, username: str, password: str) -> None:
@@ -166,6 +243,50 @@ class HttpSession:
         final_path = urllib.parse.urlsplit(result.final_url).path
         if result.status != 200 or final_path.startswith(("/accounts/login", "/accounts/mfa")):
             raise BenchmarkError(f"HTTP authentication failed (status={result.status})")
+
+
+def parse_response_diagnostics(headers: Any, request_id: str) -> dict[str, Any] | None:
+    """Read the opt-in, per-request diagnostics emitted by the perf WSGI wrapper."""
+    if headers.get("X-Perf-Request-ID") != request_id:
+        return None
+    required_headers = (
+        "X-Perf-Worker-PID",
+        "X-Perf-Worker-Instance",
+        "X-Perf-Query-Count",
+        "X-Perf-Query-Time-MS",
+        "X-Perf-Slow-Query-Count",
+        "X-Perf-Slow-Queries-B64",
+        "X-Perf-GC-Pause-Count",
+        "X-Perf-GC-Pause-Time-MS",
+        "X-Perf-GC-Max-Pause-MS",
+    )
+    if any(headers.get(name) is None for name in required_headers):
+        return {"available": False, "request_id": request_id, "error": "incomplete diagnostics headers"}
+    try:
+        encoded_slow_queries = headers.get("X-Perf-Slow-Queries-B64", "")
+        slow_queries = (
+            json.loads(base64.urlsafe_b64decode(encoded_slow_queries).decode("utf-8")) if encoded_slow_queries else []
+        )
+        if not isinstance(slow_queries, list):
+            raise ValueError("slow-query header is not a list")
+        worker_instance_id = headers.get("X-Perf-Worker-Instance", "")
+        if not worker_instance_id:
+            raise ValueError("missing worker instance identifier")
+        return {
+            "available": True,
+            "request_id": request_id,
+            "worker_pid": int(headers.get("X-Perf-Worker-PID", "0")),
+            "worker_instance_id": worker_instance_id,
+            "db_query_count": int(headers.get("X-Perf-Query-Count", "0")),
+            "db_time_ms": float(headers.get("X-Perf-Query-Time-MS", "0")),
+            "slow_query_count": int(headers.get("X-Perf-Slow-Query-Count", "0")),
+            "slow_queries": slow_queries,
+            "gc_pause_count": int(headers.get("X-Perf-GC-Pause-Count", "0")),
+            "gc_pause_time_ms": float(headers.get("X-Perf-GC-Pause-Time-MS", "0")),
+            "gc_max_pause_ms": float(headers.get("X-Perf-GC-Max-Pause-MS", "0")),
+        }
+    except ValueError:
+        return {"available": False, "request_id": request_id, "error": "invalid diagnostics headers"}
 
 
 def validate_base_url(base_url: str) -> str:
@@ -195,7 +316,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, required=True, help="dataset manifest from the benchmark seeder")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--output", type=Path, help="JSON output path; a sibling .md table is also written")
-    parser.add_argument("--iterations", type=int, default=10, help="measured iterations per HTTP read path")
+    parser.add_argument(
+        "--iterations", type=int, default=MIN_HTTP_SAMPLES, help="measured iterations per HTTP read path (minimum 100)"
+    )
     parser.add_argument("--warmups", type=int, default=2, help="discarded warmups per path")
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--workers", type=int, default=1, help="Gunicorn worker count used by the target server")
@@ -232,7 +355,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             parser.error("import/qcluster write paths require --confirm-disposable")
         if not is_loopback_url(args.base_url):
             parser.error("import/qcluster write paths are restricted to a loopback HTTP server")
+    _validate_http_sample_count(parser, args)
     return args
+
+
+def _validate_http_sample_count(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    if args.count_queries or not (set(args.paths) & set(READ_PATHS)):
+        return
+    if args.iterations < MIN_HTTP_SAMPLES:
+        parser.error(f"HTTP probes require at least {MIN_HTTP_SAMPLES} measured samples per path")
 
 
 def is_loopback_url(base_url: str) -> bool:
@@ -345,18 +476,55 @@ def require_disposable_database(bindings: dict[str, Any], manifest: dict[str, An
 
 def percentile(values: list[float], probability: float) -> float:
     ordered = sorted(values)
-    rank = max(1, min(len(ordered), int((len(ordered) * probability) + 0.999999)))
+    rank = max(1, min(len(ordered), math.ceil(len(ordered) * probability)))
     return ordered[rank - 1]
 
 
-def summarize_samples(samples: list[float]) -> dict[str, Any]:
+def bootstrap_percentile_interval(
+    samples: list[float],
+    probability: float,
+    *,
+    confidence: float = 0.95,
+    replicates: int = BOOTSTRAP_REPLICATES,
+    seed: int = 0,
+) -> tuple[float, float] | None:
+    """Return a deterministic percentile-bootstrap interval for one quantile."""
     if not samples:
-        return {"sample_count": 0, "p50_ms": None, "p95_ms": None, "p99_ms": None, "samples_ms": []}
+        return None
+    generator = random.Random(seed)
+    estimates = [percentile(generator.choices(samples, k=len(samples)), probability) for _ in range(replicates)]
+    tail = (1 - confidence) / 2
+    return percentile(estimates, tail), percentile(estimates, 1 - tail)
+
+
+def summarize_samples(samples: list[float], *, bootstrap_seed: int = 0) -> dict[str, Any]:
+    if not samples:
+        return {
+            "sample_count": 0,
+            "p50_ms": None,
+            "p90_ms": None,
+            "p95_ms": None,
+            "p99_ms": None,
+            "max_ms": None,
+            "p95_bootstrap_ci_ms": None,
+            "samples_ms": [],
+        }
+    interval = bootstrap_percentile_interval(samples, 0.95, seed=bootstrap_seed)
     return {
         "sample_count": len(samples),
         "p50_ms": round(median(samples), 3),
+        "p90_ms": round(percentile(samples, 0.90), 3),
         "p95_ms": round(percentile(samples, 0.95), 3),
         "p99_ms": round(percentile(samples, 0.99), 3),
+        "max_ms": round(max(samples), 3),
+        "p95_bootstrap_ci_ms": {
+            "method": "percentile bootstrap",
+            "confidence_level": 0.95,
+            "replicates": BOOTSTRAP_REPLICATES,
+            "seed": bootstrap_seed,
+            "lower_ms": round(interval[0], 3),
+            "upper_ms": round(interval[1], 3),
+        },
         "samples_ms": [round(sample, 3) for sample in samples],
     }
 
@@ -457,7 +625,17 @@ def validate_response(response: HttpResponse, name: str, expected_text: str, res
 class _ScenarioRunner:
     """Run one scenario's warmup and measured phases and accumulate its totals."""
 
-    __slots__ = ("action", "concurrency", "error_types", "samples", "sessions", "totals", "uses_http")
+    __slots__ = (
+        "action",
+        "concurrency",
+        "error_types",
+        "samples",
+        "sample_records",
+        "sessions",
+        "totals",
+        "uses_http",
+        "warmup_samples",
+    )
 
     def __init__(
         self,
@@ -473,13 +651,15 @@ class _ScenarioRunner:
         self.uses_http = uses_http
         self.totals = {"request_count": 0, "error_count": 0, "warmup_request_count": 0, "measured_request_count": 0}
         self.samples: list[float] = []
+        self.warmup_samples: list[float] = []
+        self.sample_records: list[dict[str, Any]] = []
         self.error_types: dict[str, int] = {}
 
     def run_phase(self, count: int, *, measured: bool) -> None:
         if count == 0:
             return
         work = [
-            (self.sessions[worker], [index for index in range(count) if index % self.concurrency == worker])
+            (self.sessions[worker], [index for index in range(count) if index % self.concurrency == worker], measured)
             for worker in range(self.concurrency)
         ]
         with ThreadPoolExecutor(max_workers=self.concurrency) as pool:
@@ -487,29 +667,55 @@ class _ScenarioRunner:
         for worker_results in phase_results:
             self.accumulate(worker_results, measured=measured)
 
-    def run_worker(self, work: tuple[HttpSession, list[int]]) -> list[tuple[float | None, int, int, str | None]]:
-        session, indices = work
-        return [self.measure(session) for _ in indices]
+    def run_worker(
+        self, work: tuple[HttpSession, list[int], bool]
+    ) -> list[tuple[float | None, int, int, str | None, dict[str, Any]]]:
+        session, indices, measured = work
+        return [self.measure(session, measured=measured, sample_index=index) for index in indices]
 
-    def measure(self, session: HttpSession) -> tuple[float | None, int, int, str | None]:
+    def measure(
+        self, session: HttpSession, *, measured: bool, sample_index: int
+    ) -> tuple[float | None, int, int, str | None, dict[str, Any]]:
         before_requests = session.request_count
         before_errors = session.error_count
+        before_records = len(session.request_records)
         try:
             elapsed_ms = self.action(session)
         # broad except: task-isolation: one failed iteration is recorded and must not abort the remaining iterations
         except Exception as error:
+            error_type = type(error).__name__
+            request_records = session.request_records[before_records:]
             return (
                 None,
                 self.request_delta(session, before_requests),
                 max(1, self.error_delta(session, before_errors)),
-                type(error).__name__,
+                error_type,
+                self.sample_record(None, measured, sample_index, error_type, request_records),
             )
+        request_records = session.request_records[before_records:]
         return (
             float(elapsed_ms),
             self.request_delta(session, before_requests),
             self.error_delta(session, before_errors),
             None,
+            self.sample_record(float(elapsed_ms), measured, sample_index, None, request_records),
         )
+
+    @staticmethod
+    def sample_record(
+        elapsed_ms: float | None,
+        measured: bool,
+        sample_index: int,
+        error_type: str | None,
+        request_records: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        return {
+            "phase": "measured" if measured else "warmup",
+            "iteration": sample_index + 1,
+            "elapsed_ms": round(elapsed_ms, 3) if elapsed_ms is not None else None,
+            "error_type": error_type,
+            "requests": request_records,
+        }
 
     def request_delta(self, session: HttpSession, before: int) -> int:
         return session.request_count - before if self.uses_http else 0
@@ -517,16 +723,24 @@ class _ScenarioRunner:
     def error_delta(self, session: HttpSession, before: int) -> int:
         return session.error_count - before if self.uses_http else 0
 
-    def accumulate(self, worker_results: list[tuple[float | None, int, int, str | None]], *, measured: bool) -> None:
+    def accumulate(
+        self,
+        worker_results: list[tuple[float | None, int, int, str | None, dict[str, Any]]],
+        *,
+        measured: bool,
+    ) -> None:
         key = "measured_request_count" if measured else "warmup_request_count"
-        for elapsed_ms, request_count, error_count, error_type in worker_results:
+        for elapsed_ms, request_count, error_count, error_type, record in worker_results:
             self.totals["request_count"] += request_count
             self.totals[key] += request_count
             self.totals["error_count"] += error_count
+            self.sample_records.append(record)
             if error_type:
                 self.error_types[error_type] = self.error_types.get(error_type, 0) + 1
             if measured and elapsed_ms is not None:
                 self.samples.append(elapsed_ms)
+            elif not measured and elapsed_ms is not None:
+                self.warmup_samples.append(elapsed_ms)
 
 
 def run_scenario(
@@ -548,8 +762,14 @@ def run_scenario(
         "iterations": iterations,
         "warmups": warmups,
         "concurrency": concurrency,
-        **summarize_samples(runner.samples),
+        **summarize_samples(
+            runner.samples,
+            bootstrap_seed=int.from_bytes(hashlib.sha256(name.encode("utf-8")).digest()[:4], "big"),
+        ),
         **runner.totals,
+        "warmup_sample_count": len(runner.warmup_samples),
+        "warmup_samples_ms": [round(sample, 3) for sample in runner.warmup_samples],
+        "sample_records": runner.sample_records,
         "error_types": runner.error_types,
     }
     if details:
@@ -721,16 +941,21 @@ def render_markdown(result: dict[str, Any]) -> str:
     runtime = result["runtime"]
     workers = runtime["worker_counts"]
     lines = [
-        "| Path | p50 (ms) | p95 (ms) | p99 (ms) | Requests | Errors | Samples |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Path | p50 (ms) | p90 (ms) | p95 (ms) | p95 bootstrap 95% CI (ms) | p99 (ms) | Max (ms) | Requests | Errors | Samples |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in result["results"]:
+        interval = row.get("p95_bootstrap_ci_ms")
+        interval_text = f"{interval['lower_ms']} - {interval['upper_ms']}" if interval is not None else "-"
         lines.append(
-            "| {path} | {p50} | {p95} | {p99} | {requests} | {errors} | {samples} |".format(
+            "| {path} | {p50} | {p90} | {p95} | {ci} | {p99} | {maximum} | {requests} | {errors} | {samples} |".format(
                 path=row["path"],
                 p50=row.get("p50_ms") if row.get("p50_ms") is not None else "-",
+                p90=row.get("p90_ms") if row.get("p90_ms") is not None else "-",
                 p95=row.get("p95_ms") if row.get("p95_ms") is not None else "-",
+                ci=interval_text,
                 p99=row.get("p99_ms") if row.get("p99_ms") is not None else "-",
+                maximum=row.get("max_ms") if row.get("max_ms") is not None else "-",
                 requests=row["request_count"],
                 errors=row["error_count"],
                 samples=row["sample_count"],
@@ -796,6 +1021,7 @@ def _open_sessions(
     for session in sessions:
         session.request_count = 0
         session.error_count = 0
+        session.request_records.clear()
     return sessions, login_requests
 
 
@@ -855,6 +1081,40 @@ def _queue_scenario(
     return row
 
 
+def process_observations(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize per-request worker identities without mistaking normal routing for restarts."""
+    requests = [
+        request for row in results for sample in row.get("sample_records", []) for request in sample.get("requests", [])
+    ]
+    diagnostics = [
+        request["diagnostics"]
+        for request in requests
+        if isinstance(request.get("diagnostics"), dict) and request["diagnostics"].get("available")
+    ]
+    identities: dict[int, str] = {}
+    observed: set[tuple[int, str]] = set()
+    pid_reuse_events: list[dict[str, Any]] = []
+    for item in diagnostics:
+        pid = item["worker_pid"]
+        instance_id = item["worker_instance_id"]
+        previous_instance = identities.setdefault(pid, instance_id)
+        observed.add((pid, instance_id))
+        if previous_instance != instance_id:
+            pid_reuse_events.append({"pid": pid, "previous_instance_id": previous_instance, "instance_id": instance_id})
+            identities[pid] = instance_id
+    return {
+        "request_count": len(requests),
+        "instrumented_request_count": len(diagnostics),
+        "uninstrumented_request_count": len(requests) - len(diagnostics),
+        "worker_processes": [{"pid": pid, "instance_id": instance_id} for pid, instance_id in sorted(observed)],
+        "pid_reuse_or_process_restart_events": pid_reuse_events,
+        "restart_detection_limit": (
+            "Per-request PID and process-instance IDs are retained. A PID observed with a new instance ID is flagged; "
+            "a restart that occurs between probes and is not sampled cannot be inferred."
+        ),
+    }
+
+
 def _run_selected_paths(
     args: argparse.Namespace,
     bindings: dict[str, Any],
@@ -898,6 +1158,9 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         "request_count": sum(row["request_count"] for row in results),
         "error_count": sum(row["error_count"] for row in results),
     }
+    observations = process_observations(results)
+    if observations["request_count"] != totals["request_count"]:
+        raise BenchmarkError("HTTP request records do not match the request count")
     return {
         "benchmark": "itambox-http-performance",
         "created_at": datetime.now(UTC).isoformat(),
@@ -916,12 +1179,26 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
                 "qcluster": "Django Q_CLUSTER settings, checked against --qcluster-workers when supplied",
             },
         },
+        "measurement": {
+            "minimum_http_samples_per_probe": MIN_HTTP_SAMPLES,
+            "warmups_excluded_from_measured_samples": True,
+            "percentile_method": "nearest-rank for p90/p95/p99; p50 is the median",
+            "p95_confidence_interval": {
+                "method": "percentile bootstrap",
+                "confidence_level": 0.95,
+                "replicates": BOOTSTRAP_REPLICATES,
+                "seed_method": "first 32 bits of SHA-256 of the scenario name",
+            },
+            "slow_query_threshold_ms": 50,
+            "diagnostics_source": "per-request Django connection.execute_wrapper and gc.callbacks in perf_wsgi",
+        },
         "dataset": {
             "seed": manifest.get("seed"),
             "counts": manifest.get("counts", {}),
             "target_deviation": manifest.get("target_deviation"),
         },
         "results": results,
+        "process_observations": observations,
         "totals": totals,
     }
 
