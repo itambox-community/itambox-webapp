@@ -1,0 +1,14 @@
+{% extends "generic/object_list.html" %}
+{% load i18n %}
+{% load static %}
+{% block extra_controls %}
+  <a href="{% static 'docs/usage/resource-grants.html' %}"
+     target="_blank"
+     rel="noopener"
+     class="btn btn-outline-secondary"
+     aria-label="{% translate "View Help Documentation" %}"
+     title="{% translate "View Help Documentation" %}">
+    <i class="mdi mdi-book-outline me-1"></i>
+    {% translate "Docs" %}
+  </a>
+{% endblock extra_controls %}

@@ -1,9 +1,23 @@
 {% extends "layout.html" %}
 {% load i18n %}
+{% load static %}
 {% load render_table from django_tables2 %}
 {% block page_header %}
   <div class="page-pretitle">{% translate "Organization" %}</div>
   <h2 class="page-title">{% translate "Resource grant expiry runs" %}</h2>
+{% endblock %}
+{% block page_actions %}
+  <div class="btn-list">
+    <a href="{% static 'docs/usage/resource-grants.html' %}"
+       target="_blank"
+       rel="noopener"
+       class="btn btn-outline-secondary"
+       aria-label="{% translate "View Help Documentation" %}"
+       title="{% translate "View Help Documentation" %}">
+      <i class="mdi mdi-book-outline me-1"></i>
+      {% translate "Docs" %}
+    </a>
+  </div>
 {% endblock %}
 {% block content %}
   <div class="card">

@@ -1,5 +1,10 @@
 # Resource grant expiry runbook
 
+This runbook covers the scheduled expiry sweep. For the feature itself (what a
+resource grant is, who may grant and revoke, the access levels, and how a
+grantee uses a shared stock pool), see
+[Resource Grants](../usage/resource-grants.md).
+
 The expiry coordinator runs hourly and creates one owner-tenant run per UTC
 hour. Confirm the django-q2 schedule named **Hourly Resource Grant Expiry
 Sweep** and check worker health before investigating a tenant run.

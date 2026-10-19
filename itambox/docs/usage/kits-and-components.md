@@ -351,6 +351,16 @@ graph TD
 - The stock adjustment is handled by `adjust_inventory_stock()` in
   `inventory/services.py`, called from both `save()` and `delete()`.
 
+### Sharing a Stock Pool With Another Tenant
+
+A stock pool can be shared with another tenant instead of being copied to it.
+The owner opens the component, accessory or consumable **Stocks** list and uses
+the row's **Share** action to create a resource grant for one tenant or tenant
+group, at either **View** or **View + allocate/consume** level. The grantee then
+sees the pool in its own stock surfaces, and every check-out that draws on it
+keeps the grant as provenance. Access, deadlines, revocation and the audit trail
+are described in [Resource Grants](resource-grants.md).
+
 > [!IMPORTANT]
 > Stock adjustments are **synchronous and transactional**. If the stock
 > deduction fails (e.g. insufficient quantity), the entire allocation save is

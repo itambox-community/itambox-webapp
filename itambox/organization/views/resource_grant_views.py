@@ -41,6 +41,7 @@ def _grants_involving(tenant):
 class TenantResourceGrantListView(ObjectListView):
     queryset = TenantResourceGrant.objects.none()
     table = tables.TenantResourceGrantTable
+    template_name = "organization/resource_grant_list.html"
     action_buttons = ()
 
     def get_queryset(self):
@@ -150,7 +151,7 @@ class TenantResourceGrantRevokeView(ObjectDeleteView):
 
     model = TenantResourceGrant
     queryset = TenantResourceGrant.objects.all()
-    template_name = "generic/object_confirm_delete.html"
+    template_name = "organization/resource_grant_confirm_delete.html"
     success_url = reverse_lazy("organization:tenantresourcegrant_list")
 
     def get_queryset(self):
