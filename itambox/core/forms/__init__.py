@@ -11,7 +11,6 @@ from .choices import apply_empty_choice_first, empty_choice_first
 from .mixins import (
     BULK_EDIT_FIELD_BLACKLIST,
     BULK_EDIT_FIELD_TYPE_MAP,
-    OBJ_TYPE_CHOICES,
     BulkEditForm,
     ColorFieldFormMixin,
     ConfirmationForm,
@@ -21,6 +20,7 @@ from .mixins import (
     SearchForm,
     SlugModelForm,
     cancel_button,
+    object_type_choices,
 )
 from .scoping import (
     TenantScopedAdminFormMixin,
@@ -33,8 +33,8 @@ from .tenant import scope_tenant_field, scope_tenant_group_field
 
 __all__ = [
     # mixins / base forms
-    "OBJ_TYPE_CHOICES",
     "SearchForm",
+    "object_type_choices",
     "JournalEntryForm",
     "ConfirmationForm",
     "BULK_EDIT_FIELD_BLACKLIST",
