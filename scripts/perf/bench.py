@@ -29,6 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import median
+from threading import local
 from typing import Any, Callable
 
 DEFAULT_BASE_URL = "https://qual.itambox.dev"
@@ -84,10 +85,29 @@ class CountingRedirectHandler(urllib.request.HTTPRedirectHandler):
         self.session = session
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is None:
+            return None
+        request_id = next((value for key, value in req.header_items() if key.lower() == "x-perf-request-id"), "")
+        self.session.request_records.append(
+            {
+                "request_id": request_id,
+                "method": req.get_method(),
+                "path": urllib.parse.urlsplit(req.full_url).path,
+                "status": code,
+                "elapsed_ms": None,
+                "diagnostics": parse_response_diagnostics(headers, request_id),
+            }
+        )
         self.session.request_count += 1
         if self.session.authentication_request_in_flight:
             self.session.login_request_count += 1
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected_request_id = uuid.uuid4().hex
+        redirected.add_header("X-Perf-Request-ID", redirected_request_id)
+        self.session.request_state.request_id = redirected_request_id
+        self.session.request_state.method = redirected.get_method()
+        self.session.request_state.path = urllib.parse.urlsplit(redirected.full_url).path
+        return redirected
 
 
 class HttpSession:
@@ -102,6 +122,7 @@ class HttpSession:
         self.login_request_count = 0
         self.authentication_request_in_flight = False
         self.request_records: list[dict[str, Any]] = []
+        self.request_state = local()
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.cookies), CountingRedirectHandler(self)
         )
@@ -130,29 +151,38 @@ class HttpSession:
         else:
             body = data
         request = urllib.request.Request(url, data=body, headers=request_headers, method=method)
+        self.request_state.request_id = request_id
+        self.request_state.method = method
+        self.request_state.path = urllib.parse.urlsplit(url).path
         self.request_count += 1
         self.authentication_request_in_flight = authentication_request
         started = time.perf_counter()
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
                 response_body = response.read().decode("utf-8", errors="replace")
+                response_request_id = self.request_state.request_id
+                response_method = self.request_state.method
+                response_path = self.request_state.path
                 result = HttpResponse(
                     response.status,
                     response.geturl(),
                     response_body,
                     (time.perf_counter() - started) * 1_000,
-                    request_id=request_id,
-                    diagnostics=parse_response_diagnostics(response.headers, request_id),
+                    request_id=response_request_id,
+                    diagnostics=parse_response_diagnostics(response.headers, response_request_id),
                 )
         except urllib.error.HTTPError as error:
             response_body = error.read().decode("utf-8", errors="replace")
+            response_request_id = self.request_state.request_id
+            response_method = self.request_state.method
+            response_path = self.request_state.path
             result = HttpResponse(
                 error.code,
                 error.geturl(),
                 response_body,
                 (time.perf_counter() - started) * 1_000,
-                request_id=request_id,
-                diagnostics=parse_response_diagnostics(error.headers, request_id),
+                request_id=response_request_id,
+                diagnostics=parse_response_diagnostics(error.headers, response_request_id),
             )
         except OSError as error:
             self.error_count += 1
@@ -160,9 +190,9 @@ class HttpSession:
                 self.login_request_count += 1
             self.request_records.append(
                 {
-                    "request_id": request_id,
-                    "method": method,
-                    "path": urllib.parse.urlsplit(url).path,
+                    "request_id": self.request_state.request_id,
+                    "method": self.request_state.method,
+                    "path": self.request_state.path,
                     "status": None,
                     "elapsed_ms": round((time.perf_counter() - started) * 1_000, 3),
                     "diagnostics": None,
@@ -171,6 +201,9 @@ class HttpSession:
             raise BenchmarkError(f"HTTP transport failed ({type(error).__name__})") from None
         finally:
             self.authentication_request_in_flight = False
+            self.request_state.request_id = None
+            self.request_state.method = None
+            self.request_state.path = None
         if authentication_request:
             self.login_request_count += 1
         if result.status >= 400:
@@ -178,8 +211,8 @@ class HttpSession:
         self.request_records.append(
             {
                 "request_id": result.request_id,
-                "method": method,
-                "path": urllib.parse.urlsplit(url).path,
+                "method": response_method,
+                "path": response_path,
                 "status": result.status,
                 "elapsed_ms": round(result.elapsed_ms, 3),
                 "diagnostics": result.diagnostics,
@@ -1125,6 +1158,9 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         "request_count": sum(row["request_count"] for row in results),
         "error_count": sum(row["error_count"] for row in results),
     }
+    observations = process_observations(results)
+    if observations["request_count"] != totals["request_count"]:
+        raise BenchmarkError("HTTP request records do not match the request count")
     return {
         "benchmark": "itambox-http-performance",
         "created_at": datetime.now(UTC).isoformat(),
@@ -1162,7 +1198,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
             "target_deviation": manifest.get("target_deviation"),
         },
         "results": results,
-        "process_observations": process_observations(results),
+        "process_observations": observations,
         "totals": totals,
     }
 

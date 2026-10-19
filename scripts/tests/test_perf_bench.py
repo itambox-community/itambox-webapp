@@ -64,9 +64,23 @@ class _FixtureApplication(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             body = b"not found"
+        self._send_perf_headers()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        self.send_response(302)
+        self.send_header("Location", "/dashboard/")
+        self.send_header("Set-Cookie", "sessionid=fixture-session; Path=/")
+        self._send_perf_headers()
+        self.end_headers()
+
+    def _send_perf_headers(self):
         request_id = self.headers.get("X-Perf-Request-ID")
         if request_id:
-            request_id = request_id.replace("\n", "").replace("\r", "")
+            request_id = request_id.replace("\n", "").replace("\r", "").replace(":", "")
         if request_id and re.fullmatch(r"[0-9a-f]{32}", request_id):
             self.send_header("X-Perf-Request-ID", request_id)
             self.send_header("X-Perf-Worker-PID", "1234")
@@ -78,16 +92,6 @@ class _FixtureApplication(BaseHTTPRequestHandler):
             self.send_header("X-Perf-GC-Pause-Count", "2")
             self.send_header("X-Perf-GC-Pause-Time-MS", "1.250")
             self.send_header("X-Perf-GC-Max-Pause-MS", "0.900")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_POST(self):
-        self.rfile.read(int(self.headers.get("Content-Length", "0")))
-        self.send_response(302)
-        self.send_header("Location", "/dashboard/")
-        self.send_header("Set-Cookie", "sessionid=fixture-session; Path=/")
-        self.end_headers()
 
     def log_message(self, format, *args):
         return
@@ -183,6 +187,47 @@ class BenchmarkReportingTests(unittest.TestCase):
             results = self._run_smoke_scenarios(session)
             with tempfile.TemporaryDirectory() as directory:
                 self._assert_smoke_report(Path(directory) / "smoke.json", results)
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=2)
+
+    def test_redirect_responses_are_recorded_with_distinct_request_ids(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _FixtureApplication)
+        server_thread = Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        session = HttpSession(f"http://127.0.0.1:{server.server_port}", 2)
+        try:
+            session.login("/accounts/login/", "/dashboard/", "benchmark-test", "test-only")
+
+            def redirect_action(current_session):
+                response = current_session.request("/redirect/", method="POST", data={"value": "fixture"})
+                self.assertEqual(response.status, 200)
+                return response.elapsed_ms
+
+            result = run_scenario(
+                "redirect_probe",
+                redirect_action,
+                [session],
+                iterations=1,
+                warmups=1,
+                concurrency=1,
+                uses_http=True,
+            )
+            records = [request for sample in result["sample_records"] for request in sample["requests"]]
+            self.assertEqual(result["request_count"], 4)
+            self.assertEqual(len(records), 4)
+            self.assertEqual([record["status"] for record in result["sample_records"][0]["requests"]], [302, 200])
+            self.assertEqual(
+                [record["path"] for record in result["sample_records"][0]["requests"]], ["/redirect/", "/dashboard/"]
+            )
+            request_ids = [record["request_id"] for record in records]
+            self.assertEqual(len(set(request_ids)), 4)
+            self.assertTrue(all(record["diagnostics"]["request_id"] == record["request_id"] for record in records))
+            summary = process_observations([result])
+            self.assertEqual(summary["request_count"], result["request_count"])
+            self.assertEqual(summary["instrumented_request_count"], 4)
+            self.assertEqual(summary["uninstrumented_request_count"], 0)
         finally:
             server.shutdown()
             server.server_close()
