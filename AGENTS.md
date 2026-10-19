@@ -66,7 +66,7 @@ Django + PostgreSQL (SQLite is rejected at settings load). Beyond Django itself:
 - **Tests** — pytest-django + model_bakery. The full suite runs on two lanes: pytest-xdist with `-n auto --dist=loadscope -m 'not serial_only'` for the parallel lane, plus a serial-only lane for tests that require serial semantics (races, migrations, global seed state — the `serial_only` marker).
 - **Docs** — MkDocs.
 
-Direct dependency policy lives in `pyproject.toml`; exact cross-platform versions live in `uv.lock`. Use uv `0.11.31` with `--locked` rather than installing ad hoc packages.
+Direct dependency policy lives in `pyproject.toml`; exact cross-platform versions live in `uv.lock`. Use uv `0.13.1` with `--locked` rather than installing ad hoc packages.
 
 ## Development commands
 
