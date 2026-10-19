@@ -10636,9 +10636,9 @@ msgstr "Für direkt zugewiesene Rollen mit erweiterten Rechten ist ein Ablaufdat
 msgid "EUR (Euro, €)"
 msgstr "EUR (Euro, €)"
 
-#: itambox/extras/dashboard/widgets.py:828
-msgid "Each change appears in the activity feed. Showing internal events as well would duplicate entries."
-msgstr "Jede Änderung erscheint im Aktivitätsfeed. Wenn interne Ereignisse ebenfalls angezeigt werden, erscheinen die Einträge doppelt."
+#: itambox/extras/dashboard/widgets.py:952
+msgid "Hide system-generated entries and background job updates so the feed shows human activity."
+msgstr "Vom System erzeugte Einträge und Aktualisierungen von Hintergrundjobs ausblenden, damit der Feed menschliche Aktivitäten zeigt."
 
 #: itambox/templates/organization/memberships/membership_detail.html:49
 msgid "Each entry assigns one role and shows where it applies."
