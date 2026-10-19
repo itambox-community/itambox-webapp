@@ -163,6 +163,7 @@ TEMPLATES = [
                 "itambox.context_processors.settings_processor",
                 "itambox.context_processors.notifications_processor",
                 "organization.views.context_processors.tenant_switcher_processor",
+                "assets.views.context_processors.bulk_scan_capabilities",
                 "itambox.context_processors.base_template_processor",
                 "itambox.context_processors.plugin_diagnostics_processor",
             ],

@@ -32,20 +32,22 @@
             <li><a class="dropdown-item" href="{% url 'inventory:consumable_create' %}"><i class="mdi mdi-water-outline me-2 text-muted"></i>{% translate "Consumable" %}</a></li>
           {% endif %}
         {% endif %}
-        {% if perms.assets.change_asset or perms.assets.add_assetdisposal %}
+        {% if bulk_scan_capabilities.checkin or bulk_scan_capabilities.checkout or bulk_scan_capabilities.dispose %}
           <li>
             <hr class="dropdown-divider">
           </li>
           <li>
             <h6 class="dropdown-header">{% translate "Bulk" %}</h6>
           </li>
-          {% if perms.assets.change_asset %}
+          {% if bulk_scan_capabilities.checkout %}
             <li><a class="dropdown-item"
    href="{% url 'assets:asset_bulk_checkout_scan' %}"><i class="mdi mdi-logout me-2 text-muted"></i>{% translate "Bulk check-out" %}</a></li>
+          {% endif %}
+          {% if bulk_scan_capabilities.checkin %}
             <li><a class="dropdown-item"
    href="{% url 'assets:asset_bulk_checkin_scan' %}"><i class="mdi mdi-inbox-arrow-down me-2 text-muted"></i>{% translate "Bulk check-in" %}</a></li>
           {% endif %}
-          {% if perms.assets.add_assetdisposal %}
+          {% if bulk_scan_capabilities.dispose %}
             <li><a class="dropdown-item"
    href="{% url 'assets:asset_bulk_dispose_scan' %}"><i class="mdi mdi-delete-clock-outline me-2 text-muted"></i>{% translate "Bulk disposal" %}</a></li>
           {% endif %}
