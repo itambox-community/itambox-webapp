@@ -89,7 +89,7 @@ class UserConfigAPITests(APITestCase):
         self._create_preference({"old": "value"})
         payload = {
             "tables": {"assets": {"AssetTable": {"columns": ["name", "asset_tag"]}}},
-            "theme": {"theme": "not-a-validated-choice"},
+            "theme": {"theme": "auto"},
             "pagination": {"per_page": 50},
             "language": "de",
         }
@@ -187,6 +187,34 @@ class UserConfigAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"data": payload})
         self.assertEqual(UserPreference.objects.get(user=self.superuser).data, payload)
+
+    def test_patch_accepts_every_documented_theme_value(self):
+        for value in ("light", "dark", "auto"):
+            with self.subTest(value=value):
+                response = self.client.patch(self.url, data={"theme": {"theme": value}}, format="json")
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["data"]["theme"], {"theme": value})
+                self.assertEqual(
+                    UserPreference.objects.get(user=self.superuser).data["theme"]["theme"],
+                    value,
+                )
+
+    def test_patch_rejects_an_undocumented_theme_value_without_persisting(self):
+        original = {"theme": {"theme": "dark"}}
+        self._create_preference(original)
+
+        response = self.client.patch(self.url, data={"theme": {"theme": "purple"}}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("theme", response.data)
+        self.assertEqual(UserPreference.objects.get(user=self.superuser).data, original)
+
+    def test_put_rejects_an_undocumented_theme_value_without_persisting(self):
+        response = self.client.put(self.url, data={"theme": {"theme": "system"}}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("theme", response.data)
+        self.assertFalse(UserPreference.objects.filter(user=self.superuser).exists())
 
     def test_type_validation_rejects_invalid_configuration_shapes(self):
         cases = (

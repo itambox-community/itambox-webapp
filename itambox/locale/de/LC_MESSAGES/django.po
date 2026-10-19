@@ -15633,3 +15633,15 @@ msgstr "Positive ganze Zahl von Monaten. Leer lassen, wenn kein Prüfrhythmus er
 #, python-format
 msgid "unknown target '%(value)s'. Use: %(choices)s."
 msgstr "Unbekanntes Ziel '%(value)s'. Verwenden Sie: %(choices)s."
+
+msgid "Theme"
+msgstr "Design"
+
+msgid "Automatic follows the light or dark setting of your operating system and updates when it changes."
+msgstr "Automatisch folgt der Hell- oder Dunkel-Einstellung Ihres Betriebssystems und aktualisiert sich, wenn sie sich ändert."
+
+msgid "Use system theme"
+msgstr "Systemdesign verwenden"
+
+msgid "Select a valid theme: light, dark or automatic."
+msgstr "Wählen Sie ein gültiges Design: Hell, Dunkel oder Automatisch."

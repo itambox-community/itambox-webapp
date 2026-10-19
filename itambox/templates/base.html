@@ -5,9 +5,16 @@
 {% load partials %}
 {% load django_htmx %}
 {% load plugins %}
+{% load user_theme %}
 {% get_current_language as LANGUAGE_CODE %}
+{% theme_preference as theme_preference %}
 <!DOCTYPE html>
 <html lang="{{ LANGUAGE_CODE }}"
+      data-theme-preference="{{ theme_preference }}"
+      data-theme-config-url="{% url 'api:users_api:user-config' %}"
+      data-theme-label-light="{% translate 'Enable light mode' %}"
+      data-theme-label-dark="{% translate 'Enable dark mode' %}"
+      data-theme-label-auto="{% translate 'Use system theme' %}"
       data-itambox-user-id="{{ request.user.pk }}"
       data-itambox-user-name="{{ request.user.get_full_name|default:request.user.username }}"
       data-itambox-url-name="{{ request.resolver_match.url_name }}"
@@ -28,9 +35,9 @@
     <link rel="icon"
           type="image/svg+xml"
           href="{% static 'dist/brand/favicon.svg' %}">
-    {# FOUC prevention: apply stored theme before CSS loads #}
+    {# FOUC prevention: apply the account theme preference before CSS loads #}
     <script nonce="{{ request.csp_nonce }}">
-        (function(){try{var t=localStorage.getItem('itambox.theme');if(t)document.documentElement.setAttribute('data-bs-theme',t);else if(window.matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.setAttribute('data-bs-theme','dark');}catch(e){}})();
+        (function(){try{var p=document.documentElement.getAttribute('data-theme-preference');if(p!=='light'&&p!=='dark'){p='auto';}var d=p==='dark'||(p==='auto'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.setAttribute('data-bs-theme',d?'dark':'light');}catch(e){document.documentElement.setAttribute('data-bs-theme','light');}})();
     </script>
     {# FOUC prevention: apply stored filter-panel collapse state before paint (avoids a layout jump on reload) #}
     <script nonce="{{ request.csp_nonce }}">

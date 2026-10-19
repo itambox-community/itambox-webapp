@@ -728,14 +728,6 @@
       "scope": "ClassDef:UserPreferencesForm/FunctionDef:__init__",
       "handler_type": "Exception",
       "classification": "silent",
-      "body_sha256": "bdc039bae5b5d235ad1f22e419786067f45f35e72ee26924f3762f0dd340b1c8",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/forms.py",
-      "scope": "ClassDef:UserPreferencesForm/FunctionDef:__init__",
-      "handler_type": "Exception",
-      "classification": "silent",
       "body_sha256": "cddb24f752ccbca961ee74af7abca526c268207add2fddccfbb8193055c06e46",
       "count": 1
     },

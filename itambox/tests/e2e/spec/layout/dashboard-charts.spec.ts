@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { setThemePreference } from '../../helpers/theme';
+
 /**
  * Qualifies the ECharts-based dashboard charts end to end:
  *  - initial rendering (canvas size, live instance, seed data)
@@ -169,6 +171,10 @@ test('theme switching, a HTMX swap, and a GridStack resize keep single chart ins
   await page.setViewportSize({ width: 1440, height: 1000 });
   const errors = collectPageErrors(page);
   await page.goto('/', { waitUntil: 'networkidle' });
+  // A deterministic starting point: the account preference is an explicit
+  // light, so one toggle click goes to dark and the next returns to light.
+  await setThemePreference(page, 'light');
+  await page.reload({ waitUntil: 'networkidle' });
   await removeDebugToolbar(page);
 
   const statusChart = page.locator(STATUS_SELECTOR);
