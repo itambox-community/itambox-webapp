@@ -21,7 +21,7 @@ fails if a workflow file is added or removed without updating its scan list.
 
 | Path | Current references |
 |---|---|
-| `Dockerfile` | `ghcr.io/astral-sh/uv:0.11.31` (existing pin), `node:26-slim`, and all three `python:3.12-slim-bookworm` stages |
+| `Dockerfile` | `ghcr.io/astral-sh/uv:0.13.1` (existing pin), `node:26-slim`, and all three `python:3.12-slim-bookworm` stages |
 | `docker-compose.yml` | Production `db` service (`postgres:16`) and `valkey` service (`valkey/valkey:8-alpine`) |
 | `.github/workflows/*.yml` | CI and validation service containers, plus the already pinned E2E PostgreSQL and mock OAuth2 services |
 

@@ -36,7 +36,7 @@ Fork the repository if you do not have branch access, then clone your fork. Orga
 ```bash
 git clone https://github.com/itambox/itambox-webapp.git
 cd itambox-webapp
-python -m pip install --user "uv==0.11.31"
+python -m pip install --user "uv==0.13.1"
 uv --version
 ```
 
@@ -54,7 +54,7 @@ direct dependencies and `uv.lock` is the exact environment contract. Do not use
 Python package.
 
 For a dependency change, edit only `pyproject.toml`, regenerate `uv.lock` with
-uv `0.11.31`, and review both files together. Use `uv lock --upgrade-package
+uv `0.13.1`, and review both files together. Use `uv lock --upgrade-package
 <name>` for a targeted update or `uv lock --upgrade` for a deliberate full
 refresh; normal setup and CI must use `--locked` and must never rewrite the lock.
 
