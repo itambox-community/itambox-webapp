@@ -50,30 +50,36 @@
         <i class="mdi mdi-printer me-1"></i>
         {% translate "Print Labels" %}
       </button>
-      <button type="button"
-              class="btn btn-sm btn-primary bulk-action-btn btn-bulk-scan-seed"
-              disabled
-              data-scan-url="{% url 'assets:asset_bulk_checkout_scan' %}"
-              title="{% translate 'Check out selected assets via the scan basket' %}">
-        <i class="mdi mdi-logout me-1"></i>
-        {% translate "Check-out" %}
-      </button>
-      <button type="button"
-              class="btn btn-sm btn-success bulk-action-btn btn-bulk-scan-seed"
-              disabled
-              data-scan-url="{% url 'assets:asset_bulk_checkin_scan' %}"
-              title="{% translate 'Check in selected assets via the scan basket' %}">
-        <i class="mdi mdi-inbox-arrow-down me-1"></i>
-        {% translate "Check-in" %}
-      </button>
-      <button type="button"
-              class="btn btn-sm btn-warning bulk-action-btn btn-bulk-scan-seed"
-              disabled
-              data-scan-url="{% url 'assets:asset_bulk_dispose_scan' %}"
-              title="{% translate 'Dispose selected assets via the scan basket' %}">
-        <i class="mdi mdi-delete-outline me-1"></i>
-        {% translate "Dispose" %}
-      </button>
+      {% if bulk_scan_capabilities.checkout %}
+        <button type="button"
+                class="btn btn-sm btn-primary bulk-action-btn btn-bulk-scan-seed"
+                disabled
+                data-scan-url="{% url 'assets:asset_bulk_checkout_scan' %}"
+                title="{% translate 'Check out selected assets via the scan basket' %}">
+          <i class="mdi mdi-logout me-1"></i>
+          {% translate "Check-out" %}
+        </button>
+      {% endif %}
+      {% if bulk_scan_capabilities.checkin %}
+        <button type="button"
+                class="btn btn-sm btn-success bulk-action-btn btn-bulk-scan-seed"
+                disabled
+                data-scan-url="{% url 'assets:asset_bulk_checkin_scan' %}"
+                title="{% translate 'Check in selected assets via the scan basket' %}">
+          <i class="mdi mdi-inbox-arrow-down me-1"></i>
+          {% translate "Check-in" %}
+        </button>
+      {% endif %}
+      {% if bulk_scan_capabilities.dispose %}
+        <button type="button"
+                class="btn btn-sm btn-warning bulk-action-btn btn-bulk-scan-seed"
+                disabled
+                data-scan-url="{% url 'assets:asset_bulk_dispose_scan' %}"
+                title="{% translate 'Dispose selected assets via the scan basket' %}">
+          <i class="mdi mdi-delete-outline me-1"></i>
+          {% translate "Dispose" %}
+        </button>
+      {% endif %}
     {% endif %}
     {% if model_name_str == 'assets.assetrequest' and asset_request_bulk_receive_available %}
       <form method="post"
