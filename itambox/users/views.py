@@ -30,6 +30,7 @@ from itambox.views.generic import (
     ObjectDetailView,
     ObjectEditView,
     ObjectListView,
+    is_htmx_request,
     safe_return_url,
 )
 from organization.access import accessible_tenant_ids, get_descendant_tenant_group_ids
@@ -155,7 +156,6 @@ class UserPreferencesView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixi
                 # a previously selected workspace in the current session.
                 clear_workspace_session(request.session)
             messages.success(request, _("Preferences saved successfully."))
-            response = redirect("users:user_preferences")
             # Apply the chosen interface language app-wide via the standard
             # language cookie (read by Django's LocaleMiddleware on every request).
             from django.conf import settings
@@ -163,7 +163,19 @@ class UserPreferencesView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixi
 
             language = form.cleaned_data.get("language")
             if language and language in dict(settings.LANGUAGES):
+                # Every part of the layout (sidebar, topbar, messages, title) is
+                # translated at render time, so a language switch has to replace
+                # the whole document. An HTMX submit would only swap
+                # #page-content-wrapper and leave the chrome in the old
+                # language; answer it with 204 + HX-Redirect to force a full
+                # navigation. Saves that keep the language behave as before.
+                language_changed = language != translation.get_language()
                 translation.activate(language)
+                if language_changed and is_htmx_request(request):
+                    response = HttpResponse(status=204)
+                    response["HX-Redirect"] = reverse("users:user_preferences")
+                else:
+                    response = redirect("users:user_preferences")
                 response.set_cookie(
                     settings.LANGUAGE_COOKIE_NAME,
                     language,
@@ -174,7 +186,8 @@ class UserPreferencesView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixi
                     httponly=settings.LANGUAGE_COOKIE_HTTPONLY,
                     samesite=settings.LANGUAGE_COOKIE_SAMESITE,
                 )
-            return response
+                return response
+            return redirect("users:user_preferences")
         else:
             messages.error(request, _("There was an error saving your preferences."))
         # Pass invalid form back to context
