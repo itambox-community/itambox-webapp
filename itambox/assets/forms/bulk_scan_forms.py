@@ -15,6 +15,7 @@ from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, AssetDisposal, StatusLabel
 from core.forms.base import TenantScopedFormMixin
+from core.forms.choices import apply_empty_choice_first
 from core.managers import get_current_tenant
 from core.tenant_scope import accessible_tenant_ids
 from organization.models import AssetHolder, Location, Tenant
@@ -86,6 +87,11 @@ class BulkTenantSelectionMixin:
             self.fields["tenant"].widget = forms.HiddenInput()
             if current_tenant:
                 self.fields["tenant"].initial = current_tenant.pk
+
+        # The blank "no target tenant" entry stays first. It comes from
+        # Django's ``empty_label`` while this is a ModelChoiceField; the helper
+        # keeps the position if the field is ever rebuilt from a manual list.
+        apply_empty_choice_first(self.fields["tenant"])
 
 
 def _tenant_locations():

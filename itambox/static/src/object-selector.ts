@@ -74,6 +74,32 @@
     }
 
     const ts = new TomSelect(el, options) as any;
+
+    // Keep the document's empty option on top of the list.
+    //
+    // Tom Select numbers every option with `$order` and sorts by that field as
+    // long as the query is empty. Options parsed from the document keep the
+    // parser's number (the empty option is 1), but options delivered by `load`
+    // take `$order = ++order` from an instance counter that starts at 0 — so
+    // the first loaded option is `$order: 1` as well. Sifter breaks that tie by
+    // object key order, which lists integer keys before the empty key, and a
+    // real option ends up above "---------". Continuing the counter after the
+    // document's options removes the tie, so the empty entry stays first (it
+    // also keeps the generated option ids unique).
+    if (ts && url) {
+      let documentOrder = 0;
+      const currentOptions = ts.options || {};
+      for (const key of Object.keys(currentOptions)) {
+        const order = Number(currentOptions[key]?.$order);
+        if (Number.isFinite(order) && order > documentOrder) {
+          documentOrder = order;
+        }
+      }
+      if (documentOrder > ts.order) {
+        ts.order = documentOrder;
+      }
+    }
+
     if (ts && ts.control_input && el.id) {
       const inputId = el.id + '-ts-input';
       ts.control_input.id = inputId;
