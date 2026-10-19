@@ -14,6 +14,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from core.forms.base import TenantScopedFormMixin, apply_tom_select
+from core.forms.choices import apply_empty_choice_first, empty_choice_first
 from core.search import SEARCH_INDEXES
 from itambox.utils import get_model_viewname
 
@@ -300,7 +301,7 @@ class FilterForm(forms.Form):
                     self.fields[name] = forms.MultipleChoiceField(
                         label=filter_field.label if filter_field.label else name.replace("_", " ").capitalize(),
                         required=False,
-                        choices=filter_field.extra.get("choices", []),
+                        choices=empty_choice_first(filter_field.extra.get("choices", [])),
                     )
                     continue
 
@@ -319,6 +320,17 @@ class FilterForm(forms.Form):
 
         # TomSelect attribute through the shared helper (same exclusions as the former local loop)
         apply_tom_select(self.fields)
+
+        self.normalise_choice_order()
+
+    def normalise_choice_order(self):
+        """Keep the blank entry first in every hand-assembled choice list.
+
+        Model-backed fields are skipped: Django renders ``empty_label`` first
+        already and replacing the lazy choices would freeze the queryset.
+        """
+        for field in self.fields.values():
+            apply_empty_choice_first(field)
 
     def setup_ajax_fields(self, ajax_fields, filterset_data):
         for field_name, config in ajax_fields.items():
