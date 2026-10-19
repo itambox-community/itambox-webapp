@@ -69,3 +69,9 @@ class EmptyChoiceFirstTest(SimpleTestCase):
         # must not freeze it into a list.
         self.assertIsInstance(field.choices, ModelChoiceIterator)
         self.assertEqual(field.empty_label, "---------")
+
+    def test_other_fields_are_returned_untouched(self):
+        field = forms.CharField(required=False, initial="keep me")
+
+        self.assertIs(apply_empty_choice_first(field), field)
+        self.assertEqual(field.initial, "keep me")

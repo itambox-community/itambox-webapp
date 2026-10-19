@@ -10,18 +10,15 @@ those lists and ``apply_empty_choice_first`` applies it to a field.
 
 from django import forms
 
-# Matches Django's default ``ModelChoiceField.empty_label`` and the label the
-# hand-built select lists in this repository already use.
-BLANK_CHOICE_LABEL = "---------"
 
-
-def empty_choice_first(choices, empty_label=BLANK_CHOICE_LABEL):
+def empty_choice_first(choices):
     """Return ``choices`` with the blank (``""``) choice first.
 
     A blank entry found anywhere is moved to the front, duplicate blank entries
     collapse into one, and a list without a blank entry is returned unchanged --
-    whether a field is clearable stays the caller's decision. The result is
-    always a list of ``(value, label)`` pairs, so the function is idempotent.
+    whether a field is clearable stays the caller's decision, so this never
+    invents one. The result is always a list of ``(value, label)`` pairs, so the
+    function is idempotent.
     """
     ordered = []
     blank = None
