@@ -97,7 +97,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+        image: postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
         env:
           POSTGRES_DB: itambox_e2e
           POSTGRES_USER: itambox_e2e

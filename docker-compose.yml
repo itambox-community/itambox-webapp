@@ -27,7 +27,7 @@ x-app-env: &app-env
   ITAMBOX_DEBUG: "False"
   ITAMBOX_DB_HOST: db
   ITAMBOX_DB_PORT: "5432"
-  # The bundled `db` is stock postgres:16 with no TLS, and app<->db traffic stays on the
+  # The bundled `db` is stock postgres:18 with no TLS, and app<->db traffic stays on the
   # internal docker network — so disable the libpq sslmode=require default (which would make
   # a from-scratch `docker compose up` fail to connect). External/managed Postgres should set
   # ITAMBOX_DB_SSLMODE=require (or verify-full) via the environment instead.
@@ -75,7 +75,13 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+    # PostgreSQL 18 runs its cluster from /var/lib/postgresql/<major>/docker and
+    # declares /var/lib/postgresql as the image volume, so the named volume is
+    # mounted one level above the data directory. Mounting the former
+    # /var/lib/postgresql/data path against this image leaves the container
+    # unhealthy. An existing 16 volume is not readable by this cluster layout:
+    # migrate it, do not relabel it (itambox/docs/operations/upgrades.md).
+    image: postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${ITAMBOX_DB_USER:-itambox}
@@ -86,7 +92,7 @@ services:
       POSTGRES_PASSWORD: ${ITAMBOX_DB_PASSWORD:?set ITAMBOX_DB_PASSWORD in .env}
       POSTGRES_DB: ${ITAMBOX_DB_NAME:-itambox}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${ITAMBOX_DB_USER:-itambox} -d ${ITAMBOX_DB_NAME:-itambox}"]
       interval: 10s
