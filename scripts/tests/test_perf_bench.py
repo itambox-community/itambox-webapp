@@ -5,11 +5,13 @@ import tempfile
 import types
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import StringIO
 from pathlib import Path
 from threading import Thread
 from unittest.mock import patch as mock_patch
+from uuid import UUID
 
 from scripts.perf.bench import (
     ALL_PATHS,
@@ -78,20 +80,20 @@ class _FixtureApplication(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _send_perf_headers(self):
-        request_id = self.headers.get("X-Perf-Request-ID")
-        if request_id:
-            request_id = request_id.replace("\n", "").replace("\r", "").replace(":", "")
-        if request_id and re.fullmatch(r"[0-9a-f]{32}", request_id):
-            self.send_header("X-Perf-Request-ID", request_id)
-            self.send_header("X-Perf-Worker-PID", "1234")
-            self.send_header("X-Perf-Worker-Instance", "fixture-worker")
-            self.send_header("X-Perf-Query-Count", "3")
-            self.send_header("X-Perf-Query-Time-MS", "12.500")
-            self.send_header("X-Perf-Slow-Query-Count", "1")
-            self.send_header("X-Perf-Slow-Queries-B64", "W3siZmluZ2VycHJpbnQiOiJhYmNkZWYiLCJkdXJhdGlvbl9tcyI6NjAuMH1d")
-            self.send_header("X-Perf-GC-Pause-Count", "2")
-            self.send_header("X-Perf-GC-Pause-Time-MS", "1.250")
-            self.send_header("X-Perf-GC-Max-Pause-MS", "0.900")
+        raw_request_id = self.headers.get("X-Perf-Request-ID", "")
+        if not re.fullmatch(r"[0-9a-fA-F]{32}", raw_request_id):
+            return
+        request_id = UUID(raw_request_id).hex
+        self.send_header("X-Perf-Request-ID", request_id)
+        self.send_header("X-Perf-Worker-PID", "1234")
+        self.send_header("X-Perf-Worker-Instance", "fixture-worker")
+        self.send_header("X-Perf-Query-Count", "3")
+        self.send_header("X-Perf-Query-Time-MS", "12.500")
+        self.send_header("X-Perf-Slow-Query-Count", "1")
+        self.send_header("X-Perf-Slow-Queries-B64", "W3siZmluZ2VycHJpbnQiOiJhYmNkZWYiLCJkdXJhdGlvbl9tcyI6NjAuMH1d")
+        self.send_header("X-Perf-GC-Pause-Count", "2")
+        self.send_header("X-Perf-GC-Pause-Time-MS", "1.250")
+        self.send_header("X-Perf-GC-Max-Pause-MS", "0.900")
 
     def log_message(self, format, *args):
         return
@@ -301,6 +303,16 @@ class BenchmarkReportingTests(unittest.TestCase):
             incomplete,
             {"available": False, "request_id": "request-a", "error": "incomplete diagnostics headers"},
         )
+
+    def test_fixture_does_not_reflect_malformed_request_ids(self):
+        for raw_request_id in ("invalid", "a" * 32 + "\r\nX-Evil: forged"):
+            with self.subTest(raw_request_id=raw_request_id):
+                handler = object.__new__(_FixtureApplication)
+                handler.headers = Message()
+                handler.headers["X-Perf-Request-ID"] = raw_request_id
+                with mock_patch.object(_FixtureApplication, "send_header") as send_header:
+                    handler._send_perf_headers()
+                    send_header.assert_not_called()
 
     def test_process_observations_preserve_worker_restart_correlation(self):
         results = [
