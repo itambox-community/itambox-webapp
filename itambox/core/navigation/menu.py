@@ -2,6 +2,7 @@ from functools import cache
 
 from django.utils.translation import gettext_lazy as _
 
+from core.managers import Scope
 from core.tenant_scope import accessible_tenant_ids, tenant_model
 from itambox.capabilities import registry
 
@@ -53,6 +54,47 @@ def _can_admin_provider(user):
         or user.has_perm("organization.change_tenant", obj=tenant)
         for tenant in _user_provider_tenants(user)
     )
+
+
+def _holds_in_any_accessible_tenant(user, permission):
+    """Whether ``user`` holds ``permission`` in at least one accessible tenant."""
+    Tenant = tenant_model()
+    ids = accessible_tenant_ids(user)
+    if not ids:
+        return False
+    # _base_manager: cross-tenant machinery must not ride the tenant-scoped manager.
+    return any(
+        user.has_perm(permission, obj=tenant)
+        for tenant in Tenant._base_manager.filter(pk__in=ids, deleted_at__isnull=True)
+    )
+
+
+def _bulk_scan_gate(permission):
+    """Menu gate for one scanner-driven bulk action.
+
+    MUST stay in lock-step with ``_BaseBulkScanView.has_permission`` and the
+    ``bulk_scan_capabilities`` template flags: a concrete tenant scope asks that
+    tenant, the aggregate ("all accessible tenants") scope asks whether *any*
+    accessible tenant grants the permission because it has no tenant anchor to
+    ask, and the tenant-group scope falls back to the ambient objectless check,
+    which aggregates over the group exactly like the scan views.
+    """
+
+    def allowed(user):
+        if not getattr(user, "is_authenticated", False):
+            return False
+        scope = Scope.current()
+        if scope.kind == Scope.DENIED:
+            return False
+        if scope.kind == Scope.TENANT:
+            return user.has_perm(permission, obj=scope.tenant)
+        if scope.kind == Scope.ALL_ACCESSIBLE:
+            return _holds_in_any_accessible_tenant(user, permission)
+        # GROUP and SYSTEM: the ambient check aggregates over the group, and a
+        # superuser answers True regardless of the object.
+        return user.has_perm(permission)
+
+    return allowed
 
 
 def can_manage_user_groups(user):
@@ -132,22 +174,29 @@ ASSETS_MENU = Menu(
         MenuGroup(
             label=_("Bulk Actions"),
             items=(
+                # The scan views accept these wherever the target-tenant field
+                # can offer a tenant the actor holds the permission in, so the
+                # gate follows the ambient scope instead of a plain objectless
+                # permission check (#923).
                 MenuItem(
                     link="assets:asset_bulk_checkout_scan",
                     link_text=_("Bulk Check-out"),
-                    permissions=["assets.change_asset"],
+                    permissions=(),
+                    condition=_bulk_scan_gate("assets.change_asset"),
                     buttons=(),
                 ),
                 MenuItem(
                     link="assets:asset_bulk_checkin_scan",
                     link_text=_("Bulk Check-in"),
-                    permissions=["assets.change_asset"],
+                    permissions=(),
+                    condition=_bulk_scan_gate("assets.change_asset"),
                     buttons=(),
                 ),
                 MenuItem(
                     link="assets:asset_bulk_dispose_scan",
                     link_text=_("Bulk Disposal"),
-                    permissions=["assets.add_assetdisposal"],
+                    permissions=(),
+                    condition=_bulk_scan_gate("assets.add_assetdisposal"),
                     buttons=(),
                 ),
             ),
