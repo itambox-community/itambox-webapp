@@ -13,18 +13,28 @@ from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
+from core import search as core_search
 from core.forms.base import TenantScopedFormMixin, apply_tom_select
 from core.forms.choices import apply_empty_choice_first, empty_choice_first
-from core.search import SEARCH_INDEXES
 from itambox.utils import get_model_viewname
 
-OBJ_TYPE_CHOICES = [
-    (
-        f"{model._meta.app_label}.{model._meta.model_name}",
-        f"{model._meta.app_label.capitalize()} | {model._meta.verbose_name.capitalize()}",
-    )
-    for model in sorted(SEARCH_INDEXES.keys(), key=lambda m: (m._meta.app_label, m._meta.verbose_name))
-]
+
+def object_type_choices():
+    """Choices for the search form's ``obj_type`` field.
+
+    Evaluated per call, never at import time: the per-app ``search.py`` modules
+    fill ``SEARCH_INDEXES`` through ``@register_search`` while the app registry
+    becomes ready, which happens after this module is imported. A module-level
+    constant therefore captured the still-empty registry for the lifetime of
+    the process (#919).
+    """
+    return [
+        (
+            f"{model._meta.app_label}.{model._meta.model_name}",
+            f"{model._meta.app_label.capitalize()} | {model._meta.verbose_name.capitalize()}",
+        )
+        for model in sorted(core_search.SEARCH_INDEXES.keys(), key=lambda m: (m._meta.app_label, m._meta.verbose_name))
+    ]
 
 
 def cancel_button(cancel_url, *, dismiss=False, no_dirty_track=False, label=None):
@@ -52,7 +62,6 @@ class SearchForm(TenantScopedFormMixin, forms.Form):
     )
     obj_type = forms.MultipleChoiceField(
         label=_("Object types"),
-        choices=OBJ_TYPE_CHOICES,
         required=False,
         widget=forms.SelectMultiple(attrs={"class": "form-select", "id": "id_obj_type_select", "data-tom-select": ""}),
     )
@@ -71,6 +80,12 @@ class SearchForm(TenantScopedFormMixin, forms.Form):
         initial="icontains",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The registry is only complete once the app registry is ready, so the
+        # object-type choices are resolved per construction, not at import time.
+        self.fields["obj_type"].choices = object_type_choices()
 
 
 class JournalEntryForm(TenantScopedFormMixin, forms.Form):
