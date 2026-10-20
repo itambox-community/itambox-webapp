@@ -41,7 +41,7 @@ def _grants_involving(tenant):
 class TenantResourceGrantListView(ObjectListView):
     queryset = TenantResourceGrant.objects.none()
     table = tables.TenantResourceGrantTable
-    template_name = "organization/resource_grant_list.html"
+    document_path = "usage/resource-grants"
     action_buttons = ()
 
     def get_queryset(self):
@@ -151,7 +151,7 @@ class TenantResourceGrantRevokeView(ObjectDeleteView):
 
     model = TenantResourceGrant
     queryset = TenantResourceGrant.objects.all()
-    template_name = "organization/resource_grant_confirm_delete.html"
+    document_path = "usage/resource-grants"
     success_url = reverse_lazy("organization:tenantresourcegrant_list")
 
     def get_queryset(self):
@@ -208,6 +208,7 @@ class TenantResourceGrantExpiryRunListView(ObjectListView):
     queryset = TenantResourceGrantExpiryRun.objects.none()
     table = tables.TenantResourceGrantExpiryRunTable
     action_buttons = ()
+    document_path = "usage/resource-grants"
     template_name = "organization/resource_grant_expiry_run_list.html"
 
     def get_permission_required(self):
@@ -233,6 +234,7 @@ class TenantResourceGrantExpiryRunListView(ObjectListView):
 
 class TenantResourceGrantExpiryRunDetailView(ObjectDetailView):
     queryset = TenantResourceGrantExpiryRun.objects.select_related("tenant")
+    document_path = "usage/resource-grants"
     template_name = "organization/resource_grant_expiry_run_detail.html"
     related_object_exclusions = ("organization.tenantresourcegrantexpiryrevocation",)
 
