@@ -6,6 +6,11 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.0.0-beta.5] - 2026-10-20
+
+### Compatibility
+- The supported upgrade origin for this release is `v1.0.0-beta.4`. Version skipping remains unsupported; run `migration_baseline_preflight` from the exact candidate checkout before any migration work. The checked manifest declares the exact recorder state of `v1.0.0-beta.4` as a supported predecessor (`supported-predecessor-beta4`); a partial beta.4 set or a set carrying rows from later releases stays rejected. The release adds three migrations (`assets.0127`, `core.0101`, `extras.0130`).
+
 ### Added
 - Plugins can declare host-mounted REST resources using the Stable core model viewset bases and declare plugin-owned permission targets through `PluginConfig.permission_targets`. The host owns authentication, permission and schema defaults, rejects viewset overrides that bypass host authentication, permission checks or scoped list/detail handling, applies core tenant-scope rules after plugin queryset overrides and filter-backend processing, and includes declared targets in SSO role policy, Technician seed permissions and the tenant role matrix. Plugin GraphQL is query-only; writes use the host-owned REST surface.
 
@@ -419,7 +424,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox/itambox-webapp/compare/v1.0.0-beta.4...HEAD
+[Unreleased]: https://github.com/itambox/itambox-webapp/compare/v1.0.0-beta.5...HEAD
+[1.0.0-beta.5]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.4
 [1.0.0-beta.3]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.3
 [1.0.0-beta.2]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.2

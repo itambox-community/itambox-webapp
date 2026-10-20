@@ -89,6 +89,27 @@ def _beta3_recorder(manifest, *, post_transition_ids=None):
     return rows
 
 
+# Rows that only releases after `v1.0.0-beta.4` (revision cd03bb2612918b943c1a3aa91f68813e785ab1e9)
+# add; the beta.4 recorder state is the current post-transition set without them.
+_AFTER_BETA4_IDS = frozenset(
+    {
+        "assets.0127_core_vocabulary_german_translations",
+        "core.0101_plugin_diagnostics_permission",
+        "extras.0130_definition_translations",
+    }
+)
+
+
+def _beta4_ids(manifest):
+    return tuple(item for item in manifest["post_transition_ids"] if item not in _AFTER_BETA4_IDS)
+
+
+def _beta4_recorder(manifest, *, post_transition_ids=None):
+    rows = set(manifest["historical_ids"]) | set(manifest["replacement_ids"])
+    rows |= set(_beta4_ids(manifest) if post_transition_ids is None else post_transition_ids)
+    return rows
+
+
 def _manifest(*, layout="transitional"):
     historical_ids = ["assets.0001_initial", "assets.0002_second"]
     replacement_ids = ["assets.0100_other", "assets.0100_shard"]
@@ -414,9 +435,9 @@ class MigrationBaselineManifestTests(SimpleTestCase):
         manifest = load_manifest()
         self.assertEqual(
             [predecessor["name"] for predecessor in manifest["recognized_states"]],
-            ["issue88-pre-squash", "issue88-transition-release", "v1.0.0-beta.3"],
+            ["issue88-pre-squash", "issue88-transition-release", "v1.0.0-beta.3", "v1.0.0-beta.4"],
         )
-        pre_squash, transition, _beta3 = manifest["recognized_states"]
+        pre_squash, transition, _beta3, _beta4 = manifest["recognized_states"]
 
         self.assertEqual(pre_squash["name"], "issue88-pre-squash")
         self.assertEqual(pre_squash["recognition"]["state"], "supported-predecessor-pre-squash")
@@ -476,6 +497,38 @@ class MigrationBaselineManifestTests(SimpleTestCase):
         # Migration is still required: only the ordinary executor may run.
         self.assertIn("v1.0.0-beta.3", result.remediation)
         self.assertIn("ordinary migration executor", result.remediation)
+
+    def test_checked_manifest_recognizes_beta4_as_the_beta5_upgrade_origin(self):
+        manifest = load_manifest()
+        beta4 = next(item for item in manifest["recognized_states"] if item["name"] == "v1.0.0-beta.4")
+        self.assertEqual(beta4["revision"], "cd03bb2612918b943c1a3aa91f68813e785ab1e9")
+        self.assertEqual(beta4["recognition"]["state"], "supported-predecessor-beta4")
+        self.assertEqual(tuple(beta4["recognition"]["post_transition_ids"]), _beta4_ids(manifest))
+        self.assertEqual(len(_beta4_ids(manifest)), 70)
+
+        applied = _beta4_recorder(manifest)
+        result = classify_applied_migrations(applied, manifest)
+
+        self.assertEqual(result.state, "supported-predecessor-beta4")
+        self.assertEqual(result.reason_code, "SUPPORTED_PREDECESSOR_BETA4")
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.counts["post_transition_observed"], 70)
+        self.assertIn("v1.0.0-beta.4", result.remediation)
+
+    def test_checked_manifest_rejects_a_partial_beta4_set_and_beta4_plus_later_rows(self):
+        manifest = load_manifest()
+        partial = classify_applied_migrations(
+            _beta4_recorder(manifest, post_transition_ids=_beta4_ids(manifest)[:-1]), manifest
+        )
+        self.assertEqual(partial.exit_code, 1)
+        self.assertFalse(partial.state.startswith("supported-predecessor"))
+
+        ahead = classify_applied_migrations(
+            _beta4_recorder(manifest, post_transition_ids=[*_beta4_ids(manifest), "core.0101_plugin_diagnostics_permission"]),
+            manifest,
+        )
+        self.assertEqual(ahead.exit_code, 1)
+        self.assertFalse(ahead.state.startswith("supported-predecessor"))
 
     def test_checked_manifest_rejects_a_partial_declared_origin_set(self):
         manifest = load_manifest()

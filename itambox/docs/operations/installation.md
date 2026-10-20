@@ -9,13 +9,13 @@ ITAMbox ships as source and, starting with `v1.0.0-beta.2`, as an official conta
 Each tagged release publishes the qualified build to the GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/itambox-community/itambox-webapp:1.0.0-beta.4
+docker pull ghcr.io/itambox-community/itambox-webapp:1.0.0-beta.5
 ```
 
 The image is published as a multi-platform index for **linux/amd64** and **linux/arm64**; `docker pull` selects the variant matching the host platform, and `docker pull --platform linux/arm64` overrides that choice. Verify that the tag lists both platforms before pinning a digest:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/itambox-community/itambox-webapp:1.0.0-beta.4
+docker buildx imagetools inspect ghcr.io/itambox-community/itambox-webapp:1.0.0-beta.5
 ```
 
 The image is the exact build the release workflow scanned, archived, and SBOM-validated, and its registry digest carries build-provenance and SPDX-SBOM attestations:
