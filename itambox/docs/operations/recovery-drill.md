@@ -77,8 +77,8 @@ probe key into an issue, pull request, CI log, or evidence JSON file.
 
 The current candidate ships a read-only `migration_baseline_preflight` command and
 checked manifest. The gate is a cleanup-release admission check, not a substitute
-for the ordinary upgrade. In this Path C drill, a restored pre-squash
-predecessor is expected to report `supported-predecessor-pre-squash` (zero:
+for the ordinary upgrade. In this Path C drill, a restored `v1.0.0-beta.5`
+predecessor is expected to report `supported-predecessor-beta5` (zero:
 recognized supported starting point, migration required)
 before the normal candidate migration; after that migration completes, rerun the
 gate and require `current-normalized-baseline` (zero). Every future release must
@@ -87,8 +87,8 @@ failed non-atomic migration whose operations ran before its recorder row committ
 For any interrupted or failed run, restore first and compare schema, data, and
 protected-canary evidence; do not infer safety from a missing recorder row.
 
-The checked layout is normalized: the historical migration files are replaced
-by the replacement shards that declare them through `replaces`. This gate does
+The checked layout is normalized: the prerelease migration files are replaced
+by the named baseline migrations that declare them through `replaces`. This gate does
 not write recorder rows, change `replaces`, or authorize arbitrary release
 skips.
 
@@ -437,7 +437,7 @@ if ! docker compose -p "$UPGRADE_PROJECT" -f "$COMPOSE_FILE" -f "$UPGRADE_OVERRI
   echo 'predecessor preflight did not recognize the supported starting point' >&2
   exit 1
 fi
-python -c "import json; r=json.load(open('evidence/predecessor-migration-preflight.json')); assert r['state'] == 'supported-predecessor-pre-squash', r['state']; assert r['exit_code'] == 0, r['exit_code']"
+python -c "import json; r=json.load(open('evidence/predecessor-migration-preflight.json')); assert r['state'] == 'supported-predecessor-beta5', r['state']; assert r['exit_code'] == 0, r['exit_code']"
 upgrade_compose up -d --no-build app worker
 verify_app_revision "$UPGRADE_PROJECT" "$PREDECESSOR_REVISION"
 upgrade_compose exec -T app python manage.py check

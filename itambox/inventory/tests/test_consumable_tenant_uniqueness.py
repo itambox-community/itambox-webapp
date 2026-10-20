@@ -4,19 +4,12 @@ A second tenant of the same installation must be able to stock the same
 product, so the active-row uniqueness moves from ``(manufacturer, name)`` to
 ``(tenant, manufacturer, name)``. Tenantless (global) rows keep their own
 single-name rule, mirroring the tenant/global split used by ``Supplier``.
-
-The migration only relaxes the constraint: every row set that satisfied the
-predecessor constraint also satisfies its successor, so existing data stays
-valid and no translation is required.
 """
 
-import pytest
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, connection, transaction
-from django.db.migrations.executor import MigrationExecutor
-from django.test import TestCase, TransactionTestCase
+from django.db import IntegrityError, transaction
+from django.test import TestCase
 from django.urls import reverse
-from django.utils import timezone
 
 from assets.models import Manufacturer
 from core.tests.mixins import TenantTestMixin
@@ -24,9 +17,6 @@ from inventory.models import Consumable
 from organization.models import Tenant
 
 User = get_user_model()
-
-MIGRATE_FROM = ("inventory", "0103_stock_leaf_deleted_at")
-MIGRATE_TO = ("inventory", "0104_consumable_tenant_scoped_uniqueness")
 
 
 class ConsumableUniquenessTests(TenantTestMixin, TestCase):
@@ -120,79 +110,3 @@ class ConsumableUniquenessFormTests(TestCase):
         if response.status_code != 302:
             self.fail(f"Form invalid. Errors: {response.context['form'].errors}")
         self.assertEqual(self._active_rows(), 2)
-
-
-@pytest.mark.serial_only
-class ConsumableUniquenessMigrationTests(TransactionTestCase):
-    """Rehearse a predecessor state and prove the cutover only relaxes the rule."""
-
-    def setUp(self):
-        super().setUp()
-        self.addCleanup(self._restore_leaf)
-        executor = MigrationExecutor(connection)
-        executor.migrate([MIGRATE_FROM])
-        old_apps = executor.loader.project_state([MIGRATE_FROM]).apps
-
-        Manufacturer = old_apps.get_model("assets", "Manufacturer")
-        Consumable = old_apps.get_model("inventory", "Consumable")
-        Tenant = old_apps.get_model("organization", "Tenant")
-
-        # The rows below are written through the predecessor state's models, so
-        # only primary keys are kept: a historical model instance cannot be used
-        # against the current model later in the test.
-        self.manufacturer_id = Manufacturer.objects.create(name="HP", slug="hp").pk
-        self.tenant_a_id = Tenant.objects.create(name="Tenant A", slug="t767-migration-a").pk
-        self.tenant_b_id = Tenant.objects.create(name="Tenant B", slug="t767-migration-b").pk
-
-        # Predecessor-legal rows: one active row per (manufacturer, name) across
-        # the whole installation, plus an archived twin that the active-only
-        # condition already allowed (it has to be inserted archived: the
-        # predecessor constraint sees the row while it is still active).
-        Consumable.objects.create(
-            name="26A Toner",
-            slug="hp-26a-toner",
-            manufacturer_id=self.manufacturer_id,
-            tenant_id=self.tenant_a_id,
-        )
-        Consumable.objects.create(
-            name="CF258A Toner",
-            slug="hp-cf258a-toner",
-            manufacturer_id=self.manufacturer_id,
-            tenant_id=self.tenant_b_id,
-        )
-        Consumable.objects.create(
-            name="26A Toner",
-            slug="hp-26a-toner-archived",
-            manufacturer_id=self.manufacturer_id,
-            tenant_id=self.tenant_b_id,
-            deleted_at=timezone.now(),
-        )
-
-    def _restore_leaf(self):
-        executor = MigrationExecutor(connection)
-        executor.migrate(executor.loader.graph.leaf_nodes())
-
-    def _migrate_to_successor(self):
-        executor = MigrationExecutor(connection)
-        executor.migrate([MIGRATE_TO])
-
-    def test_relaxation_keeps_every_predecessor_row_valid(self):
-        self._migrate_to_successor()
-
-        rows = Consumable.all_objects.filter(manufacturer_id=self.manufacturer_id)
-        self.assertEqual(rows.count(), 3)
-        self.assertEqual(rows.filter(tenant_id=self.tenant_a_id, deleted_at__isnull=True).count(), 1)
-        self.assertEqual(rows.filter(tenant_id=self.tenant_b_id, deleted_at__isnull=True).count(), 1)
-        self.assertEqual(rows.filter(deleted_at__isnull=False).count(), 1)
-
-    def test_scoped_constraint_is_live_after_the_cutover(self):
-        self._migrate_to_successor()
-
-        # The archived twin does not stand in the way of a new active row.
-        Consumable.objects.create(name="26A Toner", manufacturer_id=self.manufacturer_id, tenant_id=self.tenant_b_id)
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            Consumable.objects.create(
-                name="26A Toner", manufacturer_id=self.manufacturer_id, tenant_id=self.tenant_b_id
-            )
-
-        self.assertEqual(Consumable.all_objects.filter(name="26A Toner").count(), 3)

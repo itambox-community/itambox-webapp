@@ -6,6 +6,10 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+- **Breaking for upgrades:** the prerelease migration history is replaced by a named 1.0 baseline. Each app now ships `0001_baseline` followed by `0002_cross_app_relations` where relations cross apps, and the seed and database-guard migrations (`assets.0004_seed_reference_data`, `0005_core_vocabulary`, `0006_core_vocabulary_german_translations`, `0007_asset_type_identity_guard`, `extras.0003_definition_guards`). The `issue88_shard_*`, issue-numbered and auto-named migrations are gone, and a fresh install no longer runs the prerelease data conversions. Every baseline migration declares the prerelease identities it replaces, so a `v1.0.0-beta.5` database records the baseline without executing it and then applies only two idempotent clean-ups (`extras.0004_drop_legacy_column_default`, `users.0002_unique_constraint_names`). A fresh install and an upgraded database end in the same schema and the same migration-recorder state. The supported upgrade origin is `v1.0.0-beta.5`; a database from `v1.0.0-beta.4` or earlier must first be upgraded to beta.5, and `migration_baseline_preflight` rejects it. A plugin migration that names a first-party migration in its `dependencies` must be updated to the new names.
+- `migration_baseline_preflight` recognizes `v1.0.0-beta.5` (`supported-predecessor-beta5`) as the only predecessor state; the earlier pre-squash, transition-release and beta.3 states are removed. `scripts/migration_audit.py` now verifies that the `replaces` declarations on disk and the checked manifest agree, and the supported-upgrade qualification driver is `scripts/qualification/migrations/run-supported-upgrade.sh`.
+
 ## [1.0.0-beta.5] - 2026-10-20
 
 ### Compatibility
