@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load static %}
+{% load utility_tags %}
 {% load user_theme %}
 {% get_current_language as LANGUAGE_CODE %}
 {% theme_preference as theme_preference %}
@@ -30,11 +31,11 @@
     <link rel="stylesheet"
           href="{% static 'dist/vendor/mdi/css/materialdesignicons.min.css' %}">
     <link rel="stylesheet"
-          href="{% static 'dist/itambox.css' %}?v={{ settings.VERSION }}">
+          href="{% static 'dist/itambox.css' %}?v={{ settings.VERSION }}-{% asset_version 'dist/itambox.css' %}">
   </head>
   <body class="d-flex flex-column">
     <script src="{% url 'javascript-catalog' %}"></script>
-    <script src="{% static 'dist/itambox.js' %}?v={{ settings.VERSION }}"></script>
+    <script src="{% static 'dist/itambox.js' %}?v={{ settings.VERSION }}-{% asset_version 'dist/itambox.js' %}"></script>
     <div class="page page-center">
       {% block content %}{% endblock %}
     </div>

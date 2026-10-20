@@ -5,6 +5,7 @@ maturity a user, an operator, and an API client all see. These tests pin those
 three readers to the same source.
 """
 
+import os
 from collections import namedtuple
 from io import StringIO
 from pathlib import Path
@@ -17,6 +18,7 @@ from django.http import Http404
 from django.template.loader import render_to_string
 from django.test import RequestFactory, override_settings
 
+from core.templatetags.utility_tags import asset_stamp
 from itambox.api.openapi import CapabilityAwareAutoSchema
 from itambox.capabilities import ALWAYS_ON, BETA, EXPERIMENTAL, SOURCE_ALWAYS, STABLE, registry
 from itambox.tests.capability_harness import deactivatable_keys, deactivated, probe_failing
@@ -215,6 +217,51 @@ class TestBannerTemplate:
 def _attribute(name: str, value: str) -> str:
     """Render one HTML attribute; concatenated so no f-string quotes a value."""
     return name + '="' + value + '"'
+
+
+class TestAssetCacheBusting:
+    """A redeploy of the same release must not leave browsers on the old assets."""
+
+    def test_the_shells_stamp_both_assets_with_the_build(self):
+        css_stamp = "?v={{ settings.VERSION }}-{% asset_version 'dist/itambox.css' %}"
+        js_stamp = "{% asset_version 'dist/itambox.js' %}"
+        for name in ("base.html", "base_public.html"):
+            markup = (_APP_ROOT / "templates" / name).read_text(encoding="utf-8")
+            assert css_stamp in markup, f"{name} does not stamp the stylesheet"
+            assert js_stamp in markup, f"{name} does not stamp the bundle"
+
+    def test_the_stamp_follows_the_built_file_not_the_release(self, tmp_path):
+        built = tmp_path / "itambox.css"
+        built.write_text("body { color: red; }", encoding="utf-8")
+        os.utime(built, (1_700_000_000, 1_700_000_000))
+
+        assert asset_stamp("dist/itambox.css", finder=lambda _path: str(built)) == "1700000000"
+        assert asset_stamp("dist/itambox.css", finder=lambda _path: None) == str(settings.VERSION)
+
+
+class TestTemplateCommentContracts:
+    """Django's ``{# #}`` is single-line only; a wrapped one renders as page text."""
+
+    def test_no_template_leaks_a_multi_line_hash_comment(self):
+        offenders = []
+        for template in sorted((_APP_ROOT / "templates").rglob("*.html")):
+            for number, line in enumerate(template.read_text(encoding="utf-8").splitlines(), 1):
+                if "{#" not in line or "#}" in line.split("{#", 1)[1]:
+                    continue
+                offenders.append(f"{template.relative_to(_APP_ROOT).as_posix()}:{number}")
+
+        assert offenders == [], "multi-line {# #} comments render as page text: " + ", ".join(offenders)
+
+    def test_the_theme_switch_ships_its_segmented_control_styles(self):
+        menu = (_APP_ROOT / "templates" / "global_includes" / "_user_menu.html").read_text(encoding="utf-8")
+        styles = "".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted((_APP_ROOT / "static" / "src" / "styles").glob("*.scss"))
+        )
+
+        assert 'class="theme-switch"' in menu
+        assert ".theme-switch {" in styles
+        assert ".theme-switch-input:checked + label {" in styles
 
 
 class TestAccessibilityTemplateContracts:
