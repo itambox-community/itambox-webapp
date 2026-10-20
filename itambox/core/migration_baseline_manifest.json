@@ -554,7 +554,7 @@
         "replacement": "complete",
         "state": "supported-predecessor-beta5"
       },
-      "revision": "4aa31b53a59e06f1eb714f3e64c16924a108b268",
+      "revision": "a4844fc4bad54c6416b77a1e97aec032dc2413db",
       "state": "complete-replacement-recognition"
     }
   ],
@@ -887,5 +887,5 @@
     "users.0013_remove_usergroup_users_usergroup_unique_tenant_name_active_and_more"
   ],
   "schema_version": 1,
-  "transition_release_sha": "4aa31b53a59e06f1eb714f3e64c16924a108b268"
+  "transition_release_sha": "a4844fc4bad54c6416b77a1e97aec032dc2413db"
 }
