@@ -86,10 +86,17 @@ class OwnedFoundationFilesTests(unittest.TestCase):
         names = (E2E_ROOT / "helpers" / "names.ts").read_text(encoding="utf-8")
 
         self.assertIn("{ auto: true }", fixture)
-        shell = (REPO_ROOT / "itambox" / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8")
+        # The tenant hook lives in its own include so the desktop topbar and the
+        # mobile header cannot drift apart (#929); both shells must render it.
+        shell = (REPO_ROOT / "itambox" / "templates" / "global_includes" / "_workspace_switcher.html").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("data-testid", shell)
         self.assertIn("data-tenant-id", shell)
         self.assertIn("data-tenant-slug", shell)
+        for shell_path in ("global_includes/_topbar.html", "layout.html"):
+            rendered = (REPO_ROOT / "itambox" / "templates" / shell_path).read_text(encoding="utf-8")
+            self.assertIn("global_includes/_workspace_switcher.html", rendered)
         self.assertIn("assertSafeTarget", fixture)
         self.assertIn("activeTenant", fixture)
         self.assertIn("api: APIRequestContext", fixture)

@@ -212,6 +212,11 @@ class TestBannerTemplate:
         assert html.strip() == ""
 
 
+def _attribute(name: str, value: str) -> str:
+    """Render one HTML attribute; concatenated so no f-string quotes a value."""
+    return name + '="' + value + '"'
+
+
 class TestAccessibilityTemplateContracts:
     def test_theme_switch_is_a_labelled_radio_group_in_the_user_menu(self):
         menu = (_APP_ROOT / "templates" / "global_includes" / "_user_menu.html").read_text(encoding="utf-8")
@@ -221,8 +226,8 @@ class TestAccessibilityTemplateContracts:
         assert menu.count('class="theme-switch-input"') == 3
         assert menu.count('name="theme-preference"') == 3, "one shared name, or the radios are three groups"
         for value in ("auto", "dark", "light"):
-            assert f'value="{value}"' in menu
-            assert f'for="theme-preference-{value}"' in menu, "every segment needs a label"
+            assert _attribute("value", value) in menu
+            assert _attribute("for", f"theme-preference-{value}") in menu, "every segment needs a label"
 
     def test_no_shell_renders_a_theme_toggle_button(self):
         topbar = (_APP_ROOT / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8")
