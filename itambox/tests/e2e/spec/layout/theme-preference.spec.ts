@@ -65,8 +65,9 @@ test('the segmented control stores the chosen theme on the account', async ({ pa
   expect((await readDocumentTheme(page)).resolved).toBe('light');
 
   // The control reflects the preference in force after the reload.
-  await page.getByRole('link', { name: 'Open user menu' }).click();
-  await expect(page.locator('input[name="theme-preference"][value="light"]')).toBeChecked();
+  const topbar = page.locator('.itambox-topbar');
+  await topbar.getByRole('link', { name: 'Open user menu' }).click();
+  await expect(topbar.locator('input[name="theme-preference"][value="light"]')).toBeChecked();
 
   await setThemePreference(page, 'auto');
 });
