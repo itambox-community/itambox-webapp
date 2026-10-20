@@ -718,3 +718,17 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
 .custody-handoff-qr-figure {
     margin-inline: 0; // UA stylesheet gives <figure> 40px side margins
 }
+
+// ---- Notification inbox ----
+// Unread rows get a tinted surface plus a leading accent. The previous
+// bg-light-lt/text-dark pair was light-mode only: under
+// [data-bs-theme="dark"] it painted dark text on a dark panel.
+.notification-unread {
+    background-color: color-mix(in srgb, var(--tblr-primary) 6%, var(--tblr-bg-surface));
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--tblr-primary) 65%, transparent);
+}
+
+[data-bs-theme="dark"] .notification-unread {
+    background-color: color-mix(in srgb, var(--tblr-primary) 16%, var(--tblr-bg-surface));
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--tblr-primary) 85%, #fff);
+}
