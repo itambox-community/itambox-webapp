@@ -14,12 +14,12 @@ class StableAutomationSurfacesTests(TenantTestMixin, TestCase):
     """The registry declares automation stable, so the deprecated app-level flag may not reintroduce the banner."""
 
     def setUp(self):
-        self.setup_tenant_context(name="Automation Tenant", slug="automation-tenant")
-        self.client_login_to_tenant(
-            self.tenant_user,
-            self.tenant,
-            role_permissions=["extras.view_webhookendpoint", "extras.view_eventrule"],
+        self.setup_tenant_context(
+            name="Automation Tenant",
+            slug="automation-tenant",
+            permissions=["extras.view_webhookendpoint", "extras.view_eventrule"],
         )
+        self.client_login_to_tenant(self.tenant_user, self.tenant)
 
     def test_the_capability_that_owns_both_surfaces_is_stable(self):
         capability = registry.get("automation.webhooks")
