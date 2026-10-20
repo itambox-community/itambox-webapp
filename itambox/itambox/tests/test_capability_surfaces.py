@@ -254,7 +254,10 @@ class TestTemplateCommentContracts:
 
     def test_the_theme_switch_ships_its_segmented_control_styles(self):
         menu = (_APP_ROOT / "templates" / "global_includes" / "_user_menu.html").read_text(encoding="utf-8")
-        styles = (_APP_ROOT / "static" / "src" / "styles" / "_components.scss").read_text(encoding="utf-8")
+        styles = "".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted((_APP_ROOT / "static" / "src" / "styles").glob("*.scss"))
+        )
 
         assert 'class="theme-switch"' in menu
         assert ".theme-switch {" in styles
