@@ -71,7 +71,7 @@ test.describe('scope switcher context preservation (issue #499)', { tag: ['@pr',
     const assetA2 = await createOwnedAsset(api, cleanup, tenantA.id, `${runId}-a2`, { tagScope: 'issue499' });
     const assetB1 = await createOwnedAsset(apiSecondary, cleanup, tenantB.id, `${runId}-b1`, { tagScope: 'issue499' });
 
-    const switcher = page.locator('.nav-item.dropdown').filter({ has: page.locator('a.workspace-switcher') });
+    const switcher = page.locator('.itambox-topbar .nav-item.dropdown').filter({ has: page.locator('a.workspace-switcher') });
     const listRows = page.locator('#object-list-table-container table tbody tr');
     const filter = encodeURIComponent(runId);
 
@@ -150,7 +150,7 @@ test.describe('scope switcher context preservation (issue #499)', { tag: ['@pr',
     expect(filteredResponse?.status(), `GET ${filteredPath}`).toBe(200);
     await expect(page.locator('#django-messages')).not.toContainText(/tenant filter was reset/);
 
-    const switcher = page.locator('.nav-item.dropdown').filter({ has: page.locator('a.workspace-switcher') });
+    const switcher = page.locator('.itambox-topbar .nav-item.dropdown').filter({ has: page.locator('a.workspace-switcher') });
     await switcher.locator('a.workspace-switcher').click();
     const tenantEntry = switcher.locator(`.dropdown-menu a[href*="switch_tenant=${tenantA.id}"]`).first();
     await expect(tenantEntry).toBeVisible();

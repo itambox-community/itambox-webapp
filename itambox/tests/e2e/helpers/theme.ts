@@ -36,9 +36,12 @@ export async function setThemePreference(page: Page, preference: ThemePreference
  * user menu), leaving the menu open state alone so repeated calls work.
  */
 export async function chooseThemeInUserMenu(page: Page, preference: ThemePreference): Promise<void> {
-  const label = page.locator(`label[for="theme-preference-${preference}"]`);
+  // The user menu renders in the desktop topbar and in the mobile header, so the
+  // switch ids carry their shell and the desktop specs address the topbar one.
+  const topbar = page.locator('.itambox-topbar');
+  const label = topbar.locator(`label[for="theme-preference-topbar-${preference}"]`);
   if (!(await label.isVisible())) {
-    await page.getByRole('link', { name: 'Open user menu' }).click();
+    await topbar.getByRole('link', { name: 'Open user menu' }).click();
   }
   await label.click();
 }
