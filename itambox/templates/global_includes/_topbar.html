@@ -2,6 +2,11 @@
 {% load plugins %}
 <header class="navbar navbar-expand-md d-none d-lg-flex d-print-none itambox-topbar">
   <div class="container-fluid">
+    {# One attestation per rendered shell; the E2E fixtures require exactly one. #}
+    <span data-testid="active-tenant"
+          data-tenant-id="{% if request.active_tenant %}{{ request.active_tenant.pk }}{% endif %}"
+          data-tenant-slug="{% if request.active_tenant %}{{ request.active_tenant.slug }}{% endif %}"
+          class="visually-hidden">{% if request.active_tenant %}{{ request.active_tenant.name }}{% elif request.active_tenant_group %}{{ request.active_tenant_group.name }} {% translate "(Group)" %}{% elif request.user.is_superuser %}{% translate "Global View" %}{% else %}{% translate "All Tenants" %}{% endif %}</span>
     <button class="navbar-toggler"
             type="button"
             data-bs-toggle="collapse"
