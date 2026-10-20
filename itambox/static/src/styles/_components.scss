@@ -414,7 +414,7 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
 // Below xl the bar is compact: an inactive tab shows its icon (and badge), the
 // active one expands its label. At xl and up the labels of every tab stay
 // visible, matching the model tabs rendered by the apps themselves.
-@media (max-width: 1199.98px) {
+@media (width <= 1199.98px) {
     .page-header-tabs .nav-item .nav-link {
         &:not(.active) span.d-xl-inline {
             display: none !important;
