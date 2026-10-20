@@ -1,5 +1,49 @@
 import { ThrottledScanDispatcher } from './scan-gate';
 
+/**
+ * Symbologies the camera path has to decode: the QR asset labels plus the 1D
+ * codes printed on vendor packaging.
+ */
+export const SCANNER_FORMATS = [
+  'qr_code',
+  'ean_8',
+  'ean_13',
+  'upc_a',
+  'upc_e',
+  'code_39',
+  'code_93',
+  'code_128',
+  'itf',
+] as const;
+
+/**
+ * Whether a browser detector reporting `supported` can carry the whole scanner
+ * surface.
+ *
+ * html5-qrcode prefers the browser's native BarcodeDetector whenever it exists
+ * and never falls back on its own. Firefox ships a detector that answers QR
+ * codes but silently drops the 1D formats, so the scanner went blind on EAN
+ * while QR kept working; Chrome supports the full set and was unaffected. The
+ * native detector is therefore only used when it covers every format above —
+ * otherwise the bundled ZXing decoder does the work.
+ */
+export function nativeDetectorCoversFormats(supported: readonly string[]): boolean {
+  const available = new Set(supported);
+  return SCANNER_FORMATS.every((format) => available.has(format));
+}
+
+async function browserDetectorCoversFormats(): Promise<boolean> {
+  if (typeof BarcodeDetector === 'undefined' || typeof BarcodeDetector.getSupportedFormats !== 'function') {
+    return false;
+  }
+  try {
+    return nativeDetectorCoversFormats(await BarcodeDetector.getSupportedFormats());
+  } catch (_e) {
+    // A detector that cannot even list its formats is unusable.
+    return false;
+  }
+}
+
 interface AssetScannerConfig {
   /** ID of the div that html5-qrcode renders into */
   readerId: string;
@@ -107,9 +151,10 @@ export class AssetScanner {
 
     let scanner: Html5Qrcode | undefined;
     try {
+      const useNativeDetector = await browserDetectorCoversFormats();
       scanner = new Html5Qrcode(this.config.readerId, {
         verbose: false,
-        useBarCodeDetectorIfSupported: true,
+        useBarCodeDetectorIfSupported: useNativeDetector,
       });
       this.html5QrcodeScanner = scanner;
       AssetScanner.readerOwners.set(this.config.readerId, scanner);

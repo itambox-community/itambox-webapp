@@ -339,3 +339,20 @@ test('a stale global lookup cannot stop or navigate the replacement scanner', as
     globalThis.fetch = previousFetch;
   }
 });
+
+const { nativeDetectorCoversFormats, SCANNER_FORMATS } = await import('./.build/scanner.mjs');
+
+test('the native detector is only used when it covers every scanner format', () => {
+  assert.equal(nativeDetectorCoversFormats([...SCANNER_FORMATS]), true);
+
+  // Firefox ships a detector that answers QR codes and drops the 1D formats.
+  assert.equal(nativeDetectorCoversFormats(['qr_code']), false);
+  assert.equal(nativeDetectorCoversFormats(['qr_code', 'ean_13', 'ean_8']), false);
+
+  // One missing format is enough to fall back to the bundled decoder.
+  const withoutEan = SCANNER_FORMATS.filter((format) => format !== 'ean_13');
+  assert.equal(nativeDetectorCoversFormats(withoutEan), false);
+
+  // Nothing reported at all never qualifies.
+  assert.equal(nativeDetectorCoversFormats([]), false);
+});
