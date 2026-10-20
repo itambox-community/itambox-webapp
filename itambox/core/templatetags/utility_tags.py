@@ -5,13 +5,41 @@
 # itambox/templatetags/utility_tags.py
 import json
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from django import template
+from django.conf import settings
+from django.contrib.staticfiles import finders
 from django.utils.translation import gettext_lazy as _  # Import gettext_lazy
 
 from core.html_styles import color_chip_class, length_class, percentage_class, status_tint_class
 
 register = template.Library()
+
+
+def asset_stamp(path, finder=None):
+    """Cache-busting stamp for one built asset.
+
+    ``settings.VERSION`` only changes per release, so redeploying the same
+    release kept browsers on the previous stylesheet/bundle: the markup updated
+    while ``dist/itambox.css`` stayed the old build in cache (issue #935).
+    ``static/dist`` is rewritten by every build, so its mtime is the stamp.
+    Falls back to the release version when the asset is absent.
+    """
+    resolve = finder or finders.find
+    found = resolve(path)
+    if not found:
+        return str(settings.VERSION)
+    try:
+        return str(int(Path(found).stat().st_mtime))
+    except OSError:
+        return str(settings.VERSION)
+
+
+@register.simple_tag
+def asset_version(path="dist/itambox.css"):
+    """Template tag wrapper around :func:`asset_stamp`."""
+    return asset_stamp(path)
 
 
 @register.filter
