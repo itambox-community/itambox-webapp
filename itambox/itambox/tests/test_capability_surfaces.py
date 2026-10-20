@@ -5,7 +5,6 @@ maturity a user, an operator, and an API client all see. These tests pin those
 three readers to the same source.
 """
 
-import re
 from collections import namedtuple
 from io import StringIO
 from pathlib import Path
@@ -213,25 +212,41 @@ class TestBannerTemplate:
         assert html.strip() == ""
 
 
-class TestAccessibilityTemplateContracts:
-    def test_theme_controls_are_named_buttons_with_hidden_icons(self):
-        html = "\n".join(
-            (
-                (_APP_ROOT / "templates" / "layout.html").read_text(encoding="utf-8"),
-                (_APP_ROOT / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8"),
-            )
-        )
-        theme_buttons = [
-            match.groups()
-            for match in re.finditer(r"<button(?P<attrs>[^>]*)>(?P<body>.*?)</button>", html, re.DOTALL)
-            if "color-mode-toggle" in match.group("attrs")
-        ]
+def _attribute(name: str, value: str) -> str:
+    """Render one HTML attribute; concatenated so no f-string quotes a value."""
+    return name + '="' + value + '"'
 
-        assert len(theme_buttons) == 4
-        for attrs, body in theme_buttons:
-            assert 'type="button"' in attrs
-            assert "aria-label=\"{% translate 'Enable " in attrs
-            assert 'aria-hidden="true"' in body
+
+class TestAccessibilityTemplateContracts:
+    def test_theme_switch_is_a_labelled_radio_group_in_the_user_menu(self):
+        menu = (_APP_ROOT / "templates" / "global_includes" / "_user_menu.html").read_text(encoding="utf-8")
+
+        assert 'role="radiogroup"' in menu
+        assert "<legend" in menu, "the group needs an accessible name"
+        assert menu.count('class="theme-switch-input"') == 3
+        assert menu.count('name="theme-preference"') == 3, "one shared name, or the radios are three groups"
+        for value in ("auto", "dark", "light"):
+            assert _attribute("value", value) in menu
+            assert _attribute("for", f"theme-preference-{{{{ menu_scope }}}}-{value}") in menu, (
+                "every segment needs a label"
+            )
+        # The menu renders in both shells, so each one has to scope the ids.
+        for shell_name, scope in (("global_includes/_topbar.html", "topbar"), ("layout.html", "mobile")):
+            shell = (_APP_ROOT / "templates" / shell_name).read_text(encoding="utf-8")
+            marker = '_user_menu.html" with menu_scope="' + scope + '"'
+            assert marker in shell, f"{shell_name} must scope the menu ids"
+
+    def test_no_shell_renders_a_theme_toggle_button(self):
+        topbar = (_APP_ROOT / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8")
+        layout = (_APP_ROOT / "templates" / "layout.html").read_text(encoding="utf-8")
+
+        for name, markup in (("_topbar.html", topbar), ("layout.html", layout)):
+            assert "color-mode-toggle" not in markup, f"{name} still renders a theme toggle"
+
+        # The workspace switcher is the single tenant entry point on mobile now.
+        assert "variant='compact'" in layout
+        assert "mobile-tenant-switcher" not in layout, "the drawer switcher must be gone"
+        assert "variant='full'" in topbar
 
     def test_page_shell_has_language_and_landmark_contracts(self):
         base = (_APP_ROOT / "templates" / "base.html").read_text(encoding="utf-8")

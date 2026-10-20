@@ -1,9 +1,50 @@
 {% load i18n %}
+{% load user_theme %}
 {% if user.is_authenticated %}
+  {% theme_preference as current_theme %}
   <div class="dropdown-header text-muted">
     {% translate "Signed in as" %}
     <strong class="text-reset">{{ user.get_full_name|default:user.username }}</strong>
   </div>
+  {# Theme preference: a segmented radio group, the accessible shape Tabler asks for on a value picker.
+       `menu_scope` keeps the ids unique: this menu renders in both the desktop topbar and the mobile header. #}
+  <div class="px-3 py-2">
+    <span class="d-block text-muted small mb-2">{% translate "Theme" %}</span>
+    <fieldset class="theme-switch" role="radiogroup">
+      <legend class="visually-hidden">{% translate "Theme" %}</legend>
+      <input type="radio"
+             class="theme-switch-input"
+             name="theme-preference"
+             id="theme-preference-{{ menu_scope }}-auto"
+             value="auto"
+             {% if current_theme == 'auto' %}checked{% endif %}>
+      <label for="theme-preference-{{ menu_scope }}-auto">
+        <i class="mdi mdi-theme-light-dark" aria-hidden="true"></i>
+        <span>{% translate "Auto" %}</span>
+      </label>
+      <input type="radio"
+             class="theme-switch-input"
+             name="theme-preference"
+             id="theme-preference-{{ menu_scope }}-dark"
+             value="dark"
+             {% if current_theme == 'dark' %}checked{% endif %}>
+      <label for="theme-preference-{{ menu_scope }}-dark">
+        <i class="mdi mdi-weather-night" aria-hidden="true"></i>
+        <span>{% translate "Dark" %}</span>
+      </label>
+      <input type="radio"
+             class="theme-switch-input"
+             name="theme-preference"
+             id="theme-preference-{{ menu_scope }}-light"
+             value="light"
+             {% if current_theme == 'light' %}checked{% endif %}>
+      <label for="theme-preference-{{ menu_scope }}-light">
+        <i class="mdi mdi-weather-sunny" aria-hidden="true"></i>
+        <span>{% translate "Light" %}</span>
+      </label>
+    </fieldset>
+  </div>
+  <div class="dropdown-divider"></div>
   <a href="{% url 'users:user_profile' %}" class="dropdown-item">
     <i class="mdi mdi-account-circle-outline dropdown-item-icon"
        aria-hidden="true"></i>

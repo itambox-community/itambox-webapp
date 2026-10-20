@@ -271,17 +271,6 @@ $itambox-sidebar-width: 18rem; // 288px — Tabler default is 16rem/256px (+32px
                 min-height: 0;
             }
         }
-
-        // Workspace/tenant switcher pinned at the bottom — keep it solidly opaque
-        // so the scrolling nav above never bleeds through it.
-        .mobile-tenant-switcher-wrap {
-            background-color: var(--itambox-sidebar-bg, var(--tblr-bg-surface)) !important;
-
-            .list-group,
-            .list-group-item {
-                background-color: var(--itambox-sidebar-bg, var(--tblr-bg-surface));
-            }
-        }
     }
 }
 

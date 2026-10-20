@@ -1,7 +1,7 @@
 /**
  * Issue #908: the theme preference (light / dark / automatic) must reach the
- * document on the first paint and the topbar toggle must persist the choice on
- * the account, not in localStorage.
+ * document on the first paint and the segmented control in the user menu must
+ * persist the choice on the account, not in localStorage.
  *
  * The automatic cases drive the operating-system preference through Playwright
  * media emulation: `prefers-color-scheme` is what the pre-CSS script and the
@@ -9,7 +9,12 @@
  */
 import { test, expect } from '@playwright/test';
 
-import { readDocumentTheme, readStoredThemePreference, setThemePreference } from '../../helpers/theme';
+import {
+  chooseThemeInUserMenu,
+  readDocumentTheme,
+  readStoredThemePreference,
+  setThemePreference,
+} from '../../helpers/theme';
 
 test('automatic follows a dark operating system and reacts to a switch without reload', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -32,40 +37,37 @@ test('automatic follows a dark operating system and reacts to a switch without r
   await setThemePreference(page, 'auto');
 });
 
-test('the toggle cycles light, dark and automatic and stores the choice on the account', async ({ page }) => {
+test('the segmented control stores the chosen theme on the account', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await setThemePreference(page, 'light');
   await page.reload({ waitUntil: 'domcontentloaded' });
 
-  const toggle = page.locator('.color-mode-toggle:visible').first();
-
   await expect.poll(async () => (await readDocumentTheme(page)).preference).toBe('light');
-  await expect(toggle).toHaveAttribute('aria-label', 'Enable dark mode');
 
-  // light -> dark
-  await toggle.click();
+  await chooseThemeInUserMenu(page, 'dark');
   await expect.poll(async () => (await readDocumentTheme(page)).preference).toBe('dark');
   expect((await readDocumentTheme(page)).resolved).toBe('dark');
   await expect.poll(async () => readStoredThemePreference(page)).toBe('dark');
-  await expect(toggle).toHaveAttribute('aria-label', 'Use system theme');
 
-  // dark -> automatic (a light operating system resolves it back to light)
-  await toggle.click();
+  // Automatic resolves through the emulated operating system, which is light.
+  await chooseThemeInUserMenu(page, 'auto');
   await expect.poll(async () => (await readDocumentTheme(page)).preference).toBe('auto');
   await expect.poll(async () => (await readDocumentTheme(page)).resolved).toBe('light');
   await expect.poll(async () => readStoredThemePreference(page)).toBe('auto');
-  await expect(toggle).toHaveAttribute('aria-label', 'Enable light mode');
 
-  // automatic -> light
-  await toggle.click();
-  await expect.poll(async () => (await readDocumentTheme(page)).preference).toBe('light');
+  await chooseThemeInUserMenu(page, 'light');
   await expect.poll(async () => readStoredThemePreference(page)).toBe('light');
 
   // The account carries the choice into a new document.
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect.poll(async () => (await readDocumentTheme(page)).preference).toBe('light');
   expect((await readDocumentTheme(page)).resolved).toBe('light');
+
+  // The control reflects the preference in force after the reload.
+  const topbar = page.locator('.itambox-topbar');
+  await topbar.getByRole('link', { name: 'Open user menu' }).click();
+  await expect(topbar.locator('input[name="theme-preference"][value="light"]')).toBeChecked();
 
   await setThemePreference(page, 'auto');
 });

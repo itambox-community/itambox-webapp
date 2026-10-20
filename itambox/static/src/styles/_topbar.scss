@@ -96,3 +96,72 @@
         min-width: 0;
     }
 }
+
+// Compact variant (mobile header): icon only, the name lives in the dropdown
+.workspace-switcher--compact {
+    max-width: none;
+    gap: 0;
+
+    &::after {
+        display: none; // no caret next to a lone icon
+    }
+}
+
+// Theme preference switch (user menu). Tabler's segmented-control look, driven
+// by a radio group so the shared name and arrow keys behave as they should.
+.theme-switch {
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+    margin: 0;
+    padding: 2px;
+    border: 1px solid var(--tblr-border-color);
+    border-radius: var(--itambox-radius, 8px);
+    background-color: var(--tblr-bg-surface-secondary);
+
+    .theme-switch-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    label {
+        flex: 1 1 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.5rem;
+        border-radius: calc(var(--itambox-radius, 8px) - 3px);
+        color: var(--tblr-secondary);
+        font-size: 0.8125rem;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background-color 0.2s ease, color 0.2s ease;
+
+        i {
+            font-size: 1rem;
+            line-height: 1;
+        }
+    }
+
+    .theme-switch-input:checked + label {
+        background-color: var(--tblr-bg-surface);
+        color: var(--tblr-body-color);
+        font-weight: 600;
+        box-shadow: var(--tblr-box-shadow-sm, 0 1px 2px rgb(0 0 0 / 15%));
+    }
+
+    .theme-switch-input:focus-visible + label {
+        outline: 2px solid var(--tblr-primary);
+        outline-offset: 1px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme-switch label {
+        transition: none;
+    }
+}

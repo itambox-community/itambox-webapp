@@ -48,7 +48,7 @@ test.describe('HTMX Dynamic Interactivity & Form Validations', () => {
     await page.goto('/inventory/accessories/');
     
     // If there is any item, click its row or actions dropdown, then "Checkout" or "Clone"
-    const dropdownToggle = page.locator('.dropdown-toggle').first();
+    const dropdownToggle = page.locator('#page-content-wrapper .dropdown-toggle').first();
     if (await dropdownToggle.count() > 0) {
       await dropdownToggle.click();
       

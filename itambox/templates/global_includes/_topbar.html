@@ -2,6 +2,11 @@
 {% load plugins %}
 <header class="navbar navbar-expand-md d-none d-lg-flex d-print-none itambox-topbar">
   <div class="container-fluid">
+    {# One attestation per rendered shell; the E2E fixtures require exactly one. #}
+    <span data-testid="active-tenant"
+          data-tenant-id="{% if request.active_tenant %}{{ request.active_tenant.pk }}{% endif %}"
+          data-tenant-slug="{% if request.active_tenant %}{{ request.active_tenant.slug }}{% endif %}"
+          class="visually-hidden">{% if request.active_tenant %}{{ request.active_tenant.name }}{% elif request.active_tenant_group %}{{ request.active_tenant_group.name }} {% translate "(Group)" %}{% elif request.user.is_superuser %}{% translate "Global View" %}{% else %}{% translate "All Tenants" %}{% endif %}</span>
     <button class="navbar-toggler"
             type="button"
             data-bs-toggle="collapse"
@@ -39,64 +44,7 @@
         {% elif model_name_str %}
           {% plugin_template_content model_name_str "navbar" %}
         {% endif %}
-        {# Workspace Switcher #}
-        {% if request.user.is_authenticated %}
-          <div class="nav-item dropdown me-3 d-none d-md-flex">
-            <a href="#"
-               class="btn workspace-switcher dropdown-toggle"
-               data-bs-toggle="dropdown"
-               aria-haspopup="true"
-               aria-expanded="false">
-              <span class="workspace-switcher-icon" aria-hidden="true">
-                <i class="mdi mdi-briefcase-outline"></i>
-              </span>
-              <span class="workspace-switcher-name">
-                {% if request.active_tenant %}
-                  {{ request.active_tenant.name }}
-                {% elif request.active_tenant_group %}
-                  {{ request.active_tenant_group.name }} {% translate "(Group)" %}
-                {% else %}
-                  {% if request.user.is_superuser %}
-                    {% translate "Global View" %}
-                  {% else %}
-                    {% translate "All Tenants" %}
-                  {% endif %}
-                {% endif %}
-              </span>
-              <span data-testid="active-tenant"
-                    data-tenant-id="{% if request.active_tenant %}{{ request.active_tenant.pk }}{% endif %}"
-                    data-tenant-slug="{% if request.active_tenant %}{{ request.active_tenant.slug }}{% endif %}"
-                    class="visually-hidden">{% if request.active_tenant %}{{ request.active_tenant.name }}{% elif request.active_tenant_group %}{{ request.active_tenant_group.name }} {% translate "(Group)" %}{% elif request.user.is_superuser %}{% translate "Global View" %}{% else %}{% translate "All Tenants" %}{% endif %}</span>
-            </a>
-            <div class="dropdown-menu dropdown-menu-end dropdown-menu-card dropdown-menu-arrow csp-style-c83eb75e87e3">
-              <div class="card">
-                <div class="card-header py-2">
-                  <h3 class="card-title text-reset fs-6">{% translate "Active Workspace" %}</h3>
-                </div>
-                <div class="list-group list-group-flush list-group-hoverable csp-style-59e43b640b5a">
-                  {% include 'global_includes/_tenant_switcher_list.html' %}
-                </div>
-              </div>
-            </div>
-          </div>
-        {% endif %}
-        {# Language selection moved to user Preferences (applies app-wide). #}
-        <button type="button"
-                class="nav-link px-0 color-mode-toggle hide-theme-dark"
-                title="{% translate 'Enable dark mode' %}"
-                aria-label="{% translate 'Enable dark mode' %}"
-                data-bs-toggle="tooltip"
-                data-bs-placement="bottom">
-          <i class="mdi mdi-weather-night fs-2" aria-hidden="true"></i>
-        </button>
-        <button type="button"
-                class="nav-link px-0 color-mode-toggle hide-theme-light"
-                title="{% translate 'Enable light mode' %}"
-                aria-label="{% translate 'Enable light mode' %}"
-                data-bs-toggle="tooltip"
-                data-bs-placement="bottom">
-          <i class="mdi mdi-weather-sunny fs-2" aria-hidden="true"></i>
-        </button>
+        {% include 'global_includes/_workspace_switcher.html' with variant='full' %}
         <div class="nav-item dropdown d-none d-md-flex me-3"
              hx-get="{% url 'users:notification_poll' %}"
              hx-trigger="load, every 30s"
@@ -170,7 +118,9 @@
             </div>
           </div>
         </a>
-        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">{% include "global_includes/_user_menu.html" %}</div>
+        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+          {% include "global_includes/_user_menu.html" with menu_scope="topbar" %}
+        </div>
       </div>
     </div>
   </div>

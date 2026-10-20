@@ -86,10 +86,20 @@ class OwnedFoundationFilesTests(unittest.TestCase):
         names = (E2E_ROOT / "helpers" / "names.ts").read_text(encoding="utf-8")
 
         self.assertIn("{ auto: true }", fixture)
+        # The attestation is rendered once per shell inside the topbar header,
+        # which is also a landmark; the desktop and mobile headers share one
+        # switcher include (#929) and must not duplicate the hook.
         shell = (REPO_ROOT / "itambox" / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8")
         self.assertIn("data-testid", shell)
         self.assertIn("data-tenant-id", shell)
         self.assertIn("data-tenant-slug", shell)
+        switcher = (REPO_ROOT / "itambox" / "templates" / "global_includes" / "_workspace_switcher.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("data-testid", switcher)
+        for shell_path in ("global_includes/_topbar.html", "layout.html"):
+            rendered = (REPO_ROOT / "itambox" / "templates" / shell_path).read_text(encoding="utf-8")
+            self.assertIn("global_includes/_workspace_switcher.html", rendered)
         self.assertIn("assertSafeTarget", fixture)
         self.assertIn("activeTenant", fixture)
         self.assertIn("api: APIRequestContext", fixture)

@@ -8736,7 +8736,13 @@ msgstr "(Gruppe)"
 msgid "Active Workspace"
 msgstr "Aktiver Arbeitsbereich"
 
+msgid "Switch workspace"
+msgstr "Arbeitsbereich wechseln"
+
 msgid "Automatic"
+msgstr "Automatisch"
+
+msgid "Auto"
 msgstr "Automatisch"
 
 msgid "Default workspace"
@@ -8744,12 +8750,6 @@ msgstr "Standard-Workspace"
 
 msgid "Workspace selected automatically when you sign in. You can still switch workspaces at any time."
 msgstr "Workspace, der bei der Anmeldung automatisch ausgewählt wird. Sie können den Workspace jederzeit wechseln."
-
-msgid "Enable dark mode"
-msgstr "Dunkelmodus aktivieren"
-
-msgid "Enable light mode"
-msgstr "Hellmodus aktivieren"
 
 msgid "Show notifications"
 msgstr "Benachrichtigungen anzeigen"
@@ -15639,9 +15639,6 @@ msgstr "Design"
 
 msgid "Automatic follows the light or dark setting of your operating system and updates when it changes."
 msgstr "Automatisch folgt der Hell- oder Dunkel-Einstellung Ihres Betriebssystems und aktualisiert sich, wenn sie sich ändert."
-
-msgid "Use system theme"
-msgstr "Systemdesign verwenden"
 
 msgid "Select a valid theme: light, dark or automatic."
 msgstr "Wählen Sie ein gültiges Design: Hell, Dunkel oder Automatisch."

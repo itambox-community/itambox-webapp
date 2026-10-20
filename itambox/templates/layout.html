@@ -26,20 +26,8 @@
         </h1>
         <!-- Mobile Unified Actions Header (visible on mobile only) -->
         <div class="mobile-topbar-actions d-flex d-lg-none align-items-center gap-2 ms-auto me-2">
-          {# Language selection moved to user Preferences (applies app-wide). #}
-          {# Mobile Theme Switcher #}
-          <button type="button"
-                  class="nav-link px-0 color-mode-toggle hide-theme-dark"
-                  title="{% translate 'Enable dark mode' %}"
-                  aria-label="{% translate 'Enable dark mode' %}">
-            <i class="mdi mdi-weather-night" aria-hidden="true"></i>
-          </button>
-          <button type="button"
-                  class="nav-link px-0 color-mode-toggle hide-theme-light"
-                  title="{% translate 'Enable light mode' %}"
-                  aria-label="{% translate 'Enable light mode' %}">
-            <i class="mdi mdi-weather-sunny" aria-hidden="true"></i>
-          </button>
+          {# Workspace switcher: on mobile the header keeps the only tenant entry point. #}
+          {% include 'global_includes/_workspace_switcher.html' with variant='compact' %}
           {# Mobile Notifications Dropdown — opens as a full-width panel on mobile #}
           <div class="nav-item dropdown">
             <a href="#"
@@ -99,7 +87,9 @@
                 </div>
               </div>
             </a>
-            <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">{% include "global_includes/_user_menu.html" %}</div>
+            <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+              {% include "global_includes/_user_menu.html" with menu_scope="mobile" %}
+            </div>
           </div>
         </div>
         <div class="offcanvas-lg offcanvas-start"
@@ -135,30 +125,6 @@
           <div class="offcanvas-body p-0 d-flex flex-column">
             {# Scrollable navigation area #}
             <div class="flex-grow-1 overflow-auto">{% nav %}</div>
-            {# Workspace/Tenant switcher: mobile drawer only; hidden on desktop where the top navbar provides it. #}
-            {% if request.user.is_authenticated %}
-              <div class="mobile-tenant-switcher-wrap border-top flex-shrink-0 d-lg-none">
-                <a class="d-flex align-items-center justify-content-between px-3 py-3 text-reset text-decoration-none"
-                   data-bs-toggle="collapse"
-                   href="#mobile-tenant-switcher"
-                   role="button"
-                   aria-expanded="false"
-                   aria-controls="mobile-tenant-switcher">
-                  <span class="d-flex align-items-center gap-2 text-truncate">
-                    <i class="mdi mdi-briefcase-outline fs-3"></i>
-                    <span class="text-truncate">
-                      {% if request.active_tenant %}{{ request.active_tenant.name }}{% elif request.active_tenant_group %}{{ request.active_tenant_group.name }} {% translate "(Group)" %}{% elif request.user.is_superuser %}{% translate "Global View" %}{% else %}{% translate "All Tenants" %}{% endif %}
-                    </span>
-                  </span>
-                  <i class="mdi mdi-unfold-more-horizontal text-muted"></i>
-                </a>
-                <div class="collapse" id="mobile-tenant-switcher">
-                  <div class="list-group list-group-flush list-group-hoverable border-top csp-style-e592dfc6c0f2">
-                    {% include 'global_includes/_tenant_switcher_list.html' %}
-                  </div>
-                </div>
-              </div>
-            {% endif %}
           </div>
         </div>
       </div>

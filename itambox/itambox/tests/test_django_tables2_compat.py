@@ -78,8 +78,8 @@ class DjangoTables2TemplateCompatibilityTests(unittest.TestCase):
         user_menu = (template_root / "templates" / "global_includes" / "_user_menu.html").read_text(encoding="utf-8")
         mobile_styles = (template_root / "static" / "src" / "styles" / "_mobile.scss").read_text(encoding="utf-8")
 
-        self.assertIn('{% include "global_includes/_user_menu.html" %}', layout)
-        self.assertIn('{% include "global_includes/_user_menu.html" %}', topbar)
+        self.assertIn('{% include "global_includes/_user_menu.html"', layout)
+        self.assertIn('{% include "global_includes/_user_menu.html"', topbar)
         self.assertIn("{% url 'graphql' %}", layout)
         self.assertIn("mobile-topbar-actions", layout)
         self.assertIn("safe-area-inset-bottom", mobile_styles)
