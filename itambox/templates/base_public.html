@@ -1,8 +1,11 @@
 {% load i18n %}
 {% load static %}
+{% load user_theme %}
 {% get_current_language as LANGUAGE_CODE %}
+{% theme_preference as theme_preference %}
 <!DOCTYPE html>
-<html lang="{{ LANGUAGE_CODE }}">
+<html lang="{{ LANGUAGE_CODE }}"
+      data-theme-preference="{{ theme_preference }}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport"
@@ -17,9 +20,9 @@
     <link rel="icon"
           type="image/svg+xml"
           href="{% static 'dist/brand/favicon.svg' %}">
-    {# FOUC prevention: apply stored theme before CSS loads (same logic as base.html) #}
+    {# FOUC prevention: apply the theme preference before CSS loads (same logic as base.html) #}
     <script nonce="{{ request.csp_nonce }}">
-        (function(){try{var t=localStorage.getItem('itambox.theme');if(t)document.documentElement.setAttribute('data-bs-theme',t);else if(window.matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.setAttribute('data-bs-theme','dark');}catch(e){}})();
+        (function(){try{var p=document.documentElement.getAttribute('data-theme-preference');if(p!=='light'&&p!=='dark'){p='auto';}var d=p==='dark'||(p==='auto'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.setAttribute('data-bs-theme',d?'dark':'light');}catch(e){document.documentElement.setAttribute('data-bs-theme','light');}})();
     </script>
     {# Full theme: Tabler + the ITAMbox overlay (tokens, Inter font, dark mode) #}
     <link rel="stylesheet"

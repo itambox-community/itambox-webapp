@@ -146,10 +146,15 @@ class UserPreference(models.Model):
 
     THEME_DARK = "dark"
     THEME_LIGHT = "light"
+    # Automatic follows the operating system and is the default for accounts
+    # without a stored preference. Stored light/dark values stay valid.
+    THEME_AUTO = "auto"
     THEME_CHOICES = (
         (THEME_LIGHT, _("Light")),
         (THEME_DARK, _("Dark")),
+        (THEME_AUTO, _("Automatic")),
     )
+    DEFAULT_THEME = THEME_AUTO
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -168,6 +173,33 @@ class UserPreference(models.Model):
         ordering = ("user",)
         verbose_name = _("User Preference")
         verbose_name_plural = _("User Preferences")
+
+
+def normalize_theme_preference(value) -> str:
+    """Return a valid theme choice, falling back to automatic."""
+    if value in dict(UserPreference.THEME_CHOICES):
+        return value
+    return UserPreference.DEFAULT_THEME
+
+
+def get_theme_preference(user) -> str:
+    """Return the effective theme preference for ``user``.
+
+    The stored account preference is the single source of truth. Anonymous
+    visitors (and accounts without a stored preference) follow the operating
+    system, so they resolve to automatic. The templates render the result onto
+    the document element (``data-theme-preference``) and an inline pre-CSS
+    script applies it before the first paint.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return UserPreference.DEFAULT_THEME
+    data = UserPreference.objects.filter(user=user).values_list("data", flat=True).first()
+    if not isinstance(data, dict):
+        return UserPreference.DEFAULT_THEME
+    theme = data.get("theme")
+    if not isinstance(theme, dict):
+        return UserPreference.DEFAULT_THEME
+    return normalize_theme_preference(theme.get("theme"))
 
 
 class Token(ChangeLoggingMixin, models.Model):

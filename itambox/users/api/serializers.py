@@ -55,6 +55,15 @@ class UserConfigUpdateSerializer(serializers.Serializer):
     pagination = serializers.JSONField(required=False)
     language = serializers.CharField(required=False)
 
+    def validate_theme(self, value):
+        """Accept exactly the documented theme choices (light, dark, automatic)."""
+        if not isinstance(value, dict):
+            return value
+        stored_theme = value.get("theme")
+        if stored_theme is not None and stored_theme not in dict(UserPreference.THEME_CHOICES):
+            raise serializers.ValidationError(_("Select a valid theme: light, dark or automatic."))
+        return value
+
     def validate(self, attrs):
         initial = getattr(self, "initial_data", None)
         if not isinstance(initial, Mapping):

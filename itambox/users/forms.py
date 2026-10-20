@@ -175,6 +175,10 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
     theme = forms.ChoiceField(
         choices=UserPreference.THEME_CHOICES,  # Reference choices from model
         required=False,
+        label=_("Theme"),
+        help_text=_(
+            "Automatic follows the light or dark setting of your operating system and updates when it changes."
+        ),
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     language = forms.ChoiceField(
@@ -206,8 +210,8 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
                 theme_prefs = prefs.data.get("theme", {})
 
                 initial_per_page = pagination_prefs.get("per_page", settings.DEFAULT_PAGINATE_COUNT)
-                # Use THEME_LIGHT as the default
-                initial_theme = theme_prefs.get("theme", UserPreference.THEME_LIGHT)
+                # New accounts and rows without a theme follow the operating system
+                initial_theme = theme_prefs.get("theme", UserPreference.DEFAULT_THEME)
 
                 # Ensure initial value is valid before setting
                 if initial_per_page in dict(settings.PAGINATE_COUNT_CHOICES):
@@ -220,7 +224,7 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
                     self.fields["theme"].initial = initial_theme
                 else:
                     # Fallback if stored pref is invalid
-                    self.fields["theme"].initial = UserPreference.THEME_LIGHT
+                    self.fields["theme"].initial = UserPreference.DEFAULT_THEME
 
                 initial_workspace = prefs.data.get(DEFAULT_WORKSPACE_KEY, "")
                 valid_workspaces = {value for value, _label in self.fields["default_workspace"].choices}
@@ -231,14 +235,13 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
             else:
                 # Set defaults if no preferences exist
                 self.fields["pagination_per_page"].initial = settings.DEFAULT_PAGINATE_COUNT
-                # Use THEME_LIGHT as the default
-                self.fields["theme"].initial = UserPreference.THEME_LIGHT
+                self.fields["theme"].initial = UserPreference.DEFAULT_THEME
 
         except Exception:
+            # broad except: render-degrade: the page must render with default preferences when the stored value cannot be read
             # Fallback to defaults on any error loading preferences
             self.fields["pagination_per_page"].initial = settings.DEFAULT_PAGINATE_COUNT
-            # Use THEME_LIGHT as the default
-            self.fields["theme"].initial = UserPreference.THEME_LIGHT
+            self.fields["theme"].initial = UserPreference.DEFAULT_THEME
 
         # Language initial: stored preference first, else the active language
         from django.utils import translation
@@ -273,7 +276,10 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
         # Update theme preferences
         if "theme" not in prefs.data:
             prefs.data["theme"] = {}
-        prefs.data["theme"]["theme"] = self.cleaned_data["theme"]
+        stored_theme = self.cleaned_data.get("theme")
+        prefs.data["theme"]["theme"] = (
+            stored_theme if stored_theme in dict(UserPreference.THEME_CHOICES) else UserPreference.DEFAULT_THEME
+        )
 
         # Update language preference (the active cookie is set by the view)
         language = self.cleaned_data.get("language")

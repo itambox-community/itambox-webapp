@@ -10636,9 +10636,9 @@ msgstr "Für direkt zugewiesene Rollen mit erweiterten Rechten ist ein Ablaufdat
 msgid "EUR (Euro, €)"
 msgstr "EUR (Euro, €)"
 
-#: itambox/extras/dashboard/widgets.py:828
-msgid "Each change appears in the activity feed. Showing internal events as well would duplicate entries."
-msgstr "Jede Änderung erscheint im Aktivitätsfeed. Wenn interne Ereignisse ebenfalls angezeigt werden, erscheinen die Einträge doppelt."
+#: itambox/extras/dashboard/widgets.py:952
+msgid "Hide system-generated entries and background job updates so the feed shows human activity."
+msgstr "Vom System erzeugte Einträge und Aktualisierungen von Hintergrundjobs ausblenden, damit der Feed menschliche Aktivitäten zeigt."
 
 #: itambox/templates/organization/memberships/membership_detail.html:49
 msgid "Each entry assigns one role and shows where it applies."
@@ -15633,3 +15633,15 @@ msgstr "Positive ganze Zahl von Monaten. Leer lassen, wenn kein Prüfrhythmus er
 #, python-format
 msgid "unknown target '%(value)s'. Use: %(choices)s."
 msgstr "Unbekanntes Ziel '%(value)s'. Verwenden Sie: %(choices)s."
+
+msgid "Theme"
+msgstr "Design"
+
+msgid "Automatic follows the light or dark setting of your operating system and updates when it changes."
+msgstr "Automatisch folgt der Hell- oder Dunkel-Einstellung Ihres Betriebssystems und aktualisiert sich, wenn sie sich ändert."
+
+msgid "Use system theme"
+msgstr "Systemdesign verwenden"
+
+msgid "Select a valid theme: light, dark or automatic."
+msgstr "Wählen Sie ein gültiges Design: Hell, Dunkel oder Automatisch."

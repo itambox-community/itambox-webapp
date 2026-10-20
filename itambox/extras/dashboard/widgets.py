@@ -205,6 +205,24 @@ def _narrow_queryset_to_tenant(qs, model_class, tenant_id):
     return qs
 
 
+def internal_change_noise_q():
+    """Return the condition selecting change-log rows the dashboard can hide.
+
+    The changelog widget records the objects that were changed, so the entries
+    that drown human activity are background-job bookkeeping (``core.job``),
+    changes with no acting user (system-generated: alert engine, expiry sweeps),
+    and the legacy ``extras.event`` exclusion kept for compatibility.
+
+    Returning one composable ``Q`` keeps the widget's optional action and
+    object-type filters composing with the exclusion instead of replacing it.
+    """
+    return (
+        Q(changed_object_type__app_label="extras", changed_object_type__model="event")
+        | Q(changed_object_type__app_label="core", changed_object_type__model="job")
+        | Q(user__isnull=True)
+    )
+
+
 # --- Proxy Wrappers for Inventory ---
 
 
@@ -933,9 +951,7 @@ class ChangelogWidget(DashboardWidget):
             initial=True,
             widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
             required=False,
-            help_text=_(
-                "Each change appears in the activity feed. Showing internal events as well would duplicate entries."
-            ),
+            help_text=_("Hide system-generated entries and background job updates so the feed shows human activity."),
         )
 
     def get_context(self, request):
@@ -948,10 +964,7 @@ class ChangelogWidget(DashboardWidget):
         qs = get_scoped_queryset(ObjectChange, request, config=self.config.get("config", {}))
 
         if self.get_config_value("hide_event_noise", True):
-            qs = qs.exclude(
-                changed_object_type__app_label="extras",
-                changed_object_type__model="event",
-            )
+            qs = qs.exclude(internal_change_noise_q())
 
         if action:
             qs = qs.filter(action=action)
