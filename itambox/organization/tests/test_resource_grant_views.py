@@ -6,9 +6,13 @@ pool's location) by someone holding add_tenantresourcegrant in the OWNER
 tenant; revocation is owner-side only and soft-deletes.
 """
 
+import shutil
+import tempfile
+from pathlib import Path
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -243,31 +247,58 @@ class ResourceGrantRevokeViewTests(ResourceGrantViewWorld):
 
 
 class ResourceGrantDocumentationLinkTests(ResourceGrantViewWorld):
-    """Every grant surface links the usage page that explains the feature."""
+    """Every grant surface links the usage page through the standard help button."""
 
     PERMS = [
         "organization.view_tenantresourcegrant",
         "organization.delete_tenantresourcegrant",
     ]
     DOCS_HREF = 'href="/static/docs/usage/resource-grants.html"'
+    HELP_BUTTON_ID = 'id="help-docs-btn"'
+
+    def setUp(self):
+        super().setUp()
+        # ``get_help_url`` only returns a declared ``document_path`` when the
+        # compiled page exists, so the test provides the build output that a
+        # release ships (``mkdocs build`` writes into ``static/docs``).
+        self._docs_root = tempfile.mkdtemp(prefix="rgv-docs-")
+        page = Path(self._docs_root) / "static" / "docs" / "usage" / "resource-grants.html"
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text("<!doctype html><title>Resource grants</title>", encoding="utf-8")
+        self.addCleanup(shutil.rmtree, self._docs_root, True)
 
     def _login(self, username="rgv-docs"):
         user = User.objects.create_user(username=username, password="x")
         self.client_login_to_tenant(user, self.owner, role_permissions=self.PERMS)
         return user
 
+    def _get(self, url):
+        with override_settings(BASE_DIR=self._docs_root):
+            return self.client.get(url)
+
+    def _assert_standard_help_link(self, response):
+        """One documentation entry point: the breadcrumb help button."""
+        self.assertContains(response, self.HELP_BUTTON_ID)
+        self.assertContains(response, self.DOCS_HREF)
+        body = response.content.decode()
+        self.assertEqual(
+            body.count(self.DOCS_HREF),
+            1,
+            "the page must not add a second documentation button next to the standard help button",
+        )
+
     def test_list_page_links_usage_documentation(self):
         self._login("rgv-docs-list")
-        response = self.client.get(reverse("organization:tenantresourcegrant_list"))
+        response = self._get(reverse("organization:tenantresourcegrant_list"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.DOCS_HREF)
+        self._assert_standard_help_link(response)
 
     def test_revoke_page_links_usage_documentation(self):
         grant = self._make_grant()
         self._login("rgv-docs-revoke")
-        response = self.client.get(reverse("organization:tenantresourcegrant_delete", kwargs={"pk": grant.pk}))
+        response = self._get(reverse("organization:tenantresourcegrant_delete", kwargs={"pk": grant.pk}))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.DOCS_HREF)
+        self._assert_standard_help_link(response)
 
     def test_expiry_run_pages_link_usage_documentation(self):
         cutoff = timezone.now()
@@ -278,14 +309,12 @@ class ResourceGrantDocumentationLinkTests(ResourceGrantViewWorld):
             dispatch_stale_at=cutoff + timezone.timedelta(minutes=1),
         )
         self._login("rgv-docs-runs")
-        list_response = self.client.get(reverse("organization:tenantresourcegrantexpiryrun_list"))
+        list_response = self._get(reverse("organization:tenantresourcegrantexpiryrun_list"))
         self.assertEqual(list_response.status_code, 200)
-        self.assertContains(list_response, self.DOCS_HREF)
-        detail_response = self.client.get(
-            reverse("organization:tenantresourcegrantexpiryrun_detail", kwargs={"pk": run.pk})
-        )
+        self._assert_standard_help_link(list_response)
+        detail_response = self._get(reverse("organization:tenantresourcegrantexpiryrun_detail", kwargs={"pk": run.pk}))
         self.assertEqual(detail_response.status_code, 200)
-        self.assertContains(detail_response, self.DOCS_HREF)
+        self._assert_standard_help_link(detail_response)
 
 
 class ResourceGrantExpiryRunViewTests(ResourceGrantViewWorld):
