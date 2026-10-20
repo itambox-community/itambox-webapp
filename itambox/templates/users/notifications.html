@@ -22,14 +22,14 @@
   {% if notifications %}
     <div class="list-group list-group-flush list-group-hoverable border-top border-bottom">
       {% for notif in notifications %}
-        <div class="list-group-item py-3 {% if not notif.is_read %}bg-light-lt{% endif %}">
+        <div class="list-group-item py-3{% if not notif.is_read %} notification-unread{% endif %}">
           <div class="row align-items-center g-3">
             <div class="col-auto">
               <span class="status-dot status-dot-animated {% if notif.level == 'danger' %}bg-red{% elif notif.level == 'warning' %}bg-warning{% elif notif.level == 'success' %}bg-success{% else %}bg-blue{% endif %} d-block csp-style-3b8a53a9afec"></span>
             </div>
             <div class="col">
               <div class="d-flex align-items-center mb-1">
-                <span class="font-weight-bold text-dark d-block">
+                <span class="font-weight-bold d-block">
                   <a href="{% url 'users:view_notification' pk=notif.pk %}"
                      class="text-decoration-none text-reset"
                      hx-boost="false">
