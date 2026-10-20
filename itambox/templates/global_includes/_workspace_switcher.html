@@ -34,10 +34,6 @@
           {% endif %}
         </span>
       {% endif %}
-      <span data-testid="active-tenant"
-            data-tenant-id="{% if request.active_tenant %}{{ request.active_tenant.pk }}{% endif %}"
-            data-tenant-slug="{% if request.active_tenant %}{{ request.active_tenant.slug }}{% endif %}"
-            class="visually-hidden">{% if request.active_tenant %}{{ request.active_tenant.name }}{% elif request.active_tenant_group %}{{ request.active_tenant_group.name }} {% translate "(Group)" %}{% elif request.user.is_superuser %}{% translate "Global View" %}{% else %}{% translate "All Tenants" %}{% endif %}</span>
     </a>
     <div class="dropdown-menu dropdown-menu-end dropdown-menu-card dropdown-menu-arrow csp-style-c83eb75e87e3{% if variant == 'compact' %} mobile-fullwidth-dropdown{% endif %}">
       <div class="card">
