@@ -60,7 +60,7 @@ class BulkScanCapabilityTests(TenantTestMixin, TestCase):
         mobile_bar = body[start:end]
         # The sidebar menu group is a third surface with the same promise.
         side_start = body.index('<aside class="navbar navbar-vertical')
-        sidebar = body[side_start:body.index("</aside>", side_start)]
+        sidebar = body[side_start : body.index("</aside>", side_start)]
         expected = {"checkin": checkin, "checkout": checkout, "dispose": dispose}
         for action, url in self.scan_urls.items():
             # Mobile action bar and sidebar: a plain anchor to the scan page.
@@ -147,7 +147,7 @@ class BulkScanCapabilityTests(TenantTestMixin, TestCase):
 
         body = response.content.decode()
         side_start = body.index('<aside class="navbar navbar-vertical')
-        sidebar = body[side_start:body.index("</aside>", side_start)]
+        sidebar = body[side_start : body.index("</aside>", side_start)]
         self.assertIn('href="' + self.scan_urls["checkin"] + '"', sidebar)
         self.assertIn('href="' + self.scan_urls["checkout"] + '"', sidebar)
         self.assertNotIn('href="' + self.scan_urls["dispose"] + '"', sidebar)
