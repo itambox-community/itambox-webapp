@@ -242,6 +242,52 @@ class ResourceGrantRevokeViewTests(ResourceGrantViewWorld):
         self.assertEqual(self.client.post(url, {"confirm": True}).status_code, 404)
 
 
+class ResourceGrantDocumentationLinkTests(ResourceGrantViewWorld):
+    """Every grant surface links the usage page that explains the feature."""
+
+    PERMS = [
+        "organization.view_tenantresourcegrant",
+        "organization.delete_tenantresourcegrant",
+    ]
+    DOCS_HREF = 'href="/static/docs/usage/resource-grants.html"'
+
+    def _login(self, username="rgv-docs"):
+        user = User.objects.create_user(username=username, password="x")
+        self.client_login_to_tenant(user, self.owner, role_permissions=self.PERMS)
+        return user
+
+    def test_list_page_links_usage_documentation(self):
+        self._login("rgv-docs-list")
+        response = self.client.get(reverse("organization:tenantresourcegrant_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.DOCS_HREF)
+
+    def test_revoke_page_links_usage_documentation(self):
+        grant = self._make_grant()
+        self._login("rgv-docs-revoke")
+        response = self.client.get(reverse("organization:tenantresourcegrant_delete", kwargs={"pk": grant.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.DOCS_HREF)
+
+    def test_expiry_run_pages_link_usage_documentation(self):
+        cutoff = timezone.now()
+        run = TenantResourceGrantExpiryRun._base_manager.create(
+            tenant=self.owner,
+            schedule_slot=cutoff.replace(minute=0, second=0, microsecond=0),
+            cutoff=cutoff,
+            dispatch_stale_at=cutoff + timezone.timedelta(minutes=1),
+        )
+        self._login("rgv-docs-runs")
+        list_response = self.client.get(reverse("organization:tenantresourcegrantexpiryrun_list"))
+        self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, self.DOCS_HREF)
+        detail_response = self.client.get(
+            reverse("organization:tenantresourcegrantexpiryrun_detail", kwargs={"pk": run.pk})
+        )
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, self.DOCS_HREF)
+
+
 class ResourceGrantExpiryRunViewTests(ResourceGrantViewWorld):
     PERMS = ["organization.view_tenantresourcegrant"]
 
