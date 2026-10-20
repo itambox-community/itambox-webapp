@@ -394,18 +394,10 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
             white-space: nowrap;
             padding: 0.5rem 0.75rem;
 
-            // Inactive tabs: hide text labels, collapse padding to keep icons tidy
-            &:not(.active) {
-                span.d-xl-inline {
-                    display: none !important;
-                }
-
-                .badge {
-                    margin-left: 0.25rem !important;
-                }
-            }
-
-            // Active tab: ALWAYS show text label (on all screen sizes!) and animate expansion
+            // Compact bar below xl: inactive tabs collapse to their icon, the
+            // active one expands its label. Above xl the labels stay visible
+            // (Bootstrap's d-xl-inline), so the desktop bar reads the same as
+            // the model tabs, which never collapse.
             &.active {
                 background-color: rgb(var(--tblr-primary-rgb), 0.06);
                 border-color: transparent transparent var(--tblr-primary);
@@ -413,9 +405,27 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
 
                 span.d-xl-inline {
                     display: inline-block !important;
-                    animation: slide-expand 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
                 }
             }
+        }
+    }
+}
+
+// Below xl the bar is compact: an inactive tab shows its icon (and badge), the
+// active one expands its label. At xl and up the labels of every tab stay
+// visible, matching the model tabs rendered by the apps themselves.
+@media (width <= 1199.98px) {
+    .page-header-tabs .nav-item .nav-link {
+        &:not(.active) span.d-xl-inline {
+            display: none !important;
+        }
+
+        &:not(.active) .badge {
+            margin-left: 0.25rem !important;
+        }
+
+        &.active span.d-xl-inline {
+            animation: slide-expand 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
     }
 }
