@@ -233,7 +233,8 @@ class TestAccessibilityTemplateContracts:
         # The menu renders in both shells, so each one has to scope the ids.
         for shell_name, scope in (("global_includes/_topbar.html", "topbar"), ("layout.html", "mobile")):
             shell = (_APP_ROOT / "templates" / shell_name).read_text(encoding="utf-8")
-            assert f'_user_menu.html" with menu_scope="{scope}"' in shell, f"{shell_name} must scope the menu ids"
+            marker = '_user_menu.html" with menu_scope="' + scope + '"'
+            assert marker in shell, f"{shell_name} must scope the menu ids"
 
     def test_no_shell_renders_a_theme_toggle_button(self):
         topbar = (_APP_ROOT / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8")
