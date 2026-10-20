@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { setThemePreference } from '../../helpers/theme';
+import { chooseThemeInUserMenu, setThemePreference } from '../../helpers/theme';
 
 /**
  * Qualifies the ECharts-based dashboard charts end to end:
@@ -172,7 +172,7 @@ test('theme switching, a HTMX swap, and a GridStack resize keep single chart ins
   const errors = collectPageErrors(page);
   await page.goto('/', { waitUntil: 'networkidle' });
   // A deterministic starting point: the account preference is an explicit
-  // light, so one toggle click goes to dark and the next returns to light.
+  // light, so selecting dark and then light exercises both repaints.
   await setThemePreference(page, 'light');
   await page.reload({ waitUntil: 'networkidle' });
   await removeDebugToolbar(page);
@@ -184,11 +184,11 @@ test('theme switching, a HTMX swap, and a GridStack resize keep single chart ins
   // Light <-> dark switching through the real toggle re-renders without re-mounting.
   const html = page.locator('html');
   const initialTheme = await html.getAttribute('data-bs-theme');
-  await page.locator('.color-mode-toggle:visible').first().click();
+  await chooseThemeInUserMenu(page, 'dark');
   await expect.poll(async () => html.getAttribute('data-bs-theme')).not.toBe(initialTheme);
   await expect.poll(async () => (await readChartState(statusChart)).canvases).toBe(1);
   expect((await readChartState(statusChart)).instanceId).toBe(before.instanceId);
-  await page.locator('.color-mode-toggle:visible').first().click();
+  await chooseThemeInUserMenu(page, 'light');
   await expect.poll(async () => html.getAttribute('data-bs-theme')).toBe(initialTheme);
 
   // A boosted navigation to the dashboard replaces the content and re-mounts the charts.

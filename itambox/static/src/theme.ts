@@ -6,9 +6,9 @@
  * base_public.html applies it before the stylesheets load, so there is no
  * flash of the wrong theme. This module owns the interactive part:
  *
- * - the topbar toggle cycles light -> dark -> automatic and persists the new
- *   choice to the account (localStorage is not consulted at all, so a stale
- *   value left by another user on the same browser can never win);
+ * - the segmented control in the user menu picks one of the three values and
+ *   persists the choice to the account (localStorage is not consulted at all,
+ *   so a stale value left by another user on the same browser can never win);
  * - an automatic preference follows `prefers-color-scheme` and reacts to an
  *   operating-system change without a reload.
  *
@@ -24,8 +24,8 @@ export type ResolvedTheme = 'light' | 'dark';
 export const PREFERENCE_ATTRIBUTE = 'data-theme-preference';
 /** Document attribute carrying the preferences API endpoint (absent when anonymous). */
 export const CONFIG_URL_ATTRIBUTE = 'data-theme-config-url';
-/** Document attribute prefix carrying the label for a target preference. */
-export const LABEL_ATTRIBUTE_PREFIX = 'data-theme-label-';
+/** The segmented control's radio inputs, one per preference. */
+export const PREFERENCE_INPUT_SELECTOR = 'input[name="theme-preference"]';
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
@@ -45,17 +45,6 @@ export function resolveTheme(preference: ThemePreference, prefersDark: boolean):
   return preference;
 }
 
-/** Cycle the toggle: light -> dark -> automatic -> light. */
-export function nextPreference(preference: ThemePreference): ThemePreference {
-  if (preference === 'light') {
-    return 'dark';
-  }
-  if (preference === 'dark') {
-    return 'auto';
-  }
-  return 'light';
-}
-
 function systemPrefersDark(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia(DARK_QUERY).matches;
 }
@@ -64,14 +53,10 @@ function currentPreference(): ThemePreference {
   return normalizePreference(document.documentElement.getAttribute(PREFERENCE_ATTRIBUTE));
 }
 
-function updateToggleLabels(preference: ThemePreference): void {
-  const label = document.documentElement.getAttribute(LABEL_ATTRIBUTE_PREFIX + nextPreference(preference));
-  if (!label) {
-    return;
-  }
-  document.querySelectorAll<HTMLElement>('.color-mode-toggle').forEach(function (button) {
-    button.setAttribute('title', label);
-    button.setAttribute('aria-label', label);
+/** Keep the segmented control in step with the preference actually in force. */
+function syncControl(preference: ThemePreference): void {
+  document.querySelectorAll<HTMLInputElement>(PREFERENCE_INPUT_SELECTOR).forEach(function (input) {
+    input.checked = input.value === preference;
   });
 }
 
@@ -79,7 +64,7 @@ function applyPreference(preference: ThemePreference): void {
   const root = document.documentElement;
   root.setAttribute(PREFERENCE_ATTRIBUTE, preference);
   root.setAttribute('data-bs-theme', resolveTheme(preference, systemPrefersDark()));
-  updateToggleLabels(preference);
+  syncControl(preference);
 }
 
 function persistPreference(preference: ThemePreference): void {
@@ -107,13 +92,12 @@ function persistPreference(preference: ThemePreference): void {
 function initTheme(): void {
   applyPreference(currentPreference());
 
-  document.addEventListener('click', function (event) {
-    const target = event.target as HTMLElement | null;
-    if (!target || !target.closest('.color-mode-toggle')) {
+  document.addEventListener('change', function (event) {
+    const target = event.target as HTMLInputElement | null;
+    if (!target || !target.matches(PREFERENCE_INPUT_SELECTOR)) {
       return;
     }
-    event.preventDefault();
-    const preference = nextPreference(currentPreference());
+    const preference = normalizePreference(target.value);
     applyPreference(preference);
     persistPreference(preference);
   });
@@ -125,10 +109,10 @@ function initTheme(): void {
     }
   });
 
-  // Boosted navigation swaps the topbar markup, so re-apply the labels after
-  // the swap instead of leaving stale server-rendered labels in place.
+  // Boosted navigation swaps the menu markup, so re-point the control at the
+  // preference in force instead of leaving a stale server-rendered selection.
   document.addEventListener('htmx:afterSettle', function () {
-    updateToggleLabels(currentPreference());
+    syncControl(currentPreference());
   });
 }
 

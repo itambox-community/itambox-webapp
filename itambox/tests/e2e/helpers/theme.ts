@@ -31,6 +31,18 @@ export async function setThemePreference(page: Page, preference: ThemePreference
   expect(response.status(), `PATCH ${url}: ${await response.text()}`).toBe(200);
 }
 
+/**
+ * Pick a theme through the user-facing control (the segmented switch in the
+ * user menu), leaving the menu open state alone so repeated calls work.
+ */
+export async function chooseThemeInUserMenu(page: Page, preference: ThemePreference): Promise<void> {
+  const label = page.locator(`label[for="theme-preference-${preference}"]`);
+  if (!(await label.isVisible())) {
+    await page.getByRole('link', { name: 'Open user menu' }).click();
+  }
+  await label.click();
+}
+
 export async function readStoredThemePreference(page: Page): Promise<string | undefined> {
   const url = await configUrl(page);
   if (!url) throw new Error('The document does not expose a theme preferences endpoint.');

@@ -1,0 +1,53 @@
+{% load i18n %}
+{% comment %}
+  Workspace / tenant switcher.
+
+  `variant` is either "full" (desktop topbar: briefcase, active scope name and
+  caret) or "compact" (mobile header: briefcase only, dropdown spans the
+  viewport). One include keeps the active-scope label, the test hook and the
+  switcher list from drifting between the two shells.
+{% endcomment %}
+{% if request.user.is_authenticated %}
+  <div class="nav-item dropdown {% if variant == 'compact' %}me-1{% else %}me-3 d-none d-md-flex{% endif %}">
+    <a href="#"
+       class="btn workspace-switcher dropdown-toggle{% if variant == 'compact' %} workspace-switcher--compact px-2{% endif %}"
+       data-bs-toggle="dropdown"
+       {% if variant == 'compact' %}data-bs-display="static"{% endif %}
+       aria-haspopup="true"
+       aria-expanded="false"
+       {% if variant == 'compact' %}aria-label="{% translate 'Switch workspace' %}"{% endif %}>
+      <span class="workspace-switcher-icon" aria-hidden="true">
+        <i class="mdi mdi-briefcase-outline"></i>
+      </span>
+      {% if variant != 'compact' %}
+        <span class="workspace-switcher-name">
+          {% if request.active_tenant %}
+            {{ request.active_tenant.name }}
+          {% elif request.active_tenant_group %}
+            {{ request.active_tenant_group.name }} {% translate "(Group)" %}
+          {% else %}
+            {% if request.user.is_superuser %}
+              {% translate "Global View" %}
+            {% else %}
+              {% translate "All Tenants" %}
+            {% endif %}
+          {% endif %}
+        </span>
+      {% endif %}
+      <span data-testid="active-tenant"
+            data-tenant-id="{% if request.active_tenant %}{{ request.active_tenant.pk }}{% endif %}"
+            data-tenant-slug="{% if request.active_tenant %}{{ request.active_tenant.slug }}{% endif %}"
+            class="visually-hidden">{% if request.active_tenant %}{{ request.active_tenant.name }}{% elif request.active_tenant_group %}{{ request.active_tenant_group.name }} {% translate "(Group)" %}{% elif request.user.is_superuser %}{% translate "Global View" %}{% else %}{% translate "All Tenants" %}{% endif %}</span>
+    </a>
+    <div class="dropdown-menu dropdown-menu-end dropdown-menu-card dropdown-menu-arrow csp-style-c83eb75e87e3{% if variant == 'compact' %} mobile-fullwidth-dropdown{% endif %}">
+      <div class="card">
+        <div class="card-header py-2">
+          <h3 class="card-title text-reset fs-6">{% translate "Active Workspace" %}</h3>
+        </div>
+        <div class="list-group list-group-flush list-group-hoverable csp-style-59e43b640b5a">
+          {% include 'global_includes/_tenant_switcher_list.html' %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}

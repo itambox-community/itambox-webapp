@@ -2,16 +2,14 @@
  * Unit tests for the theme preference resolution (issue #908).
  *
  * The decision seam is pure: `resolveTheme(preference, prefersDark)` answers
- * what the document should paint, and `nextPreference` answers what the toggle
- * advances to. Both are tested without a DOM; the inline pre-CSS script in
- * base.html mirrors the same three rules.
+ * what the document should paint. It is tested without a DOM; the inline
+ * pre-CSS script in base.html mirrors the same rules.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
   normalizePreference,
-  nextPreference,
   resolveTheme,
 } from './.build/theme.mjs';
 
@@ -28,12 +26,6 @@ test('an explicit dark preference ignores the operating system', () => {
 test('automatic follows the operating system in both states', () => {
   assert.equal(resolveTheme('auto', true), 'dark');
   assert.equal(resolveTheme('auto', false), 'light');
-});
-
-test('the toggle cycles light -> dark -> automatic -> light', () => {
-  assert.equal(nextPreference('light'), 'dark');
-  assert.equal(nextPreference('dark'), 'auto');
-  assert.equal(nextPreference('auto'), 'light');
 });
 
 test('unknown preference values fall back to automatic', () => {

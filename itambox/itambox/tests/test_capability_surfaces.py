@@ -5,7 +5,6 @@ maturity a user, an operator, and an API client all see. These tests pin those
 three readers to the same source.
 """
 
-import re
 from collections import namedtuple
 from io import StringIO
 from pathlib import Path
@@ -214,24 +213,28 @@ class TestBannerTemplate:
 
 
 class TestAccessibilityTemplateContracts:
-    def test_theme_controls_are_named_buttons_with_hidden_icons(self):
-        html = "\n".join(
-            (
-                (_APP_ROOT / "templates" / "layout.html").read_text(encoding="utf-8"),
-                (_APP_ROOT / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8"),
-            )
-        )
-        theme_buttons = [
-            match.groups()
-            for match in re.finditer(r"<button(?P<attrs>[^>]*)>(?P<body>.*?)</button>", html, re.DOTALL)
-            if "color-mode-toggle" in match.group("attrs")
-        ]
+    def test_theme_switch_is_a_labelled_radio_group_in_the_user_menu(self):
+        menu = (_APP_ROOT / "templates" / "global_includes" / "_user_menu.html").read_text(encoding="utf-8")
 
-        assert len(theme_buttons) == 4
-        for attrs, body in theme_buttons:
-            assert 'type="button"' in attrs
-            assert "aria-label=\"{% translate 'Enable " in attrs
-            assert 'aria-hidden="true"' in body
+        assert 'role="radiogroup"' in menu
+        assert "<legend" in menu, "the group needs an accessible name"
+        assert menu.count('class="theme-switch-input"') == 3
+        assert menu.count('name="theme-preference"') == 3, "one shared name, or the radios are three groups"
+        for value in ("auto", "dark", "light"):
+            assert f'value="{value}"' in menu
+            assert f'for="theme-preference-{value}"' in menu, "every segment needs a label"
+
+    def test_no_shell_renders_a_theme_toggle_button(self):
+        topbar = (_APP_ROOT / "templates" / "global_includes" / "_topbar.html").read_text(encoding="utf-8")
+        layout = (_APP_ROOT / "templates" / "layout.html").read_text(encoding="utf-8")
+
+        for name, markup in (("_topbar.html", topbar), ("layout.html", layout)):
+            assert "color-mode-toggle" not in markup, f"{name} still renders a theme toggle"
+
+        # The workspace switcher is the single tenant entry point on mobile now.
+        assert "variant='compact'" in layout
+        assert "mobile-tenant-switcher" not in layout, "the drawer switcher must be gone"
+        assert "variant='full'" in topbar
 
     def test_page_shell_has_language_and_landmark_contracts(self):
         base = (_APP_ROOT / "templates" / "base.html").read_text(encoding="utf-8")
