@@ -1,7 +1,8 @@
 """The bulk scan entries are offered exactly where the scan views would accept them (#907).
 
-The mobile action bar and the docked bulk-action toolbar share one capability
-decision, so both surfaces are asserted from the same rendered asset list.
+The mobile action bar, the docked bulk-action toolbar and the sidebar menu
+group share one capability decision, so all three surfaces are asserted from the
+same rendered asset list.
 """
 
 from types import SimpleNamespace
@@ -46,23 +47,35 @@ class BulkScanCapabilityTests(TenantTestMixin, TestCase):
         session.save()
 
     def _assert_surfaces(self, response, *, checkin, checkout, dispose):
-        """Assert both surfaces offer exactly the expected entries."""
+        """Assert every surface offers exactly the expected entries.
+
+        Three surfaces render the same scan links: the sidebar menu group, the
+        mobile action bar and the docked bulk-action toolbar.
+        """
         body = response.content.decode()
         # The mobile bar is one block of the global layout; slice it out so the
         # sidebar's own scan links (a separate surface) cannot answer for it.
         start = body.index('class="mobile-action-bar')
         end = body.index('id="global-scanner-modal"')
         mobile_bar = body[start:end]
+        # The sidebar menu group is a third surface with the same promise.
+        side_start = body.index('<aside class="navbar navbar-vertical')
+        sidebar = body[side_start:body.index("</aside>", side_start)]
         expected = {"checkin": checkin, "checkout": checkout, "dispose": dispose}
         for action, url in self.scan_urls.items():
-            # Mobile action bar: a plain anchor to the scan page.
-            mobile = 'href="' + url + '"'
+            # Mobile action bar and sidebar: a plain anchor to the scan page.
+            anchor = 'href="' + url + '"'
             # Docked bulk-action toolbar: a seed button carrying the scan URL.
             toolbar = 'data-scan-url="' + url + '"'
             self.assertEqual(
-                mobile_bar.count(mobile),
+                mobile_bar.count(anchor),
                 1 if expected[action] else 0,
                 f"mobile action bar {'should' if expected[action] else 'should not'} offer {action}",
+            )
+            self.assertEqual(
+                sidebar.count(anchor),
+                1 if expected[action] else 0,
+                f"sidebar {'should' if expected[action] else 'should not'} offer {action}",
             )
             self.assertEqual(
                 body.count(toolbar),
@@ -117,6 +130,27 @@ class BulkScanCapabilityTests(TenantTestMixin, TestCase):
             {"checkin": True, "checkout": True, "dispose": False},
         )
         self._assert_surfaces(response, checkin=True, checkout=True, dispose=False)
+
+    def test_aggregate_scope_offers_the_sidebar_entries_too(self):
+        """The sidebar group followed the objectless permission check (#923).
+
+        Under "all accessible tenants" the objectless ``assets.change_asset``
+        check is refused by design, so the menu group only ever showed the
+        disposal entry even though the scan pages accept check-in/check-out
+        with a target tenant the actor holds the permission in.
+        """
+        self.tenant_role.permissions = ["assets.view_asset", "assets.change_asset"]
+        self.tenant_role.save()
+        self._login_all_accessible()
+
+        response = self.client.get(self.list_url)
+
+        body = response.content.decode()
+        side_start = body.index('<aside class="navbar navbar-vertical')
+        sidebar = body[side_start:body.index("</aside>", side_start)]
+        self.assertIn('href="' + self.scan_urls["checkin"] + '"', sidebar)
+        self.assertIn('href="' + self.scan_urls["checkout"] + '"', sidebar)
+        self.assertNotIn('href="' + self.scan_urls["dispose"] + '"', sidebar)
 
     # ── concrete tenant scope ────────────────────────────────────────────────
 
