@@ -574,7 +574,7 @@ jobs:
       # edge that only exists once function-body imports are counted is still a
       # real runtime coupling. A model importing presentation is the one finding
       # with no baseline representation at any severity (see the private
-      # itambox/design-docs repository's architecture policy).
+      # itambox-community/design-docs repository's architecture policy).
       #
       # The suite backing this gate runs by discovery in the `test` job above.
       - name: Check the architecture boundary gate

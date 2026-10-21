@@ -51,7 +51,7 @@ FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e6
 
 ARG ITAMBOX_VERSION=dev
 ARG ITAMBOX_REVISION=unknown
-ARG ITAMBOX_SOURCE=https://github.com/itambox/itambox-webapp
+ARG ITAMBOX_SOURCE=https://github.com/itambox-community/itambox-webapp
 
 LABEL org.opencontainers.image.title="ITAMbox" \
       org.opencontainers.image.description="Open-source IT asset management" \

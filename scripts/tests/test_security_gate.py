@@ -32,7 +32,7 @@ def suppression(**overrides):
         },
         "review_on": (today + timedelta(days=14)).isoformat(),
         "expires_on": (today + timedelta(days=30)).isoformat(),
-        "references": ["https://github.com/itambox/itambox-webapp/issues/20"],
+        "references": ["https://github.com/itambox-community/itambox-webapp/issues/20"],
     }
     value.update(overrides)
     return value

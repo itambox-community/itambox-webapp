@@ -184,7 +184,7 @@ DB_ENGINE = os.environ.get("ITAMBOX_DB_ENGINE", "django.db.backends.postgresql")
 
 if "sqlite" in DB_ENGINE:
     raise ImproperlyConfigured(
-        "SQLite is strictly deprecated and not supported in ITAMbox. Please use PostgreSQL 15+ for all environments."
+        "SQLite is strictly deprecated and not supported in ITAMbox. Please use PostgreSQL 16+ for all environments."
     )
 
 DATABASES = {

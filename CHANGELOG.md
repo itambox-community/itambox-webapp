@@ -10,6 +10,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - **Breaking for upgrades:** the prerelease migration history is replaced by a named 1.0 baseline. Each app now ships `0001_baseline` followed by `0002_cross_app_relations` where relations cross apps, and the seed and database-guard migrations (`assets.0004_seed_reference_data`, `0005_core_vocabulary`, `0006_core_vocabulary_german_translations`, `0007_asset_type_identity_guard`, `extras.0003_definition_guards`). The `issue88_shard_*`, issue-numbered and auto-named migrations are gone, and a fresh install no longer runs the prerelease data conversions. Every baseline migration declares the prerelease identities it replaces, so a `v1.0.0-beta.5` database records the baseline without executing it and then applies only two idempotent clean-ups (`extras.0004_drop_legacy_column_default`, `users.0002_unique_constraint_names`). A fresh install and an upgraded database end in the same schema and the same migration-recorder state. The supported upgrade origin is `v1.0.0-beta.5`; a database from `v1.0.0-beta.4` or earlier must first be upgraded to beta.5, and `migration_baseline_preflight` rejects it. A plugin migration that names a first-party migration in its `dependencies` must be updated to the new names.
 - `migration_baseline_preflight` recognizes `v1.0.0-beta.5` (`supported-predecessor-beta5`) as the only predecessor state; the earlier pre-squash, transition-release and beta.3 states are removed. `scripts/migration_audit.py` now verifies that the `replaces` declarations on disk and the checked manifest agree, and the supported-upgrade qualification driver is `scripts/qualification/migrations/run-supported-upgrade.sh`.
 
+### Fixed
+- Documentation, issue templates, contributor guidance and the in-product footer link point at `itambox-community` after the repository moved; the README badge and the stated database requirement now say PostgreSQL 16 or newer, matching the compatibility note of this release. The development settings no longer allow a private LAN host.
+
 ### Security
 - Raised the dependency floors that carried open advisories: `Pillow` to `>=13.0.0,<14.0` (was `>=12.3.0,<13.0`; nine advisories across fourteen alerts, including critical ones), `certifi` to `2026.10.19` and, through `@graphiql/react`, `markdown-it` to `14.3.3` in the browser bundle. The Pillow floor is a deployment requirement: an existing installation has to reinstall its Python dependencies before it starts.
 
@@ -431,12 +434,12 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox/itambox-webapp/compare/v1.0.0-beta.5...HEAD
-[1.0.0-beta.5]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.5
-[1.0.0-beta.4]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.4
-[1.0.0-beta.3]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.3
-[1.0.0-beta.2]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.2
-[1.0.0-beta.1]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-beta.1
-[1.0.0-alpha.3]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-alpha.3
-[1.0.0-alpha.2]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-alpha.2
-[1.0.0-alpha.1]: https://github.com/itambox/itambox-webapp/releases/tag/v1.0.0-alpha.1
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-beta.5...HEAD
+[1.0.0-beta.5]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.5
+[1.0.0-beta.4]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.4
+[1.0.0-beta.3]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.3
+[1.0.0-beta.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.2
+[1.0.0-beta.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.1
+[1.0.0-alpha.3]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-alpha.3
+[1.0.0-alpha.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-alpha.2
+[1.0.0-alpha.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-alpha.1

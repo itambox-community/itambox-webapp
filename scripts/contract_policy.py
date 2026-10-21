@@ -1,7 +1,7 @@
 """The declared 1.0 external-contract policy and the source facts it binds to.
 
 The 1.0 compatibility contract has human-readable policy and inventory
-documents in the private ``itambox/design-docs`` repository. The public
+documents in the private ``itambox-community/design-docs`` repository. The public
 repository keeps the reviewed machine-readable projection in
 ``scripts/contract_policy_manifest.json``. A promise about a surface nobody
 enumerated is unfalsifiable, and an enumeration that drifts from source is worse
@@ -48,7 +48,7 @@ CONTRACT_POLICY_VERSION = 1
 
 # These are logical sections in the code-owned manifest, not paths to prose
 # documents. The reviewed human-readable versions live in the private
-# itambox/design-docs repository.
+# itambox-community/design-docs repository.
 MANIFEST_DOC = "scripts/contract_policy_manifest.json"
 POLICY_DOC = "policy"
 INVENTORY_DOC = "inventory"

@@ -23,7 +23,7 @@
   <a href="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml"><img src="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
   <img src="https://img.shields.io/badge/status-public%20beta-d97706.svg" alt="Public beta status">
   <img src="https://img.shields.io/badge/python-3.12%2B-3776ab.svg" alt="Python 3.12 or newer">
-  <img src="https://img.shields.io/badge/database-PostgreSQL%2015%2B-4169e1.svg" alt="PostgreSQL 15 or newer">
+  <img src="https://img.shields.io/badge/database-PostgreSQL%2016%2B-4169e1.svg" alt="PostgreSQL 16 or newer">
 </p>
 
 ITAMbox gives IT teams one operational history for the assets they manage and the decisions made around them. Instead of separating asset records, stock, software, licensing, procurement, custody, compliance, and disposal across disconnected tools and spreadsheets, ITAMbox connects them in one tenant-aware system.
@@ -129,7 +129,7 @@ The [integration guide](itambox/docs/integration/developer_guide.md) documents R
 
 ## Architecture at a glance
 
-ITAMbox is built with Django 5.2 and Python 3.12, requires PostgreSQL 15 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Strawberry (with strawberry-graphql-django) provides the scoped, read-only GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
+ITAMbox is built with Django 5.2 and Python 3.12, requires PostgreSQL 16 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Strawberry (with strawberry-graphql-django) provides the scoped, read-only GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
 
 Architecture boundaries, implementation conventions, test lanes, and contributor quality gates are documented in [DEVELOPMENT.md](DEVELOPMENT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md).
 

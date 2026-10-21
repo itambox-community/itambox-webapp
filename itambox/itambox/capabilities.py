@@ -10,7 +10,7 @@ opaque callables the domain hands it, and resolves neither at registration
 time, so ``itambox.capabilities`` imports no application, no model, and no
 presentation code. The architecture gate classifies it as ``framework``, where
 naming a domain application is a hard error -- see the private
-``itambox/design-docs`` repository for the architecture policy.
+``itambox-community/design-docs`` repository for the architecture policy.
 
 Three rules make the declarations trustworthy rather than decorative:
 

@@ -13,7 +13,7 @@ There is deliberately **no write mode**. The manifest is a reviewed,
 machine-readable contract surface; generating it at run time would turn the
 contract into a mirror of whatever the code happens to say this week, which is
 the opposite of a promise. The human-readable policy documents live in the
-private ``itambox/design-docs`` repository.
+private ``itambox-community/design-docs`` repository.
 
 The gate imports no Django and touches no database, so it runs on a bare
 interpreter alongside the other repository gate suites.

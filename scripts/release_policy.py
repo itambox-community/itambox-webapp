@@ -158,9 +158,7 @@ def validate_repository(root: Path, expected_version: str | None = None) -> Rele
         )
 
     extract_release_notes(root / "CHANGELOG.md", project_version.semver)
-    release_link = (
-        f"[{project_version.semver}]: https://github.com/itambox/itambox-webapp/releases/tag/v{project_version.semver}"
-    )
+    release_link = f"[{project_version.semver}]: https://github.com/itambox-community/itambox-webapp/releases/tag/v{project_version.semver}"
     if release_link not in (root / "CHANGELOG.md").read_text(encoding="utf-8"):
         raise ReleasePolicyError(f"CHANGELOG.md is missing the release link for {project_version.semver}")
     return project_version

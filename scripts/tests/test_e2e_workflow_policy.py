@@ -50,7 +50,7 @@ class E2EWorkflowTopologyTests(unittest.TestCase):
         self.assertIn("GITHUB_STEP_SUMMARY", detector)
         self.assertIn("if-no-files-found: error", detector)
         self.assertNotIn("design-docs", self.workflow)
-        self.assertNotIn("itambox/design-docs", self.workflow)
+        self.assertNotIn("itambox-community/design-docs", self.workflow)
 
     def test_execution_uses_validated_wrapper_and_certification(self):
         execution = self.workflow.split("  e2e-selected:", 1)[1].split("\n  e2e-gate:", 1)[0]

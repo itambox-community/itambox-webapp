@@ -16,7 +16,7 @@ const ORIGIN = 'https://demo.itambox.dev';
 
 test('docs pages are app-external (the #317 repro link)', () => {
   assert.equal(
-    isAppExternal('https://github.com/itambox/design-docs/blob/main/development/capability-registry.md', ORIGIN),
+    isAppExternal('https://github.com/itambox-community/design-docs/blob/main/development/capability-registry.md', ORIGIN),
     true,
   );
   assert.equal(isAppExternal('https://demo.itambox.dev/static/docs/index.html', ORIGIN), true);
