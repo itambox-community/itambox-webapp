@@ -22,7 +22,7 @@
              {% if current_theme == 'auto' %}checked{% endif %}>
       <label for="theme-preference-{{ menu_scope }}-auto">
         <i class="mdi mdi-theme-light-dark" aria-hidden="true"></i>
-        <span>{% translate "Auto" %}</span>
+        <span class="visually-hidden">{% translate "Auto" %}</span>
       </label>
       <input type="radio"
              class="theme-switch-input"
@@ -32,7 +32,7 @@
              {% if current_theme == 'dark' %}checked{% endif %}>
       <label for="theme-preference-{{ menu_scope }}-dark">
         <i class="mdi mdi-weather-night" aria-hidden="true"></i>
-        <span>{% translate "Dark" %}</span>
+        <span class="visually-hidden">{% translate "Dark" %}</span>
       </label>
       <input type="radio"
              class="theme-switch-input"
@@ -42,7 +42,7 @@
              {% if current_theme == 'light' %}checked{% endif %}>
       <label for="theme-preference-{{ menu_scope }}-light">
         <i class="mdi mdi-weather-sunny" aria-hidden="true"></i>
-        <span>{% translate "Light" %}</span>
+        <span class="visually-hidden">{% translate "Light" %}</span>
       </label>
     </fieldset>
   </div>

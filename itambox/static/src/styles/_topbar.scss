@@ -163,6 +163,7 @@
         font-size: 0.8125rem;
         cursor: pointer;
         white-space: nowrap;
+        min-width: 0; // the segments must stay equal thirds, or the thumb misses them
         position: relative; // above the sliding thumb
         z-index: 1;
         transition: color 0.2s ease;
@@ -172,19 +173,13 @@
             line-height: 1;
         }
 
-        // Only the active option shows its name; the others are icon-only.
-        span {
-            display: none;
-        }
+        // The segments are icon-only. The option name stays in the DOM as
+        // visually hidden text (see the template), so each radio keeps an
+        // accessible name without widening its third of the track.
     }
 
     .theme-switch-input:checked + label {
         color: var(--tblr-primary-fg, #fff);
-        font-weight: 600;
-
-        span {
-            display: inline;
-        }
     }
 
     .theme-switch-input:focus-visible + label {
