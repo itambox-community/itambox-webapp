@@ -62,10 +62,10 @@ class VersionPolicyTests(unittest.TestCase):
 
 class RepositoryPolicyTests(unittest.TestCase):
     def test_checked_in_release_metadata_is_consistent(self):
-        version = validate_repository(REPOSITORY_ROOT, expected_version="1.0.0-beta.4")
+        version = validate_repository(REPOSITORY_ROOT, expected_version="1.0.0-beta.5")
 
-        self.assertEqual(version.semver, "1.0.0-beta.4")
-        self.assertEqual(version.pep440, "1.0.0b4")
+        self.assertEqual(version.semver, "1.0.0-beta.5")
+        self.assertEqual(version.pep440, "1.0.0b5")
 
     def test_checked_in_openapi_schema_matches_release_identity(self):
         version = validate_repository(REPOSITORY_ROOT)

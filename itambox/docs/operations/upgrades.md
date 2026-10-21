@@ -437,23 +437,23 @@ not prove schema or data parity and cannot detect rows created with `migrate
 --fake`, `--fake-initial`, or direct recorder SQL. Exit code `0` covers two
 recognized shapes:
 
-- `current-normalized-baseline`: all replacement rows, their complete
-  historical recognition set, and every current post-transition leaf are
-  present; no migration action is required.
+- `current-normalized-baseline`: every replaced prerelease identity, every
+  migration of the named baseline and every current app leaf is recorded; no
+  migration action is required. A fresh install and a finished upgrade of the
+  declared origin end in this same recorder state.
 - A supported predecessor state declared in the checked manifest — currently
-  `supported-predecessor-pre-squash`, `supported-predecessor-transition-release`
-  and the declared upgrade origin `v1.0.0-beta.3`
-  (`supported-predecessor-beta3`): the recorder is exactly at that predecessor
+  only the declared upgrade origin `v1.0.0-beta.5`
+  (`supported-predecessor-beta5`): the recorder is exactly at that predecessor
   state. The database is recognized and safe to upgrade with the ordinary
   migration executor; the migration itself is still required.
 
 A non-zero result is a stop condition. It distinguishes a partial normalized
 baseline (for example a database that never ran the replacement layer, or only
-part of it), an incomplete post-transition state, empty/unmigrated databases,
-and unknown or mixed first-party rows — including transitional development
-states that are not one of the two declared predecessors. Remediation is to
-restore the verified predecessor and investigate the schema/data evidence as
-directed by the state.
+part of it), an incomplete or interrupted post-transition state, empty/unmigrated
+databases, and unknown or mixed first-party rows — including the states of every
+earlier prerelease, which are not supported origins. Remediation is to restore
+the verified predecessor and investigate the schema/data evidence as directed by
+the state.
 
 The command does not validate that an image or running process matches a
 caller-declared revision. Bind the exact full Git SHA to the immutable image or
@@ -465,12 +465,14 @@ fresh schema/protected-canary comparisons before retrying.
 This prerelease still supports no arbitrary version skipping. The supported
 starting points for a release are the previously tagged release — the supported
 upgrade-origin chain begins at `v1.0.0-beta.2`, and each release's changelog
-states its declared origin — and, in addition, the predecessor revisions
-recorded in the checked manifest (`recognized_states`): the pre-squash
-revision, the transition release, and each declared upgrade origin (currently
-`v1.0.0-beta.3`). Databases created by transitional development states of the
-#479 work are explicitly not supported; the executor fails closed with a clear
-recorder inconsistency instead of rewriting their history.
+states its declared origin — and, in addition, the predecessor revision
+recorded in the checked manifest (`recognized_states`): the declared upgrade
+origin (currently `v1.0.0-beta.5`). The stable baseline replaces the whole
+prerelease migration history, so a database from `v1.0.0-beta.4` or earlier must
+first be upgraded to `v1.0.0-beta.5`; the preflight rejects it. Databases
+created by transitional development states are explicitly not supported; the
+executor fails closed with a clear recorder inconsistency instead of rewriting
+their history.
 
 ## Source-built Compose update
 

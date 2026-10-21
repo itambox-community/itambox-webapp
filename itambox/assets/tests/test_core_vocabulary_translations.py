@@ -148,7 +148,7 @@ class CoreVocabularyGermanMigrationRowsTests(TestCase):
         CustomFieldsetTranslation.objects.filter(locale="de", fieldset__namespace="itambox").delete()
         CustomFieldChoiceTranslation.objects.filter(locale="de", choice__choice_set__namespace="itambox").delete()
 
-        migration = importlib.import_module("assets.migrations.0127_core_vocabulary_german_translations")
+        migration = importlib.import_module("assets.migrations.0006_core_vocabulary_german_translations")
         migration.seed_translations(apps, SimpleNamespace(connection=connection))
         self._assert_german_rows_for_all_shipped_vocabulary()
 
