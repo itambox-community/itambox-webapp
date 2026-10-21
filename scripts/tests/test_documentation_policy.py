@@ -5,7 +5,7 @@ intentional removal of the internal ``docs/development/`` tree:
 
 * public surfaces (README, ``itambox/docs/``, ``mkdocs.yml``, Django
   templates, ``.env.example``) must not reference the removed internal tree or
-  the private ``itambox/design-docs`` repository;
+  the private ``itambox-community/design-docs`` repository;
 * the MkDocs navigation must cover every public page and must not point at
   internal-only documents;
 * every local link in the public documentation must resolve to an existing
@@ -38,7 +38,7 @@ COMMERCIAL_VOCABULARY = DOCS_ROOT / "usage" / "commercial-vocabulary.md"
 
 #: Private/internal reference patterns. These never belong in a public surface.
 INTERNAL_REFERENCE_PATTERNS = (
-    re.compile(r"github\.com/itambox/design-docs"),
+    re.compile(r"github\.com/itambox-community/design-docs"),
     re.compile(r"docs/development/"),
     re.compile(
         r"development/(?:capability-registry|module-maturity|compatibility-policy|"

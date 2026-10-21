@@ -100,7 +100,7 @@ class RepositoryPolicyTests(unittest.TestCase):
             "## [Unreleased]\n\n"
             f"## [{changelog_version}] - 2026-07-24\n\n"
             "### Added\n\n- First alpha release.\n\n"
-            f"[{changelog_version}]: https://github.com/itambox/itambox-webapp/releases/tag/v{changelog_version}\n",
+            f"[{changelog_version}]: https://github.com/itambox-community/itambox-webapp/releases/tag/v{changelog_version}\n",
             encoding="utf-8",
         )
         (root / "README.md").write_text(

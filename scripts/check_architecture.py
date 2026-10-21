@@ -168,7 +168,7 @@ REPORT_ONLY_BANNER = "REPORT ONLY — NOT A PASS"
 
 # Documentation the gate holds to R-DOC1. The public tree only contains the
 # root maintainer docs listed here; the internal development prose lives in the
-# private itambox/design-docs repository and is not part of this link gate.
+# private itambox-community/design-docs repository and is not part of this link gate.
 LINKED_DOC_FILES = ("AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", "DEVELOPMENT.md", "README.md", "SECURITY.md")
 LINKED_DOC_GLOBS = ()
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")

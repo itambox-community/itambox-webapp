@@ -10,7 +10,7 @@ from .base import *  # noqa: F403, F401
 from .base import DATABASES, INSTALLED_APPS, MIDDLEWARE
 
 DEBUG = True
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.50.54"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
 # Local/CI Postgres instances typically lack TLS. Override the base default
 # ('require') so that dev and test runs connect without a certificate.

@@ -428,7 +428,9 @@ class TestDocumentationConsistency:
 
     def test_every_docs_url_points_at_a_public_or_internal_document(self):
         for capability in registry.all():
-            if capability.docs_url.startswith("https://github.com/itambox/design-docs/blob/main/development/"):
+            if capability.docs_url.startswith(
+                "https://github.com/itambox-community/design-docs/blob/main/development/"
+            ):
                 assert capability.docs_url.endswith(".md")
             else:
                 target = DOCS_ROOT / capability.docs_url

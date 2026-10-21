@@ -121,7 +121,7 @@ make coverage-diff   # differential coverage of the branch against origin/main
 
 The measurement policy is declared once in `scripts/coverage_policy.py` and mirrored in `pyproject.toml`; the gates refuse to run when the two disagree, so an `omit` entry cannot be added silently, and `# pragma: no cover` cannot be used to retire a hard-to-test branch because the excluded-line count is itself ratcheted. The combined two-lane run (parallel `-n auto -m 'not serial_only'` + `serial_only` lane) is the correctness source of truth; both lanes are certified against the serial collection manifest, so a test dropped from both lanes, or run in both, fails closed. The complete serial suite remains available as a control run via the `xdist-validation` dispatch workflow.
 
-Full policy: [test-coverage-policy.md](https://github.com/itambox/design-docs/blob/main/development/test-coverage-policy.md). What tests for tenancy, RBAC, tokens, encryption, imports, SCIM, task context, and destructive operations must assert: [security-test-expectations.md](https://github.com/itambox/design-docs/blob/main/development/security-test-expectations.md) — coverage proves a line ran, not that the test asserted anything about the boundary it crosses.
+Full policy: [test-coverage-policy.md](https://github.com/itambox-community/design-docs/blob/main/development/test-coverage-policy.md). What tests for tenancy, RBAC, tokens, encryption, imports, SCIM, task context, and destructive operations must assert: [security-test-expectations.md](https://github.com/itambox-community/design-docs/blob/main/development/security-test-expectations.md) — coverage proves a line ran, not that the test asserted anything about the boundary it crosses.
 
 ### Frontend
 ```bash
@@ -280,9 +280,9 @@ representation at any severity and cannot be written even by
 first. `--report-only` is a triage inventory, prints `REPORT ONLY -- NOT A PASS`,
 and must never be wired into CI. The gate refuses to run outside canonical
 Python 3.12 and scans `itambox/` only. Full policy:
-[architecture-policy.md](https://github.com/itambox/design-docs/blob/main/development/architecture-policy.md); the
+[architecture-policy.md](https://github.com/itambox-community/design-docs/blob/main/development/architecture-policy.md); the
 layer definitions and the matrix:
-[adr-0001-architecture-boundaries-and-layering.md](https://github.com/itambox/design-docs/blob/main/development/adr-0001-architecture-boundaries-and-layering.md).
+[adr-0001-architecture-boundaries-and-layering.md](https://github.com/itambox-community/design-docs/blob/main/development/adr-0001-architecture-boundaries-and-layering.md).
 
 ### Published 1.0 contract (AST policy gate)
 ```bash
@@ -297,9 +297,9 @@ uv run --locked --only-group dev python scripts/check_contract_policy.py --list
 uv run --locked --only-group dev python -m unittest scripts.tests.test_contract_policy
 ```
 The 1.x compatibility promise
-([compatibility-policy.md](https://github.com/itambox/design-docs/blob/main/development/compatibility-policy.md)) and
+([compatibility-policy.md](https://github.com/itambox-community/design-docs/blob/main/development/compatibility-policy.md)) and
 the bounded enumeration it applies to
-([external-contract-inventory.md](https://github.com/itambox/design-docs/blob/main/development/external-contract-inventory.md))
+([external-contract-inventory.md](https://github.com/itambox-community/design-docs/blob/main/development/external-contract-inventory.md))
 are checked against source rather than kept in step by hand. The gate derives
 persisted choice values, `ITAMBOX_*` settings reads, capability declarations and
 their limitation text, custom permission codenames, the webhook envelope and its
@@ -387,7 +387,7 @@ A justified inline import is annotated in place as `# inline import: <category>:
 from itambox.middleware import get_current_user
 ```
 
-`scripts/check_local_imports.py` enforces this as a blocking, AST-based gate (see "Lint: local imports" above). The full policy — grammar, scope, ratchet semantics, and how to pay down baselined debt — is in [python-import-policy.md](https://github.com/itambox/design-docs/blob/main/development/python-import-policy.md).
+`scripts/check_local_imports.py` enforces this as a blocking, AST-based gate (see "Lint: local imports" above). The full policy — grammar, scope, ratchet semantics, and how to pay down baselined debt — is in [python-import-policy.md](https://github.com/itambox-community/design-docs/blob/main/development/python-import-policy.md).
 
 ### Escape-hatch policy
 
