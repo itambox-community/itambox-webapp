@@ -374,14 +374,22 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
 }
 
 // ---- Compact & Interactive Slide-to-Expand Detail Tabs ----
-.page-header-tabs {
+// Both bars scroll horizontally on one row: the detail tabs and the card-header
+// tabs (object lists, import, user profile). A thin scrollbar stays visible, and
+// object-detail.ts adds the edge fade + chevron hint for the overflow direction.
+.page-header-tabs,
+.card-header-tabs {
     flex-wrap: nowrap !important;
     overflow: auto hidden !important;
     -webkit-overflow-scrolling: touch;
+
+    // No native scrollbar: it reserves ~10px of the bar's height, which lifts the
+    // active tab's underline off the card border (measured: 9px gap). The edge
+    // fade plus the chevron carry the hint instead.
     scrollbar-width: none; // Firefox
 
     &::-webkit-scrollbar {
-        display: none !important; // Chrome/Safari/Opera
+        display: none;
     }
 
     .nav-item {
@@ -454,7 +462,8 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
 // The tab bar scrolls horizontally when tabs overflow, but the scrollbar is
 // hidden (premium look). object-detail.ts toggles has-scroll-start/-end based on
 // scroll position; we fade the overflowing edge(s) and show a chevron hint.
-.page-header-tabs {
+.page-header-tabs,
+.card-header-tabs {
     scroll-behavior: smooth;
     transition: -webkit-mask-image 0.2s ease, mask-image 0.2s ease;
 
@@ -472,7 +481,16 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
         -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%);
         mask-image: linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%);
     }
+
+    // object-detail.ts makes the bar focusable while it can scroll.
+    &:focus-visible {
+        outline: 2px solid var(--tblr-primary);
+        outline-offset: -2px;
+        border-radius: var(--itambox-radius, 8px);
+    }
 }
+
+
 
 // Chevron hint rendered on the (non-scrolling) host so it stays pinned at the edge.
 .tab-scroll-host {
@@ -520,7 +538,8 @@ $badge-colors: ('primary', 'secondary', 'success', 'info', 'warning', 'danger',
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .page-header-tabs { scroll-behavior: auto; }
+    .page-header-tabs,
+    .card-header-tabs { scroll-behavior: auto; }
     .tab-scroll-host.has-scroll-end::after { animation: none; }
 }
 
