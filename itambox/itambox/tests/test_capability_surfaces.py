@@ -280,7 +280,8 @@ class TestAccessibilityTemplateContracts:
             "the control sync has to match the scoped group names by prefix"
         )
         for name in ("Auto", "Dark", "Light"):
-            assert f'<span class="visually-hidden">{{% translate "{name}" %}}</span>' in menu, (
+            expected = '<span class="visually-hidden">{%% translate "%s" %%}</span>' % name
+            assert expected in menu, (
                 "the segments are icon-only: a visible option name widens its third of the track "
                 "and the sliding thumb then misses the active segment"
             )
