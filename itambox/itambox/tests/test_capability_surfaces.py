@@ -263,6 +263,22 @@ class TestTemplateCommentContracts:
         assert ".theme-switch {" in styles
         assert ".theme-switch-input:checked + label {" in styles
 
+    def test_both_tab_bars_scroll_on_one_row(self):
+        """Detail tabs and card-header tabs share the horizontal scroll affordance."""
+
+        styles = "".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted((_APP_ROOT / "static" / "src" / "styles").glob("*.scss"))
+        )
+        script = (_APP_ROOT / "static" / "src" / "object-detail.ts").read_text(encoding="utf-8")
+        normalised = " ".join(styles.split())
+
+        assert ".page-header-tabs, .card-header-tabs {" in normalised, (
+            "both tab bars have to share the nowrap + overflow rule"
+        )
+        assert "flex-wrap: nowrap !important" in normalised
+        assert "'.page-header-tabs, .card-header-tabs'" in script, "the scroll affordance has to wire both bars"
+
 
 class TestAccessibilityTemplateContracts:
     def test_theme_switch_is_a_labelled_radio_group_in_the_user_menu(self):

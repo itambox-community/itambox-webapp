@@ -112,9 +112,15 @@
   document.body.addEventListener('tableRefreshRequired', refreshDetailsPage);
   document.body.addEventListener('licenseUpdated', refreshDetailsPage);
 
+  /**
+   * Every horizontally scrolling tab bar: the detail tabs and the card-header
+   * tabs share the scroll affordance.
+   */
+  const TAB_BAR_SELECTOR = '.page-header-tabs, .card-header-tabs';
+
   /** Smoothly scroll a tab into view within its (overflowing) tab bar. */
   function scrollTabIntoView(tab: HTMLElement, behavior: ScrollBehavior) {
-    const bar = tab.closest('.page-header-tabs') as HTMLElement | null;
+    const bar = tab.closest(TAB_BAR_SELECTOR) as HTMLElement | null;
     if (!bar) return;
     const tabRect = tab.getBoundingClientRect();
     const barRect = bar.getBoundingClientRect();
@@ -129,7 +135,7 @@
    * hint, and bring the active tab into view. Idempotent per bar.
    */
   function initTabScroll() {
-    document.querySelectorAll('.page-header-tabs').forEach(function (node) {
+    document.querySelectorAll(TAB_BAR_SELECTOR).forEach(function (node) {
       const bar = node as HTMLElement & {
         _tabScrollWired?: boolean;
         _tabScrollUpdate?: () => void;
@@ -142,12 +148,17 @@
       bar._tabScrollWired = true;
       const host = bar.parentElement;
       if (host) host.classList.add('tab-scroll-host');
+
       const update = function () {
         const max = bar.scrollWidth - bar.clientWidth;
         const atStart = bar.scrollLeft > 1;
         const atEnd = bar.scrollLeft < max - 1;
+        const scrollable = max > 1;
+        // A scrollable region has to be reachable without a pointer (WCAG 2.1.1),
+        // so it joins the tab order exactly while it can actually scroll.
         bar.classList.toggle('has-scroll-start', atStart);
         bar.classList.toggle('has-scroll-end', atEnd);
+        bar.tabIndex = scrollable ? 0 : -1;
         if (host) {
           host.classList.toggle('has-scroll-start', atStart);
           host.classList.toggle('has-scroll-end', atEnd);
@@ -190,7 +201,7 @@
   }
   document.body.addEventListener('htmx:afterSettle', onSettle);
   window.addEventListener('resize', function () {
-    document.querySelectorAll('.page-header-tabs').forEach(function (bar: any) {
+    document.querySelectorAll(TAB_BAR_SELECTOR).forEach(function (bar: any) {
       if (bar._tabScrollUpdate) bar._tabScrollUpdate();
     });
   });
