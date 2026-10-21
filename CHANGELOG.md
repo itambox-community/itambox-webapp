@@ -12,6 +12,7 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 - Documentation, issue templates, contributor guidance and the in-product footer link point at `itambox-community` after the repository moved; the README badge and the stated database requirement now say PostgreSQL 16 or newer, matching the compatibility note of this release. The development settings no longer allow a private LAN host.
+- The theme switch now marks the active option in both shells. Both renders shared a single radio-group name, so checking the mobile copy silently unchecked the topbar copy: the thumb stayed on the first segment, the active label never appeared and its icon kept the body colour, which read as a dark icon on the violet fill in light mode. Each shell now owns its own group (`theme-preference-<scope>`) and the control sync matches the scoped names by prefix.
 
 ### Security
 - Raised the dependency floors that carried open advisories: `Pillow` to `>=13.0.0,<14.0` (was `>=12.3.0,<13.0`; nine advisories across fourteen alerts, including critical ones), `certifi` to `2026.10.19` and, through `@graphiql/react`, `markdown-it` to `14.3.3` in the browser bundle. The Pillow floor is a deployment requirement: an existing installation has to reinstall its Python dependencies before it starts.

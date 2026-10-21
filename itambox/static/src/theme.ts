@@ -24,8 +24,15 @@ export type ResolvedTheme = 'light' | 'dark';
 export const PREFERENCE_ATTRIBUTE = 'data-theme-preference';
 /** Document attribute carrying the preferences API endpoint (absent when anonymous). */
 export const CONFIG_URL_ATTRIBUTE = 'data-theme-config-url';
-/** The segmented control's radio inputs, one per preference. */
-export const PREFERENCE_INPUT_SELECTOR = 'input[name="theme-preference"]';
+/**
+ * The segmented control's radio inputs, one per preference.
+ *
+ * Matched by prefix on purpose: the menu renders in both shells, so each render
+ * owns its own radio group (`theme-preference-<scope>`). A shared name would put
+ * every segment of both shells into one group, and checking the second render
+ * would silently uncheck the first.
+ */
+export const PREFERENCE_INPUT_SELECTOR = 'input[name^="theme-preference"]';
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
