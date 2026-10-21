@@ -42,7 +42,7 @@ dependencies = [
     "psycopg2-binary>=2.9.12,<3.0",
     "django-redis>=7.0.0,<8.0",
     "redis>=8.1.0,<9.0",
-    "Pillow>=12.3.0,<13.0",
+    "Pillow>=13.0.0,<14.0",
     # Excluded on native Windows because importing without a usable libmagic DLL
     # can hang. Docker/Linux/WSL retain full MIME signature validation.
     "python-magic>=0.4.27,<0.5; platform_system != \"Windows\"",
