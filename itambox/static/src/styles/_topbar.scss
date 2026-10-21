@@ -110,6 +110,7 @@
 // Theme preference switch (user menu). Tabler's segmented-control look, driven
 // by a radio group so the shared name and arrow keys behave as they should.
 .theme-switch {
+    position: relative;
     display: flex;
     gap: 2px;
     min-width: 0;
@@ -118,6 +119,29 @@
     border: 1px solid var(--tblr-border-color);
     border-radius: var(--itambox-radius, 8px);
     background-color: var(--tblr-bg-surface-secondary);
+
+    // Sliding thumb behind the active segment: one third of the track, moved by
+    // the checked radio's position (the inputs are label siblings, hence :has()).
+    &::before {
+        content: "";
+        position: absolute;
+        top: 2px;
+        bottom: 2px;
+        left: 2px;
+        width: calc((100% - 8px) / 3);
+        border-radius: calc(var(--itambox-radius, 8px) - 3px);
+        background-color: var(--tblr-primary);
+        box-shadow: var(--tblr-box-shadow-sm, 0 1px 2px rgb(0 0 0 / 15%));
+        transition: transform 0.25s ease;
+    }
+
+    &:has(.theme-switch-input:nth-of-type(2):checked)::before {
+        transform: translateX(calc(100% + 2px));
+    }
+
+    &:has(.theme-switch-input:nth-of-type(3):checked)::before {
+        transform: translateX(calc(200% + 4px));
+    }
 
     .theme-switch-input {
         position: absolute;
@@ -139,19 +163,28 @@
         font-size: 0.8125rem;
         cursor: pointer;
         white-space: nowrap;
-        transition: background-color 0.2s ease, color 0.2s ease;
+        position: relative; // above the sliding thumb
+        z-index: 1;
+        transition: color 0.2s ease;
 
         i {
-            font-size: 1rem;
+            font-size: 1.125rem;
             line-height: 1;
+        }
+
+        // Only the active option shows its name; the others are icon-only.
+        span {
+            display: none;
         }
     }
 
     .theme-switch-input:checked + label {
-        background-color: var(--tblr-bg-surface);
-        color: var(--tblr-body-color);
+        color: var(--tblr-primary-fg, #fff);
         font-weight: 600;
-        box-shadow: var(--tblr-box-shadow-sm, 0 1px 2px rgb(0 0 0 / 15%));
+
+        span {
+            display: inline;
+        }
     }
 
     .theme-switch-input:focus-visible + label {
@@ -161,7 +194,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .theme-switch label {
+    .theme-switch label,
+    .theme-switch::before {
         transition: none;
     }
 }
