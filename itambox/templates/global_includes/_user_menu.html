@@ -8,14 +8,15 @@
   </div>
   {% comment %}
     Theme preference: a segmented radio group, the accessible shape Tabler asks for on a value picker.
-    `menu_scope` keeps the ids unique: this menu renders in both the desktop topbar and the mobile header.
+    `menu_scope` keeps the ids and the radio-group name unique: this menu renders in both the desktop topbar
+    and the mobile header, and one shared group name would let the second render uncheck the first.
   {% endcomment %}
   <div class="px-3 py-2">
     <fieldset class="theme-switch" role="radiogroup">
       <legend class="visually-hidden">{% translate "Theme" %}</legend>
       <input type="radio"
              class="theme-switch-input"
-             name="theme-preference"
+             name="theme-preference-{{ menu_scope }}"
              id="theme-preference-{{ menu_scope }}-auto"
              value="auto"
              {% if current_theme == 'auto' %}checked{% endif %}>
@@ -25,7 +26,7 @@
       </label>
       <input type="radio"
              class="theme-switch-input"
-             name="theme-preference"
+             name="theme-preference-{{ menu_scope }}"
              id="theme-preference-{{ menu_scope }}-dark"
              value="dark"
              {% if current_theme == 'dark' %}checked{% endif %}>
@@ -35,7 +36,7 @@
       </label>
       <input type="radio"
              class="theme-switch-input"
-             name="theme-preference"
+             name="theme-preference-{{ menu_scope }}"
              id="theme-preference-{{ menu_scope }}-light"
              value="light"
              {% if current_theme == 'light' %}checked{% endif %}>

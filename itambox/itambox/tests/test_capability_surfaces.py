@@ -271,7 +271,14 @@ class TestAccessibilityTemplateContracts:
         assert 'role="radiogroup"' in menu
         assert "<legend" in menu, "the group needs an accessible name"
         assert menu.count('class="theme-switch-input"') == 3
-        assert menu.count('name="theme-preference"') == 3, "one shared name, or the radios are three groups"
+        assert menu.count('name="theme-preference-{{ menu_scope }}"') == 3, (
+            "the three segments share one name per render; a bare shared name would fold both shells "
+            "into a single radio group and uncheck the hidden one"
+        )
+        theme_js = (_APP_ROOT / "static" / "src" / "theme.ts").read_text(encoding="utf-8")
+        assert 'input[name^="theme-preference"]' in theme_js, (
+            "the control sync has to match the scoped group names by prefix"
+        )
         for value in ("auto", "dark", "light"):
             assert _attribute("value", value) in menu
             assert _attribute("for", f"theme-preference-{{{{ menu_scope }}}}-{value}") in menu, (
