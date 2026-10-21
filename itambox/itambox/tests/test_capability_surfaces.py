@@ -279,6 +279,12 @@ class TestAccessibilityTemplateContracts:
         assert 'input[name^="theme-preference"]' in theme_js, (
             "the control sync has to match the scoped group names by prefix"
         )
+        for name in ("Auto", "Dark", "Light"):
+            expected = '<span class="visually-hidden">{%% translate "%s" %%}</span>' % name
+            assert expected in menu, (
+                "the segments are icon-only: a visible option name widens its third of the track "
+                "and the sliding thumb then misses the active segment"
+            )
         for value in ("auto", "dark", "light"):
             assert _attribute("value", value) in menu
             assert _attribute("for", f"theme-preference-{{{{ menu_scope }}}}-{value}") in menu, (
