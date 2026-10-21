@@ -6,6 +6,11 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.0.0-beta.6] - 2026-10-21
+
+### Security
+- Raised `pypdf` to `6.21.2` and `virtualenv` to `21.14.12` for advisories the vulnerability database published after `v1.0.0-beta.5`: four MEDIUM findings in the PDF library, which ships in the release image, and two HIGH findings in the virtualenv development tooling. Both stay inside the ranges `pyproject.toml` already declares, and the dependency security gate that had started failing on every pull request passes again.
+
 ### Changed
 - The detail tabs and the card-header tabs (object lists, import, user profile) stay on one row and scroll horizontally instead of wrapping into up to three rows on narrow screens. The overflowing edge fades and a chevron marks the direction; the active tab is scrolled into view, and the bar joins the tab order exactly while it can scroll. The native scrollbar stays hidden because it reserves height and would lift the active tab's underline off the card border.
 - **Breaking for upgrades:** the prerelease migration history is replaced by a named 1.0 baseline. Each app now ships `0001_baseline` followed by `0002_cross_app_relations` where relations cross apps, and the seed and database-guard migrations (`assets.0004_seed_reference_data`, `0005_core_vocabulary`, `0006_core_vocabulary_german_translations`, `0007_asset_type_identity_guard`, `extras.0003_definition_guards`). The `issue88_shard_*`, issue-numbered and auto-named migrations are gone, and a fresh install no longer runs the prerelease data conversions. Every baseline migration declares the prerelease identities it replaces, so a `v1.0.0-beta.5` database records the baseline without executing it and then applies only two idempotent clean-ups (`extras.0004_drop_legacy_column_default`, `users.0002_unique_constraint_names`). A fresh install and an upgraded database end in the same schema and the same migration-recorder state. The supported upgrade origin is `v1.0.0-beta.5`; a database from `v1.0.0-beta.4` or earlier must first be upgraded to beta.5, and `migration_baseline_preflight` rejects it. A plugin migration that names a first-party migration in its `dependencies` must be updated to the new names.
