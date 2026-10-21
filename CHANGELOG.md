@@ -442,7 +442,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-beta.5...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-beta.6...HEAD
+[1.0.0-beta.6]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.4
 [1.0.0-beta.3]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.3
