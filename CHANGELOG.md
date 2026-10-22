@@ -6,7 +6,15 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
-<<<<<<< HEAD
+### Fixed
+- Bulk edit and bulk delete work again on the shared catalogue lists: manufacturers, categories, status labels, asset roles, depreciation schedules, site groups, export and label templates, and asset types for bulk delete. Those toolbars posted to the global `/bulk-edit/` and `/bulk-delete/` endpoints, which answered 404 for every model without a tenant-scoped manager. One policy now decides both sides, so a list renders a bulk button only when the endpoint it posts to serves that model, and a model without a usable bulk action no longer shows a button at all: roles, custody receipts, tenant resource grants and user groups for bulk edit, and asset types for bulk edit because their rows are managed field by field. A test walks every model with a list route and fails when a model is neither served nor a recorded decision.
+
+### Changed
+- The global `/bulk-delete/` endpoint applies the same model refusals as `/bulk-edit/`. Before, `/bulk-edit/` rejected roles and tenants while `/bulk-delete/` accepted them, so a bulk selection could reach models whose dedicated views carry lifecycle and protection handling that the generic archive path does not.
+
+### Security
+- Export and label templates stay superuser-only through the batch endpoints. Serving the shared catalogue would otherwise have opened a generic write path that only their dedicated edit and delete views keep closed, so both models now belong to the model-wide mutation policy that every generic write path consults.
+
 ## [1.0.0-beta.6] - 2026-10-21
 
 ### Security

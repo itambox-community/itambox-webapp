@@ -15,6 +15,7 @@ from core.forms.import_forms import is_model_importable
 from itambox.registry import registry
 from itambox.utils import get_help_url, get_model_viewname
 from itambox.views.generic.authorization import PermissionResolver
+from itambox.views.generic.bulk_policy import bulk_action_url
 from itambox.views.generic.capability_notices import capability_notice
 from itambox.views.generic.extensions import (
     build_list_provider_context,
@@ -196,14 +197,9 @@ class ObjectListView(TenantScopingViewMixin, PermissionRequiredMixin, LoginRequi
         return user_can_mutate_model(self.request.user, model)
 
     @staticmethod
-    def _bulk_action_url(model, action, fallback):
-        try:
-            return reverse(get_model_viewname(model, action))
-        except NoReverseMatch:
-            try:
-                return reverse(fallback)
-            except NoReverseMatch:
-                return None
+    def _bulk_action_url(model, action):
+        """The URL this list posts ``action`` to, or ``None`` for no button."""
+        return bulk_action_url(model, action)
 
     def _configure_action_context(self, context, model, mutation_allowed):
         try:
@@ -235,8 +231,8 @@ class ObjectListView(TenantScopingViewMixin, PermissionRequiredMixin, LoginRequi
             except NoReverseMatch:
                 context["import_url"] = None
 
-        context["bulk_delete_url"] = self._bulk_action_url(model, "bulk_delete", "bulk_delete")
-        context["bulk_edit_url"] = self._bulk_action_url(model, "bulk_edit", "bulk_edit")
+        context["bulk_delete_url"] = self._bulk_action_url(model, "bulk_delete")
+        context["bulk_edit_url"] = self._bulk_action_url(model, "bulk_edit")
         if not getattr(context.get("table"), "bulk_edit_enabled", True):
             context["bulk_edit_url"] = None
         if not mutation_allowed:

@@ -1013,12 +1013,6 @@
     },
     {
       "path": "itambox/core/templatetags/helpers.py",
-      "context": "FunctionDef:bulk_action_context",
-      "statement": "from itambox.utils import get_model_viewname",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/templatetags/helpers.py",
       "context": "FunctionDef:get_action_color",
       "statement": "from core.choices import ObjectChangeActionChoices",
       "count": 1

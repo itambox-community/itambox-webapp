@@ -13,6 +13,12 @@ from django.views.generic.base import TemplateResponseMixin
 
 from core.archive_handlers import AggregateArchiveBlocked, archive_object
 from core.forms import BulkEditForm
+from itambox.views.generic.bulk_policy import (
+    BULK_DELETE,
+    BULK_EDIT,
+    is_managed_definition_model,
+    request_selected_bulk_refused,
+)
 from itambox.views.generic.mixins import (
     BulkViewMixin,
     filter_permitted_rows,
@@ -32,16 +38,6 @@ def _has_managed_definition_rows(queryset, model):
     return any(getattr(row, "management_kind", None) != "local" for row in queryset)
 
 
-def _is_managed_definition_model(model):
-    if model is None:
-        return False
-    try:
-        model._meta.get_field("management_kind")
-    except FieldDoesNotExist:
-        return False
-    return True
-
-
 def _ensure_unmanaged_definition_rows(queryset, model):
     if _has_managed_definition_rows(queryset, model):
         raise PermissionDenied("Managed definitions cannot be mutated through bulk actions.")
@@ -53,18 +49,7 @@ class ObjectBulkEditView(
     queryset = None
     form_class = None
     template_name = "generic/object_bulk_edit.html"
-    # The request-selected fallback form intentionally supports ordinary
-    # tenant-scoped business models. These two models have security-specific
-    # forms whose invariants cannot be reproduced by the scalar-field generator:
-    # Tenant topology/provider edges are superuser-only, and Role ownership plus
-    # projected permissions require escalation checks. Their dedicated views
-    # remain available; the global ``/bulk-edit/`` escape hatch does not.
-    dynamic_model_denylist = frozenset(
-        {
-            "organization.role",
-            "organization.tenant",
-        }
-    )
+    bulk_action = BULK_EDIT
 
     def _uses_request_selected_model(self):
         return (
@@ -79,12 +64,12 @@ class ObjectBulkEditView(
 
     def has_permission(self):
         model = self._get_model()
-        if _is_managed_definition_model(model):
+        if is_managed_definition_model(model):
             return False
         if (
             self._uses_request_selected_model()
             and model is not None
-            and model._meta.label_lower in self.dynamic_model_denylist
+            and request_selected_bulk_refused(model, self.bulk_action)
         ):
             return False
         return user_can_mutate_model(self.request.user, model) and super().has_permission()
@@ -256,9 +241,21 @@ class ObjectBulkDeleteView(
 ):
     queryset = None
     template_name = "generic/object_confirm_bulk_delete.html"
+    bulk_action = BULK_DELETE
 
     def has_permission(self):
-        return user_can_mutate_model(self.request.user, self._get_model()) and super().has_permission()
+        model = self._get_model()
+        # The request-selected endpoint refuses the denylisted models with the
+        # same 403 as /bulk-edit/: their dedicated delete views carry checks the
+        # generic archive path does not.
+        if (
+            self.queryset is None
+            and getattr(self, "model", None) is None
+            and model is not None
+            and request_selected_bulk_refused(model, self.bulk_action)
+        ):
+            return False
+        return user_can_mutate_model(self.request.user, model) and super().has_permission()
 
     def get_permission_required(self):
         model = self._get_model()

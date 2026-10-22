@@ -10,9 +10,16 @@ from django.utils.http import url_has_allowed_host_and_scheme
 
 from itambox.capabilities import registry as capability_registry
 from itambox.utils import get_model_viewname
+from itambox.views.generic.bulk_policy import BULK_EDIT, is_request_selectable
 
 SUPERUSER_ONLY_MUTATION_MODELS = frozenset(
     {
+        # Export and label templates are global and render arbitrary output;
+        # their dedicated edit/delete views are superuser-only (WS1-1). Listing
+        # them here holds every generic write path, the bulk endpoints
+        # included, to the same rule.
+        "extras.exporttemplate",
+        "extras.labeltemplate",
         "organization.tenantgroup",
     }
 )
@@ -201,7 +208,14 @@ class BulkViewMixin:
     Both bulk views need to resolve the target model from several possible
     sources (view attribute, form class, or a ``model_name`` request param)
     and then obtain a queryset scoped to the current tenant and a list of PKs.
+
+    ``bulk_action`` names the action for the shared bulk policy
+    (``itambox.views.generic.bulk_policy``), which decides which models the
+    request-selected endpoints serve -- the same decision the list toolbar
+    uses to render the button.
     """
+
+    bulk_action = BULK_EDIT
 
     def _get_model(self):
         if getattr(self, "queryset", None) is not None:
@@ -218,11 +232,11 @@ class BulkViewMixin:
                     model = apps.get_model(app_label, mn)
                 except (ValueError, LookupError):
                     raise Http404 from None
-                # A swapped-out model (e.g. the default ``auth.User`` once AUTH_USER_MODEL is
-                # overridden) has no usable manager — reject it like any non-tenant model.
-                # ``_meta.swapped`` is checked first so the short-circuit never touches the
-                # unavailable ``.objects`` manager.
-                if model._meta.swapped or not hasattr(model.objects, "filter_by_tenant"):
+                # One policy for button and endpoint (bulk_policy): only
+                # tenant-scoped models and the classified shared catalogue are
+                # resolvable here; denylisted ones are refused with 403 by the
+                # views' has_permission.
+                if not is_request_selectable(model):
                     raise Http404
                 return model
         return None
