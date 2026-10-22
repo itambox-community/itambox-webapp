@@ -3,9 +3,12 @@
 # Licensed under the Apache License, Version 2.0.
 
 from django import template
-from django.urls import NoReverseMatch, reverse
+from django.urls import NoReverseMatch
 from django.utils import timezone
 from django.utils.html import format_html
+
+from itambox.views.generic.bulk_policy import bulk_action_url
+from itambox.views.generic.mixins import user_can_mutate_model
 
 register = template.Library()
 
@@ -81,8 +84,6 @@ def bulk_action_context(context, table):
     its model. Used to render a batch-action bar for tables embedded in detail-view
     tabs, which would otherwise have no bulk infrastructure of their own.
     """
-    from itambox.utils import get_model_viewname
-
     result = {
         "model_name_str": None,
         "bulk_delete_url": None,
@@ -106,13 +107,7 @@ def bulk_action_context(context, table):
     result["card_layout"] = "card-table" in str(table_classes).split()
 
     for action, key in (("bulk_delete", "bulk_delete_url"), ("bulk_edit", "bulk_edit_url")):
-        try:
-            result[key] = reverse(get_model_viewname(model, action))
-        except NoReverseMatch:
-            try:
-                result[key] = reverse(action)
-            except NoReverseMatch:
-                result[key] = None
+        result[key] = bulk_action_url(model, action)
 
     # A table is selectable only if it actually renders a visible pk checkbox column.
     for column in getattr(table, "columns", []):
@@ -122,8 +117,11 @@ def bulk_action_context(context, table):
 
     request = context.get("request")
     if request is not None and request.user.is_authenticated:
-        result["can_delete"] = request.user.has_perm(f"{app_label}.delete_{model_name}")
-        result["can_change"] = request.user.has_perm(f"{app_label}.change_{model_name}")
+        # The same model-wide mutation policy the generic write paths apply:
+        # a table must not offer an action that the endpoint would refuse.
+        mutable = user_can_mutate_model(request.user, model)
+        result["can_delete"] = mutable and request.user.has_perm(f"{app_label}.delete_{model_name}")
+        result["can_change"] = mutable and request.user.has_perm(f"{app_label}.change_{model_name}")
         result["return_url"] = request.get_full_path()
 
     return _apply_bulk_edit_policy(result, table)
