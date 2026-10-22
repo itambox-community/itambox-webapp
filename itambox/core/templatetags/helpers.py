@@ -7,6 +7,7 @@ from django.urls import NoReverseMatch
 from django.utils import timezone
 from django.utils.html import format_html
 
+from itambox.labels import user_label_print_url
 from itambox.views.generic.bulk_policy import bulk_action_url
 from itambox.views.generic.mixins import user_can_mutate_model
 
@@ -88,6 +89,7 @@ def bulk_action_context(context, table):
         "model_name_str": None,
         "bulk_delete_url": None,
         "bulk_edit_url": None,
+        "label_print_url": None,
         "can_delete": False,
         "can_change": False,
         "selectable": False,
@@ -123,6 +125,7 @@ def bulk_action_context(context, table):
         result["can_delete"] = mutable and request.user.has_perm(f"{app_label}.delete_{model_name}")
         result["can_change"] = mutable and request.user.has_perm(f"{app_label}.change_{model_name}")
         result["return_url"] = request.get_full_path()
+        result["label_print_url"] = user_label_print_url(request.user, model)
 
     return _apply_bulk_edit_policy(result, table)
 

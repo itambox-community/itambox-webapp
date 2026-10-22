@@ -3,7 +3,7 @@
 {# list; buttons stay greyed/disabled until one or more rows are selected (toggled by #}
 {# batch-actions.ts). Shared by the full page (object_list.html) and the HTMX partial #}
 {# (htmx/list_page_wrapper.html) so the two never drift apart. #}
-{# Expects: is_deleted_view, model_name_str, bulk_restore_url, bulk_purge_url, bulk_edit_url, bulk_delete_url, request #}
+{# Expects: is_deleted_view, model_name_str, label_print_url, bulk_restore_url, bulk_purge_url, bulk_edit_url, bulk_delete_url, request #}
 <div id="bulk-action-toolbar"
      class="bulk-action-toolbar d-flex flex-wrap justify-content-end align-items-center gap-2 px-3 pt-2 pb-3">
   <span class="bulk-selected-count text-secondary small me-1">{% translate "0 selected" %}</span>
@@ -39,17 +39,24 @@
       </form>
     {% endif %}
   {% else %}
+    {% if label_print_url %}
+      <form method="post"
+            action="{{ label_print_url }}"
+            class="bulk-label-form d-inline"
+            hx-boost="false">
+        {% csrf_token %}
+        <input type="hidden" name="return_url" value="{{ request.get_full_path }}">
+        <div class="bulk-pks-container d-inline"></div>
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary bulk-action-btn btn-bulk-label"
+                disabled
+                title="{% translate 'Print labels for the selected objects' %}">
+          <i class="mdi mdi-printer me-1"></i>
+          {% translate "Print Labels" %}
+        </button>
+      </form>
+    {% endif %}
     {% if model_name_str == 'assets.asset' %}
-      <button type="button"
-              class="btn btn-sm btn-info text-white bulk-action-btn"
-              id="btn-bulk-print"
-              data-bs-toggle="modal"
-              data-bs-target="#bulk-print-modal"
-              disabled
-              title="{% translate 'Print labels for selected assets' %}">
-        <i class="mdi mdi-printer me-1"></i>
-        {% translate "Print Labels" %}
-      </button>
       {% if bulk_scan_capabilities.checkout %}
         <button type="button"
                 class="btn btn-sm btn-primary bulk-action-btn btn-bulk-scan-seed"

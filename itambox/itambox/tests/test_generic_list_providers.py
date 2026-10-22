@@ -221,10 +221,12 @@ class ExtrasListProviderTests(TenantTestMixin, TestCase):
                 self.assertEqual(context["saved_filters"], [self.saved_filter])
                 self.assertEqual(context["active_saved_filter_id"], self.saved_filter.pk)
                 self.assertEqual(context["export_templates"], [self.export_template])
-                self.assertEqual(context["label_templates"], [self.label_template])
+                # The list toolbar links to the label print route; it never
+                # loads the label template catalogue.
+                self.assertNotIn("label_templates", context)
                 self.assertEqual(self._table_query_count(queries, "extras_savedfilter"), 1)
                 self.assertEqual(self._table_query_count(queries, "extras_exporttemplate"), 1)
-                self.assertEqual(self._table_query_count(queries, "extras_labeltemplate"), 1)
+                self.assertEqual(self._table_query_count(queries, "extras_labeltemplate"), 0)
 
     def test_partial_catalogues_skip_export_and_label_queries_but_keep_saved_filters(self):
         ContentType.objects.clear_cache()
@@ -237,7 +239,7 @@ class ExtrasListProviderTests(TenantTestMixin, TestCase):
         self.assertEqual(context["saved_filters"], [self.saved_filter])
         self.assertEqual(context["active_saved_filter_id"], self.saved_filter.pk)
         self.assertEqual(context["export_templates"], [])
-        self.assertEqual(context["label_templates"], [])
+        self.assertNotIn("label_templates", context)
         self.assertEqual(self._table_query_count(queries, "extras_savedfilter"), 1)
         self.assertEqual(self._table_query_count(queries, "extras_exporttemplate"), 0)
         self.assertEqual(self._table_query_count(queries, "extras_labeltemplate"), 0)

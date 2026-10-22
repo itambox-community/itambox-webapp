@@ -25,9 +25,9 @@ class ScanResolveView(View):
         if not request.user.is_superuser and not accessible_tenant_ids(request.user):
             return JsonResponse({"found": False}, status=404)
 
-        if not request.user.has_perm("assets.view_asset"):
-            return JsonResponse({"found": False}, status=403)
-
+        # No blanket asset permission: every resolution step checks the view
+        # permission of the object type it can return (assets, stock items,
+        # labelled locations), so inventory-only users can scan their labels.
         code = request.GET.get("code", "").strip()
         if not code:
             return JsonResponse({"found": False}, status=400)

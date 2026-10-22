@@ -44,7 +44,8 @@ from extras.attachment_views import (
     JournalEntryListView,
 )
 from extras.dashboard import views as dashboard_views
-from extras.export_views import LabelPrintView, LabelSelectView, ObjectExportView
+from extras.export_views import ObjectExportView
+from extras.label_views import LabelPrintView
 from itambox.plugins.api_views import PluginDiagnosticsView
 from itambox.plugins.runtime import PluginStartupError
 from itambox.views.features import ObjectChangeListView, ObjectChangeView
@@ -262,13 +263,8 @@ urlpatterns = [
         JournalEntryCreateView.as_view(),
         name="journal_entry_add",
     ),
-    # Label Printing
-    path(
-        "labels/select/<str:app_label>/<str:model_name>/<int:object_id>/",
-        LabelSelectView.as_view(),
-        name="label_select",
-    ),
-    path("labels/print/<int:template_id>/<int:object_id>/", LabelPrintView.as_view(), name="label_print"),
+    # Label printing: one route for every labelled model, one object or many.
+    path("labels/<str:app_label>/<str:model_name>/", LabelPrintView.as_view(), name="label_print"),
     # Health Check
     path("health/", health, name="health"),
 ]

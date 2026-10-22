@@ -514,7 +514,7 @@ A fully-wired model touches every layer below. Skipping one leaves a half-wired 
 | `ITAMBOX_ENV` | `dev` or `prod` | fail-closed to `prod` when unset (dev under tests) |
 | `ITAMBOX_SECRET_KEY` | Django secret key | insecure default (dev only) |
 | `ITAMBOX_FIELD_ENCRYPTION_KEYS` | Comma-separated Fernet keys for field encryption (`License.product_key`, SMTP password, webhook secret); first key encrypts, all keys decrypt (rotation). **Unset derives the key from `SECRET_KEY` — insecure: rotating `SECRET_KEY` then makes encrypted fields unrecoverable.** Set a stable value in prod and back it up. | unset (derives from `SECRET_KEY`) |
-| `ITAMBOX_BASE_URL` | Public base URL for QR labels & outbound links (no trailing slash) | `""` (bare-tag QR used) |
+| `ITAMBOX_BASE_URL` | Public base URL for QR labels & outbound links (no trailing slash) | `""` (labels encode `itambox://<app>.<model>/<pk>`) |
 | `ITAMBOX_DEFAULT_CURRENCY` | ISO 4217 fallback for money display; `{{ value|money:obj }}` resolves tenant currency first | `EUR` |
 | `ITAMBOX_DB_*` | DB connection | `itambox`/`localhost`/`5432` |
 | `ITAMBOX_CACHE_BACKEND` | `locmem` or `redis` (Redis wire protocol — run Valkey, the BSD-licensed fork) | `locmem` |

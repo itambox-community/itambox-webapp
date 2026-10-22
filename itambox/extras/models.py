@@ -1274,20 +1274,37 @@ class ExportTemplate(ChangeLoggingMixin, BaseModel):
 
 class LabelTemplate(ChangeLoggingMixin, BaseModel):
     changelog_global = True  # global template → changelog attributed to tenant=None
+
+    FORMAT_QR = "qr"
+    FORMAT_CODE128 = "code128"
+    FORMAT_CODE39 = "code39"
+    # QR carries the object's globally unique reference and works for every
+    # labelled model. The linear formats cannot hold a URL and encode the
+    # model's short identifier instead, so they apply only to models whose
+    # label registration provides one (itambox.labels.LabelSpec.barcode_value).
+    LINEAR_FORMATS = frozenset({FORMAT_CODE128, FORMAT_CODE39})
+    BARCODE_FORMAT_CHOICES = [
+        (FORMAT_QR, _("QR Code")),
+        (FORMAT_CODE128, _("Code 128")),
+        (FORMAT_CODE39, _("Code 39")),
+    ]
+
     name = models.CharField(max_length=255, unique=True, verbose_name=_("Name"))
     description = models.TextField(blank=True, verbose_name=_("Description"))
+    content_types = models.ManyToManyField(
+        ContentType,
+        related_name="+",
+        blank=True,
+        verbose_name=_("Object Types"),
+        help_text=_("The kinds of objects this template prints labels for."),
+    )
     page_width = models.FloatField(default=2.25, verbose_name=_("Page Width"), help_text=_("Label width in inches"))
     page_height = models.FloatField(default=1.25, verbose_name=_("Page Height"), help_text=_("Label height in inches"))
     barcode_format = models.CharField(
         max_length=20,
-        default="code128",
+        default=FORMAT_QR,
         verbose_name=_("Barcode Format"),
-        choices=[
-            ("code128", _("Code 128")),
-            ("code39", _("Code 39")),
-            ("qr", _("QR Code")),
-            ("datamatrix", _("Data Matrix")),
-        ],
+        choices=BARCODE_FORMAT_CHOICES,
     )
     template_code = models.TextField(
         blank=True, verbose_name=_("Template Code"), help_text=_("Jinja2/HTML template for label layout")
@@ -1303,6 +1320,15 @@ class LabelTemplate(ChangeLoggingMixin, BaseModel):
 
     def get_absolute_url(self):
         return reverse("extras:labeltemplate_detail", kwargs={"pk": self.pk})
+
+    @property
+    def uses_linear_barcode(self) -> bool:
+        return self.barcode_format in self.LINEAR_FORMATS
+
+    @classmethod
+    def for_model(cls, model):
+        """Saved templates that print labels for ``model``."""
+        return cls.objects.filter(content_types=ContentType.objects.get_for_model(model))
 
 
 class ReportTemplate(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):

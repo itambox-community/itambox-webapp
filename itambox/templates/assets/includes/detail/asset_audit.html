@@ -20,8 +20,7 @@
     <i class="mdi mdi-check me-1"></i>
     {% translate "Verify Physical Presence" %}
   </button>
-  <a href="{% url 'assets:asset_label_print' pk=object.pk %}"
-     target="_blank"
+  <a href="{% url 'label_print' app_label='assets' model_name='asset' %}?pk={{ object.pk }}"
      class="btn btn-outline-success font-weight-bold">
     <i class="mdi mdi-crop-free me-1"></i>
     {% translate "Print Asset Label" %}

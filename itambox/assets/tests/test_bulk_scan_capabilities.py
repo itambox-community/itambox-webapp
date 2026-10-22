@@ -213,7 +213,7 @@ class BulkScanCapabilityTests(TenantTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="bulk-action-toolbar"')
         self.assertNotContains(response, "btn-bulk-scan-seed")
-        self.assertContains(response, 'id="btn-bulk-print"')
+        self.assertContains(response, "btn-bulk-label")
 
     def test_toolbar_renders_scan_buttons_for_a_permitted_user(self):
         self.tenant_role.permissions = ["assets.view_asset", "assets.change_asset", "assets.add_assetdisposal"]

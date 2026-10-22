@@ -1,29 +1,52 @@
+import base64
 import io
 from types import SimpleNamespace
 
-from django.test import SimpleTestCase, TestCase
+import segno
+from django.test import SimpleTestCase, TestCase, override_settings
+from model_bakery import baker
 from pypdf import PdfReader
 
 from assets.models import Asset, AssetRole, AssetType, Manufacturer, StatusLabel
-from assets.tasks.labels import (
-    _build_labels_document,
-    _default_label_card,
-    _label_print_css,
-    generate_base64_barcode,
-    render_label_html,
-    render_labels_pdf,
-)
 from extras.models import LabelTemplate
+from extras.services.labels import (
+    LabelContent,
+    LabelNotApplicable,
+    barcode_data_uri,
+    build_labels_document,
+    default_label_card,
+    label_content,
+    label_print_css,
+    render_label_card,
+    render_labels_pdf,
+    render_object_card,
+)
+from inventory.models import Accessory
+from itambox.labels import label_reference
 from organization.models import Tenant
+
+
+def _content(**values):
+    """A LabelContent shaped like an asset's (alias ``asset``)."""
+    values = {"asset_tag": "IT-1", "name": "Laptop", "serial_number": "SN-1", "location": "", "status": "", **values}
+    return LabelContent(
+        title=values["name"],
+        values=values,
+        field_labels={key: key.replace("_", " ").title() for key in values},
+        reference="itambox://assets.asset/1",
+        linear_value=values["asset_tag"],
+        template_alias="asset",
+        model_name="asset",
+    )
 
 
 class LabelRendererHTMLTests(SimpleTestCase):
     def setUp(self):
-        self.asset = SimpleNamespace(name="Laptop", asset_tag="IT-1", serial_number="SN-1")
+        self.asset = _content()
         self.barcode_uri = "data:image/png;base64,AAAA"
 
     def test_default_label_card_uses_classes_instead_of_inline_styles(self):
-        rendered = _default_label_card(self.asset, self.barcode_uri)
+        rendered = default_label_card(self.asset, self.barcode_uri)
 
         self.assertNotIn("style=", rendered.lower())
         self.assertIn('class="label-card-table"', rendered)
@@ -36,7 +59,7 @@ class LabelRendererHTMLTests(SimpleTestCase):
             barcode_format="qr",
         )
 
-        rendered = render_label_html(self.asset, label_template, self.barcode_uri)
+        rendered = render_label_card(self.asset, label_template, self.barcode_uri)
 
         self.assertNotIn("style=", rendered.lower())
         self.assertNotIn("onclick", rendered.lower())
@@ -45,14 +68,14 @@ class LabelRendererHTMLTests(SimpleTestCase):
         self.assertIn("#123456", rendered)
 
     def test_label_jinja_exposes_scalars_and_escapes_untrusted_values(self):
-        self.asset.name = "<b>owned</b>"
+        self.asset = _content(name="<b>owned</b>")
         label_template = SimpleNamespace(
             name="Unsafe context",
             template_code="<span>{{ asset.name }}</span>{{ asset.__class__ }}",
             barcode_format="qr",
         )
 
-        rendered = render_label_html(self.asset, label_template, self.barcode_uri)
+        rendered = render_label_card(self.asset, label_template, self.barcode_uri)
 
         self.assertIn("&lt;b&gt;owned&lt;/b&gt;", rendered)
         self.assertNotIn("<b>owned</b>", rendered)
@@ -65,14 +88,14 @@ class LabelRendererHTMLTests(SimpleTestCase):
             barcode_format="qr",
         )
 
-        rendered = render_label_html(self.asset, label_template, self.barcode_uri)
+        rendered = render_label_card(self.asset, label_template, self.barcode_uri)
 
         self.assertNotIn("BBBB", rendered)
         self.assertIn(self.barcode_uri, rendered)
 
     def test_pdf_document_uses_safe_measurements_and_class_page_breaks(self):
         label_template = SimpleNamespace(page_width="2.25in; color: red", page_height=float("inf"))
-        document = _build_labels_document(["<div>Label</div>"], label_template, "roll")
+        document = build_labels_document(["<div>Label</div>"], label_template, "roll")
 
         self.assertNotIn("style=", document.lower())
         self.assertIn("size: 2.25in 1.25in", document)
@@ -85,7 +108,7 @@ class LabelRendererHTMLTests(SimpleTestCase):
             template_code="x" * (64 * 1024 + 1),
             barcode_format="qr",
         )
-        oversized_output = render_label_html(self.asset, oversized_source, self.barcode_uri)
+        oversized_output = render_label_card(self.asset, oversized_source, self.barcode_uri)
         self.assertIn('class="label-card-table"', oversized_output)
 
         oversized_rendered = SimpleNamespace(
@@ -93,7 +116,7 @@ class LabelRendererHTMLTests(SimpleTestCase):
             template_code="{{ 'x' * 262145 }}",
             barcode_format="qr",
         )
-        rendered_output = render_label_html(self.asset, oversized_rendered, self.barcode_uri)
+        rendered_output = render_label_card(self.asset, oversized_rendered, self.barcode_uri)
         self.assertIn('class="label-card-table"', rendered_output)
 
     def test_custom_template_fallback_redacts_template_and_exception_details(self):
@@ -104,8 +127,8 @@ class LabelRendererHTMLTests(SimpleTestCase):
             barcode_format="qr",
         )
 
-        with self.assertLogs("assets.tasks.labels", level="WARNING") as captured:
-            rendered = render_label_html(self.asset, label_template, self.barcode_uri)
+        with self.assertLogs("extras.services.labels", level="WARNING") as captured:
+            rendered = render_label_card(self.asset, label_template, self.barcode_uri)
 
         log_output = " ".join(captured.output)
         self.assertIn('class="label-card-table"', rendered)
@@ -114,7 +137,7 @@ class LabelRendererHTMLTests(SimpleTestCase):
 
     def test_grid_document_pads_cards_and_marks_page_boundaries(self):
         label_template = SimpleNamespace()
-        document = _build_labels_document(["<div>Label</div>"] * 25, label_template, "a4_grid")
+        document = build_labels_document(["<div>Label</div>"] * 25, label_template, "a4_grid")
 
         self.assertIn('class="grid-table page-break-always"', document)
         self.assertIn('class="grid-table page-break-avoid"', document)
@@ -127,7 +150,7 @@ class LabelPrintCssSourceTests(SimpleTestCase):
         # the checkout (and from the packaged runtime image, which is verified
         # by the production-image check in the PR evidence, not by this unit
         # test). This test guards the checkout source against pruning.
-        css = _label_print_css()
+        css = label_print_css()
         self.assertTrue(css.strip())
         self.assertIn(".label-card", css)
         self.assertIn("page-break-always", css)
@@ -185,12 +208,9 @@ class LabelPdfRenderIntegrationTests(TestCase):
         cases = (("roll", 2), ("a4_grid", 1))
         for layout, expected_pages in cases:
             with self.subTest(layout=layout):
-                cards = []
-                for asset in (self.asset1, self.asset2):
-                    uri = generate_base64_barcode(asset, "qr")
-                    cards.append(render_label_html(asset, self.template, uri))
+                cards = [render_object_card(asset, self.template) for asset in (self.asset1, self.asset2)]
 
-                document = _build_labels_document(cards, self.template, layout)
+                document = build_labels_document(cards, self.template, layout)
                 self.assertIn(".label-card", document)
 
                 pdf_bytes = render_labels_pdf([self.asset1, self.asset2], self.template, layout)
@@ -198,3 +218,50 @@ class LabelPdfRenderIntegrationTests(TestCase):
                 self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
                 reader = PdfReader(io.BytesIO(pdf_bytes))
                 self.assertEqual(len(reader.pages), expected_pages)
+
+
+class LabelContentTests(TestCase):
+    """The engine is generic: what a label says and encodes comes from the registration."""
+
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="Content Tenant", slug="content-tenant")
+        status, _ = StatusLabel.objects.get_or_create(
+            slug="available", defaults={"name": "Available", "type": "deployable"}
+        )
+        self.asset = Asset.objects.create(name="Mapped", asset_tag="MAP-1", status=status, tenant=self.tenant)
+        self.accessory = baker.make(Accessory, name="USB-C Dock", tenant=self.tenant)
+
+    def test_qr_encodes_exactly_the_object_reference(self):
+        content = label_content(self.asset)
+        self.assertEqual(content.reference, f"itambox://assets.asset/{self.asset.pk}")
+        buffer = io.BytesIO()
+        segno.make_qr(content.reference).save(buffer, kind="png", scale=6, border=4)
+        expected = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+        self.assertEqual(barcode_data_uri(content, "qr"), expected)
+
+    @override_settings(ITAMBOX_BASE_URL="https://itam.example.com")
+    def test_reference_is_the_absolute_detail_url_when_a_base_url_is_set(self):
+        self.assertEqual(
+            label_reference(self.accessory), "https://itam.example.com" + self.accessory.get_absolute_url()
+        )
+
+    def test_former_asset_templates_keep_rendering_through_the_alias(self):
+        template = SimpleNamespace(
+            pk=None, name="Legacy", barcode_format="qr", template_code="{{ asset.asset_tag }}|{{ obj.name }}"
+        )
+        rendered = render_label_card(label_content(self.asset), template, "data:image/png;base64,AAAA")
+        self.assertIn("MAP-1|Mapped", rendered)
+
+    def test_linear_barcodes_are_refused_for_qr_only_models(self):
+        content = label_content(self.accessory)
+        self.assertIsNone(content.linear_value)
+        with self.assertRaises(LabelNotApplicable):
+            barcode_data_uri(content, LabelTemplate.FORMAT_CODE128)
+        self.assertTrue(
+            barcode_data_uri(label_content(self.asset), LabelTemplate.FORMAT_CODE128).startswith("data:image/png")
+        )
+
+    def test_built_in_card_prints_a_stock_item(self):
+        card = render_object_card(self.accessory, LabelTemplate(name="Built-in", barcode_format="qr"))
+        self.assertIn("USB-C Dock", card)
+        self.assertIn('class="label-card-barcode"', card)

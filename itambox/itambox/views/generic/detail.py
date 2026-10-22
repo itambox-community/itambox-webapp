@@ -14,6 +14,7 @@ from django_tables2 import RequestConfig
 from core.managers import Scope
 from core.models import ObjectChange
 from core.tables import BaseTable, ObjectChangeTable
+from itambox.labels import user_label_print_url
 from itambox.registry import registry
 from itambox.utils import get_help_url, get_model_viewname
 from itambox.views.generic.authorization import PermissionResolver
@@ -217,6 +218,7 @@ class ObjectDetailView(
             "edit": context.get("edit_url"),
             "delete": context.get("delete_url"),
             "clone": context.get("clone_url"),
+            "label": user_label_print_url(self.request.user, type(obj), obj),
         }
         context["content_template_name"] = self.get_template_names()[0]
 

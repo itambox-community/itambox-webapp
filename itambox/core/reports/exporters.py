@@ -1,7 +1,7 @@
 """Report output exporters.
 
 XLSX via openpyxl; PDF via the shared xhtml2pdf renderer already used for label
-PDFs (``assets.tasks.labels._html_to_pdf_bytes``), which carries an SSRF-safe link
+PDFs (``core.pdf_renderer.html_to_pdf_bytes``), which carries an SSRF-safe link
 callback so user-authored report templates can't fetch remote/internal resources.
 Both take the already-compiled grid (headers + rows keyed by translated header)
 or rendered HTML, so they stay format-agnostic across report types.

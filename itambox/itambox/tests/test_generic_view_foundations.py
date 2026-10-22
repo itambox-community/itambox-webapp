@@ -150,6 +150,14 @@ class DetailContextCharacterizationTests(_CatalogFixtureMixin, TenantTestMixin, 
                 "edit": context["edit_url"],
                 "delete": context["delete_url"],
                 "clone": context["clone_url"],
+                "label": reverse(
+                    "label_print",
+                    kwargs={
+                        "app_label": context["object"]._meta.app_label,
+                        "model_name": context["object"]._meta.model_name,
+                    },
+                )
+                + f"?pk={context['object'].pk}",
             },
         )
 
@@ -401,7 +409,7 @@ class ListContextCharacterizationTests(_CatalogFixtureMixin, TenantTestMixin, Te
             "object_type",
             "title",
             "export_templates",
-            "label_templates",
+            "label_print_url",
             "saved_filters",
             "active_saved_filter_id",
             "create_url_name",
@@ -834,11 +842,12 @@ class ListHtmxCharacterizationTests(_CatalogFixtureMixin, TenantTestMixin, TestC
         self.assertIn("htmx/list_page_wrapper.html", template_names)
         self.assertNotIn("base.html", template_names)
 
-    def test_partial_request_skips_export_and_label_catalogues(self):
+    def test_partial_request_skips_the_export_catalogue(self):
         response = self.client.get(self.url, HTTP_HX_REQUEST="true")
 
         self.assertEqual(response.context["export_templates"], [])
-        self.assertEqual(response.context["label_templates"], [])
+        # Label templates moved to the print page; the list context no longer carries them.
+        self.assertNotIn("label_templates", response.context)
 
     def test_partial_request_still_populates_saved_filters(self):
         response = self.client.get(self.url, HTTP_HX_REQUEST="true")

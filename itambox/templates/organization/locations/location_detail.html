@@ -11,6 +11,14 @@
 {# --- Page Actions --- #}
 {% block page_actions %}
   <div class="btn-list">
+    {% if action_urls.label %}
+      <a href="{{ action_urls.label }}"
+         class="btn btn-outline-secondary detail-label-action"
+         aria-label="{% translate 'Print Label' %}"
+         title="{% translate 'Print Label' %}">
+        <i class="mdi mdi-printer" aria-hidden="true"></i>
+      </a>
+    {% endif %}
     <a href="{% url 'organization:location_update' pk=object.pk %}"
        class="btn">
       <i class="mdi mdi-pencil-outline"></i>

@@ -53,7 +53,7 @@
     <div class="text-center py-4">
       <i class="mdi mdi-headset text-muted mb-2"></i>
       <p class="text-muted small mb-0">{% translate "No active support contact is configured for" %} {{ object.asset_type.manufacturer.name }}.</p>
-      {% if request.user.is_staff or request.user.is_superuser %}
+      {% if object.asset_type.manufacturer and request.user.is_staff or object.asset_type.manufacturer and request.user.is_superuser %}
         <a href="{% url 'assets:manufacturer_detail' pk=object.asset_type.manufacturer.pk %}#contacts"
            class="btn btn-sm btn-outline-secondary mt-2">{% translate "Configure Support Contact" %}</a>
       {% endif %}

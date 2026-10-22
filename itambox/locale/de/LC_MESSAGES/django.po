@@ -1197,18 +1197,6 @@ msgstr "'%(asset)s' innerhalb der Kampagne '%(campaign)s' verifiziert."
 msgid "'%(asset)s' standalone verification recorded."
 msgstr "Eigenständige Verifizierung von '%(asset)s' erfasst."
 
-msgid "No assets selected for label printing."
-msgstr "Keine Assets für den Etikettendruck ausgewählt."
-
-msgid "No valid label template specified."
-msgstr "Keine gültige Etikettenvorlage angegeben."
-
-#, python-format
-msgid "Label generation job '%(job)s' queued. Track its progress in real time."
-msgstr ""
-"Asynchroner Etikettenerstellungs-Job '%(job)s' erfolgreich eingereiht! "
-"Fortschritt wird in Echtzeit verfolgt."
-
 msgid "Asset Role Details"
 msgstr "Details zur Asset-Rolle"
 
@@ -3103,20 +3091,8 @@ msgstr "Fehler beim Sammelimport"
 msgid "Label Generation Complete"
 msgstr "Etikettenerstellung abgeschlossen"
 
-#, python-format
-msgid "Successfully generated a label batch ZIP for %(count)s asset. Click to download."
-msgid_plural "Successfully generated a label batch ZIP for %(count)s assets. Click to download."
-msgstr[0] "Ein Etikettenstapel als ZIP für %(count)s Asset wurde erfolgreich erstellt. Zum Herunterladen klicken."
-msgstr[1] "Ein Etikettenstapel als ZIP für %(count)s Assets wurde erfolgreich erstellt. Zum Herunterladen klicken."
-
 msgid "Label Generation Failed"
 msgstr "Etikettenerstellung fehlgeschlagen"
-
-#, python-format
-msgid "Successfully generated a label PDF for %(count)s asset. Click to download."
-msgid_plural "Successfully generated a label PDF for %(count)s assets. Click to download."
-msgstr[0] "Ein Etiketten-PDF für %(count)s Asset wurde erfolgreich erstellt. Zum Herunterladen klicken."
-msgstr[1] "Ein Etiketten-PDF für %(count)s Assets wurde erfolgreich erstellt. Zum Herunterladen klicken."
 
 msgid "LDAP Sync Complete"
 msgstr "LDAP-Synchronisierung abgeschlossen"
@@ -3876,9 +3852,6 @@ msgstr "Code 39"
 
 msgid "QR Code"
 msgstr "QR-Code"
-
-msgid "Data Matrix"
-msgstr "Data Matrix"
 
 msgid "Jinja2/HTML template for label layout"
 msgstr "Jinja2-/HTML-Vorlage für das Etikettenlayout"
@@ -5289,9 +5262,6 @@ msgstr "Bild '%(name)s' gelöscht."
 #, python-format
 msgid "File '%(name)s' deleted."
 msgstr "Datei '%(name)s' gelöscht."
-
-msgid "Select Label Template"
-msgstr "Etikettenvorlage auswählen"
 
 msgid "Webhook Endpoint Details"
 msgstr "Details des Webhook-Endpunkts"
@@ -7094,23 +7064,6 @@ msgstr "Zugewiesene Softwarelizenzen"
 msgid "No software license seats allocated to this asset."
 msgstr "Diesem Asset sind keine Softwarelizenzplätze zugewiesen."
 
-msgid "Print Asset Label:"
-msgstr "Asset-Etikett drucken:"
-
-msgid "Thermal Label Preview"
-msgstr "Thermo-Etikettenvorschau"
-
-msgid "Pre-formatted for"
-msgstr "Vorformatiert für"
-
-msgid "thermal rolls. Clicking print will launch the print settings modal."
-msgstr ""
-"Thermorollen. Beim Klick auf Drucken wird der Dialog für die "
-"Druckeinstellungen geöffnet."
-
-msgid "Set margins to \"None\" in your print options."
-msgstr "Setzen Sie die Ränder in den Druckoptionen auf „Keine“."
-
 msgid "Delete Asset Type - ITAMbox"
 msgstr "Asset-Typ löschen | ITAMbox"
 
@@ -8356,9 +8309,6 @@ msgstr "Schließen"
 msgid "0 selected"
 msgstr "0 ausgewählt"
 
-msgid "Print labels for selected assets"
-msgstr "Etiketten für ausgewählte Assets drucken"
-
 msgid "Print Labels"
 msgstr "Etiketten drucken"
 
@@ -8422,24 +8372,6 @@ msgid "%(n)s task is currently queued."
 msgid_plural "%(n)s tasks are currently queued."
 msgstr[0] "%(n)s Aufgabe befindet sich derzeit in der Warteschlange."
 msgstr[1] "%(n)s Aufgaben befinden sich derzeit in der Warteschlange."
-
-msgid "Label Printing"
-msgstr "Etikettendruck"
-
-msgid "Available Label Templates"
-msgstr "Verfügbare Etikettenvorlagen"
-
-msgid "in |"
-msgstr "Zoll |"
-
-msgid "Print"
-msgstr "Drucken"
-
-msgid "No label templates configured."
-msgstr "Keine Etikettenvorlagen konfiguriert."
-
-msgid "Create one"
-msgstr "Eine erstellen"
 
 msgid "Selected Objects ("
 msgstr "Ausgewählte Objekte ("
@@ -8639,31 +8571,6 @@ msgstr "Bereich einklappen"
 
 msgid "Assign"
 msgstr "Zuweisen"
-
-msgid "Bulk Print Labels"
-msgstr "Etiketten gesammelt drucken"
-
-msgid "Select the label template and layout for the selected assets:"
-msgstr ""
-"Wählen Sie die Etikettenvorlage und das Layout für die ausgewählten Assets:"
-
-msgid "No templates found in database"
-msgstr "Keine Vorlagen in der Datenbank gefunden"
-
-msgid "Layout Mode"
-msgstr "Layoutmodus"
-
-msgid "Roll Printer"
-msgstr "Rollendrucker"
-
-msgid "A4 Grid (3x8)"
-msgstr "A4-Raster (3x8)"
-
-msgid "Letter Grid (3x8)"
-msgstr "Letter-Raster (3x8)"
-
-msgid "Queue Print Job"
-msgstr "Druckauftrag in Warteschlange stellen"
 
 msgid "Bulk Check-out Items"
 msgstr "Artikel gesammelt herausgeben"
@@ -10894,10 +10801,6 @@ msgstr "Status auswählen"
 msgid "Select a supplier"
 msgstr "Lieferant auswählen"
 
-#: itambox/templates/generic/object_list.html:187
-msgid "Select a template"
-msgstr "Vorlage auswählen"
-
 #: itambox/templates/users/usergroups/usergroup_assign_users.html:22
 msgid "Select active members of this group's tenant. They receive all roles assigned to the group, wherever those roles apply."
 msgstr "Wählen Sie aktive Mitglieder des Mandanten dieser Gruppe aus. Sie erhalten alle der Gruppe zugewiesenen Rollen in deren jeweiligem Geltungsbereich."
@@ -10948,17 +10851,9 @@ msgstr "Die Sammel-Einbuchung konnte nicht abgeschlossen werden. Code: checkin.b
 msgid "The bulk disposal could not be completed. Code: disposal.boundary_failed"
 msgstr "Die Sammel-Entsorgung konnte nicht abgeschlossen werden. Code: disposal.boundary_failed"
 
-#: itambox/assets/tasks/labels.py:254
-msgid "Label generation failed. Code: labels.zip_failed"
-msgstr "Die Etikettenerstellung ist fehlgeschlagen. Code: labels.zip_failed"
-
 #: itambox/assets/tasks/labels.py:665
 msgid "Label generation failed. Code: labels.pdf_failed"
 msgstr "Die Etikettenerstellung ist fehlgeschlagen. Code: labels.pdf_failed"
-
-#: itambox/assets/views/asset_views.py:523
-msgid "The selected assets are invalid or no longer accessible."
-msgstr "Die ausgewählten Assets sind ungültig oder nicht mehr zugänglich."
 
 #: itambox/assets/views/bulk_scan_views.py:245
 msgid "Select a target tenant first."
@@ -11398,11 +11293,6 @@ msgstr "Die Zustellung konnte nicht bestätigt werden; die Sitzung bleibt aktiv.
 #: itambox/compliance/views.py:761
 msgid "Email delivery was rejected."
 msgstr "Die E-Mail-Zustellung wurde abgelehnt."
-
-#: itambox/compliance/views_audit.py:210
-#, python-format
-msgid "EAN '%(barcode)s' matches multiple assets. Scan the asset tag instead."
-msgstr "Die EAN '%(barcode)s' stimmt mit mehreren Assets überein. Scannen Sie stattdessen die Inventarnummer."
 
 #: itambox/compliance/views_audit.py:235
 msgid "Audit scan could not be recorded."
@@ -15642,3 +15532,99 @@ msgstr "Automatisch folgt der Hell- oder Dunkel-Einstellung Ihres Betriebssystem
 
 msgid "Select a valid theme: light, dark or automatic."
 msgstr "Wählen Sie ein gültiges Design: Hell, Dunkel oder Automatisch."
+
+msgid "%(counter)s label"
+msgid_plural "%(counter)s labels"
+msgstr[0] "%(counter)s Etikett"
+msgstr[1] "%(counter)s Etiketten"
+
+msgid "%(types)s labels support QR codes only."
+msgstr "Etiketten für %(types)s unterstützen nur QR-Codes."
+
+msgid "'%(barcode)s' matches several assets. Scan the asset's label instead."
+msgstr "'%(barcode)s' passt zu mehreren Assets. Scannen Sie stattdessen das Etikett des Assets."
+
+msgid "A4 sheet (3 x 8 grid)"
+msgstr "A4-Bogen (Raster 3 x 8)"
+
+msgid "Barcode Format:"
+msgstr "Barcode-Format:"
+
+msgid "Built-in label"
+msgstr "Standardetikett"
+
+msgid "Continuous roll (one label per page)"
+msgstr "Endlosrolle (ein Etikett pro Seite)"
+
+msgid "Label Options"
+msgstr "Etikettenoptionen"
+
+msgid "Label Size:"
+msgstr "Etikettengröße:"
+
+msgid "Label printing job '%(job)s' queued. Track its progress in real time."
+msgstr "Etikettendruck-Job '%(job)s' eingereiht. Der Fortschritt wird in Echtzeit angezeigt."
+
+msgid "Label printing: %(count)s %(object)s"
+msgid_plural "Label printing: %(count)s %(objects)s"
+msgstr[0] "Etikettendruck: %(count)s %(object)s"
+msgstr[1] "Etikettendruck: %(count)s %(objects)s"
+
+msgid "Large selections are printed in the background; the job page links the finished PDF."
+msgstr "Große Auswahlen werden im Hintergrund gedruckt; die Job-Seite verlinkt das fertige PDF."
+
+msgid "Manage label templates"
+msgstr "Etikettenvorlagen verwalten"
+
+msgid "No objects selected for label printing."
+msgstr "Keine Objekte für den Etikettendruck ausgewählt."
+
+msgid "None. The built-in card layout is used."
+msgstr "Keiner. Das Standardlayout wird verwendet."
+
+msgid "None. This template is not offered when printing."
+msgstr "Keine. Diese Vorlage wird beim Drucken nicht angeboten."
+
+msgid "Nothing to print."
+msgstr "Nichts zu drucken."
+
+msgid "Object Types:"
+msgstr "Objekttypen:"
+
+msgid "Print at most %(limit)s labels at once."
+msgstr "Drucken Sie höchstens %(limit)s Etiketten auf einmal."
+
+msgid "Print at most %(limit)s shared objects at once."
+msgstr "Drucken Sie höchstens %(limit)s gemeinsam genutzte Objekte auf einmal."
+
+msgid "Print labels for the selected objects"
+msgstr "Etiketten für die ausgewählten Objekte drucken"
+
+msgid "Several assets match %(code)s"
+msgstr "Mehrere Assets passen zu %(code)s"
+
+msgid "Successfully generated a label PDF for %(count)s object. Click to download."
+msgid_plural "Successfully generated a label PDF for %(count)s objects. Click to download."
+msgstr[0] "Ein Etiketten-PDF für %(count)s Objekt wurde erfolgreich erstellt. Zum Herunterladen klicken."
+msgstr[1] "Ein Etiketten-PDF für %(count)s Objekte wurde erfolgreich erstellt. Zum Herunterladen klicken."
+
+msgid "The PDF opens in this tab. Print it with the margins set to none."
+msgstr "Das PDF öffnet sich in diesem Tab. Drucken Sie es ohne Seitenränder."
+
+msgid "The kinds of objects this template prints labels for."
+msgstr "Die Objektarten, für die diese Vorlage Etiketten druckt."
+
+msgid "The selected objects are invalid or no longer accessible."
+msgstr "Die ausgewählten Objekte sind ungültig oder nicht mehr zugänglich."
+
+msgid "This template cannot print labels for every selected object."
+msgstr "Diese Vorlage kann nicht für alle ausgewählten Objekte Etiketten drucken."
+
+msgid "This template does not print labels for this object type."
+msgstr "Diese Vorlage druckt keine Etiketten für diesen Objekttyp."
+
+msgid "US Letter sheet (3 x 8 grid)"
+msgstr "US-Letter-Bogen (Raster 3 x 8)"
+
+msgid "and %(counter)s more"
+msgstr "und %(counter)s weitere"

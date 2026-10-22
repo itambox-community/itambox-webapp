@@ -6,11 +6,25 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
-### Fixed
-- Bulk edit and bulk delete work again on the shared catalogue lists: manufacturers, categories, status labels, asset roles, depreciation schedules, site groups, export and label templates, and asset types for bulk delete. Those toolbars posted to the global `/bulk-edit/` and `/bulk-delete/` endpoints, which answered 404 for every model without a tenant-scoped manager. One policy now decides both sides, so a list renders a bulk button only when the endpoint it posts to serves that model, and a model without a usable bulk action no longer shows a button at all: roles, custody receipts, tenant resource grants and user groups for bulk edit, and asset types for bulk edit because their rows are managed field by field. A test walks every model with a list route and fails when a model is neither served nor a recorded decision.
+### Added
+- Labels print for accessories, components, consumables and locations as well as assets, through one print page (`/labels/<app>/<model>/`) reached from every labelled object's detail page and from the list and detail-tab selection toolbars. Up to 25 labels return as an inline PDF; larger selections (up to 1,000) run as a background job with the same engine. A built-in QR label is always available, so printing works without any saved template.
+- Label templates declare the object types they print for and are offered only for those types; the template detail page now shows its settings.
 
 ### Changed
+- A label's code identifies exactly one object: with `ITAMBOX_BASE_URL` set it encodes the object's absolute detail URL (a phone camera opens it directly), otherwise `itambox://<app>.<model>/<id>`. The global scanner resolves these for every labelled type under that type's view permission, so stock-only users can scan bin and location labels. Labels printed before 1.0 (`itambox:<tag>`, `itambox://asset/<id>`) keep resolving.
+- **Breaking for bookmarks and integrations:** the asset-only label routes (`/assets/<id>/print/`, `/assets/<id>/print/<template>/`, `/assets/bulk-print-labels/`) and the generic `labels/select/…` and `labels/print/<template>/<id>/` routes are replaced by the print page above.
 - The global `/bulk-delete/` endpoint applies the same model refusals as `/bulk-edit/`. Before, `/bulk-edit/` rejected roles and tenants while `/bulk-delete/` accepted them, so a bulk selection could reach models whose dedicated views carry lifecycle and protection handling that the generic archive path does not.
+
+### Fixed
+- Bulk edit and bulk delete work again on the shared catalogue lists: manufacturers, categories, status labels, asset roles, depreciation schedules, site groups, export and label templates, and asset types for bulk delete. Those toolbars posted to the global `/bulk-edit/` and `/bulk-delete/` endpoints, which answered 404 for every model without a tenant-scoped manager. One policy now decides both sides, so a list renders a bulk button only when the endpoint it posts to serves that model, and a model without a usable bulk action no longer shows a button at all: roles, custody receipts, tenant resource grants and user groups for bulk edit, and asset types for bulk edit because their rows are managed field by field. A test walks every model with a list route and fails when a model is neither served nor a recorded decision.
+- Scanning a tag that several of your tenants use no longer opens one customer's asset silently: the global scanner lists the matches, and audit and scan-basket scans report the ambiguity. Asset tags are unique per tenant only.
+- Printing from a non-asset page can no longer print the asset that happens to share the object's id.
+- `ITAMBOX_BASE_URL` now reaches printed labels, as the installation guide described.
+- The asset detail page no longer fails for staff when the asset has no asset type.
+
+### Removed
+- The Data Matrix barcode format, which never rendered (the barcode library has no Data Matrix writer, so such labels printed Code 128). Existing Data Matrix templates become QR; existing templates are bound to assets, the only type the former engine printed.
+- The unused ZIP-of-PNGs label task.
 
 ### Security
 - Export and label templates stay superuser-only through the batch endpoints. Serving the shared catalogue would otherwise have opened a generic write path that only their dedicated edit and delete views keep closed, so both models now belong to the model-wide mutation policy that every generic write path consults.

@@ -10,7 +10,10 @@ from django.urls import reverse
 from pypdf import PdfReader
 
 from assets.models import Asset, AssetRole, AssetType, Manufacturer, StatusLabel
-from assets.tasks.labels import generate_label_batch_task, generate_label_pdf_batch_task
+
+# The former asset-only task path: kept as a queue-compatibility entry that
+# delegates to extras.tasks.labels, so these tests also cover upgrade-queued jobs.
+from assets.tasks.labels import generate_label_pdf_batch_task
 from core.models import Job, Notification
 from core.tasks.utils import TaskStatus
 from core.tests.mixins import grant
@@ -60,56 +63,70 @@ class BulkActionsTestCase(TestCase):
             barcode_format="qr",
             template_code="<div>{{ asset.name }}</div>",
         )
+        self.label_template.content_types.add(ContentType.objects.get_for_model(Asset))
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.label_views.LABEL_SYNC_LIMIT", 0)
+    @patch("extras.label_views.async_task")
     def test_bulk_print_labels(self, mock_async):
-        url = reverse("assets:asset_bulk_print_labels")
+        url = reverse("label_print", kwargs={"app_label": "assets", "model_name": "asset"})
         post_data = {
             "pk": [self.asset1.pk, self.asset2.pk],
-            "template_id": self.label_template.pk,
-            "layout_mode": "roll",
+            "_print": "1",
+            "template": self.label_template.pk,
+            "layout": "roll",
         }
 
         response = self.client.post(url, post_data)
         self.assertEqual(response.status_code, 302)
 
         # Verify Job was created
-        job = Job.objects.filter(name__contains="Label Batch Generation").first()
+        job = Job.objects.filter(name__contains="Label printing").first()
         self.assertIsNotNone(job)
         self.assertEqual(job.status, Job.STATUS_PENDING)
 
-        # Verify async_task was called
+        # Verify async_task was called with the generic task
         mock_async.assert_called_once()
         args = mock_async.call_args[0]
-        self.assertEqual(args[0], "assets.tasks.labels.generate_label_pdf_batch_task")
+        self.assertEqual(args[0], "extras.tasks.labels.generate_label_pdf_batch_task")
         self.assertEqual(args[1], job.pk)
-        self.assertEqual(args[2], [str(self.asset1.pk), str(self.asset2.pk)])
-        self.assertEqual(args[3], self.label_template.pk)
-        self.assertEqual(args[4], "roll")
+        self.assertEqual(args[2], ContentType.objects.get_for_model(Asset).pk)
+        self.assertEqual(args[3], [self.asset1.pk, self.asset2.pk])
+        self.assertEqual(args[4], self.label_template.pk)
+        self.assertEqual(args[5], "roll")
+
+    def test_small_selection_prints_inline_without_a_job(self):
+        url = reverse("label_print", kwargs={"app_label": "assets", "model_name": "asset"})
+        before = Job.objects.count()
+        response = self.client.post(
+            url,
+            {
+                "pk": [self.asset1.pk, self.asset2.pk],
+                "_print": "1",
+                "template": self.label_template.pk,
+                "layout": "roll",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertEqual(len(PdfReader(io.BytesIO(response.content)).pages), 2)
+        self.assertEqual(Job.objects.count(), before)
 
     def _job(self):
         return Job.objects.create(name="labels", tenant=self.tenant, status=Job.STATUS_PENDING)
 
     def test_label_tasks_classify_missing_and_non_pending_jobs(self):
-        missing_zip = generate_label_batch_task(999999, [], "qr", self.user.pk, self.tenant.pk)
         missing_pdf = generate_label_pdf_batch_task(
             999999, [], self.label_template.pk, "roll", self.user.pk, self.tenant.pk
         )
-        zip_job = self._job()
-        zip_job.status = Job.STATUS_FAILED
-        zip_job.save(update_fields=["status"])
         pdf_job = self._job()
         pdf_job.status = Job.STATUS_FAILED
         pdf_job.save(update_fields=["status"])
 
-        skipped_zip = generate_label_batch_task(zip_job.pk, [], "qr", self.user.pk, self.tenant.pk)
         skipped_pdf = generate_label_pdf_batch_task(
             pdf_job.pk, [], self.label_template.pk, "roll", self.user.pk, self.tenant.pk
         )
 
-        self.assertEqual((missing_zip.status, missing_zip.code), (TaskStatus.TERMINAL, "labels.job_not_found"))
         self.assertEqual((missing_pdf.status, missing_pdf.code), (TaskStatus.TERMINAL, "labels.job_not_found"))
-        self.assertEqual((skipped_zip.status, skipped_zip.code), (TaskStatus.SKIPPED, "labels.job_not_pending"))
         self.assertEqual((skipped_pdf.status, skipped_pdf.code), (TaskStatus.SKIPPED, "labels.job_not_pending"))
 
     def test_pdf_task_classifies_missing_template_and_assets(self):
@@ -128,14 +145,14 @@ class BulkActionsTestCase(TestCase):
             (missing_template.status, missing_template.code), (TaskStatus.TERMINAL, "labels.template_not_found")
         )
         self.assertEqual(missing_template_job.status, Job.STATUS_FAILED)
-        self.assertEqual((no_assets.status, no_assets.code), (TaskStatus.SKIPPED, "labels.no_assets"))
-        self.assertEqual(no_assets_job.result, {"status": "no_assets"})
+        self.assertEqual((no_assets.status, no_assets.code), (TaskStatus.SKIPPED, "labels.no_objects"))
+        self.assertEqual(no_assets_job.result, {"status": "no_objects"})
 
-    @patch("assets.tasks.labels.generate_base64_barcode", side_effect=RuntimeError("secret-asset-label"))
+    @patch("extras.tasks.labels.render_object_card", side_effect=RuntimeError("secret-asset-label"))
     def test_pdf_task_all_render_failures_are_terminal_and_redacted(self, _barcode):
         job = self._job()
 
-        with self.assertLogs("assets.tasks.labels", level="WARNING") as captured:
+        with self.assertLogs("extras.tasks.labels", level="WARNING") as captured:
             result = generate_label_pdf_batch_task(
                 job.pk, [self.asset1.pk], self.label_template.pk, "roll", self.user.pk, self.tenant.pk
             )
@@ -146,11 +163,9 @@ class BulkActionsTestCase(TestCase):
         self.assertNotIn(self.asset1.asset_tag, job.logs)
         self.assertNotIn(self.asset1.name, job.logs)
 
-    @patch("assets.tasks.labels._html_to_pdf_bytes", return_value=b"%PDF-test")
-    @patch("assets.tasks.labels.render_label_html", return_value="<div>safe</div>")
-    @patch(
-        "assets.tasks.labels.generate_base64_barcode", side_effect=["data:image/png;base64,AAAA", ValueError("secret")]
-    )
+    @patch("extras.tasks.labels.html_to_pdf_bytes", return_value=b"%PDF-test")
+    @patch("extras.services.labels.render_label_card", return_value="<div>safe</div>")
+    @patch("extras.tasks.labels.render_object_card", side_effect=["data:image/png;base64,AAAA", ValueError("secret")])
     def test_pdf_task_returns_partial_without_exposing_asset_labels(self, _barcode, _render, _pdf):
         job = self._job()
 
@@ -170,9 +185,9 @@ class BulkActionsTestCase(TestCase):
         self.assertNotIn(self.asset1.asset_tag, job.logs)
         self.assertNotIn(self.asset1.name, job.logs)
 
-    @patch("assets.tasks.labels._html_to_pdf_bytes", side_effect=OperationalError("secret-pdf-payload"))
-    @patch("assets.tasks.labels.render_label_html", return_value="<div>safe</div>")
-    @patch("assets.tasks.labels.generate_base64_barcode", return_value="data:image/png;base64,AAAA")
+    @patch("extras.tasks.labels.html_to_pdf_bytes", side_effect=OperationalError("secret-pdf-payload"))
+    @patch("extras.services.labels.render_label_card", return_value="<div>safe</div>")
+    @patch("extras.tasks.labels.render_object_card", return_value="data:image/png;base64,AAAA")
     def test_pdf_boundary_database_failure_is_retryable_and_redacted(self, _barcode, _render, _pdf):
         job = self._job()
 
@@ -214,11 +229,11 @@ class BulkActionsTestCase(TestCase):
             ).exists()
         )
 
-    @patch("assets.tasks.labels.Notification.objects.create", side_effect=OperationalError("secret-notify"))
+    @patch("extras.tasks.labels.Notification.objects.create", side_effect=OperationalError("secret-notify"))
     def test_pdf_task_success_notification_failure_does_not_fail_completed_job(self, _notify):
         job = self._job()
 
-        with self.assertLogs("assets.tasks.labels", level="ERROR") as captured:
+        with self.assertLogs("extras.tasks.labels", level="ERROR") as captured:
             result = generate_label_pdf_batch_task(
                 job.pk, [self.asset1.pk], self.label_template.pk, "roll", self.user.pk, self.tenant.pk
             )
@@ -235,11 +250,11 @@ class BulkActionsTestCase(TestCase):
         self.assertIn("(phase=notification)", job.logs)
         self.assertNotIn("secret-notify", " ".join(captured.output) + " " + job.logs)
 
-    @patch("assets.tasks.labels._html_to_pdf_bytes", side_effect=RuntimeError("secret-render-payload"))
+    @patch("extras.tasks.labels.html_to_pdf_bytes", side_effect=RuntimeError("secret-render-payload"))
     def test_pdf_task_render_failure_is_terminal_phased_and_redacted(self, _render):
         job = self._job()
 
-        with self.assertLogs("assets.tasks.labels", level="ERROR") as captured:
+        with self.assertLogs("extras.tasks.labels", level="ERROR") as captured:
             result = generate_label_pdf_batch_task(
                 job.pk, [self.asset1.pk], self.label_template.pk, "roll", self.user.pk, self.tenant.pk
             )
@@ -255,27 +270,27 @@ class BulkActionsTestCase(TestCase):
         self.assertIsNotNone(notification)
         self.assertNotIn("secret-render-payload", notification.message)
 
-    @patch("assets.tasks.labels.Job.objects.get", side_effect=OperationalError("secret-database"))
+    @patch("extras.tasks.labels.Job.objects.filter", side_effect=OperationalError("secret-database"))
     def test_pdf_entry_database_failure_is_retryable_and_not_masked(self, _get):
         # The PDF task's single task boundary also covers Job resolution: a
         # transient failure there must be classified, with the boundary state
         # (phase/attachment) bound — never replaced by an UnboundLocalError.
-        with self.assertLogs("assets.tasks.labels", level="ERROR") as captured:
+        with self.assertLogs("extras.tasks.labels", level="ERROR") as captured:
             result = generate_label_pdf_batch_task(17, [], self.label_template.pk, "roll", self.user.pk, self.tenant.pk)
 
         self.assertEqual((result.status, result.code), (TaskStatus.RETRYABLE, "labels.pdf_failed"))
         self.assertNotIn("secret-database", " ".join(captured.output))
         self.assertTrue(any(getattr(record, "phase", None) == "job_resolve" for record in captured.records))
 
-    @patch("assets.tasks.labels.Notification.objects.create", side_effect=OperationalError("secret-notify"))
-    @patch("assets.tasks.labels._html_to_pdf_bytes", side_effect=RuntimeError("secret-render"))
+    @patch("extras.tasks.labels.Notification.objects.create", side_effect=OperationalError("secret-notify"))
+    @patch("extras.tasks.labels.html_to_pdf_bytes", side_effect=RuntimeError("secret-render"))
     def test_pdf_task_failure_notification_failure_does_not_mask_task_outcome(self, _render, _notify):
         # The failure notification is best-effort: even if BOTH the render and
         # the notification delivery fail, the original task outcome and job
         # state must survive, redacted.
         job = self._job()
 
-        with self.assertLogs("assets.tasks.labels", level="ERROR") as captured:
+        with self.assertLogs("extras.tasks.labels", level="ERROR") as captured:
             result = generate_label_pdf_batch_task(
                 job.pk, [self.asset1.pk], self.label_template.pk, "roll", self.user.pk, self.tenant.pk
             )
@@ -304,7 +319,7 @@ class BulkActionsTestCase(TestCase):
             raise OperationalError("secret-storage")
 
         with (
-            self.assertLogs("assets.tasks.labels", level="ERROR") as captured,
+            self.assertLogs("extras.tasks.labels", level="ERROR") as captured,
             patch.object(FileAttachment, "save", new=flaky_save),
         ):
             result = generate_label_pdf_batch_task(
@@ -337,7 +352,7 @@ class BulkActionsTestCase(TestCase):
             raise OperationalError("secret-storage")
 
         with (
-            self.assertLogs("assets.tasks.labels", level="ERROR") as captured,
+            self.assertLogs("extras.tasks.labels", level="ERROR") as captured,
             patch.object(FileAttachment, "save", new=flaky_save),
         ):
             result = generate_label_pdf_batch_task(
@@ -352,75 +367,6 @@ class BulkActionsTestCase(TestCase):
         self.assertEqual(FileAttachment.objects.filter(model=ct, object_id=job.pk).count(), 1)
         self.assertNotIn("secret-cleanup", " ".join(captured.output) + " " + job.logs)
         self.assertTrue(any(record.phase == "attachment_cleanup" for record in captured.records))
-
-    @patch("assets.tasks.labels.generate_single_label_graphic", side_effect=RuntimeError("secret-zip-label"))
-    def test_zip_item_failure_is_isolated_and_redacted(self, _graphic):
-        job = self._job()
-
-        with self.assertLogs("assets.tasks.labels", level="WARNING") as captured:
-            result = generate_label_batch_task(job.pk, [self.asset1.pk], "qr", self.user.pk, self.tenant.pk)
-
-        job.refresh_from_db()
-        self.assertEqual((result.status, result.code), (TaskStatus.TERMINAL, "labels.no_labels_rendered"))
-        self.assertNotIn("secret-zip-label", " ".join(captured.output) + " " + job.logs)
-        self.assertNotIn(self.asset1.asset_tag, job.logs)
-        self.assertNotIn(self.asset1.name, job.logs)
-
-    @patch("assets.tasks.labels.generate_single_label_graphic", return_value=b"safe-image")
-    def test_zip_success_returns_counts_without_exposing_asset_labels(self, _graphic):
-        job = self._job()
-
-        result = generate_label_batch_task(job.pk, [self.asset1.pk], "qr", self.user.pk, self.tenant.pk)
-
-        job.refresh_from_db()
-        self.assertEqual((result.status, result.code), (TaskStatus.SUCCESS, "labels.zip_completed"))
-        self.assertEqual(dict(result.counts), {"rendered": 1, "failed": 0})
-        self.assertNotIn(self.asset1.asset_tag, job.logs)
-        self.assertNotIn(self.asset1.name, job.logs)
-
-    @patch("assets.tasks.labels.Notification.objects.create", side_effect=OperationalError("secret-zip-notify"))
-    @patch("assets.tasks.labels.generate_single_label_graphic", return_value=b"safe-image")
-    def test_zip_success_notification_failure_does_not_fail_completed_job(self, _graphic, _notify):
-        job = self._job()
-
-        with self.assertLogs("assets.tasks.labels", level="ERROR") as captured:
-            result = generate_label_batch_task(job.pk, [self.asset1.pk], "qr", self.user.pk, self.tenant.pk)
-
-        job.refresh_from_db()
-        self.assertEqual((result.status, result.code), (TaskStatus.SUCCESS, "labels.zip_completed"))
-        self.assertEqual(job.status, Job.STATUS_COMPLETED)
-        self.assertIn("(phase=notification)", job.logs)
-        self.assertNotIn("secret-zip-notify", " ".join(captured.output) + " " + job.logs)
-
-    @patch(
-        "assets.tasks.labels.generate_single_label_graphic",
-        side_effect=[b"safe-image", RuntimeError("secret-second-label")],
-    )
-    def test_zip_item_failure_after_success_returns_partial(self, _graphic):
-        job = self._job()
-
-        result = generate_label_batch_task(job.pk, [self.asset1.pk, self.asset2.pk], "qr", self.user.pk, self.tenant.pk)
-
-        job.refresh_from_db()
-        self.assertEqual((result.status, result.code), (TaskStatus.PARTIAL, "labels.zip_partial"))
-        self.assertEqual(dict(result.counts), {"rendered": 1, "failed": 1})
-        self.assertNotIn("secret-second-label", job.logs)
-
-    @patch("assets.models.Asset.objects.filter", side_effect=OperationalError("secret-assets-query"))
-    def test_zip_boundary_database_failure_is_retryable_and_redacted(self, _filter):
-        job = self._job()
-
-        result = generate_label_batch_task(job.pk, [self.asset1.pk], "qr", self.user.pk, self.tenant.pk)
-
-        job.refresh_from_db()
-        self.assertEqual((result.status, result.code), (TaskStatus.RETRYABLE, "labels.zip_failed"))
-        self.assertNotIn("secret-assets-query", job.logs)
-
-    @patch("assets.tasks.labels.Job.objects.get", side_effect=OperationalError("secret-database"))
-    def test_zip_entry_database_failure_is_retryable(self, _get):
-        result = generate_label_batch_task(17, [], "qr", self.user.pk, self.tenant.pk)
-
-        self.assertEqual((result.status, result.code), (TaskStatus.RETRYABLE, "labels.entry_failed"))
 
     def test_bulk_delete_assets_get(self):
         url = reverse("assets:asset_bulk_delete")
@@ -530,7 +476,12 @@ class LabelBulkScopeTests(TestCase):
         )
         self.outside_job = Job.objects.create(name="Outside group job", tenant=self.outside_tenant)
         self.template = LabelTemplate.objects.create(name="Scope label template")
-        self.url = reverse("assets:asset_bulk_print_labels")
+        self.template.content_types.add(ContentType.objects.get_for_model(Asset))
+        self.url = reverse("label_print", kwargs={"app_label": "assets", "model_name": "asset"})
+        # Queue every selection so the job-scope contract is exercised with a few rows.
+        sync_limit = patch("extras.label_views.LABEL_SYNC_LIMIT", 0)
+        sync_limit.start()
+        self.addCleanup(sync_limit.stop)
 
     def _login_with_scope(self, *, all_accessible=False, group=None):
         self.client.force_login(self.user)
@@ -557,12 +508,13 @@ class LabelBulkScopeTests(TestCase):
             self.url,
             {
                 "pk": [str(pk) for pk in pks],
-                "template_id": self.template.pk,
-                "layout_mode": "roll",
+                "_print": "1",
+                "template": self.template.pk,
+                "layout": "roll",
             },
         )
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.label_views.async_task")
     def test_all_accessible_scope_prints_assets_from_multiple_tenants(self, mock_async):
         self._login_with_scope(all_accessible=True)
 
@@ -572,11 +524,11 @@ class LabelBulkScopeTests(TestCase):
         job = Job.objects.latest("created")
         self.assertEqual(job.tenant_id, self.tenant_a.pk)
         self.assertEqual(job.data["scope_tenant_ids"], [self.tenant_a.pk, self.tenant_b.pk])
-        self.assertEqual(mock_async.call_args.args[5], self.user.pk)
-        self.assertEqual(mock_async.call_args.args[6], self.tenant_a.pk)
+        self.assertEqual(mock_async.call_args.args[6], self.user.pk)
+        self.assertEqual(mock_async.call_args.args[7], self.tenant_a.pk)
         self.assertEqual(self.client.get(response.url).status_code, 200)
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.label_views.async_task")
     def test_group_scope_prints_assets_from_multiple_tenants(self, mock_async):
         self._login_with_scope(group=self.group)
 
@@ -586,12 +538,12 @@ class LabelBulkScopeTests(TestCase):
         job = Job.objects.latest("created")
         self.assertEqual(job.tenant_id, self.tenant_a.pk)
         self.assertEqual(job.data["scope_tenant_ids"], [self.tenant_a.pk, self.tenant_b.pk])
-        self.assertEqual(mock_async.call_args.args[6], self.tenant_a.pk)
+        self.assertEqual(mock_async.call_args.args[7], self.tenant_a.pk)
         self.assertEqual(self.client.get(response.url).status_code, 200)
 
-    @patch("assets.tasks.labels._html_to_pdf_bytes", return_value=b"%PDF-scope-test")
-    @patch("assets.tasks.labels.render_label_html", return_value="<div>safe</div>")
-    @patch("assets.tasks.labels.generate_base64_barcode", return_value="data:image/png;base64,AAAA")
+    @patch("extras.tasks.labels.html_to_pdf_bytes", return_value=b"%PDF-scope-test")
+    @patch("extras.services.labels.render_label_card", return_value="<div>safe</div>")
+    @patch("extras.tasks.labels.render_object_card", return_value="data:image/png;base64,AAAA")
     def test_pdf_task_uses_persisted_multi_tenant_scope(self, _barcode, _render, _pdf):
         job = Job.objects.create(
             name="multi-tenant labels",
@@ -614,9 +566,9 @@ class LabelBulkScopeTests(TestCase):
         self.assertEqual(job.status, Job.STATUS_COMPLETED)
         self.assertEqual(FileAttachment.objects.filter(object_id=job.pk).count(), 1)
 
-    @patch("assets.tasks.labels._html_to_pdf_bytes", return_value=b"%PDF-scope-test")
-    @patch("assets.tasks.labels.render_label_html", return_value="<div>safe</div>")
-    @patch("assets.tasks.labels.generate_base64_barcode", return_value="data:image/png;base64,AAAA")
+    @patch("extras.tasks.labels.html_to_pdf_bytes", return_value=b"%PDF-scope-test")
+    @patch("extras.services.labels.render_label_card", return_value="<div>safe</div>")
+    @patch("extras.tasks.labels.render_object_card", return_value="data:image/png;base64,AAAA")
     def test_pdf_task_rejects_assets_outside_persisted_scope(self, _barcode, _render, _pdf):
         job = Job.objects.create(
             name="scoped labels",
@@ -635,13 +587,13 @@ class LabelBulkScopeTests(TestCase):
         )
 
         job.refresh_from_db()
-        self.assertEqual((result.status, result.code), (TaskStatus.TERMINAL, "labels.assets_not_accessible"))
+        self.assertEqual((result.status, result.code), (TaskStatus.TERMINAL, "labels.objects_not_accessible"))
         self.assertEqual(job.status, Job.STATUS_FAILED)
         self.assertEqual(FileAttachment.objects.filter(object_id=job.pk).count(), 0)
 
-    @patch("assets.tasks.labels._html_to_pdf_bytes", return_value=b"%PDF-scope-test")
-    @patch("assets.tasks.labels.render_label_html", return_value="<div>safe</div>")
-    @patch("assets.tasks.labels.generate_base64_barcode", return_value="data:image/png;base64,AAAA")
+    @patch("extras.tasks.labels.html_to_pdf_bytes", return_value=b"%PDF-scope-test")
+    @patch("extras.services.labels.render_label_card", return_value="<div>safe</div>")
+    @patch("extras.tasks.labels.render_object_card", return_value="data:image/png;base64,AAAA")
     def test_pdf_task_rejects_asset_after_view_access_is_revoked(self, _barcode, _render, _pdf):
         Role.objects.filter(tenant=self.tenant_b).update(permissions=["core.view_job"])
         job = Job.objects.create(
@@ -661,10 +613,10 @@ class LabelBulkScopeTests(TestCase):
         )
 
         job.refresh_from_db()
-        self.assertEqual((result.status, result.code), (TaskStatus.TERMINAL, "labels.assets_not_accessible"))
+        self.assertEqual((result.status, result.code), (TaskStatus.TERMINAL, "labels.objects_not_accessible"))
         self.assertEqual(job.status, Job.STATUS_FAILED)
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.label_views.async_task")
     def test_bulk_print_labels_rejects_invalid_asset_ids_before_job_creation(self, mock_async):
         self._login_with_scope(all_accessible=True)
         before = Job.objects.count()
@@ -672,47 +624,47 @@ class LabelBulkScopeTests(TestCase):
         for pks in (("not-an-id",), ("1", "1"), ("0",)):
             with self.subTest(pks=pks):
                 response = self._post(pks)
-                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response.status_code, 400)
 
         self.assertEqual(Job.objects.count(), before)
         mock_async.assert_not_called()
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.label_views.async_task")
     def test_bulk_print_labels_rejects_empty_selection_before_job_creation(self, mock_async):
         self._login_with_scope(all_accessible=True)
         before = Job.objects.count()
 
         response = self.client.post(
             self.url,
-            {"template_id": self.template.pk, "layout_mode": "roll"},
+            {"_print": "1", "template": self.template.pk, "layout": "roll"},
         )
 
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(Job.objects.count(), before)
         mock_async.assert_not_called()
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.label_views.async_task")
     def test_bulk_print_labels_rejects_invalid_template_before_job_creation(self, mock_async):
         self._login_with_scope(all_accessible=True)
         before = Job.objects.count()
 
         response = self.client.post(
             self.url,
-            {"pk": [str(self.asset_a.pk)], "template_id": "not-a-template", "layout_mode": "roll"},
+            {"pk": [str(self.asset_a.pk)], "_print": "1", "template": "not-a-template", "layout": "roll"},
         )
 
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(Job.objects.count(), before)
         mock_async.assert_not_called()
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.label_views.async_task")
     def test_aggregate_scope_rejects_inaccessible_selection_before_job_creation(self, mock_async):
         self._login_with_scope(all_accessible=True)
         before = Job.objects.count()
 
         response = self._post([self.asset_a.pk, self.unreachable_asset.pk])
 
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(Job.objects.count(), before)
         mock_async.assert_not_called()
 

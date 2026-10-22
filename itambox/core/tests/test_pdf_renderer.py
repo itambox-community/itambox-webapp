@@ -5,7 +5,6 @@ from unittest import mock
 
 from django.test import SimpleTestCase, override_settings
 
-from assets.tasks.labels import _html_to_pdf_bytes, _pdf_safe_link_callback
 from core.pdf_renderer import html_to_pdf_bytes, pdf_safe_link_callback
 
 
@@ -53,10 +52,3 @@ class HtmlToPdfBytesTests(SimpleTestCase):
         with mock.patch("xhtml2pdf.pisa.CreatePDF", side_effect=self._fake_pisa(err=1)):
             with self.assertRaisesRegex(RuntimeError, "xhtml2pdf rendering failed"):
                 html_to_pdf_bytes("<html></html>")
-
-    def test_label_task_wrappers_preserve_shared_renderer_contract(self):
-        uri = "data:image/png;base64,AAAA"
-        self.assertEqual(_pdf_safe_link_callback(uri, "image"), pdf_safe_link_callback(uri, "image"))
-        with mock.patch("assets.tasks.labels.html_to_pdf_bytes", return_value=b"wrapped") as render:
-            self.assertEqual(_html_to_pdf_bytes("<html></html>"), b"wrapped")
-        render.assert_called_once_with("<html></html>")

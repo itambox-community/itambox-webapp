@@ -490,10 +490,14 @@ class ComponentTrackingTestCase(TransactionTestCase):
         self.assertEqual(self.asset.last_audited_by, self.user)
 
     def test_asset_label_print_view(self):
-        response = self.client.get(reverse("assets:asset_label_print", kwargs={"pk": self.asset.pk}))
+        url = reverse("label_print", kwargs={"app_label": "assets", "model_name": "asset"})
+        page = self.client.get(url, {"pk": self.asset.pk})
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, str(self.asset))
+        response = self.client.post(url, {"pk": [self.asset.pk], "_print": "1", "template": "", "layout": "roll"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Thermal Label Preview")
-        self.assertContains(response, "data:image/png")  # engine-rendered QR card (matches bulk output)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
 
     def test_custody_receipt_signoff(self):
         from organization.models import AssetHolder

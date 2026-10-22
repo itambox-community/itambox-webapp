@@ -1,0 +1,37 @@
+{% load i18n %}
+<dl class="row mb-0">
+  <dt class="col-sm-3">{% translate "Name:" %}</dt>
+  <dd class="col-sm-9">
+    <strong>{{ object.name }}</strong>
+  </dd>
+  <dt class="col-sm-3">{% translate "Object Types:" %}</dt>
+  <dd class="col-sm-9">
+    {% for content_type in object.content_types.all %}
+      <span class="badge bg-blue-lt">{{ content_type.app_label }}.{{ content_type.model }}</span>
+    {% empty %}
+      <span class="text-muted"><i>{% translate "None. This template is not offered when printing." %}</i></span>
+    {% endfor %}
+  </dd>
+  <dt class="col-sm-3">{% translate "Barcode Format:" %}</dt>
+  <dd class="col-sm-9">
+    {{ object.get_barcode_format_display }}
+  </dd>
+  <dt class="col-sm-3">{% translate "Label Size:" %}</dt>
+  <dd class="col-sm-9">
+    {{ object.page_width }} × {{ object.page_height }} in
+  </dd>
+  {% if object.description %}
+    <dt class="col-sm-3">{% translate "Description:" %}</dt>
+    <dd class="col-sm-9">
+      {{ object.description|linebreaksbr }}
+    </dd>
+  {% endif %}
+  <dt class="col-sm-3">{% translate "Template Code:" %}</dt>
+  <dd class="col-sm-9">
+    {% if object.template_code %}
+      <pre class="mb-0 small bg-body-tertiary rounded p-2"><code>{{ object.template_code }}</code></pre>
+    {% else %}
+      <span class="text-muted"><i>{% translate "None. The built-in card layout is used." %}</i></span>
+    {% endif %}
+  </dd>
+</dl>

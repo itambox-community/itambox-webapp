@@ -20,8 +20,10 @@ Supported code formats (handled by the resolve endpoint):
 | Bare asset tag | `IT-00042` | Case-insensitive |
 | Serial number | `SN-ABC123` | Matched when no tag found |
 | EAN / GTIN | `4012345678901` | EAN-8/13, GTIN-8/12/13/14, UPC — resolved through the AssetType catalogue (asset) or the inventory item's own EAN |
-| `itambox://` scheme | `itambox://asset/42` or `itambox:IT-00042` | Printed on QR labels |
-| Full HTTP URL | `https://itam.example.com/assets/42/` | Scanned from printed QR code |
+| Label reference | `itambox://assets.asset/42`, `itambox://inventory.accessory/7` | Printed on QR labels when `ITAMBOX_BASE_URL` is empty; identifies exactly one object |
+| Detail URL | `https://itam.example.com/assets/assets/42/` | Printed on QR labels when `ITAMBOX_BASE_URL` is set |
+| Legacy reference | `itambox://asset/42` | Pre-1.0 asset deep link |
+| `itambox:` tag | `itambox:IT-00042` | Pre-1.0 QR labels; resolved like a bare asset tag |
 
 !!! note "Tenant behavior"
     The **Find by Scan** flow searches **every tenant you can access**, no
@@ -56,9 +58,10 @@ To scan with the camera:
 
 The **Find by Scan** view resolves any supported code or EAN to the matching target and redirects you to its detail page. The resolution follows a strict hierarchy (cross-tenant for every tenant you can access, and permission-gated):
 
-1. **Asset Match**: If the code matches an `Asset` (by asset tag, serial number, or a deep link like `itambox://asset/<pk>`), it redirects you directly to the asset's detail page.
-2. **AssetType EAN Match**: If the code matches an `AssetType` EAN, it redirects you to the asset list view filtered to that EAN (`/assets/?ean=<ean>`).
-3. **Inventory EAN Match**: If the code matches a `Component`, `Accessory`, or `Consumable` EAN, it redirects you directly to that inventory item's detail page.
+1. **Label Match**: A label reference or detail URL of any labelled object (asset, accessory, component, consumable, location) redirects you to that object's detail page, provided you may view it. See [Printing Labels](labels.md).
+2. **Asset Match**: If the code matches an `Asset` by asset tag or serial number, it redirects you directly to the asset's detail page. Asset tags are unique per tenant only: when the code matches assets in several of your tenants, you land on the asset list searched for that code instead of one of them.
+3. **AssetType EAN Match**: If the code matches an `AssetType` EAN, it redirects you to the asset list view filtered to that EAN (`/assets/?ean=<ean>`).
+4. **Inventory EAN Match**: If the code matches a `Component`, `Accessory`, or `Consumable` EAN, it redirects you directly to that inventory item's detail page.
 
 If no object matches the scanned code, a 404 error is shown. Tenants you cannot access are never searched.
 

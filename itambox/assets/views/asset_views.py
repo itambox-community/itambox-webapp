@@ -1,16 +1,12 @@
 import json
 import logging
 
-from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.contrib.auth.decorators import login_required
-from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
-from django.http import HttpResponse, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
-from django.urls import NoReverseMatch, reverse, reverse_lazy
+from django.http import HttpResponse
+from django.shortcuts import render
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
@@ -26,7 +22,6 @@ from assets.customfields import (
 from assets.services.request_authorization import can_asset_request_action, is_self_service_claim
 from assets.services.timeline import build_asset_timeline
 from assets.spec_display import build_spec_panel
-from assets.tasks.labels import _default_label_card, generate_base64_barcode, render_labels_pdf
 from compliance.audit_services import audit_asset_from_form
 from compliance.models import CustodyReceipt
 from compliance.services import scope_custody_receipts
@@ -45,7 +40,6 @@ from itambox.views.generic import (
     ObjectListView,
 )
 from itambox.views.generic.service_views import GenericTransactionView
-from itambox.views.generic.utils import safe_return_url
 from organization.models import AssetHolder
 from software.models import InstalledSoftware
 from software.tables import InstalledSoftwareTable
@@ -561,33 +555,6 @@ class AssetAuditView(GenericTransactionView):
     service_callable = audit_asset_from_form
 
 
-@login_required
-def asset_label_print(request, pk, template_id=None):
-    asset = get_object_or_404(Asset, pk=pk)
-    if not request.user.has_perm("assets.view_asset", obj=asset):
-        raise PermissionDenied
-
-    if template_id:
-        from extras.models import LabelTemplate
-
-        label_template = get_object_or_404(LabelTemplate, pk=template_id)
-        # Use the same engine as the bulk print job — synchronously, no background Job.
-        pdf_bytes = render_labels_pdf([asset], label_template)
-        response = HttpResponse(pdf_bytes, content_type="application/pdf")
-        response["Content-Disposition"] = f'inline; filename="label_{asset.asset_tag or asset.pk}.pdf"'
-        return response
-
-    # No template chosen — render the on-screen preview using the SAME label card
-    # the print engine produces, so the preview matches the printed (bulk) output.
-
-    barcode_uri = generate_base64_barcode(asset, "qr")
-    context = {
-        "asset": asset,
-        "label_card": _default_label_card(asset, barcode_uri),
-    }
-    return render(request, "assets/assets/asset_label.html", context)
-
-
 class AssetBulkEditView(ObjectBulkEditView):
     queryset = Asset.objects.all()
     form_class = forms.AssetBulkEditForm
@@ -595,126 +562,3 @@ class AssetBulkEditView(ObjectBulkEditView):
 
 class AssetBulkDeleteView(ObjectBulkDeleteView):
     queryset = Asset.objects.all()
-
-
-def _parse_label_asset_pks(raw_pks):
-    try:
-        normalized_pks = [int(pk) for pk in raw_pks]
-    except (TypeError, ValueError):
-        return None
-    if any(pk <= 0 for pk in normalized_pks) or len(set(normalized_pks)) != len(normalized_pks):
-        return None
-    return normalized_pks
-
-
-def _resolve_label_batch_assets(request, raw_pks):
-    normalized_pks = _parse_label_asset_pks(raw_pks)
-    invalid_message = _("The selected assets are invalid or no longer accessible.")
-    if normalized_pks is None:
-        return None, invalid_message
-
-    # Resolve through the active tenant/group/aggregate queryset first. The
-    # per-object view check is still required because queryset visibility and
-    # the asset's actual label-disclosure permission are separate boundaries.
-    assets = list(Asset.objects.for_scope(Scope.current()).filter(pk__in=normalized_pks))
-    assets_by_pk = {asset.pk: asset for asset in assets}
-    if len(assets) != len(normalized_pks) or not all(
-        request.user.has_perm("assets.view_asset", obj=asset) for asset in assets
-    ):
-        return None, invalid_message
-
-    tenant_ids = {asset.tenant_id for asset in assets}
-    if not tenant_ids or None in tenant_ids:
-        return None, _("The selected assets are invalid or no longer accessible.")
-    return ([assets_by_pk[pk] for pk in normalized_pks], assets_by_pk[normalized_pks[0]].tenant), None
-
-
-def _label_job_redirect_url(job):
-    try:
-        return reverse("job_detail", kwargs={"pk": job.pk})
-    except NoReverseMatch:
-        return f"/jobs/{job.pk}/"
-
-
-@login_required
-def bulk_print_labels(request):
-    if request.method != "POST":
-        return HttpResponse(status=405)
-
-    object_pks = request.POST.getlist("pk")
-    template_id = request.POST.get("template_id")
-    layout_mode = request.POST.get("layout_mode", "roll")
-
-    def redirect_to_asset_list():
-        return HttpResponseRedirect(
-            safe_return_url(request, request.META.get("HTTP_REFERER"), reverse("assets:asset_list"))
-        )
-
-    if not object_pks:
-        messages.error(request, _("No assets selected for label printing."))
-        return redirect_to_asset_list()
-
-    try:
-        template_id = int(template_id)
-    except (TypeError, ValueError):
-        messages.error(request, _("No valid label template specified."))
-        return redirect_to_asset_list()
-
-    batch, error = _resolve_label_batch_assets(request, object_pks)
-    if error:
-        messages.error(request, error)
-        return redirect_to_asset_list()
-    assets, selected_tenant = batch
-
-    from django.conf import settings
-    from django_q.tasks import async_task
-
-    from core.models import Job
-
-    tenant_id = selected_tenant.pk
-    ct = ContentType.objects.get_for_model(Asset)
-
-    job = Job.objects.create(
-        name=f"Label Batch Generation: {len(assets)} Assets",
-        tenant=selected_tenant,
-        model=ct,
-        status=Job.STATUS_PENDING,
-        data={"scope_tenant_ids": sorted({asset.tenant_id for asset in assets})},
-    )
-
-    if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
-        async_task(
-            "assets.tasks.labels.generate_label_pdf_batch_task",
-            job.pk,
-            object_pks,
-            template_id,
-            layout_mode,
-            request.user.pk,
-            tenant_id,
-        )
-    else:
-        transaction.on_commit(
-            lambda: async_task(
-                "assets.tasks.labels.generate_label_pdf_batch_task",
-                job.pk,
-                object_pks,
-                template_id,
-                layout_mode,
-                request.user.pk,
-                tenant_id,
-            )
-        )
-
-    redirect_url = _label_job_redirect_url(job)
-
-    messages.success(
-        request,
-        _("Label generation job '%(job)s' queued. Track its progress in real time.") % {"job": job.name},
-    )
-
-    if request.htmx:
-        response = HttpResponse(status=204)
-        response["HX-Redirect"] = redirect_url
-        return response
-
-    return HttpResponseRedirect(redirect_url)

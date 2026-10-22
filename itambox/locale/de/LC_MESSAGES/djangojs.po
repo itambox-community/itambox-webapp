@@ -97,10 +97,6 @@ msgstr "Kamera nicht verfügbar. Bitte verwenden Sie einen Hardware-Scanner oder
 msgid "No asset matches: %(code)s"
 msgstr "Kein Asset stimmt überein: %(code)s"
 
-#: .\static\dist\itambox.js:1
-msgid "EAN '%(code)s' matches multiple assets. Scan the asset tag instead."
-msgstr "Die EAN '%(code)s' stimmt mit mehreren Assets überein. Scannen Sie stattdessen die Inventarnummer."
-
 #: .\static\dist\itambox.js:1 .\static\dist\itambox.js:226
 msgid "Already in basket: %(code)s"
 msgstr "Bereits im Korb: %(code)s"
@@ -301,3 +297,6 @@ msgid "Dispose of %(count)s asset?"
 msgid_plural "Dispose of %(count)s assets?"
 msgstr[0] "%(count)s Asset entsorgen?"
 msgstr[1] "%(count)s Assets entsorgen?"
+
+msgid "'%(code)s' matches several assets. Scan the asset's label instead."
+msgstr "'%(code)s' passt zu mehreren Assets. Scannen Sie stattdessen das Etikett des Assets."

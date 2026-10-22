@@ -1,4 +1,7 @@
 from django.apps import AppConfig
+from django.utils.translation import gettext_lazy as _
+
+from itambox.labels import LabelField, LabelSpec, label_registry
 
 
 class InventoryConfig(AppConfig):
@@ -49,3 +52,17 @@ class InventoryConfig(AppConfig):
                 restore=restore_handler,
                 relations=archive_relations(aggregate),
             )
+
+        # Stock items are labelled for their bins and shelves; the label carries the
+        # item's own reference (QR), never the product EAN, which is not unique.
+        item_label = LabelSpec(
+            fields=(
+                LabelField("part_number", _("Part Number"), lambda item: item.part_number),
+                LabelField("manufacturer", _("Manufacturer"), lambda item: item.manufacturer),
+                LabelField("category", _("Category"), lambda item: item.category),
+                LabelField("ean", _("EAN"), lambda item: item.ean),
+            ),
+            title=lambda item: item.name,
+        )
+        for model_name in ("Accessory", "Component", "Consumable"):
+            label_registry.register(self.get_model(model_name), item_label)

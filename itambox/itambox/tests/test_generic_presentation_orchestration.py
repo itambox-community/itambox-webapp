@@ -276,7 +276,7 @@ class TestListPipeline:
         assert context["saved_filters"] == []
         assert context["active_saved_filter_id"] is None
         assert context["export_templates"] == []
-        assert context["label_templates"] == []
+        assert "label_templates" not in context
 
     @pytest.mark.parametrize("second_action", ("replace", "delete"))
     def test_parameter_collision_names_both_providers_and_key(self, second_action):
@@ -650,6 +650,6 @@ class TestProductionReadiness:
         assert resolution.params is not request.GET
         assert resolution.params == request.GET
         assert filtered is queryset
-        assert set(("saved_filters", "active_saved_filter_id", "export_templates", "label_templates")) <= set(merged)
+        assert set(("saved_filters", "active_saved_filter_id", "export_templates")) <= set(merged)
         assert merged["active_saved_filter_id"] is None
         assert merged is not core_context

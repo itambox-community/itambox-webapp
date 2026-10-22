@@ -35,7 +35,7 @@ class InlineStylePolicyTests(unittest.TestCase):
             [],
         )
         self.assertEqual(
-            scan_source("itambox/assets/tasks/labels.py", "return '<style>.label{}</style>'"),
+            scan_source("itambox/extras/services/labels.py", "return '<style>.label{}</style>'"),
             [],
         )
         self.assertEqual(

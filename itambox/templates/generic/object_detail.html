@@ -44,6 +44,16 @@
         <span class="detail-edit-action__label ms-1">{% translate "Edit" %}</span>
       </a>
     {% endif %}
+    {% if action_urls.label %}
+      <a href="{{ action_urls.label }}"
+         class="btn btn-outline-secondary detail-label-action"
+         aria-label="{% translate 'Print Label' %}"
+         title="{% translate 'Print Label' %}"
+         data-bs-toggle="tooltip"
+         data-bs-placement="top">
+        <i class="mdi mdi-printer" aria-hidden="true"></i>
+      </a>
+    {% endif %}
     {# Clone & Delete live in the [...] overflow menu below (all widths). #}
     {# --- Placeholder for Extra Actions (like Check In/Out) --- #}
     {% block extra_page_actions %}{% endblock %}
