@@ -6,6 +6,27 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+<<<<<<< HEAD
+## [1.0.0-beta.6] - 2026-10-21
+
+### Security
+- Raised `pypdf` to `6.21.2` and `virtualenv` to `21.14.12` for advisories the vulnerability database published after `v1.0.0-beta.5`: four MEDIUM findings in the PDF library, which ships in the release image, and two HIGH findings in the virtualenv development tooling. Both stay inside the ranges `pyproject.toml` already declares, and the dependency security gate that had started failing on every pull request passes again.
+
+### Changed
+- The detail tabs and the card-header tabs (object lists, import, user profile) stay on one row and scroll horizontally instead of wrapping into up to three rows on narrow screens. The overflowing edge fades and a chevron marks the direction; the active tab is scrolled into view, and the bar joins the tab order exactly while it can scroll. The native scrollbar stays hidden because it reserves height and would lift the active tab's underline off the card border.
+- **Breaking for upgrades:** the prerelease migration history is replaced by a named 1.0 baseline. Each app now ships `0001_baseline` followed by `0002_cross_app_relations` where relations cross apps, and the seed and database-guard migrations (`assets.0004_seed_reference_data`, `0005_core_vocabulary`, `0006_core_vocabulary_german_translations`, `0007_asset_type_identity_guard`, `extras.0003_definition_guards`). The `issue88_shard_*`, issue-numbered and auto-named migrations are gone, and a fresh install no longer runs the prerelease data conversions. Every baseline migration declares the prerelease identities it replaces, so a `v1.0.0-beta.5` database records the baseline without executing it and then applies only two idempotent clean-ups (`extras.0004_drop_legacy_column_default`, `users.0002_unique_constraint_names`). A fresh install and an upgraded database end in the same schema and the same migration-recorder state. The supported upgrade origin is `v1.0.0-beta.5`; a database from `v1.0.0-beta.4` or earlier must first be upgraded to beta.5, and `migration_baseline_preflight` rejects it. A plugin migration that names a first-party migration in its `dependencies` must be updated to the new names.
+- `migration_baseline_preflight` recognizes `v1.0.0-beta.5` (`supported-predecessor-beta5`) as the only predecessor state; the earlier pre-squash, transition-release and beta.3 states are removed. `scripts/migration_audit.py` now verifies that the `replaces` declarations on disk and the checked manifest agree, and the supported-upgrade qualification driver is `scripts/qualification/migrations/run-supported-upgrade.sh`.
+
+### Fixed
+- The theme switch is icon-only. The option name stays in the DOM as visually hidden text, so each radio keeps its accessible name while the three segments keep equal widths; with a visible label the active segment grew past its third of the track and the sliding thumb no longer covered it.
+- Documentation, issue templates, contributor guidance and the in-product footer link point at `itambox-community` after the repository moved; the README badge and the stated database requirement now say PostgreSQL 16 or newer, matching the compatibility note of this release. The development settings no longer allow a private LAN host.
+- The theme switch now marks the active option in both shells. Both renders shared a single radio-group name, so checking the mobile copy silently unchecked the topbar copy: the thumb stayed on the first segment, the active label never appeared and its icon kept the body colour, which read as a dark icon on the violet fill in light mode. Each shell now owns its own group (`theme-preference-<scope>`) and the control sync matches the scoped names by prefix.
+
+### Security
+- Raised the dependency floors that carried open advisories: `Pillow` to `>=13.0.0,<14.0` (was `>=12.3.0,<13.0`; nine advisories across fourteen alerts, including critical ones), `certifi` to `2026.10.19` and, through `@graphiql/react`, `markdown-it` to `14.3.3` in the browser bundle. The Pillow floor is a deployment requirement: an existing installation has to reinstall its Python dependencies before it starts.
+
+=======
+>>>>>>> origin/main
 ## [1.0.0-beta.5] - 2026-10-20
 ### Compatibility
 - **Breaking for upgrades:** the prerelease migration history is replaced by a named 1.0 baseline. Each app now ships `0001_baseline` followed by `0002_cross_app_relations` where relations cross apps, and the seed and database-guard migrations (`assets.0004_seed_reference_data`, `0005_core_vocabulary`, `0006_core_vocabulary_german_translations`, `0007_asset_type_identity_guard`, `extras.0003_definition_guards`). The `issue88_shard_*`, issue-numbered and auto-named migrations are gone, and a fresh install no longer runs the prerelease data conversions. Every baseline migration declares the prerelease identities it replaces, so a `v1.0.0-beta.5` database records the baseline without executing it and then applies only two idempotent clean-ups (`extras.0004_drop_legacy_column_default`, `users.0002_unique_constraint_names`). A fresh install and an upgraded database end in the same schema and the same migration-recorder state. The supported upgrade origin is `v1.0.0-beta.5`; a database from `v1.0.0-beta.4` or earlier must first be upgraded to beta.5, and `migration_baseline_preflight` rejects it. A plugin migration that names a first-party migration in its `dependencies` must be updated to the new names.
@@ -428,7 +449,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-beta.5...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-beta.6...HEAD
+[1.0.0-beta.6]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.4
 [1.0.0-beta.3]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.3

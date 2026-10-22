@@ -1014,7 +1014,7 @@ wheels = [
 
 [[package]]
 name = "itambox"
-version = "1.0.0b5"
+version = "1.0.0b6"
 source = { virtual = "." }
 dependencies = [
     { name = "crispy-bootstrap5" },
