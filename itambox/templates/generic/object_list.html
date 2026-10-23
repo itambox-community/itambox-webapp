@@ -155,65 +155,6 @@
   {% if table_config_form %}
     {% include 'core/modals/table_config.html' %}
   {% endif %}
-  {# Bulk Print Modal — only rendered on Asset list page #}
-  {% if model_name_str == 'assets.asset' %}
-    <div class="modal modal-blur fade"
-         id="bulk-print-modal"
-         tabindex="-1"
-         aria-labelledby="bulkPrintModalLabel"
-         aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <form id="bulk-print-form"
-                method="post"
-                action="{% url 'assets:asset_bulk_print_labels' %}"
-                hx-boost="false">
-            {% csrf_token %}
-            <div class="modal-header">
-              <h5 class="modal-title" id="bulkPrintModalLabel">{% translate "Bulk Print Labels" %}</h5>
-              <button type="button"
-                      class="btn-close"
-                      data-bs-dismiss="modal"
-                      aria-label="{% translate 'Close' %}"></button>
-            </div>
-            <div class="modal-body">
-              <p class="text-muted">{% translate "Select the label template and layout for the selected assets:" %}</p>
-              <div class="mb-3">
-                <label for="bulk-print-template" class="form-label">{% translate "Label Template" %}</label>
-                <select name="template_id"
-                        id="bulk-print-template"
-                        class="form-select"
-                        required>
-                  <option value="">{% translate "Select a template" %}</option>
-                  {% for template in label_templates %}
-                    <option value="{{ template.pk }}">{{ template.name }}</option>
-                  {% empty %}
-                    <option value="" disabled>{% translate "No templates found in database" %}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="mb-3">
-                <label for="bulk-print-layout" class="form-label">{% translate "Layout Mode" %}</label>
-                <select name="layout_mode"
-                        id="bulk-print-layout"
-                        class="form-select"
-                        required>
-                  <option value="roll">{% translate "Roll Printer" %}</option>
-                  <option value="a4_grid">{% translate "A4 Grid (3x8)" %}</option>
-                  <option value="letter_grid">{% translate "Letter Grid (3x8)" %}</option>
-                </select>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
-              <button type="submit" class="btn btn-primary">{% translate "Queue Print Job" %}</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  {% endif %}
-  {# Bulk Checkout Modal — rendered on Accessory, Consumable, Component lists #}
   {% if model_name_str == 'inventory.consumable' or model_name_str == 'inventory.consumablestock' or model_name_str == 'inventory.accessory' or model_name_str == 'inventory.accessorystock' or model_name_str == 'inventory.component' or model_name_str == 'inventory.componentstock' %}
     <div class="modal modal-blur fade"
          id="bulk-checkout-inventory-modal"

@@ -83,7 +83,8 @@ class TopologyMutationBoundaryTests(APITestCase):
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(
             detail_response.context["action_urls"],
-            {"edit": None, "delete": None, "clone": None},
+            # A tenant group carries no label, so the label target stays empty.
+            {"edit": None, "delete": None, "clone": None, "label": None},
         )
         self.assertIsNone(list_response.context["import_url"])
         self.assertIsNone(list_response.context["bulk_edit_url"])

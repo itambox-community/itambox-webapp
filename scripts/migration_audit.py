@@ -50,6 +50,10 @@ REVIEWED_SEMANTICS = {
         "Installs the PostgreSQL guards for permanent reusable-definition identities, immutable definition "
         "and choice identities and global-field membership rejection; fully reversible."
     ),
+    "extras.0005_label_template_object_types": (
+        "Binds every existing label template to assets.asset, the only object type the former engine printed, "
+        "and moves the never-rendered Data Matrix format to QR; idempotent, schema reverse is the field removal."
+    ),
     "extras.0004_drop_legacy_column_default": (
         "Drops a database default that only databases created by earlier prereleases carry, so both histories "
         "converge on one schema; idempotent."

@@ -10,14 +10,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import View
 
-from assets.tasks.labels import render_labels_pdf
 from core.csv_utils import csv_safe
 from core.data_transfer import SCOPE_CONTAINER, SCOPE_OWNER, policy_for, required_export_permissions
 from core.managers import Scope
@@ -260,44 +258,9 @@ class ExportTemplateDeleteView(ObjectDeleteView):
         return self.request.user.is_superuser and super().has_permission()
 
 
-class LabelSelectView(LoginRequiredMixin, View):
-    def get(self, request, app_label, model_name, object_id):
-        if not request.user.has_perm(f"{app_label}.view_{model_name}"):
-            raise PermissionDenied
-        context = {
-            "label_templates": LabelTemplate.objects.all(),
-            "object_id": object_id,
-            "app_label": app_label,
-            "model_name": model_name,
-            "title": _("Select Label Template"),
-        }
-        return render(request, "generic/label_select.html", context)
-
-
-class LabelPrintView(LoginRequiredMixin, View):
-    def get(self, request, template_id, object_id):
-        label_template = get_object_or_404(LabelTemplate, pk=template_id)
-        content_type = label_template.content_type if hasattr(label_template, "content_type") else None
-        if content_type:
-            model = content_type.model_class()
-            obj = get_object_or_404(model, pk=object_id)
-        else:
-            model = apps.get_model("assets", "Asset")
-            obj = get_object_or_404(model, pk=object_id)
-
-        if not request.user.has_perm(f"{model._meta.app_label}.view_{model._meta.model_name}", obj=obj):
-            raise PermissionDenied
-
-        pdf_bytes = render_labels_pdf([obj], label_template)
-        response = HttpResponse(pdf_bytes, content_type="application/pdf")
-        filename = getattr(obj, "asset_tag", None) or object_id
-        response["Content-Disposition"] = f'inline; filename="label_{filename}.pdf"'
-        return response
-
-
 @method_decorator(login_required, name="dispatch")
 class LabelTemplateListView(ObjectListView):
-    queryset = LabelTemplate.objects.all()
+    queryset = LabelTemplate.objects.prefetch_related("content_types")
     table = LabelTemplateTable
     template_name = "generic/object_list.html"
     action_buttons = ("add",)
@@ -317,7 +280,6 @@ class LabelTemplateDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         obj = self.get_object()
         context["title"] = str(obj)
-        context["barcode_formats"] = dict(LabelTemplate._meta.get_field("barcode_format").choices)
         return context
 
 

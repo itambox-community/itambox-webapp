@@ -353,11 +353,7 @@ class MovedFeatureRouteOwnershipTests(SimpleTestCase):
             ): "extras.attachment_views",
             reverse("file_attachment_delete", kwargs={"pk": 1}): "extras.attachment_views",
             reverse("file_attachment_download", kwargs={"pk": 1}): "extras.attachment_views",
-            reverse(
-                "label_select",
-                kwargs={"app_label": "assets", "model_name": "asset", "object_id": 1},
-            ): "extras.export_views",
-            reverse("label_print", kwargs={"template_id": 1, "object_id": 1}): "extras.export_views",
+            reverse("label_print", kwargs={"app_label": "assets", "model_name": "asset"}): "extras.label_views",
             reverse("extras:exporttemplate_list"): "extras.export_views",
             reverse("extras:webhookendpoint_list"): "extras.webhook_views",
             reverse("extras:eventrule_list"): "extras.event_rule_views",

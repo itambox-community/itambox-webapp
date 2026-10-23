@@ -25,7 +25,7 @@ class ExtrasTableOwnershipTests(SimpleTestCase):
             (
                 LabelTemplateTable,
                 LabelTemplate,
-                ("name", "description", "page_width", "page_height", "barcode_format"),
+                ("name", "description", "content_types", "page_width", "page_height", "barcode_format"),
             ),
         )
 

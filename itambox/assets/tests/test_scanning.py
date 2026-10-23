@@ -494,12 +494,17 @@ class ScanResolveViewTests(TenantTestMixin, TestCase):
         data = json.loads(resp.content)
         self.assertTrue(data["found"])
 
-    def test_member_without_view_asset_gets_403(self):
-        """Member with no assets.view_asset permission is denied."""
+    def test_member_without_view_asset_resolves_nothing(self):
+        """Without assets.view_asset no asset is ever resolved.
+
+        The endpoint has no blanket asset gate (stock and location labels are
+        resolved under their own view permissions); every asset step checks
+        assets.view_asset, so an asset code answers a plain miss.
+        """
         # tenant_user has empty permissions (setup_tenant_context default).
         self.client_login_to_tenant(self.tenant_user, self.tenant)
         resp = self.client.get(self.url, {"code": "SCAN-001"})
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
         data = json.loads(resp.content)
         self.assertFalse(data.get("found"))
 

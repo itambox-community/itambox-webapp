@@ -4,8 +4,11 @@ Handles the multiple input shapes that a scan can produce:
 - Bare asset tag:      ITM-00042
 - Bare serial number:  SN-ABC123
 - EAN / GTIN:          4012345678901  (resolved through the AssetType catalogue)
-- itambox scheme:      itambox:ITM-00042  or  itambox://asset/7
-- Full / partial URL:  https://itam.example.com/assets/7/  (last path segment used as pk)
+- Label reference:     itambox://assets.asset/7, the absolute detail URL a label
+                       printed with ITAMBOX_BASE_URL encodes, or the pre-1.0
+                       itambox://asset/7 -- identifies exactly one row
+- itambox scheme:      itambox:ITM-00042  (a tag; tags are unique per tenant only)
+- Other URL:           https://host/.../7/  (last path segment tried as pk, then tag)
 
 Tenant behavior: a scan without an explicit ``user`` resolves within the
 current tenant scope — audit sessions and bulk baskets stay bound to their
@@ -19,10 +22,13 @@ from urllib.parse import urlencode
 
 from django.core.exceptions import FieldError
 from django.db.models import Q
+from django.urls import reverse
+from django.utils.translation import gettext as _
 
 from assets.models import Asset, AssetType
 from core.managers import Scope
 from core.tenant_scope import accessible_tenant_ids
+from itambox.labels import parse_label_reference
 from itambox.scanning import strip_itambox_prefix
 
 
@@ -111,19 +117,19 @@ def resolve_scanned_asset_in_queryset(code, queryset, match_ean=True):
     operations to bind resolution to their exact operation permission instead
     of the broader global scanner scope.
     """
+    # A label reference names one row: never fall back to a tag lookup for it.
+    reference = parse_label_reference(code)
+    if reference is not None:
+        model, pk = reference
+        if model is not queryset.model:
+            return None, False
+        return _resolve_pk(str(pk), queryset), False
+
     raw = strip_itambox_prefix(code)
     if not raw:
         return None, False
 
     qs = queryset
-
-    # itambox://asset/<pk>  — PK-based deep link
-    if raw.lower().startswith("itambox://asset/"):
-        pk_str = raw[len("itambox://asset/") :].strip("/ \\\"'")
-        asset = _resolve_pk(pk_str, qs)
-        if asset is not None:
-            return asset, False
-        return None, False
 
     # Full URL — extract last non-empty path segment as pk or tag/serial
     if raw.lower().startswith(("http://", "https://")):
@@ -131,9 +137,14 @@ def resolve_scanned_asset_in_queryset(code, queryset, match_ean=True):
         if asset is not None:
             return asset, False
 
-    asset = qs.filter(Q(asset_tag__iexact=raw) | Q(serial_number__iexact=raw)).first()
-    if asset is not None:
-        return asset, False
+    # Tags are unique per tenant only and serials not at all: a scope spanning
+    # several tenants can hold more than one match, which must surface as
+    # ambiguous instead of silently opening one of them.
+    matches = list(qs.filter(Q(asset_tag__iexact=raw) | Q(serial_number__iexact=raw)).order_by("pk")[:2])
+    if len(matches) > 1:
+        return None, True
+    if matches:
+        return matches[0], False
 
     return _resolve_ean(raw, qs, match_ean)
 
@@ -175,34 +186,60 @@ def resolve_scanned_code(code, user=None, match_ean=True, tenant=None):
     return asset
 
 
+def _reference_target(reference, user):
+    """The detail target for a label reference the user may view, else ``None``."""
+    model, pk = reference
+    meta = model._meta
+    if not user.has_perm(f"{meta.app_label}.view_{meta.model_name}"):
+        return None
+    qs = _accessible_model_queryset(model, user)
+    obj = qs.filter(pk=pk).first() if qs is not None else None
+    if obj is None or not user.has_perm(f"{meta.app_label}.view_{meta.model_name}", obj=obj):
+        return None
+    return {"url": obj.get_absolute_url(), "label": str(obj)}
+
+
+def _asset_target(code, raw, user):
+    """Steps 1 and 2 of :func:`resolve_scanned_target` for a user who may view assets."""
+    asset, ambiguous = resolve_scanned_asset(code, user=user, match_ean=False)
+    if asset is not None:
+        return {"url": asset.get_absolute_url(), "label": str(asset)}
+    if ambiguous:
+        url = "%s?%s" % (reverse("assets:asset_list"), urlencode({"q": raw}))
+        return {"url": url, "label": _("Several assets match %(code)s") % {"code": raw}}
+    # AssetType EAN -> the asset list filtered to assets of that type.
+    atype = AssetType.objects.filter(ean__iexact=raw).first()
+    if atype is not None:
+        url = "%s?%s" % (reverse("assets:asset_list"), urlencode({"ean": raw}))
+        return {"url": url, "label": str(atype)}
+    return None
+
+
 def resolve_scanned_target(code, user):
     """Resolve a scanned code to a navigation target for the global scanner.
 
     Resolution order (permission-gated so names never leak across object
     types; cross-tenant across every tenant the user can access):
-      1. Asset by tag / serial / itambox link  -> asset detail.
-      2. AssetType by EAN                       -> asset list filtered to that EAN.
-      3. Component / Accessory / Consumable EAN -> that item's detail.
+      0. Label reference (any labelled model)    -> that object's detail.
+      1. Asset by tag / serial                   -> asset detail; a tag that
+         several accessible assets share         -> asset list searched for it.
+      2. AssetType by EAN                        -> asset list filtered to that EAN.
+      3. Component / Accessory / Consumable EAN  -> that item's detail.
 
     Returns ``{'url': ..., 'label': ...}`` or ``None``.
     """
-    from django.urls import reverse
-
-    if user.has_perm("assets.view_asset"):
-        asset = resolve_scanned_code(code, user=user, match_ean=False)
-        if asset is not None:
-            return {"url": asset.get_absolute_url(), "label": str(asset)}
+    reference = parse_label_reference(code)
+    if reference is not None:
+        return _reference_target(reference, user)
 
     raw = strip_itambox_prefix(code)
     if not raw:
         return None
 
-    # AssetType EAN -> the asset list filtered to assets of that type.
     if user.has_perm("assets.view_asset"):
-        atype = AssetType.objects.filter(ean__iexact=raw).first()
-        if atype is not None:
-            url = "%s?%s" % (reverse("assets:asset_list"), urlencode({"ean": raw}))
-            return {"url": url, "label": str(atype)}
+        target = _asset_target(code, raw, user)
+        if target is not None:
+            return target
 
     # Inventory item EAN -> item detail.
     # Deferred at call time: inventory reaches back into assets, so a module-top

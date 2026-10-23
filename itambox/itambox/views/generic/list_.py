@@ -12,6 +12,7 @@ from django.views.generic import ListView
 from core.data_transfer import policy_for
 from core.features import STABLE
 from core.forms.import_forms import is_model_importable
+from itambox.labels import user_label_print_url
 from itambox.registry import registry
 from itambox.utils import get_help_url, get_model_viewname
 from itambox.views.generic.authorization import PermissionResolver
@@ -231,6 +232,7 @@ class ObjectListView(TenantScopingViewMixin, PermissionRequiredMixin, LoginRequi
             except NoReverseMatch:
                 context["import_url"] = None
 
+        context["label_print_url"] = user_label_print_url(self.request.user, model)
         context["bulk_delete_url"] = self._bulk_action_url(model, "bulk_delete")
         context["bulk_edit_url"] = self._bulk_action_url(model, "bulk_edit")
         if not getattr(context.get("table"), "bulk_edit_enabled", True):

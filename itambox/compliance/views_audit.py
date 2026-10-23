@@ -210,7 +210,7 @@ class AssetAuditScanView(LoginRequiredMixin, PermissionRequiredMixin, View):
 
             if not asset:
                 if ambiguous:
-                    message = _("EAN '%(barcode)s' matches multiple assets. Scan the asset tag instead.") % {
+                    message = _("'%(barcode)s' matches several assets. Scan the asset's label instead.") % {
                         "barcode": barcode
                     }
                 else:

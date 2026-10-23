@@ -131,12 +131,11 @@
     initBulkEditSelectors();
   }
 
-  // Bulk Print and Bulk Checkout modal submit handler. The modal
-  // forms live outside any selection scope, so they read from the list container.
+  // Bulk Checkout modal submit handler. The modal form lives outside any
+  // selection scope, so it reads from the list container.
   document.addEventListener('submit', function (event) {
     const target = event.target as HTMLElement;
-    const form = target.closest<HTMLFormElement>('#bulk-print-form') ||
-                 target.closest<HTMLFormElement>('#bulk-checkout-inventory-form');
+    const form = target.closest<HTMLFormElement>('#bulk-checkout-inventory-form');
     if (!form) return;
 
     const checkboxes = document.querySelectorAll<HTMLInputElement>(
@@ -153,8 +152,7 @@
       return;
     }
 
-    const containerId = form.id === 'bulk-print-form' ? 'bulk-print-pks' :
-                        'bulk-checkout-inventory-pks';
+    const containerId = 'bulk-checkout-inventory-pks';
     let container = form.querySelector<HTMLElement>('#' + containerId);
     if (!container) {
       container = document.createElement('div');
@@ -209,6 +207,7 @@
   const BULK_BUTTONS: Array<{ trigger: string; form: string; confirm?: string }> = [
     { trigger: '.btn-bulk-delete', form: '.bulk-delete-form' },
     { trigger: '.btn-bulk-edit', form: '.bulk-edit-form' },
+    { trigger: '.btn-bulk-label', form: '.bulk-label-form' },
     { trigger: '.btn-bulk-restore', form: '.bulk-restore-form' },
     { trigger: '.btn-bulk-acknowledge', form: '.bulk-acknowledge-form' },
     { trigger: '.btn-bulk-resolve', form: '.bulk-resolve-form' },

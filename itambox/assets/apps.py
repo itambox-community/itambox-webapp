@@ -1,5 +1,7 @@
 from django.apps import AppConfig
+from django.utils.translation import gettext_lazy as _
 
+from itambox.labels import LabelField, LabelSpec, label_registry
 from itambox.registry import registry
 
 
@@ -104,5 +106,25 @@ class AssetsConfig(AppConfig):
                 ArchiveRelation("journal_entries", ArchiveBehaviour.KEEP, "journal entries stay as evidence"),
                 ArchiveRelation("file_attachments", ArchiveBehaviour.KEEP, "attachments stay as evidence"),
                 ArchiveRelation("image_attachments", ArchiveBehaviour.KEEP, "attachments stay as evidence"),
+            ),
+        )
+
+        # Asset labels print the tag as the short identifier (Code 128 / Code 39)
+        # and keep the ``asset`` template alias and the pre-1.0 itambox://asset/<pk>
+        # scheme of the former asset-only engine.
+        label_registry.register(
+            self.get_model("Asset"),
+            LabelSpec(
+                fields=(
+                    LabelField("asset_tag", _("Asset Tag"), lambda asset: asset.asset_tag),
+                    LabelField("name", _("Name"), lambda asset: asset.name),
+                    LabelField("serial_number", _("Serial Number"), lambda asset: asset.serial_number),
+                    LabelField("location", _("Location"), lambda asset: asset.location),
+                    LabelField("status", _("Status"), lambda asset: asset.status),
+                ),
+                title=lambda asset: asset.name,
+                barcode_value=lambda asset: asset.asset_tag,
+                template_alias="asset",
+                legacy_scheme="asset",
             ),
         )

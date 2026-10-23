@@ -125,7 +125,7 @@ The tables below document every variable available in `.env.example`, organized 
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ITAMBOX_BASE_URL` | Recommended (prod) | *(empty)* | Fully qualified base URL used to build absolute URLs in QR code labels, email links, and outbound references. Must not have a trailing slash. In development, leave blank — the app uses the `itambox:<tag>` URI scheme by default. Example: `https://itam.example.com` |
+| `ITAMBOX_BASE_URL` | Recommended (prod) | *(empty)* | Fully qualified base URL used to build absolute URLs in QR code labels (a phone camera then opens the object directly), email links, and outbound references. Must not have a trailing slash. When blank, labels encode `itambox://<app>.<model>/<id>`, which only ITAMbox's scanners resolve. Example: `https://itam.example.com` |
 
 ---
 

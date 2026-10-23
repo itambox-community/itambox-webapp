@@ -13,7 +13,6 @@ from extras.models import (
     FileAttachment,
     ImageAttachment,
     JournalEntry,
-    LabelTemplate,
     ObjectWatch,
     SavedFilter,
 )
@@ -133,17 +132,12 @@ class _ExtrasGenericPresentationProvider:
         }
         if input.partial:
             context["export_templates"] = []
-            context["label_templates"] = []
             return context
 
         try:
             context["export_templates"] = list(ExportTemplate.objects.filter(content_type=input.content_type))
         except Exception:  # broad except: render-degrade: keep list pages usable when export catalogues fail
             context["export_templates"] = []
-        try:
-            context["label_templates"] = list(LabelTemplate.objects.all())
-        except Exception:  # broad except: render-degrade: keep list pages usable when label catalogues fail
-            context["label_templates"] = []
         return context
 
     def build_detail_context(self, input: DetailContextInput) -> dict[str, object]:

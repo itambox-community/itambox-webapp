@@ -4,7 +4,7 @@
       "assets.0007_asset_type_identity_guard",
       "compliance.0002_cross_app_relations",
       "core.0003_cross_app_relations_late",
-      "extras.0004_drop_legacy_column_default",
+      "extras.0005_label_template_object_types",
       "inventory.0002_cross_app_relations",
       "licenses.0003_cross_app_relations_late",
       "organization.0002_cross_app_relations",
@@ -149,6 +149,10 @@
       [
         "extras.0003_definition_guards",
         "extras.0004_drop_legacy_column_default"
+      ],
+      [
+        "extras.0004_drop_legacy_column_default",
+        "extras.0005_label_template_object_types"
       ],
       [
         "inventory.0001_baseline",
@@ -306,7 +310,7 @@
     "leaves": [
       "assets.0007_asset_type_identity_guard",
       "compliance.0002_cross_app_relations",
-      "extras.0004_drop_legacy_column_default",
+      "extras.0005_label_template_object_types",
       "procurement.0002_cross_app_relations",
       "subscriptions.0002_cross_app_relations",
       "users.0002_unique_constraint_names"
@@ -328,6 +332,7 @@
       "extras.0002_cross_app_relations",
       "extras.0003_definition_guards",
       "extras.0004_drop_legacy_column_default",
+      "extras.0005_label_template_object_types",
       "inventory.0001_baseline",
       "inventory.0002_cross_app_relations",
       "licenses.0001_baseline",
@@ -810,6 +815,35 @@
       "path": "itambox/extras/migrations/0004_drop_legacy_column_default.py",
       "replaces_count": 0,
       "reviewed_semantics": "Drops a database default that only databases created by earlier prereleases carry, so both histories converge on one schema; idempotent.",
+      "run_before": []
+    },
+    {
+      "dependencies": [
+        "contenttypes.0002_remove_content_type_name",
+        "extras.0004_drop_legacy_column_default"
+      ],
+      "id": "extras.0005_label_template_object_types",
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 1,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/extras/migrations/0005_label_template_object_types.py",
+      "replaces_count": 0,
+      "reviewed_semantics": "Binds every existing label template to assets.asset, the only object type the former engine printed, and moves the never-rendered Data Matrix format to QR; idempotent, schema reverse is the field removal.",
       "run_before": []
     },
     {
@@ -1635,9 +1669,9 @@
   "schema_version": 4,
   "summary": {
     "apps": 11,
-    "migrations": 30,
+    "migrations": 31,
     "replaced_identities": 397,
     "replacing_migrations": 28,
-    "reviewed_custom_migrations": 8
+    "reviewed_custom_migrations": 9
   }
 }

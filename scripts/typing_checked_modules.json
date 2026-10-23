@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "canonical_python": "3.12",
-  "next_sequence": 78,
-  "policy_sha256": "8db690eb7b8fd5cfd8e897ab4b58e8202a030bef612971e2cbac0762dcd9cdc8",
+  "next_sequence": 80,
+  "policy_sha256": "6b110a6c1beed080dc42d9d65145dd717acf6d936cef8a601b7f9f1e72564692",
   "config": {
     "config_file": "pyproject.toml",
     "working_directory": "itambox",
@@ -147,16 +147,10 @@
       "path": "itambox/assets/tasks/labels.py",
       "module": "assets.tasks.labels",
       "issue": "#93",
-      "note": "Slice 7 symbol admission: the label generation boundary -- the authored print CSS loader, the bounded CSS measurement helper, the PNG-bytes and base64 data-URI barcode producers, the generic chunk_list pager, and the two label batch task entry envelopes with their implicit None outcomes. Asset instances are typed as object so the projection does not import the asset model graph; the HTML card renderer, the Jinja2 sandbox, the document builder, and the xhtml2pdf emitters remain outside this slice.",
+      "note": "Slice 7 symbol admission, narrowed when the label engine became generic: this module is now only the queue-compatibility entry that delegates a job queued under the former asset-only task path to extras.tasks.labels. The moved helpers and the generic task continue under sequences 78 and 79.",
       "scope": "symbols",
       "symbols": [
-        "_label_print_css",
-        "_safe_label_measurement",
-        "chunk_list",
-        "generate_base64_barcode",
-        "generate_label_batch_task",
-        "generate_label_pdf_batch_task",
-        "generate_single_label_graphic"
+        "generate_label_pdf_batch_task"
       ]
     },
     {
@@ -394,6 +388,22 @@
       ]
     },
     {
+      "sequence": 78,
+      "path": "itambox/extras/services/labels.py",
+      "module": "extras.services.labels",
+      "issue": "#93",
+      "note": "Continues the sequence 69 admission for the generic label engine: the authored print CSS loader, the bounded CSS measurement helper, the generic chunk_list pager and the data-URI barcode producer, now typed over the admitted LabelContent DTO (and its LabelNotApplicable refusal) instead of an asset. The Jinja2 sandbox, the card renderers and the xhtml2pdf emitters remain outside this slice.",
+      "scope": "symbols",
+      "symbols": [
+        "LabelContent",
+        "LabelNotApplicable",
+        "barcode_data_uri",
+        "chunk_list",
+        "label_print_css",
+        "safe_label_measurement"
+      ]
+    },
+    {
       "sequence": 61,
       "path": "itambox/extras/tasks/alerts.py",
       "module": "extras.tasks.alerts",
@@ -403,6 +413,17 @@
       "symbols": [
         "evaluate_alert_rules_task",
         "run_alert_rule_now"
+      ]
+    },
+    {
+      "sequence": 79,
+      "path": "itambox/extras/tasks/labels.py",
+      "module": "extras.tasks.labels",
+      "issue": "#93",
+      "note": "Continues the sequence 69 admission for the generic queued label task entry envelope (any labelled model, persisted tenant scope).",
+      "scope": "symbols",
+      "symbols": [
+        "generate_label_pdf_batch_task"
       ]
     },
     {

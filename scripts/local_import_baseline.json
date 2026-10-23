@@ -198,12 +198,6 @@
     {
       "path": "itambox/assets/scanning.py",
       "context": "FunctionDef:resolve_scanned_target",
-      "statement": "from django.urls import reverse",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/scanning.py",
-      "context": "FunctionDef:resolve_scanned_target",
       "statement": "from inventory.models import Accessory, Component, Consumable",
       "count": 1
     },
@@ -337,30 +331,6 @@
       "path": "itambox/assets/views/asset_views.py",
       "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
       "statement": "from licenses.tables import LicenseSeatAssignmentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "FunctionDef:asset_label_print",
-      "statement": "from extras.models import LabelTemplate",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "FunctionDef:bulk_print_labels",
-      "statement": "from core.models import Job",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "FunctionDef:bulk_print_labels",
-      "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "FunctionDef:bulk_print_labels",
-      "statement": "from django_q.tasks import async_task",
       "count": 1
     },
     {

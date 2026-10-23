@@ -112,7 +112,9 @@ class SeedOperationsMixin:
             ScheduledReport,
             WebhookEndpoint,
         )
+        from inventory.models import Accessory, Component, Consumable
         from licenses.models import License
+        from organization.models import Location
 
         self.stdout.write("--- Operations: alerts, reports, automation ---")
 
@@ -393,18 +395,10 @@ class SeedOperationsMixin:
                 '<div><div class="label-card-title">{{ asset.name }}</div>'
                 "<div>From: {{ asset.location }}</div><div>{{ asset.asset_tag }}</div>{{ barcode_img }}</div>",
             ),
-            (
-                "High-Security Data Matrix Label",
-                "1.0 x 1.0 inch 2D label for regulated / GxP assets",
-                "datamatrix",
-                1.0,
-                1.0,
-                '<div class="label-seed-centered">{{ barcode_img }}'
-                '<div class="label-card-tag label-seed-small">{{ asset.asset_tag }}</div></div>',
-            ),
         ]
+        asset_type = ContentType.objects.get_for_model(Asset)
         for name, desc, fmt, w, h, code in label_templates:
-            LabelTemplate.objects.get_or_create(
+            template, _created = LabelTemplate.objects.get_or_create(
                 name=name,
                 defaults={
                     "description": desc,
@@ -414,6 +408,33 @@ class SeedOperationsMixin:
                     "template_code": code,
                 },
             )
+            template.content_types.add(asset_type)
+        # QR-only layouts for stock bins and storage locations: the code carries
+        # the object's own reference, so a scan opens exactly that bin or room.
+        bin_template, _created = LabelTemplate.objects.get_or_create(
+            name="Stock Bin Label",
+            defaults={
+                "description": "2.0 x 1.0 inch QR label for accessory, component and consumable bins",
+                "barcode_format": "qr",
+                "page_width": 2.0,
+                "page_height": 1.0,
+                "template_code": "",
+            },
+        )
+        bin_template.content_types.add(
+            *(ContentType.objects.get_for_model(model) for model in (Accessory, Component, Consumable))
+        )
+        location_template, _created = LabelTemplate.objects.get_or_create(
+            name="Location Label",
+            defaults={
+                "description": "2.25 x 1.25 inch QR label for rooms, racks and shelves",
+                "barcode_format": "qr",
+                "page_width": 2.25,
+                "page_height": 1.25,
+                "template_code": "",
+            },
+        )
+        location_template.content_types.add(ContentType.objects.get_for_model(Location))
 
         self.stdout.write(
             f"  {len(rules)} alert rules, {log_count} alert logs, 4 report templates, "

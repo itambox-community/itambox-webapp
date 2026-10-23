@@ -198,7 +198,7 @@ class EanScanTests(TenantTestMixin, TestCase):
             data={"barcode": "4012345678901"},
         )
         self.assertEqual(resp.status_code, 400)
-        self.assertIn(b"multiple assets", resp.content)
+        self.assertIn(b"matches several assets", resp.content)
 
 
 class AuditScanClassificationTests(TenantTestMixin, TestCase):

@@ -10,7 +10,6 @@ app_name = "assets"
 
 urlpatterns = [
     # Dashboard path removed, handled in core.urls
-    path("assets/bulk-print-labels/", views.bulk_print_labels, name="asset_bulk_print_labels"),
     # Scanner-driven bulk check-in / check-out / disposal (scan basket)
     path("assets/checkin/scan/", views.BulkCheckinScanView.as_view(), name="asset_bulk_checkin_scan"),
     path("assets/checkout/scan/", views.BulkCheckoutScanView.as_view(), name="asset_bulk_checkout_scan"),
@@ -64,8 +63,6 @@ urlpatterns = [
     # per object, the NetBox way.
     # Audits and barcoding routes.
     path("<int:pk>/audit/", views.AssetAuditView.as_view(), name="asset_audit"),
-    path("<int:pk>/print/", views.asset_label_print, name="asset_label_print"),
-    path("<int:pk>/print/<int:template_id>/", views.asset_label_print, name="asset_label_print_template"),
     # Depreciation
     path("depreciations/", views.DepreciationListView.as_view(), name="depreciation_list"),
     path("depreciations/add/", views.DepreciationEditView.as_view(), name="depreciation_create"),

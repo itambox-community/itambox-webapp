@@ -160,11 +160,18 @@ class LabelTemplateTable(BaseTable):
     page_width = tables.Column(verbose_name=_("Width (in)"))
     page_height = tables.Column(verbose_name=_("Height (in)"))
     barcode_format = tables.Column(verbose_name=_("Barcode"))
+    content_types = tables.Column(verbose_name=_("Object Types"), orderable=False, empty_values=())
 
     class Meta(BaseTable.Meta):
         model = LabelTemplate
-        fields = ("name", "description", "page_width", "page_height", "barcode_format")
-        sequence = ("name", "description", "page_width", "page_height", "barcode_format")
+        fields = ("name", "description", "content_types", "page_width", "page_height", "barcode_format")
+        sequence = ("name", "description", "content_types", "page_width", "page_height", "barcode_format")
+
+    def render_content_types(self, record):
+        names = [
+            str(ct.model_class()._meta.verbose_name_plural) for ct in record.content_types.all() if ct.model_class()
+        ]
+        return ", ".join(names) or "—"
 
     def render_barcode_format(self, value):
         fmt_map = dict(LabelTemplate._meta.get_field("barcode_format").choices)

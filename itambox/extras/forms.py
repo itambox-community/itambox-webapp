@@ -15,6 +15,7 @@ from core.data_transfer import policy_for
 from core.forms import ColorFieldFormMixin, FilterForm, TenantScopedFormMixin
 from core.managers import Scope, get_current_tenant
 from core.validators import validate_external_url
+from itambox.labels import label_registry
 from itambox.middleware import get_current_user
 
 from .definition_contract import custom_field_definition_contract_errors
@@ -849,16 +850,40 @@ class EventRuleForm(TenantScopedFormMixin, forms.ModelForm):
         return cleaned
 
 
+def labelled_content_types():
+    """ContentTypes of the models that carry a label (``itambox.labels``)."""
+    ids = [ContentType.objects.get_for_model(model).pk for model in label_registry.models()]
+    return ContentType.objects.filter(id__in=ids).order_by("app_label", "model")
+
+
 class LabelTemplateForm(TenantScopedFormMixin, forms.ModelForm):
+    """Author a global LabelTemplate (superuser-only; see LabelTemplateEditView).
+
+    ``content_types`` is limited to labelled models. QR codes carry the
+    object's reference and suit every labelled model; the linear formats
+    encode a short identifier and are refused for models without one.
+    """
+
     class Meta:
         model = LabelTemplate
-        fields = ["name", "description", "page_width", "page_height", "barcode_format", "template_code"]
+        fields = [
+            "name",
+            "description",
+            "content_types",
+            "page_width",
+            "page_height",
+            "barcode_format",
+            "template_code",
+        ]
         widgets = {
             "template_code": forms.Textarea(attrs={"rows": 10}),
+            "content_types": forms.SelectMultiple(attrs={"class": "form-select"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["content_types"].queryset = labelled_content_types()
+        self.fields["content_types"].required = True
         self.helper = FormHelper()
         self.helper.layout = Layout(
             Fieldset(
@@ -868,6 +893,7 @@ class LabelTemplateForm(TenantScopedFormMixin, forms.ModelForm):
                     Column("barcode_format", css_class="col-md-4"),
                     css_class="row g-3",
                 ),
+                "content_types",
                 "description",
             ),
             Fieldset(
@@ -889,6 +915,22 @@ class LabelTemplateForm(TenantScopedFormMixin, forms.ModelForm):
                 'data-no-dirty-track="true">' + str(_("Cancel")) + "</a>"
             ),
         )
+
+    def clean(self):
+        cleaned = super().clean()
+        barcode_format = cleaned.get("barcode_format")
+        if barcode_format in LabelTemplate.LINEAR_FORMATS:
+            unsupported = [
+                str(content_type.model_class()._meta.verbose_name_plural)
+                for content_type in cleaned.get("content_types") or ()
+                if not label_registry.get(content_type.model_class()).supports_linear_barcodes
+            ]
+            if unsupported:
+                self.add_error(
+                    "barcode_format",
+                    _("%(types)s labels support QR codes only.") % {"types": ", ".join(unsupported)},
+                )
+        return cleaned
 
 
 class ExportTemplateForm(TenantScopedFormMixin, forms.ModelForm):

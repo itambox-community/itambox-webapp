@@ -5,10 +5,23 @@
 {% bulk_action_context table as bulk %}
 {% if table.embed_bulk_bar %}
   <div class="js-selection-scope">
-    {% if bulk.selectable and bulk.can_change and bulk.bulk_edit_url or bulk.selectable and bulk.can_delete and bulk.bulk_delete_url %}
+    {% if bulk.selectable and bulk.can_change and bulk.bulk_edit_url or bulk.selectable and bulk.can_delete and bulk.bulk_delete_url or bulk.selectable and bulk.label_print_url %}
       <div class="batch-actions-bar d-none">
         <div class="d-flex align-items-center gap-2 px-3 py-2 bg-body-tertiary border-bottom">
           <span class="fw-bold me-2">{% translate "0 selected" %}</span>
+          {% if bulk.label_print_url %}
+            <form class="bulk-label-form d-inline"
+                  method="post"
+                  action="{{ bulk.label_print_url }}"
+                  hx-boost="false">
+              {% csrf_token %}
+              <input type="hidden" name="return_url" value="{{ bulk.return_url }}">
+              <div class="bulk-pks-container d-inline"></div>
+              <button type="button" class="btn btn-sm btn-outline-secondary btn-bulk-label">
+                <i class="mdi mdi-printer me-1"></i>{% translate "Print Labels" %}
+              </button>
+            </form>
+          {% endif %}
           {% if bulk.can_change and bulk.bulk_edit_url %}
             <form class="bulk-edit-form d-inline"
                   method="post"

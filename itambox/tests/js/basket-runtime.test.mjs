@@ -795,8 +795,8 @@ test('ambiguous EAN scans report the ambiguity instead of a plain miss', async (
       assert.match(feedback.textContent, /EAN-AMBIGUOUS/, `${kind} ambiguous feedback names the scanned code`);
       assert.match(
         feedback.textContent,
-        /matches multiple assets\. Scan the asset tag instead\./,
-        `${kind} ambiguous scan reports distinct EAN guidance`,
+        /matches several assets\. Scan the asset's label instead\./,
+        `${kind} ambiguous scan reports distinct guidance`,
       );
       assert.doesNotMatch(feedback.textContent, /No asset matches/, `${kind} ambiguous scan is not a plain miss`);
 

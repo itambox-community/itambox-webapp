@@ -1,5 +1,6 @@
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
+from django.utils.translation import gettext_lazy as _
 
 from itambox.capabilities import (
     ALWAYS_ON,
@@ -11,6 +12,7 @@ from itambox.capabilities import (
     Capability,
     registry,
 )
+from itambox.labels import LabelField, LabelSpec, label_registry
 
 
 class OrganizationConfig(AppConfig):
@@ -174,6 +176,19 @@ class OrganizationConfig(AppConfig):
 
         post_migrate.connect(self._register_expiry_schedule, sender=self)
         self._register_capabilities()
+
+        # Location labels go on rooms, racks and shelves; audit sessions bound to a
+        # location start from them.
+        label_registry.register(
+            Location,
+            LabelSpec(
+                fields=(
+                    LabelField("site", _("Site"), lambda location: location.site),
+                    LabelField("status", _("Status"), lambda location: location.get_status_display()),
+                ),
+                title=lambda location: location.name,
+            ),
+        )
 
     def _register_expiry_schedule(self, sender, **kwargs):
         # inline imports: app-registry: schedule models and helpers load after migrations/apps are ready.

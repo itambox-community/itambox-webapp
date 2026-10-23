@@ -74,6 +74,7 @@ nav:
       - Dashboard: 'dashboard.md'
       - Guides:
           - Scanning Assets: 'usage/scanning.md'
+          - Printing Labels: 'usage/labels.md'
           - Depreciation Guide: 'usage/depreciation.md'
           - Asset Requests & Reservations: 'usage/asset-requests-and-reservations.md'
           - Repairs and Loaners: 'usage/repairs-and-loaners.md'

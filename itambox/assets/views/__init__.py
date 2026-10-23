@@ -27,8 +27,6 @@ from .asset_views import (
     AssetDetailView,
     AssetEditView,
     AssetListView,
-    asset_label_print,
-    bulk_print_labels,
 )
 from .assetrole_views import (
     AssetRoleCloneView,
@@ -206,9 +204,7 @@ __all__ = [
     "WarrantyDetailView",
     "WarrantyEditView",
     "WarrantyListView",
-    "asset_label_print",
     "bulk_checkin_assets",
     "bulk_checkout_assets",
     "bulk_dispose_assets",
-    "bulk_print_labels",
 ]

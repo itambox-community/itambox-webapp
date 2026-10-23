@@ -32,7 +32,7 @@ PDF_STYLE_EXCEPTIONS = {
         "chart CSS is emitted with the request nonce for browser reports and without one "
         "only for standalone email/PDF output"
     ),
-    "itambox/assets/tasks/labels.py": "self-contained HTML is consumed by xhtml2pdf and is not sent as browser HTML",
+    "itambox/extras/services/labels.py": "self-contained HTML is consumed by xhtml2pdf and is not sent as browser HTML",
 }
 UNSAFE_INLINE_EXCEPTIONS = {
     "itambox/itambox/middleware.py": re.compile(r"style-src-attr 'unsafe-inline'", re.IGNORECASE),
