@@ -519,6 +519,40 @@ def _select_holder_candidate(
     return by_email
 
 
+def _identity_key(value: str | None) -> str:
+    return (value or "").strip().casefold()
+
+
+def login_may_act_as_holder(user: User, holder: AssetHolder) -> bool:
+    """Whether an authenticated login is the person ``holder`` names.
+
+    The read-only counterpart of ``_select_holder_candidate`` for one known
+    holder: a linked login is authoritative; an unlinked holder matches only
+    by UPN (the login's username), and by e-mail only when the holder carries
+    no UPN, so a shared or recycled mailbox never stands in for a different
+    UPN. A login already linked to another holder of the same tenant is that
+    holder and never this one.
+    """
+    if user is None or not getattr(user, "is_authenticated", False) or holder is None:
+        return False
+    if holder.user_id is not None:
+        return holder.user_id == user.pk
+    same_tenant = Q(tenant__isnull=True) if holder.tenant_id is None else Q(tenant_id=holder.tenant_id)
+    # unscoped: the signing login need not be a member of the holder's tenant; this is a read-only identity check
+    linked_elsewhere = (
+        AssetHolder._base_manager.filter(same_tenant, user_id=user.pk, deleted_at__isnull=True)
+        .exclude(pk=holder.pk)
+        .exists()
+    )
+    if linked_elsewhere:
+        return False
+    if holder.upn:
+        login_upn = _identity_key(user.username)
+        return bool(login_upn) and login_upn == _identity_key(holder.upn)
+    login_email = _identity_key(user.email)
+    return bool(login_email) and login_email == _identity_key(holder.email)
+
+
 def _link_existing_holder(
     *,
     candidate: AssetHolder,
