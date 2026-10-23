@@ -28,6 +28,7 @@ from itambox.ratelimit import get_client_ip
 from itambox.views.generic import ObjectCloneView, ObjectDeleteView, ObjectDetailView, ObjectEditView, ObjectListView
 from itambox.views.generic.htmx_responses import error_response, is_htmx_request, success_response
 from itambox.views.generic.service_views import SimplePostView
+from organization.services.identity_provisioning import login_may_act_as_holder
 
 from .filters import CustodyReceiptFilterSet
 from .forms import CustodyTemplateForm
@@ -60,23 +61,6 @@ CUSTODY_SIGNING_SESSION_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{64}")
 CUSTODY_LINK_TTL = timedelta(days=7)
 # Bound the stored evidence string; browsers send well under this.
 MAX_EVIDENCE_USER_AGENT_LENGTH = 512
-
-
-def _authenticated_user_is_holder(user, holder):
-    """True if the authenticated `user` is the holder the receipt is intended for.
-
-    Prefers the holder's linked user account; falls back to case-insensitive
-    email / UPN matching when the holder is not linked to a login.
-    """
-    bound_user_id = getattr(holder, "user_id", None)
-    if bound_user_id is not None:
-        return bound_user_id == user.id
-    holder_email = (getattr(holder, "email", "") or "").lower()
-    holder_upn = (getattr(holder, "upn", "") or "").lower()
-    user_email = (getattr(user, "email", "") or "").lower()
-    user_name = (getattr(user, "username", "") or "").lower()
-    candidates = {c for c in (user_email, user_name) if c}
-    return bool((holder_email and holder_email in candidates) or (holder_upn and holder_upn in candidates))
 
 
 def _signature_provider_unavailable_response(request):
@@ -217,7 +201,7 @@ def _signer_error_response(request, holder, *, require_authenticated=False):
                 status=403,
             )
         return None
-    if not _authenticated_user_is_holder(request.user, holder):
+    if not login_may_act_as_holder(request.user, holder):
         return _custody_error_response(
             request,
             error_code="wrong_recipient",

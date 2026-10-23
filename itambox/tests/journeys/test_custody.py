@@ -168,3 +168,30 @@ class CustodyReceiptJourneyTests(JourneyMixin, TestCase):
         self.assertEqual(receipt.holder_id, holder.pk)
         self.assertEqual(receipt.acceptance_status, CustodyReceipt.STATUS_ACCEPTED)
         self.assertFalse(CustodyReceipt.objects.filter(holder=other).exists())
+
+    def test_mailbox_owner_cannot_sign_for_a_holder_whose_upn_differs(self):
+        # Identity is never linked by guesswork: a shared mailbox is not the holder.
+        holder = self.make_holder(upn="jane.doe@example.test", email="it-shared@example.test")
+        receipt = self._checkout(holder)
+        mailbox_owner = User.objects.create_user(
+            username="helpdesk@example.test", email="it-shared@example.test", password="x"
+        )
+
+        self.client.force_login(mailbox_owner)
+        response = self._sign(receipt)
+
+        self.assertEqual(response.status_code, 403)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.acceptance_status, CustodyReceipt.STATUS_PENDING)
+
+    def test_unlinked_holder_signs_with_the_login_carrying_their_upn(self):
+        holder = self.make_holder(upn="jane.doe@example.test", email="jane.doe@example.test")
+        receipt = self._checkout(holder)
+        login = User.objects.create_user(username="jane.doe@example.test", password="x")
+
+        self.client.force_login(login)
+        response = self._sign(receipt)
+
+        self.assertEqual(response.status_code, 200)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.acceptance_status, CustodyReceipt.STATUS_ACCEPTED)

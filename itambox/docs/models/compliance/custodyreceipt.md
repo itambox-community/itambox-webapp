@@ -15,6 +15,12 @@ A receipt is created only when checkout resolves a matching active template for 
 
 ---
 
+## Who Can Sign
+
+Only the intended holder, signed in to ITAMbox. If the holder is linked to a login, only that login can sign. Otherwise ITAMbox applies the same exact-identity rule as SCIM provisioning: the login's username must equal the holder's UPN (case-insensitive), the e-mail address counts only when the holder has no UPN, and a login already linked to another holder of the same tenant is refused. A shared or recycled mailbox therefore never signs for a holder whose UPN differs.
+
+---
+
 ## Attributes & Fields
 
 | Field | Description | Type | Required |
