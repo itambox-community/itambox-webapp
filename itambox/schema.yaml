@@ -10889,235 +10889,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/APIError'
-    post:
-      operationId: compliance_custody_receipts_create
-      tags:
-      - compliance
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-        required: true
-      security:
-      - TokenAuth: []
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CustodyReceipt'
-          description: ''
-        '400':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '401':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '403':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '409':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '412':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '428':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-    put:
-      operationId: compliance_custody_receipts_update_bulk
-      tags:
-      - compliance
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-        required: true
-      security:
-      - TokenAuth: []
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CustodyReceipt'
-          description: ''
-        '400':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '401':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '403':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '409':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '412':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '428':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-    patch:
-      operationId: compliance_custody_receipts_partial_update_bulk
-      tags:
-      - compliance
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedCustodyReceiptRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedCustodyReceiptRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedCustodyReceiptRequest'
-      security:
-      - TokenAuth: []
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CustodyReceipt'
-          description: ''
-        '400':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '401':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '403':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '409':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '412':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '428':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-    delete:
-      operationId: compliance_custody_receipts_destroy_bulk
-      tags:
-      - compliance
-      security:
-      - TokenAuth: []
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '204':
-          description: No response body
-        '400':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '401':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '403':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '412':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '428':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
   /api/compliance/custody-receipts/{id}/:
     get:
       operationId: compliance_custody_receipts_retrieve
@@ -11160,211 +10931,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
         '404':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-    put:
-      operationId: compliance_custody_receipts_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Custody Receipt.
-        required: true
-      tags:
-      - compliance
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CustodyReceiptRequest'
-        required: true
-      security:
-      - TokenAuth: []
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CustodyReceipt'
-          description: ''
-        '400':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '401':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '403':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '404':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '409':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '412':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '428':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-    patch:
-      operationId: compliance_custody_receipts_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Custody Receipt.
-        required: true
-      tags:
-      - compliance
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedCustodyReceiptRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedCustodyReceiptRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedCustodyReceiptRequest'
-      security:
-      - TokenAuth: []
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CustodyReceipt'
-          description: ''
-        '400':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '401':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '403':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '404':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '409':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '412':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '428':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-    delete:
-      operationId: compliance_custody_receipts_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Custody Receipt.
-        required: true
-      tags:
-      - compliance
-      security:
-      - TokenAuth: []
-      - cookieAuth: []
-      - basicAuth: []
-      responses:
-        '204':
-          description: No response body
-        '400':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '401':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '403':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '404':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '412':
-          description: The request could not be completed.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-        '428':
           description: The request could not be completed.
           content:
             application/json:
@@ -42805,9 +42371,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/AssetHolder'
           readOnly: true
-        token:
-          type: string
-          readOnly: true
         accepted:
           type: boolean
           readOnly: true
@@ -42824,6 +42387,9 @@ components:
           - $ref: '#/components/schemas/AcceptanceStatusEnum'
           readOnly: true
         acceptance_status_display:
+          type: string
+          readOnly: true
+        signature_provider:
           type: string
           readOnly: true
         signature_data:
@@ -42846,6 +42412,13 @@ components:
           readOnly: true
           nullable: true
         eula_version:
+          type: string
+          readOnly: true
+        ip_address:
+          type: string
+          readOnly: true
+          nullable: true
+        user_agent:
           type: string
           readOnly: true
         created_date:
@@ -42873,25 +42446,15 @@ components:
       - eula_version
       - holder
       - id
+      - ip_address
       - signature_canvas
       - signature_data
       - signature_hash
+      - signature_provider
       - signed_at
-      - token
       - updated_at
+      - user_agent
       - verification_hash
-    CustodyReceiptRequest:
-      type: object
-      properties:
-        asset_id:
-          type: integer
-          writeOnly: true
-        holder_id:
-          type: integer
-          writeOnly: true
-      required:
-      - asset_id
-      - holder_id
     CustodyTemplate:
       type: object
       properties:
@@ -48040,15 +47603,6 @@ components:
           type: string
         is_active:
           type: boolean
-    PatchedCustodyReceiptRequest:
-      type: object
-      properties:
-        asset_id:
-          type: integer
-          writeOnly: true
-        holder_id:
-          type: integer
-          writeOnly: true
     PatchedCustodyTemplateRequest:
       type: object
       properties:

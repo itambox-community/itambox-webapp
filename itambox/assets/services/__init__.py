@@ -17,13 +17,14 @@ if TYPE_CHECKING:
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from compliance.models import CustodyReceipt
+from compliance.models import CustodyReceipt, CustodyTemplate
 from compliance.services import supersede_pending_receipts
 from core.choices import ObjectChangeActionChoices
 from core.context import get_current_membership, get_current_tenant, override_current_tenant_scope
@@ -161,31 +162,8 @@ def checkout_asset(
             assignment = AssetAssignment.objects.create(**assignment_kwargs)
 
         category = asset.asset_type.category if asset.asset_type else None
-        if holder and category and not _suppress_custody_receipt:
-            from compliance.models import CustodyTemplate
-
-            resolved_template = None
-
-            # Priority 1: Tenant-specific override for the category
-            if holder.tenant:
-                resolved_template = CustodyTemplate.objects.filter(
-                    tenant=holder.tenant, category=category, is_active=True
-                ).first()
-
-            # Priority 2: Tenant Group-specific override (if tenant belongs to a group)
-            if not resolved_template and holder.tenant and holder.tenant.group:
-                resolved_template = CustodyTemplate.objects.filter(
-                    tenant_group=holder.tenant.group, category=category, is_active=True
-                ).first()
-
-            # Priority 3: Global category template (only if allowed by settings)
-            if not resolved_template:
-                from django.conf import settings
-
-                if getattr(settings, "ALLOW_GLOBAL_CUSTODY_TEMPLATES", True):
-                    resolved_template = CustodyTemplate.objects.filter(
-                        tenant__isnull=True, tenant_group__isnull=True, category=category, is_active=True
-                    ).first()
+        if holder and not _suppress_custody_receipt:
+            resolved_template = _resolve_custody_template(holder, category)
 
             if resolved_template and resolved_template.require_acceptance:
                 receipt_kwargs = {
@@ -218,6 +196,8 @@ def checkout_asset(
                             from compliance.registry import signature_providers
 
                             provider = signature_providers.get(receipt.signature_provider or "local")
+                            if provider is None:
+                                raise LookupError(f"unregistered signature provider {receipt.signature_provider!r}")
                             transaction.on_commit(
                                 partial(
                                     _run_scoped_custody_notification,
@@ -258,6 +238,35 @@ def _normalized_checkout_datetime(value):
     if isinstance(value, datetime.datetime):
         return value
     return timezone.make_aware(datetime.datetime.combine(value, datetime.time.min))
+
+
+def _resolve_custody_template(holder, category):
+    """Pick the custody template for a checkout to ``holder``.
+
+    A template bound to the asset's category always wins over a category-less
+    one; within each pass the holder's tenant beats its tenant group, which
+    beats a global template (only when global templates are allowed). A
+    category-less template is therefore the default for its scope.
+    """
+    scopes = []
+    if holder.tenant:
+        scopes.append({"tenant": holder.tenant})
+        if holder.tenant.group:
+            scopes.append({"tenant_group": holder.tenant.group})
+    if getattr(settings, "ALLOW_GLOBAL_CUSTODY_TEMPLATES", True):
+        scopes.append({"tenant__isnull": True, "tenant_group__isnull": True})
+
+    category_filters = ([{"category": category}] if category is not None else []) + [{"category__isnull": True}]
+    for category_filter in category_filters:
+        for scope in scopes:
+            template = (
+                CustodyTemplate.objects.filter(is_active=True, **scope, **category_filter)
+                .order_by("name", "pk")
+                .first()
+            )
+            if template is not None:
+                return template
+    return None
 
 
 def _run_scoped_custody_notification(tenant, membership, provider, asset, receipt, recipient, from_address, request):

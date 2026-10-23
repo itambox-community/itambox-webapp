@@ -30,6 +30,7 @@ from assets.models import (
 )
 from assets.services import checkout_asset
 from compliance.models import CustodyReceipt
+from compliance.tests.signatures import signature_png
 from core.managers import set_current_tenant
 from core.models import ObjectChange
 from core.serialization import serialize_object
@@ -50,6 +51,8 @@ from inventory.tests.factories import create_assignment_fixture
 from organization.models import Contact, ContactAssignment, ContactRole, Location, Role, Site, Tenant
 
 User = get_user_model()
+
+EXISTING_TEST_SIGNATURE = signature_png("drawingdata123")
 
 
 class _SeededStatusLabelsMixin:
@@ -532,7 +535,7 @@ class ComponentTrackingTestCase(TransactionTestCase):
         self.assertEqual(response.status_code, 404)
 
         post_data = {
-            "signature_canvas": "data:image/png;base64,drawingdata123",
+            "signature_canvas": EXISTING_TEST_SIGNATURE,
             "action": "accept",
         }
         response = self.client.post(sign_url, data=post_data)
@@ -544,7 +547,7 @@ class ComponentTrackingTestCase(TransactionTestCase):
         self.assertEqual(receipt.acceptance_status, CustodyReceipt.STATUS_ACCEPTED)
         self.assertIsNotNone(receipt.accepted_date)
         self.assertEqual(receipt.acceptance_method, "digital")
-        self.assertEqual(receipt.signature_canvas, "data:image/png;base64,drawingdata123")
+        self.assertEqual(receipt.signature_canvas, EXISTING_TEST_SIGNATURE)
         self.assertEqual(len(receipt.verification_hash), 64)
 
     def test_custody_receipt_decline(self):

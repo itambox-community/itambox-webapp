@@ -210,12 +210,6 @@
     {
       "path": "itambox/assets/services/__init__.py",
       "context": "FunctionDef:checkout_asset",
-      "statement": "from compliance.models import CustodyTemplate",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/services/__init__.py",
-      "context": "FunctionDef:checkout_asset",
       "statement": "from compliance.registry import signature_providers",
       "count": 1
     },
@@ -223,12 +217,6 @@
       "path": "itambox/assets/services/__init__.py",
       "context": "FunctionDef:checkout_asset",
       "statement": "from core.models import EmailSettings",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/services/__init__.py",
-      "context": "FunctionDef:checkout_asset",
-      "statement": "from django.conf import settings",
       "count": 1
     },
     {

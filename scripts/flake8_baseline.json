@@ -86,7 +86,7 @@
     {
       "path": "itambox/assets/services/__init__.py",
       "code": "C901",
-      "message": "'checkout_asset' is too complex (25)",
+      "message": "'checkout_asset' is too complex (22)",
       "source": "def checkout_asset(",
       "context": "Module:body/FunctionDef:checkout_asset:self",
       "count": 1

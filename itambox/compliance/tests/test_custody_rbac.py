@@ -28,6 +28,7 @@ from assets.models import Asset, AssetAssignment, AssetTagSequence, StatusLabel
 from assets.services import checkout_asset
 from compliance.models import CustodyHandoffDelivery, CustodyReceipt, CustodySigningSession, CustodyTemplate
 from compliance.services import _custody_handoff_email_content
+from compliance.tests.signatures import signature_png
 from compliance.views import CustodyReceiptPrepareView
 from core.events import DeliveryDisposition, DeliveryResult
 from core.management.commands._seed.access import SeedAccessMixin
@@ -45,7 +46,7 @@ DUMMY_TOKEN_B = "b" * 64
 DUMMY_OUTSIDER_TOKEN = "o" * 64
 DUMMY_SESSION_TOKEN = "s" * 64
 DUMMY_SESSION_TOKEN_B = "t" * 64
-DUMMY_SIGNATURE = "dummy-signature-payload"
+DUMMY_SIGNATURE = signature_png("dummy-signature-payload")
 DUMMY_EULA = "dummy-eula-marker"
 DUMMY_PASSWORD = "dummy-test-password"
 WRONG_RECIPIENT_MESSAGE = "not the intended recipient"
@@ -528,8 +529,8 @@ class CustodyConcurrentConsentTests(CustodyRBACFixtureMixin, TransactionTestCase
         # AC §6: Prepare- und Consent-Semantik — concurrent POSTs are serialized by select_for_update().
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [
-                executor.submit(self._post_from_independent_client, "dummy-signature-one"),
-                executor.submit(self._post_from_independent_client, "dummy-signature-two"),
+                executor.submit(self._post_from_independent_client, signature_png("dummy-signature-one")),
+                executor.submit(self._post_from_independent_client, signature_png("dummy-signature-two")),
             ]
             responses = [future.result() for future in futures]
 
@@ -547,7 +548,9 @@ class CustodyConcurrentConsentTests(CustodyRBACFixtureMixin, TransactionTestCase
         # AC §6: Prepare- und Consent-Semantik — concurrent Accept/Decline posts serialize to one terminal state.
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [
-                executor.submit(self._post_action_from_independent_client, "accept", "dummy-accept-signature"),
+                executor.submit(
+                    self._post_action_from_independent_client, "accept", signature_png("dummy-accept-signature")
+                ),
                 executor.submit(self._post_action_from_independent_client, "decline"),
             ]
             responses = [future.result() for future in futures]
@@ -618,7 +621,10 @@ class CustodyConcurrentConsentTests(CustodyRBACFixtureMixin, TransactionTestCase
                 close_old_connections()
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            futures = [executor.submit(post, "outsider-signature-one"), executor.submit(post, "outsider-signature-two")]
+            futures = [
+                executor.submit(post, signature_png("outsider-signature-one")),
+                executor.submit(post, signature_png("outsider-signature-two")),
+            ]
             responses = [future.result() for future in futures]
 
         self.assertEqual([response.status_code for response in responses], [200, 200])
@@ -929,7 +935,8 @@ class CustodyAPIContractTests(CustodyRBACFixtureMixin, APITestCase):
             format="json",
         )
 
-        self.assertIn(response.status_code, (200, 400, 403))
+        # The receipt API is read-only: 403 when the role lacks change, 405 otherwise.
+        self.assertIn(response.status_code, (403, 405))
         self.receipt_a.refresh_from_db()
         self.assertFalse(self.receipt_a.accepted)
         self.assertEqual(self.receipt_a.acceptance_status, CustodyReceipt.STATUS_PENDING)
@@ -1745,8 +1752,12 @@ class CustodySigningSessionRaceTests(CustodyRBACFixtureMixin, TransactionTestCas
     def test_concurrent_session_posts_allow_exactly_one_consumption(self):
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [
-                executor.submit(self._post_handoff_from_independent_client, "dummy-session-signature-one"),
-                executor.submit(self._post_handoff_from_independent_client, "dummy-session-signature-two"),
+                executor.submit(
+                    self._post_handoff_from_independent_client, signature_png("dummy-session-signature-one")
+                ),
+                executor.submit(
+                    self._post_handoff_from_independent_client, signature_png("dummy-session-signature-two")
+                ),
             ]
             responses = [future.result() for future in futures]
 

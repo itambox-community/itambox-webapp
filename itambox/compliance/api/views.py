@@ -15,7 +15,7 @@ from compliance.filters import (
 )
 from compliance.models import AssetAudit, AuditSession, CustodyReceipt, CustodyTemplate
 from core.managers import get_current_tenant
-from itambox.api.viewsets import ITAMBoxModelViewSet
+from itambox.api.viewsets import ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet
 from itambox.middleware import get_current_user
 
 from .serializers import (
@@ -60,7 +60,10 @@ class CustodyTemplateViewSet(ITAMBoxModelViewSet):
     serializer_class = CustodyTemplateSerializer
 
 
-class CustodyReceiptViewSet(ITAMBoxModelViewSet):
+class CustodyReceiptViewSet(ITAMBoxReadOnlyModelViewSet):
+    # Read-only: receipts are lifecycle evidence written by the checkout service
+    # and the consent flow. A writable endpoint could mint unbound receipts or
+    # move a signed receipt to another holder.
     queryset = CustodyReceipt.objects.select_related("asset", "holder").all()
     serializer_class = CustodyReceiptSerializer
     filter_backends = (DjangoFilterBackend,)

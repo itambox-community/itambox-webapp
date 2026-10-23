@@ -295,6 +295,7 @@ class CustodyTemplateForm(TenantScopedFormMixin, forms.ModelForm):
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
         label=_("Target Category"),
+        help_text=_("Leave blank to use this template for every category without a more specific template."),
     )
     signature_provider = forms.ChoiceField(
         choices=[], widget=forms.Select(attrs={"class": "form-select"}), label=_("Signature Provider")

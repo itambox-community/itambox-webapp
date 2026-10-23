@@ -316,16 +316,9 @@ export interface paths {
   };
   "/api/compliance/custody-receipts/": {
     get: operations["compliance_custody_receipts_list"];
-    put: operations["compliance_custody_receipts_update_bulk"];
-    post: operations["compliance_custody_receipts_create"];
-    delete: operations["compliance_custody_receipts_destroy_bulk"];
-    patch: operations["compliance_custody_receipts_partial_update_bulk"];
   };
   "/api/compliance/custody-receipts/{id}/": {
     get: operations["compliance_custody_receipts_retrieve"];
-    put: operations["compliance_custody_receipts_update"];
-    delete: operations["compliance_custody_receipts_destroy"];
-    patch: operations["compliance_custody_receipts_partial_update"];
   };
   "/api/compliance/custody-templates/": {
     get: operations["compliance_custody_templates_list"];
@@ -3193,13 +3186,13 @@ export interface components {
       id: number;
       asset: components["schemas"]["NestedAsset"];
       holder: components["schemas"]["AssetHolder"];
-      token: string;
       accepted: boolean;
       /** Format: date-time */
       accepted_date: string | null;
       acceptance_method: string;
       acceptance_status: components["schemas"]["AcceptanceStatusEnum"];
       acceptance_status_display: string;
+      signature_provider: string;
       signature_data: string;
       signature_hash: string;
       verification_hash: string | null;
@@ -3208,16 +3201,14 @@ export interface components {
       /** Format: date-time */
       signed_at: string | null;
       eula_version: string;
+      ip_address: string | null;
+      user_agent: string;
       /** Format: date-time */
       created_date: string | null;
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
       updated_at: string;
-    };
-    CustodyReceiptRequest: {
-      asset_id: number;
-      holder_id: number;
     };
     CustodyTemplate: {
       id: number;
@@ -5732,10 +5723,6 @@ export interface components {
       parent_id?: number | null;
       description?: string;
       is_active?: boolean;
-    };
-    PatchedCustodyReceiptRequest: {
-      asset_id?: number;
-      holder_id?: number;
     };
     PatchedCustodyTemplateRequest: {
       /** @description Template Name (e.g. Standard Laptop EULA) */
@@ -16166,200 +16153,6 @@ export interface operations {
       };
     };
   };
-  compliance_custody_receipts_update_bulk: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CustodyReceiptRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["CustodyReceiptRequest"];
-        "multipart/form-data": components["schemas"]["CustodyReceiptRequest"];
-      };
-    };
-    responses: {
-      200: {
-        content: {
-          "application/json": components["schemas"]["CustodyReceipt"];
-        };
-      };
-      /** @description The request could not be completed. */
-      400: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      401: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      409: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  compliance_custody_receipts_create: {
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CustodyReceiptRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["CustodyReceiptRequest"];
-        "multipart/form-data": components["schemas"]["CustodyReceiptRequest"];
-      };
-    };
-    responses: {
-      201: {
-        content: {
-          "application/json": components["schemas"]["CustodyReceipt"];
-        };
-      };
-      /** @description The request could not be completed. */
-      400: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      401: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      409: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  compliance_custody_receipts_destroy_bulk: {
-    responses: {
-      /** @description No response body */
-      204: {
-        content: never;
-      };
-      /** @description The request could not be completed. */
-      400: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      401: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  compliance_custody_receipts_partial_update_bulk: {
-    requestBody?: {
-      content: {
-        "application/json": components["schemas"]["PatchedCustodyReceiptRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["PatchedCustodyReceiptRequest"];
-        "multipart/form-data": components["schemas"]["PatchedCustodyReceiptRequest"];
-      };
-    };
-    responses: {
-      200: {
-        content: {
-          "application/json": components["schemas"]["CustodyReceipt"];
-        };
-      };
-      /** @description The request could not be completed. */
-      400: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      401: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      409: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
   compliance_custody_receipts_retrieve: {
     parameters: {
       path: {
@@ -16393,184 +16186,6 @@ export interface operations {
       };
       /** @description The request could not be completed. */
       404: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  compliance_custody_receipts_update: {
-    parameters: {
-      path: {
-        /** @description A unique integer value identifying this Custody Receipt. */
-        id: number;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CustodyReceiptRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["CustodyReceiptRequest"];
-        "multipart/form-data": components["schemas"]["CustodyReceiptRequest"];
-      };
-    };
-    responses: {
-      200: {
-        content: {
-          "application/json": components["schemas"]["CustodyReceipt"];
-        };
-      };
-      /** @description The request could not be completed. */
-      400: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      401: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      404: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      409: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  compliance_custody_receipts_destroy: {
-    parameters: {
-      path: {
-        /** @description A unique integer value identifying this Custody Receipt. */
-        id: number;
-      };
-    };
-    responses: {
-      /** @description No response body */
-      204: {
-        content: never;
-      };
-      /** @description The request could not be completed. */
-      400: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      401: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      404: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-    };
-  };
-  compliance_custody_receipts_partial_update: {
-    parameters: {
-      path: {
-        /** @description A unique integer value identifying this Custody Receipt. */
-        id: number;
-      };
-    };
-    requestBody?: {
-      content: {
-        "application/json": components["schemas"]["PatchedCustodyReceiptRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["PatchedCustodyReceiptRequest"];
-        "multipart/form-data": components["schemas"]["PatchedCustodyReceiptRequest"];
-      };
-    };
-    responses: {
-      200: {
-        content: {
-          "application/json": components["schemas"]["CustodyReceipt"];
-        };
-      };
-      /** @description The request could not be completed. */
-      400: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      401: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      403: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      404: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      409: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      412: {
-        content: {
-          "application/json": components["schemas"]["APIError"];
-        };
-      };
-      /** @description The request could not be completed. */
-      428: {
         content: {
           "application/json": components["schemas"]["APIError"];
         };
