@@ -40696,6 +40696,7 @@ components:
           maxLength: 255
         asset_tag:
           type: string
+          default: ''
           maxLength: 50
         serial_number:
           type: string
@@ -40805,7 +40806,6 @@ components:
           readOnly: true
       required:
       - asset_role
-      - asset_tag
       - asset_type
       - assigned_to
       - cost_center
@@ -40833,6 +40833,7 @@ components:
           maxLength: 255
         asset_tag:
           type: string
+          default: ''
           maxLength: 50
         serial_number:
           type: string
@@ -40914,7 +40915,6 @@ components:
         notes:
           type: string
       required:
-      - asset_tag
       - asset_type_id
       - name
     AssetRole:
@@ -47440,6 +47440,7 @@ components:
           maxLength: 255
         asset_tag:
           type: string
+          default: ''
           maxLength: 50
         serial_number:
           type: string
