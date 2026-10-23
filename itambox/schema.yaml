@@ -42421,6 +42421,20 @@ components:
         user_agent:
           type: string
           readOnly: true
+        evidence_version:
+          type: integer
+          readOnly: true
+        evidence_key_id:
+          type: string
+          readOnly: true
+        evidence_status:
+          type: string
+          readOnly: true
+        evidence_snapshot:
+          readOnly: true
+          nullable: true
+          description: What the holder attested to, frozen at the decision and covered
+            by the evidence seal.
         created_date:
           type: string
           format: date-time
@@ -42444,6 +42458,10 @@ components:
       - created_at
       - created_date
       - eula_version
+      - evidence_key_id
+      - evidence_snapshot
+      - evidence_status
+      - evidence_version
       - holder
       - id
       - ip_address
