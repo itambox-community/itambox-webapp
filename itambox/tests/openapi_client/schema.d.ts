@@ -2333,7 +2333,8 @@ export interface components {
     AssetResource: {
       id: number;
       name: string;
-      asset_tag: string;
+      /** @default */
+      asset_tag?: string;
       serial_number?: string;
       status: components["schemas"]["StatusLabel"];
       asset_type: components["schemas"]["NestedAssetType"];
@@ -2386,7 +2387,8 @@ export interface components {
     };
     AssetResourceRequest: {
       name: string;
-      asset_tag: string;
+      /** @default */
+      asset_tag?: string;
       serial_number?: string;
       status_id?: number | null;
       asset_type_id: number;
@@ -5447,6 +5449,7 @@ export interface components {
     };
     PatchedAssetResourceRequest: {
       name?: string;
+      /** @default */
       asset_tag?: string;
       serial_number?: string;
       status_id?: number | null;
