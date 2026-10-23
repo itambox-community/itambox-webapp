@@ -10,47 +10,62 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import Http404, HttpResponse, HttpResponseServerError
+from django.http import Http404, HttpResponse, HttpResponseServerError, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.views.generic import View
 
-from assets.models import AssetAssignment
 from core.context import get_current_request_id
 from core.managers import Scope
 from core.reports.exporters import PDF_MIME, report_pdf_bytes
-from extras.services.events import dispatch_event
 from itambox.ratelimit import get_client_ip
 from itambox.views.generic import ObjectCloneView, ObjectDeleteView, ObjectDetailView, ObjectEditView, ObjectListView
 from itambox.views.generic.htmx_responses import error_response, is_htmx_request, success_response
 from itambox.views.generic.service_views import SimplePostView
 from organization.services.identity_provisioning import login_may_act_as_holder
 
-from .filters import CustodyReceiptFilterSet
-from .forms import CustodyTemplateForm
-from .forms_filter import CustodyReceiptFilterForm
-from .models import CustodyReceipt, CustodySigningSession, CustodyTemplate
+from .filters import CustodyReceiptFilterSet, SignatureProviderConfigFilterSet
+from .forms import CustodyTemplateForm, SignatureProviderConfigForm
+from .forms_filter import CustodyReceiptFilterForm, SignatureProviderConfigFilterForm
+from .models import CustodyReceipt, CustodySigningSession, CustodyTemplate, SignatureProviderConfig
+from .providers import (
+    OUTCOME_ACCEPTED,
+    OUTCOME_DECLINED,
+    CallbackRejected,
+    SignatureOutcome,
+    SignatureProviderError,
+)
 from .registry import signature_providers
 from .services import (
+    CustodyDecisionRefused,
     CustodyHandoffGone,
     CustodyHandoffNotFound,
     CustodyHandoffPermissionDenied,
+    ProviderUnavailable,
     build_custody_handoff_url,
     custody_handoff_email_is_configured,
     custody_handoff_qr_module_count,
     custody_handoff_qr_rendered_size,
+    handle_provider_callback,
+    provider_settings_for,
+    receipt_period_is_active,
+    record_custody_decision,
+    record_provider_outcome,
     render_custody_handoff_qr_svg,
     resolve_custody_handoff,
+    resolve_provider_config,
     scope_custody_receipts,
-    seal_custody_evidence,
     send_custody_handoff_email,
+    start_provider_signature,
     validated_signature_image,
     verify_custody_evidence,
 )
-from .tables import CustodyReceiptTable, CustodyTemplateTable
+from .tables import CustodyReceiptTable, CustodyTemplateTable, SignatureProviderConfigTable
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +75,6 @@ EXPORT_CUSTODY_RECEIPT_PERMISSION = "compliance.export_custodyreceipt"
 CUSTODY_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{64}")
 CUSTODY_SIGNING_SESSION_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{64}")
 CUSTODY_LINK_TTL = timedelta(days=7)
-# Bound the stored evidence string; browsers send well under this.
-MAX_EVIDENCE_USER_AGENT_LENGTH = 512
 
 
 def _signature_provider_unavailable_response(request):
@@ -87,13 +100,48 @@ def _external_signature_redirect(receipt, request):
             receipt.signature_provider,
         )
         return _signature_provider_unavailable_response(request)
-    url = provider.initiate_signature(receipt, request)
+    return_url = reverse("compliance:custody_provider_return", kwargs={"token": receipt.token})
+    try:
+        result = start_provider_signature(receipt, provider, request=request, return_url=_absolute(request, return_url))
+    except ProviderUnavailable:
+        logger.error(
+            "Custody receipt_id=%s has no active configuration for signature provider %r",
+            receipt.pk,
+            receipt.signature_provider,
+        )
+        return _signature_provider_unavailable_response(request)
+    except SignatureProviderError as exc:
+        logger.error(
+            "Custody receipt_id=%s signature provider %r failed to start: %s",
+            receipt.pk,
+            receipt.signature_provider,
+            type(exc).__name__,
+        )
+        return _signature_provider_failed_response(request)
+    if result is None:
+        return None
+    url = result.redirect_url
     if request.GET.get("onsite") == "true":
         parsed_url = urlparse(url)
         query = dict(parse_qsl(parsed_url.query))
         query["onsite"] = "true"
         url = urlunparse(parsed_url._replace(query=urlencode(query)))
     return redirect(url)
+
+
+def _absolute(request, path):
+    base_url = getattr(settings, "ITAMBOX_BASE_URL", "")
+    return f"{base_url}{path}" if base_url else request.build_absolute_uri(path)
+
+
+def _signature_provider_failed_response(request):
+    return _custody_error_response(
+        request,
+        error_code="custody_provider_failed",
+        title="Signature Provider Error",
+        error="The signature provider could not start signing. Try again later or contact your IT administrator.",
+        status=502,
+    )
 
 
 def _external_provider_response(request, receipt, holder):
@@ -146,17 +194,7 @@ def _custody_superseded_response(request):
 
 def _receipt_period_is_active(receipt):
     """True while the custody period the receipt evidences is the asset's active one."""
-    # Read through the base manager: the signing holder need not be a member of
-    # the asset's tenant, and the tenant-scoped manager would hide the assignment.
-    if receipt.assignment_id is not None:
-        # unscoped: the signing holder may not be a tenant member; the receipt token is the authority
-        return AssetAssignment._base_manager.filter(
-            pk=receipt.assignment_id, asset_id=receipt.asset_id, is_active=True, deleted_at__isnull=True
-        ).exists()
-    # unscoped: legacy receipt without a bound period; same token-authority reasoning as above
-    return AssetAssignment._base_manager.filter(
-        asset_id=receipt.asset_id, assigned_user_id=receipt.holder_id, is_active=True, deleted_at__isnull=True
-    ).exists()
+    return receipt_period_is_active(receipt)
 
 
 def _superseded_pending_response(request, receipt):
@@ -297,21 +335,6 @@ def _lock_custody_signing_session(request, receipt, signing_session):
     return signing_session, _custody_signing_session_state_error(request, signing_session, receipt)
 
 
-def _consume_custody_signing_session(signing_session, *, outcome, consumed_at):
-    if signing_session is None:
-        return
-    signing_session.consumed_at = consumed_at
-    signing_session.outcome = outcome
-    signing_session.save(update_fields=["consumed_at", "outcome", "updated_at"])
-
-
-def _record_signer_evidence(request, receipt):
-    """Stamp the client address and browser of the consent decision onto the receipt."""
-    receipt.ip_address = get_client_ip(request)
-    receipt.user_agent = request.META.get("HTTP_USER_AGENT", "")[:MAX_EVIDENCE_USER_AGENT_LENGTH]
-    return ["ip_address", "user_agent"]
-
-
 def _isoformat_or_none(value):
     return value.isoformat() if value is not None else None
 
@@ -413,87 +436,56 @@ def _process_custody_post(request, token, receipt, signing_session=None):
         if completed_response is not None:
             return completed_response
 
-        superseded_response = _superseded_pending_response(request, receipt)
-        if superseded_response is not None:
-            return superseded_response
-
         action = request.POST.get("action", "accept")
-        signature_data = request.POST.get("signature_canvas")
         if action == "decline":
-            consumed_at = timezone.now()
-            receipt.accepted_date = None
-            receipt.acceptance_status = CustodyReceipt.STATUS_DECLINED
-            receipt.signed_at = None
-            evidence_fields = _record_signer_evidence(request, receipt)
-            evidence_fields += seal_custody_evidence(receipt, decided_at=consumed_at)
-            receipt.save(
-                update_fields=["accepted_date", "acceptance_status", "signed_at", *evidence_fields, "updated_at"]
-            )
-            _consume_custody_signing_session(
-                signing_session,
-                outcome=CustodySigningSession.OUTCOME_DECLINED,
-                consumed_at=consumed_at,
-            )
-            return _custody_error_response(
-                request,
-                error_code="custody_declined",
-                title="Custody Transfer Declined",
-                error="You have declined the custody transfer.",
-                status=200,
-            )
-        signature_data = validated_signature_image(signature_data)
-        if signature_data is None:
-            return render(
-                request,
-                "compliance/custody/sign_portal.html",
-                {
-                    "asset": asset,
-                    "holder": holder,
-                    "token": token,
-                    "receipt": receipt,
-                    "error": "Please provide a valid signature.",
-                },
-            )
+            outcome = SignatureOutcome(status=OUTCOME_DECLINED)
+        else:
+            signature = validated_signature_image(request.POST.get("signature_canvas"))
+            if signature is None:
+                return render(
+                    request,
+                    "compliance/custody/sign_portal.html",
+                    {
+                        "asset": asset,
+                        "holder": holder,
+                        "token": token,
+                        "receipt": receipt,
+                        "error": "Please provide a valid signature.",
+                    },
+                )
+            outcome = SignatureOutcome(status=OUTCOME_ACCEPTED, signature_image=signature)
 
-        signed_at = timezone.now()
-        receipt.accepted_date = signed_at
-        receipt.acceptance_method = "digital"
-        receipt.acceptance_status = CustodyReceipt.STATUS_ACCEPTED
-        receipt.signature_canvas = signature_data
-        receipt.signature_data = signature_data
-        receipt.eula_version = CustodyReceipt.EULA_VERSION
-        receipt.signed_at = signed_at
-        _record_signer_evidence(request, receipt)
-        seal_custody_evidence(receipt, decided_at=signed_at)
-        receipt.save()
-        _consume_custody_signing_session(
-            signing_session,
-            outcome=CustodySigningSession.OUTCOME_ACCEPTED,
-            consumed_at=signed_at,
-        )
-
-        transaction.on_commit(
-            lambda: _safe_dispatch_custody(
+        try:
+            record_custody_decision(
                 receipt,
+                outcome,
+                method="digital",
+                client_ip=get_client_ip(request),
+                user_agent=request.META.get("HTTP_USER_AGENT", ""),
+                signing_session=signing_session,
                 actor_id=request.user.pk,
-                tenant_id=asset.tenant_id,
             )
-        )
-        # Journal-style audit write: no asset save, so tag allocation and model
-        # validation never re-run and a stale in-request copy of the asset row can
-        # never overwrite concurrent edits.
-        asset_state = asset._serialize_for_change(asset)
-        asset._log_change(
-            action="audit",
-            prechange_data=asset_state,
-            postchange_data=asset_state,
-            message=f"EULA digital custody receipt accepted. Evidence seal: {receipt.verification_hash[:16]}...",
-        )
-        return render(
+        except CustodyDecisionRefused as refused:
+            if refused.reason == "superseded":
+                return _custody_superseded_response(request)
+            raise
+        return _decision_response(request, receipt, holder)
+
+
+def _decision_response(request, receipt, holder):
+    if receipt.acceptance_status == CustodyReceipt.STATUS_DECLINED:
+        return _custody_error_response(
             request,
-            "compliance/custody/receipt_success.html",
-            {"receipt": receipt, "asset": asset, "holder": holder},
+            error_code="custody_declined",
+            title="Custody Transfer Declined",
+            error="You have declined the custody transfer.",
+            status=200,
         )
+    return render(
+        request,
+        "compliance/custody/receipt_success.html",
+        {"receipt": receipt, "asset": receipt.asset, "holder": holder},
+    )
 
 
 def _pre_sign_response(request, receipt, holder):
@@ -550,18 +542,96 @@ def custody_eula_sign(request, token):
     )
 
 
-def _safe_dispatch_custody(receipt, *, actor_id=None, tenant_id=None):
+def _provider_return_outcome(request, receipt):
+    """Ask the receipt's provider for the outcome on the browser return: (outcome, error response)."""
+    provider = signature_providers.get(receipt.signature_provider)
+    if provider is None or receipt.signature_provider == "local":
+        return None, _signature_provider_unavailable_response(request)
     try:
-        dispatch_event(CustodyReceipt, receipt, action="update")
-    # broad except: boundary-isolation: event delivery failure must not invalidate accepted custody
-    except Exception as exc:
+        settings_for_receipt = provider_settings_for(resolve_provider_config(receipt, provider), request=request)
+        outcome = provider.complete_return(receipt, request=request, settings=settings_for_receipt)
+    except ProviderUnavailable:
+        return None, _signature_provider_unavailable_response(request)
+    except SignatureProviderError as exc:
         logger.error(
-            "Custody event dispatch failed for receipt_id=%s tenant_id=%s actor_id=%s exception_type=%s",
+            "Custody receipt_id=%s signature provider %r failed on return: %s",
             receipt.pk,
-            tenant_id,
-            actor_id,
+            receipt.signature_provider,
             type(exc).__name__,
         )
+        return None, _signature_provider_failed_response(request)
+    if outcome is None:
+        return None, _custody_error_response(
+            request,
+            error_code="custody_provider_pending",
+            title="Waiting for Confirmation",
+            error="Your decision was handed to the signature provider. This page will show the result once the "
+            "provider confirms it; you can close it now.",
+            status=202,
+        )
+    return outcome, None
+
+
+def _refused_decision_response(request, receipt, refused):
+    if refused.reason == "superseded":
+        return _custody_superseded_response(request)
+    receipt.refresh_from_db()
+    return _completed_receipt_response(request, receipt) or _signature_provider_failed_response(request)
+
+
+def custody_provider_return(request, token):
+    """The provider sends the holder's browser back here after signing."""
+    receipt = _resolve_custody_receipt(token)
+    if receipt is None:
+        return _custody_error_response(
+            request,
+            error_code="custody_link_unavailable",
+            title="Custody Link Unavailable",
+            error="The requested custody link is unavailable.",
+            status=404,
+        )
+    holder = receipt.holder
+    signer_error = _signer_error_response(request, holder, require_authenticated=True)
+    if signer_error is not None:
+        return signer_error
+    if receipt.acceptance_status != CustodyReceipt.STATUS_PENDING:
+        return _completed_receipt_response(request, receipt)
+    outcome, error = _provider_return_outcome(request, receipt)
+    if error is not None:
+        return error
+    try:
+        receipt = record_provider_outcome(
+            receipt.pk,
+            outcome,
+            provider_name=receipt.signature_provider,
+            client_ip=get_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except CustodyDecisionRefused as refused:
+        return _refused_decision_response(request, receipt, refused)
+    return _decision_response(request, receipt, holder)
+
+
+@csrf_exempt
+@require_POST
+def signature_provider_callback(request, config_pk):
+    """Server-to-server callback; the provider authenticates the request itself."""
+    # unscoped: provider callbacks carry no session or tenant; the provider's own request authentication is the authority
+    config = SignatureProviderConfig._base_manager.filter(pk=config_pk, is_active=True, deleted_at__isnull=True).first()
+    provider = signature_providers.get(config.provider) if config is not None else None
+    if provider is None:
+        return JsonResponse({"status": "unknown_config"}, status=404)
+    try:
+        event = provider.parse_callback(request, settings=provider_settings_for(config, request=request))
+    except CallbackRejected:
+        logger.warning("Rejected signature provider callback for config_id=%s", config.pk)
+        return JsonResponse({"status": "rejected"}, status=403)
+    except SignatureProviderError as exc:
+        logger.error("Signature provider callback failed for config_id=%s: %s", config.pk, type(exc).__name__)
+        return JsonResponse({"status": "error"}, status=400)
+    status = handle_provider_callback(config, event)
+    http_status = 404 if status == "unknown_reference" else 200
+    return JsonResponse({"status": status}, status=http_status)
 
 
 class CustodyTemplateListView(ObjectListView):
@@ -960,3 +1030,57 @@ def custody_template_preview(request, pk):
         "compliance/custody/sign_portal.html",
         {"asset": asset, "holder": holder, "receipt": receipt, "token": "preview", "is_preview": True},
     )
+
+
+class _ProviderConfigQuerysetMixin:
+    """Install-wide configs are visible to everyone in scope but writable only by platform admins."""
+
+    queryset = SignatureProviderConfig.objects.select_related("tenant")
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if getattr(self, "writes", False) and not self.request.user.is_superuser:
+            queryset = queryset.filter(tenant__isnull=False)
+        return queryset
+
+
+class SignatureProviderConfigListView(ObjectListView):
+    queryset = SignatureProviderConfig.objects.select_related("tenant")
+    table = SignatureProviderConfigTable
+    filterset = SignatureProviderConfigFilterSet
+    filterset_form = SignatureProviderConfigFilterForm
+    action_buttons = ("add",)
+
+
+class SignatureProviderConfigDetailView(_ProviderConfigQuerysetMixin, ObjectDetailView):
+    template_name = "compliance/signatureproviderconfigs/signatureproviderconfig_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        config = self.object
+        provider = signature_providers.get(config.provider)
+        context["provider_label"] = provider.verbose_name if provider is not None else config.provider
+        context["provider_registered"] = provider is not None
+        context["secret_keys"] = config.secret_keys
+        context["callback_url"] = provider_settings_for(config, request=self.request).callback_url
+        return context
+
+
+class SignatureProviderConfigEditView(_ProviderConfigQuerysetMixin, ObjectEditView):
+    writes = True
+    model = SignatureProviderConfig
+    model_form = SignatureProviderConfigForm
+    template_name = "generic/object_edit.html"
+    default_return_url = "compliance:signatureproviderconfig_list"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["request"] = self.request
+        return kwargs
+
+
+class SignatureProviderConfigDeleteView(_ProviderConfigQuerysetMixin, ObjectDeleteView):
+    writes = True
+    model = SignatureProviderConfig
+    template_name = "generic/object_confirm_delete.html"
+    success_url = reverse_lazy("compliance:signatureproviderconfig_list")

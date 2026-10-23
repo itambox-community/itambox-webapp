@@ -14,6 +14,8 @@ def encrypted_field_specs():
 
     Imported lazily to avoid touching the app registry at module import time.
     """
+    # inline imports: app-registry: these model modules must not load before the app registry is ready
+    from compliance.models import SignatureProviderConfig
     from core.models import EmailSettings
     from extras.models import WebhookEndpoint
     from licenses.models import License
@@ -22,6 +24,7 @@ def encrypted_field_specs():
         (License, "product_key"),
         (EmailSettings, "smtp_password"),
         (WebhookEndpoint, "secret"),
+        (SignatureProviderConfig, "secrets_encrypted"),
     ]
 
 

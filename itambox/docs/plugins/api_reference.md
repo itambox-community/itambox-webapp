@@ -42,6 +42,7 @@ Pin the ITAMbox revision and the plugin revision together. The inventory behind 
 | `urls.py` | Stable |
 | `PluginConfig.django_apps` | Experimental |
 | `PluginConfig.middleware` | Experimental |
+| `PluginConfig.signature_providers` | Experimental |
 | `PluginModel` | Private |
 | `Registry` | Private |
 
@@ -142,6 +143,10 @@ A plugin package may also expose an optional `urls.py` module when `base_url` is
 ## GraphQL extension
 
 Set `graphql_schema` (or use `graphql/schema.py`) to a module exporting a Strawberry `Query`. Queries only: plugin mutations are not supported and abort startup. Plugin GraphQL is read-only; writes must be exposed through the host-owned REST viewset. Fields remain subject to the normal authentication, tenant, permission and operation-budget contracts.
+
+## Custody signature providers (Experimental)
+
+Set `signature_providers` to a list of classes (or dotted paths) subclassing `compliance.providers.BaseSignatureProvider`. There is no default location. Each class declares a unique `name`, a `verbose_name`, and implements `start`, and usually `complete_return` and `parse_callback`; the module docstring of `compliance.providers` describes each hook. A provider never writes a receipt itself: it returns a `SignatureOutcome`, and ITAMbox checks, records and seals the decision. `parse_callback` must authenticate the provider's request on its own, typically with a secret from the tenant's provider configuration, because the callback route has no other authentication. Account details live in per-tenant **Signature Provider Configs** (options plus encrypted secrets), which the provider validates through `validate_config`. Both the attribute and the provider interface are Experimental and may change in any release.
 
 ## Test helper
 

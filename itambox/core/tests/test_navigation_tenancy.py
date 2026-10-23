@@ -137,6 +137,7 @@ class TenantNavigationTests(TestCase):
                 "organization:costcenter_list",
                 "compliance:auditsession_list",
                 "compliance:custodytemplate_list",
+                "compliance:signatureproviderconfig_list",
                 "compliance:custodyreceipt_list",
                 "extras:alertlog_list",
                 "extras:alertrule_list",

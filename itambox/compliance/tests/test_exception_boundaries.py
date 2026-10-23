@@ -3,16 +3,16 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from compliance.views import _safe_dispatch_custody
+from compliance.services import _dispatch_custody_event
 
 
 class CustodyEventBoundaryTests(SimpleTestCase):
-    @patch("compliance.views.dispatch_event", side_effect=RuntimeError("event backend offline"))
+    @patch("compliance.services.dispatch_event", side_effect=RuntimeError("event backend offline"))
     def test_dispatch_failure_is_logged_with_non_secret_context(self, dispatch):
         receipt = SimpleNamespace(pk=31)
 
-        with self.assertLogs("compliance.views", level="ERROR") as logs:
-            _safe_dispatch_custody(receipt, actor_id=41, tenant_id=59)
+        with self.assertLogs("compliance.services", level="ERROR") as logs:
+            _dispatch_custody_event(receipt, actor_id=41, tenant_id=59)
 
         self.assertEqual(dispatch.call_count, 1)
         output = "\n".join(logs.output)

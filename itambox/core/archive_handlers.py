@@ -237,6 +237,7 @@ ARCHIVE_LEAVES: frozenset[str] = frozenset(
         "assets.warranty",
         "compliance.auditsession",
         "compliance.custodytemplate",
+        "compliance.signatureproviderconfig",
         "extras.alertrule",
         "extras.notificationchannel",
         "extras.reporttemplate",

@@ -8,7 +8,8 @@ from core.filters import BaseFilterSet
 from core.managers import Scope
 from organization.models import AssetHolder, Location
 
-from .models import AssetAudit, AuditSession, CustodyReceipt
+from .models import AssetAudit, AuditSession, CustodyReceipt, SignatureProviderConfig
+from .registry import signature_providers
 
 
 class CustodyReceiptFilterSet(BaseFilterSet):
@@ -138,3 +139,25 @@ class AssetAuditFilterSet(BaseFilterSet):
         return queryset.filter(
             Q(notes__icontains=value) | Q(asset__name__icontains=value) | Q(auditor__username__icontains=value)
         ).distinct()
+
+
+class SignatureProviderConfigFilterSet(BaseFilterSet):
+    q = django_filters.CharFilter(method="search", label=_("Search"))
+    provider = django_filters.ChoiceFilter(
+        choices=lambda: signature_providers.configurable_choices(),
+        label=_("Signature Provider"),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    is_active = django_filters.BooleanFilter(
+        label=_("Active"),
+        widget=forms.Select(choices=[("", "Any"), ("true", "Yes"), ("false", "No")], attrs={"class": "form-select"}),
+    )
+
+    class Meta:
+        model = SignatureProviderConfig
+        fields = ["provider", "is_active", "tenant"]
+
+    def search(self, queryset, name, value):
+        if not value.strip():
+            return queryset
+        return queryset.filter(Q(name__icontains=value) | Q(provider__icontains=value))

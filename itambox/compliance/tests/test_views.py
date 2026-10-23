@@ -8,7 +8,7 @@ from model_bakery import baker
 
 from assets.models import Asset, AssetAssignment, AssetMaintenance, AssetTagSequence, Supplier
 from assets.services import checkout_asset
-from compliance.providers import BaseSignatureProvider
+from compliance.providers import BaseSignatureProvider, StartResult
 from compliance.registry import signature_providers
 from compliance.tests.signatures import signature_png
 from organization.models import AssetHolder, Tenant
@@ -286,10 +286,15 @@ class CustodyReceiptViewTests(TestCase):
         from unittest import mock
 
         url = reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token})
-        with mock.patch("compliance.views._receipt_period_is_active", side_effect=[True, False]) as period_check:
+        # The pre-lock check runs in the view; the locked re-check runs in the decision service.
+        with (
+            mock.patch("compliance.views._receipt_period_is_active", return_value=True) as pre_lock,
+            mock.patch("compliance.services.receipt_period_is_active", return_value=False) as locked,
+        ):
             response = self.client.post(url, {"action": "accept", "signature_canvas": VALID_SIGNATURE})
 
-        self.assertEqual(period_check.call_count, 2)
+        self.assertEqual(pre_lock.call_count, 1)
+        self.assertEqual(locked.call_count, 1)
         self.assertEqual(response.status_code, 410)
         self.assertEqual(response.context["error_code"], "custody_superseded")
         self.receipt.refresh_from_db()
@@ -415,7 +420,7 @@ class CustodyReceiptViewTests(TestCase):
         self.receipt.save(update_fields=["signature_provider", "updated_at"])
         self.client.force_login(baker.make(User, username="external-wrong-recipient@example.test"))
 
-        with patch.object(provider, "initiate_signature", wraps=provider.initiate_signature) as initiate_signature:
+        with patch.object(provider, "start", wraps=provider.start) as initiate_signature:
             response = self.client.get(reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token}))
 
         self.assertEqual(response.status_code, 403)
@@ -427,11 +432,8 @@ class MockSignatureProvider(BaseSignatureProvider):
     name = "mock_esign"
     verbose_name = "Mock E-Sign Integration"
 
-    def initiate_signature(self, receipt, request=None):
-        return f"https://mockesign.com/sign/{receipt.token}/"
-
-    def verify_signature(self, payload):
-        return True
+    def start(self, receipt, *, request, settings, return_url):
+        return StartResult(redirect_url=f"https://mockesign.com/sign/{receipt.pk}/")
 
 
 class CustodyTemplateViewTests(TestCase):

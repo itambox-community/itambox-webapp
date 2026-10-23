@@ -45,6 +45,9 @@ TECHNICIAN_CUSTODY_DENIED_PERMISSIONS = frozenset(
         "compliance.change_custodytemplate",
         "compliance.delete_custodytemplate",
         "compliance.export_custodyreceipt",
+        "compliance.add_signatureproviderconfig",
+        "compliance.change_signatureproviderconfig",
+        "compliance.delete_signatureproviderconfig",
     }
 )
 TECHNICIAN_CUSTODY_REQUIRED_PERMISSIONS = (
