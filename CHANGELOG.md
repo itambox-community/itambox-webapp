@@ -16,6 +16,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The global `/bulk-delete/` endpoint applies the same model refusals as `/bulk-edit/`. Before, `/bulk-edit/` rejected roles and tenants while `/bulk-delete/` accepted them, so a bulk selection could reach models whose dedicated views carry lifecycle and protection handling that the generic archive path does not.
 
 ### Fixed
+- Custody receipts now record the signer's IP address and browser when the holder accepts or declines. The fields were already shown in the JSON and PDF exports and the custody report, but signing never filled them.
+- The custody signing page keeps a drawn signature when the window is resized or a mobile browser fires a resize while scrolling. Before, the pad was wiped but still counted as signed, so a blank image could be submitted. The pad also renders at the screen's pixel density, and Decline now asks for confirmation.
+- A custody template without a target category now applies as the default for its scope. Before, checkout only looked for templates matching the asset's category, so a category-less template never produced a receipt. A category template in any scope still wins over a category-less one.
 - Bulk edit and bulk delete work again on the shared catalogue lists: manufacturers, categories, status labels, asset roles, depreciation schedules, site groups, export and label templates, and asset types for bulk delete. Those toolbars posted to the global `/bulk-edit/` and `/bulk-delete/` endpoints, which answered 404 for every model without a tenant-scoped manager. One policy now decides both sides, so a list renders a bulk button only when the endpoint it posts to serves that model, and a model without a usable bulk action no longer shows a button at all: roles, custody receipts, tenant resource grants and user groups for bulk edit, and asset types for bulk edit because their rows are managed field by field. A test walks every model with a list route and fails when a model is neither served nor a recorded decision.
 - Scanning a tag that several of your tenants use no longer opens one customer's asset silently: the global scanner lists the matches, and audit and scan-basket scans report the ambiguity. Asset tags are unique per tenant only.
 - Printing from a non-asset page can no longer print the asset that happens to share the object's id.
@@ -27,6 +30,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The unused ZIP-of-PNGs label task.
 
 ### Security
+- The custody receipt REST endpoint is read-only. It previously accepted create, update and delete, so a user with `change_custodyreceipt` could move an accepted receipt to another holder, and `add_custodyreceipt` could mint receipts that no checkout created. Responses no longer include the signing `token`, and now include `signature_provider`, `ip_address` and `user_agent`.
+- The custody signing flow stores a signature only when it is a well-formed PNG data URI, and the receipt detail page shows a stored signature only after the same check. A receipt whose signature provider is not registered now shows an error instead of falling back to the local signature pad, and the template API rejects unknown provider names.
 - Export and label templates stay superuser-only through the batch endpoints. Serving the shared catalogue would otherwise have opened a generic write path that only their dedicated edit and delete views keep closed, so both models now belong to the model-wide mutation policy that every generic write path consults.
 
 ## [1.0.0-beta.6] - 2026-10-21

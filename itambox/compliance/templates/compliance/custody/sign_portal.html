@@ -128,7 +128,9 @@
                       id="clear-canvas-btn">{% translate "Clear Pad" %}</button>
             </div>
             <div class="signature-container">
-              <canvas id="signature-canvas"></canvas>
+              <canvas id="signature-canvas"
+                      role="img"
+                      aria-label="{% translate 'Signature pad' %}"></canvas>
             </div>
             {% if receipt.disclaimer %}
               <div class="mt-2 small text-muted text-center csp-style-13590be1c63c">{{ receipt.disclaimer }}</div>
@@ -156,26 +158,50 @@
             const clearBtn = document.getElementById("clear-canvas-btn");
             const form = document.getElementById("custody-sign-form");
             const signatureInput = document.getElementById("signature-input");
+            const signatureRequiredMessage = "{% translate 'Please draw your signature to accept the custody agreement.' as msg %}{{ msg|escapejs }}";
+            const declineConfirmMessage = "{% translate 'Decline this custody transfer? This cannot be undone.' as msg %}{{ msg|escapejs }}";
 
-            // Setup high-resolution canvas backing
+            let pathDrawn = false;
+
+            // Size the backing store to the displayed size times the device
+            // pixel ratio. Assigning canvas.width wipes the bitmap, so only
+            // resize when the size really changed (mobile browsers fire
+            // "resize" while scrolling) and repaint what was already drawn.
             function resizeCanvas() {
                 const rect = canvas.getBoundingClientRect();
-                canvas.width = rect.width;
-                canvas.height = rect.height;
+                // Capped at 2 to keep the submitted PNG small.
+                const ratio = Math.min(window.devicePixelRatio || 1, 2);
+                const width = Math.round(rect.width * ratio);
+                const height = Math.round(rect.height * ratio);
+                if (width === canvas.width && height === canvas.height) {
+                    return;
+                }
+                let previous = null;
+                if (pathDrawn && canvas.width > 0 && canvas.height > 0) {
+                    previous = document.createElement("canvas");
+                    previous.width = canvas.width;
+                    previous.height = canvas.height;
+                    previous.getContext("2d").drawImage(canvas, 0, 0);
+                }
+                canvas.width = width;
+                canvas.height = height;
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                if (previous) {
+                    ctx.drawImage(previous, 0, 0, width, height);
+                }
+                ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
                 ctx.strokeStyle = "#000000";
                 ctx.lineWidth = 3;
                 ctx.lineCap = "round";
                 ctx.lineJoin = "round";
             }
 
-            // Initial call and timeout delay to capture correct viewport bounds
             resizeCanvas();
             window.addEventListener("resize", resizeCanvas);
 
             let isDrawing = false;
             let lastX = 0;
             let lastY = 0;
-            let pathDrawn = false;
 
             function startDrawing(e) {
                 isDrawing = true;
@@ -238,21 +264,34 @@
 
             // Clear Pad Button
             clearBtn.addEventListener("click", function () {
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
                 signatureInput.value = "empty";
                 pathDrawn = false;
             });
 
             // Form Submit validation
             form.addEventListener("submit", function (e) {
+                if (form.dataset.previewBlock) {
+                    e.preventDefault();
+                    alert(form.dataset.previewBlock);
+                    return;
+                }
                 const submitter = e.submitter;
                 if (submitter && submitter.value === 'decline') {
+                    // Declining is final; ask once before submitting it.
+                    if (!window.confirm(declineConfirmMessage)) {
+                        e.preventDefault();
+                        return;
+                    }
                     signatureInput.value = 'empty';
                     return;
                 }
                 if (!pathDrawn) {
                     e.preventDefault();
-                    alert("Please draw your signature to accept the custody agreement.");
+                    alert(signatureRequiredMessage);
                     return;
                 }
                 signatureInput.value = canvas.toDataURL("image/png");

@@ -1,10 +1,12 @@
 from django.contrib.auth import get_user_model
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from assets.api.nested_serializers import NestedAssetSerializer
 from assets.api.serializers import CategorySerializer, StatusLabelSerializer
 from assets.models import Asset, AssetMaintenance, Category, StatusLabel
 from compliance.models import AssetAudit, AuditSession, CustodyReceipt, CustodyTemplate
+from compliance.registry import signature_providers
 from core.managers import Scope
 from extras.api.serializers import TagSerializer
 from itambox.api.base import BaseModelSerializer
@@ -38,6 +40,14 @@ class CustodyTemplateSerializer(BaseModelSerializer):
     )
     tags = TagSerializer(many=True, read_only=True)
 
+    def validate_signature_provider(self, value):
+        if signature_providers.get(value) is None:
+            raise serializers.ValidationError(
+                _("Unknown signature provider. Choose one of: %(names)s.")
+                % {"names": ", ".join(name for name, _label in signature_providers.choices())}
+            )
+        return value
+
     class Meta:
         model = CustodyTemplate
         fields = [
@@ -66,14 +76,10 @@ class CustodyTemplateSerializer(BaseModelSerializer):
 
 
 class CustodyReceiptSerializer(BaseModelSerializer):
+    # Read-only representation (the viewset accepts no writes). The signing
+    # ``token`` is a bearer credential and is never serialized.
     asset = NestedAssetSerializer(read_only=True)
-    asset_id = serializers.PrimaryKeyRelatedField(
-        queryset=NestedAssetSerializer.Meta.model.objects, source="asset", write_only=True
-    )
     holder = AssetHolderSerializer(read_only=True)
-    holder_id = serializers.PrimaryKeyRelatedField(
-        queryset=AssetHolderSerializer.Meta.model.objects, source="holder", write_only=True
-    )
     acceptance_status_display = serializers.CharField(source="get_acceptance_status_display", read_only=True)
 
     class Meta:
@@ -81,45 +87,26 @@ class CustodyReceiptSerializer(BaseModelSerializer):
         fields = [
             "id",
             "asset",
-            "asset_id",
             "holder",
-            "holder_id",
-            "token",
             "accepted",
             "accepted_date",
             "acceptance_method",
             "acceptance_status",
             "acceptance_status_display",
+            "signature_provider",
             "signature_data",
             "signature_hash",
             "verification_hash",
             "signature_canvas",
             "signed_at",
             "eula_version",
+            "ip_address",
+            "user_agent",
             "created_date",
             "created_at",
             "updated_at",
         ]
-        # Acceptance + signature state may only be set through the dedicated
-        # custody_eula_sign flow (which binds the signer and computes the
-        # verification hash). Exposing them as writable here would let any user
-        # with change_custodyreceipt forge an accepted, "signed" receipt.
-        read_only_fields = [
-            "token",
-            "accepted",
-            "accepted_date",
-            "acceptance_method",
-            "acceptance_status",
-            "signature_data",
-            "signature_hash",
-            "verification_hash",
-            "signature_canvas",
-            "signed_at",
-            "eula_version",
-            "created_date",
-            "created_at",
-            "updated_at",
-        ]
+        read_only_fields = fields
         brief_fields = ["id", "asset", "holder", "acceptance_status", "signed_at"]
 
 

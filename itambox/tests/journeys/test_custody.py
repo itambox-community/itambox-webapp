@@ -9,12 +9,13 @@ from model_bakery import baker
 from assets.models import AssetTagSequence
 from assets.services import checkin_asset, checkout_asset
 from compliance.models import CustodyReceipt, CustodyTemplate
+from compliance.tests.signatures import signature_png
 
 from .support import JourneyMixin
 
 User = get_user_model()
 
-SIGNATURE = "journey-signature-payload"
+SIGNATURE = signature_png("journey-signature-payload")
 
 
 @override_settings(REQUIRE_CUSTODY_SIGNIN=True)
@@ -132,3 +133,38 @@ class CustodyReceiptJourneyTests(JourneyMixin, TestCase):
         self.assertEqual(self._sign(second).status_code, 200)
         second.refresh_from_db()
         self.assertEqual(second.acceptance_status, CustodyReceipt.STATUS_ACCEPTED)
+
+    def test_signed_receipt_cannot_be_rewritten_or_minted_through_the_api(self):
+        signer = self.make_member("api-signed-holder", set())
+        holder = self.make_holder(user=signer)
+        other = self.make_holder()
+        receipt = self._checkout(holder)
+        self.client_login_to_tenant(signer, self.tenant)
+        self._sign(receipt)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.acceptance_status, CustodyReceipt.STATUS_ACCEPTED)
+
+        operator = self.make_member(
+            "api-receipt-operator",
+            {
+                "compliance.view_custodyreceipt",
+                "compliance.add_custodyreceipt",
+                "compliance.change_custodyreceipt",
+                "compliance.delete_custodyreceipt",
+            },
+        )
+        self.client_login_to_tenant(operator, self.tenant)
+        detail = reverse("api:compliance_api:custodyreceipt-detail", kwargs={"pk": receipt.pk})
+        rewrite = self.client.patch(detail, {"holder_id": other.pk}, content_type="application/json")
+        mint = self.client.post(
+            reverse("api:compliance_api:custodyreceipt-list"),
+            {"asset_id": self.asset.pk, "holder_id": other.pk},
+            content_type="application/json",
+        )
+
+        self.assertEqual(rewrite.status_code, 405)
+        self.assertEqual(mint.status_code, 405)
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.holder_id, holder.pk)
+        self.assertEqual(receipt.acceptance_status, CustodyReceipt.STATUS_ACCEPTED)
+        self.assertFalse(CustodyReceipt.objects.filter(holder=other).exists())

@@ -10,11 +10,14 @@ from assets.models import Asset, AssetAssignment, AssetMaintenance, AssetTagSequ
 from assets.services import checkout_asset
 from compliance.providers import BaseSignatureProvider
 from compliance.registry import signature_providers
+from compliance.tests.signatures import signature_png
 from organization.models import AssetHolder, Tenant
 
 from ..models import CustodyReceipt, CustodyTemplate
 
 User = get_user_model()
+
+VALID_SIGNATURE = signature_png("view-test-signature")
 
 
 class AssetMaintenanceViewTests(TestCase):
@@ -170,7 +173,7 @@ class CustodyReceiptViewTests(TestCase):
 
     def test_sign_portal_post_success(self):
         url = reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token})
-        sig_data = "data:image/png;base64,iVBORw0KGgoAAAANS..."
+        sig_data = VALID_SIGNATURE
         response = self.client.post(url, {"action": "accept", "signature_canvas": sig_data})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "receipt")  # checks success page rendered
@@ -189,7 +192,7 @@ class CustodyReceiptViewTests(TestCase):
 
         url = reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token})
         with CaptureQueriesContext(connection) as ctx:
-            self.client.post(url, {"action": "accept", "signature_canvas": "data:image/png;base64,AAA"})
+            self.client.post(url, {"action": "accept", "signature_canvas": VALID_SIGNATURE})
         locked = any(
             "custodyreceipt" in q["sql"].lower() and "for update" in q["sql"].lower() for q in ctx.captured_queries
         )
@@ -253,7 +256,7 @@ class CustodyReceiptViewTests(TestCase):
         self.assertIsNone(receipt.assignment_id)
 
         url = reverse("compliance:custody_eula_sign", kwargs={"token": receipt.token})
-        response = self.client.post(url, {"action": "accept", "signature_canvas": "data:image/png;base64,AAA"})
+        response = self.client.post(url, {"action": "accept", "signature_canvas": VALID_SIGNATURE})
 
         self.assertEqual(response.status_code, 200)
         receipt.refresh_from_db()
@@ -270,7 +273,7 @@ class CustodyReceiptViewTests(TestCase):
         )
 
         url = reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token})
-        response = self.client.post(url, {"action": "accept", "signature_canvas": "data:image/png;base64,AAA"})
+        response = self.client.post(url, {"action": "accept", "signature_canvas": VALID_SIGNATURE})
 
         self.assertEqual(response.status_code, 410)
         self.assertEqual(response.context["error_code"], "custody_superseded")
@@ -284,7 +287,7 @@ class CustodyReceiptViewTests(TestCase):
 
         url = reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token})
         with mock.patch("compliance.views._receipt_period_is_active", side_effect=[True, False]) as period_check:
-            response = self.client.post(url, {"action": "accept", "signature_canvas": "data:image/png;base64,AAA"})
+            response = self.client.post(url, {"action": "accept", "signature_canvas": VALID_SIGNATURE})
 
         self.assertEqual(period_check.call_count, 2)
         self.assertEqual(response.status_code, 410)
@@ -347,7 +350,7 @@ class CustodyReceiptViewTests(TestCase):
 
         response = self.client.post(
             reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token}),
-            {"action": "accept", "signature_canvas": "data:image/png;base64,VEVTVA=="},
+            {"action": "accept", "signature_canvas": VALID_SIGNATURE},
         )
 
         self.assertEqual(response.status_code, 403)
@@ -363,7 +366,7 @@ class CustodyReceiptViewTests(TestCase):
 
         response = self.client.post(
             reverse("compliance:custody_eula_sign", kwargs={"token": self.receipt.token}),
-            {"action": "accept", "signature_canvas": "data:image/png;base64,VEVTVA=="},
+            {"action": "accept", "signature_canvas": VALID_SIGNATURE},
         )
 
         self.assertEqual(response.status_code, 403)

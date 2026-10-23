@@ -9,11 +9,14 @@ from model_bakery import baker
 from assets.models import Asset, StatusLabel
 from assets.services import checkout_asset
 from compliance.models import CustodyReceipt, CustodyTemplate
+from compliance.tests.signatures import signature_png
 from core.management.commands._seed.access import _technician_permissions
 from core.tests.mixins import TenantTestMixin
 from organization.models import AssetHolder, Tenant
 
 User = get_user_model()
+
+ACCEPTED_SIGNATURE = signature_png("accepted-signature")
 
 
 class CustodyReceiptInternalViewTests(TenantTestMixin, TestCase):
@@ -131,12 +134,12 @@ class CustodyReceiptInternalViewTests(TenantTestMixin, TestCase):
         self.receipt.signed_at = signed_at
         self.receipt.acceptance_method = "checkbox"
         self.receipt.verification_hash = "obvious-test-verification-hash"
-        self.receipt.signature_canvas = "data:image/png;base64,VEVTVA=="
+        self.receipt.signature_canvas = ACCEPTED_SIGNATURE
         self.receipt.save()
         accepted_response = self.client.get(reverse("compliance:custodyreceipt_detail", kwargs={"pk": self.receipt.pk}))
         self.assertContains(accepted_response, "Accepted")
         self.assertContains(accepted_response, "obvious-test-verification-hash")
-        self.assertContains(accepted_response, "data:image/png;base64,VEVTVA==")
+        self.assertContains(accepted_response, ACCEPTED_SIGNATURE)
         self.assertNotContains(accepted_response, self.receipt.token)
 
     def test_internal_routes_return_custody_specific_403_without_permission(self):

@@ -24,6 +24,7 @@ from core.context import get_current_request_id
 from core.managers import Scope
 from core.reports.exporters import PDF_MIME, report_pdf_bytes
 from extras.services.events import dispatch_event
+from itambox.ratelimit import get_client_ip
 from itambox.views.generic import ObjectCloneView, ObjectDeleteView, ObjectDetailView, ObjectEditView, ObjectListView
 from itambox.views.generic.htmx_responses import error_response, is_htmx_request, success_response
 from itambox.views.generic.service_views import SimplePostView
@@ -57,6 +58,8 @@ EXPORT_CUSTODY_RECEIPT_PERMISSION = "compliance.export_custodyreceipt"
 CUSTODY_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{64}")
 CUSTODY_SIGNING_SESSION_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{64}")
 CUSTODY_LINK_TTL = timedelta(days=7)
+# Bound the stored evidence string; browsers send well under this.
+MAX_EVIDENCE_USER_AGENT_LENGTH = 512
 
 
 def _authenticated_user_is_holder(user, holder):
@@ -76,12 +79,29 @@ def _authenticated_user_is_holder(user, holder):
     return bool((holder_email and holder_email in candidates) or (holder_upn and holder_upn in candidates))
 
 
+def _signature_provider_unavailable_response(request):
+    return _custody_error_response(
+        request,
+        error_code="custody_provider_unavailable",
+        title="Signature Provider Unavailable",
+        error="The signature provider for this custody receipt is not available. Contact your IT administrator.",
+        status=503,
+    )
+
+
 def _external_signature_redirect(receipt, request):
     if receipt.signature_provider == "local":
         return None
     provider = signature_providers.get(receipt.signature_provider)
     if provider is None:
-        return None
+        # Fail closed: never fall back to the local pad for a receipt whose
+        # template chose a different provider.
+        logger.error(
+            "Custody receipt_id=%s names unregistered signature provider %r",
+            receipt.pk,
+            receipt.signature_provider,
+        )
+        return _signature_provider_unavailable_response(request)
     url = provider.initiate_signature(receipt, request)
     if request.GET.get("onsite") == "true":
         parsed_url = urlparse(url)
@@ -300,6 +320,13 @@ def _consume_custody_signing_session(signing_session, *, outcome, consumed_at):
     signing_session.save(update_fields=["consumed_at", "outcome", "updated_at"])
 
 
+def _record_signer_evidence(request, receipt):
+    """Stamp the client address and browser of the consent decision onto the receipt."""
+    receipt.ip_address = get_client_ip(request)
+    receipt.user_agent = request.META.get("HTTP_USER_AGENT", "")[:MAX_EVIDENCE_USER_AGENT_LENGTH]
+    return ["ip_address", "user_agent"]
+
+
 def _isoformat_or_none(value):
     return value.isoformat() if value is not None else None
 
@@ -400,7 +427,10 @@ def _process_custody_post(request, token, receipt, signing_session=None):
             receipt.accepted_date = None
             receipt.acceptance_status = CustodyReceipt.STATUS_DECLINED
             receipt.signed_at = None
-            receipt.save(update_fields=["accepted_date", "acceptance_status", "signed_at", "updated_at"])
+            evidence_fields = _record_signer_evidence(request, receipt)
+            receipt.save(
+                update_fields=["accepted_date", "acceptance_status", "signed_at", *evidence_fields, "updated_at"]
+            )
             _consume_custody_signing_session(
                 signing_session,
                 outcome=CustodySigningSession.OUTCOME_DECLINED,
@@ -413,7 +443,8 @@ def _process_custody_post(request, token, receipt, signing_session=None):
                 error="You have declined the custody transfer.",
                 status=200,
             )
-        if not signature_data or signature_data == "empty":
+        signature_data = validated_signature_image(signature_data)
+        if signature_data is None:
             return render(
                 request,
                 "compliance/custody/sign_portal.html",
@@ -439,6 +470,7 @@ def _process_custody_post(request, token, receipt, signing_session=None):
         receipt.verification_hash = verification_hash
         receipt.eula_version = CustodyReceipt.EULA_VERSION
         receipt.signed_at = signed_at
+        _record_signer_evidence(request, receipt)
         receipt.save()
         _consume_custody_signing_session(
             signing_session,
@@ -626,9 +658,9 @@ class CustodyReceiptDetailView(InternalCustodyPermissionMixin, ObjectDetailView)
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         receipt = self.object
-        signature = receipt.signature_canvas
-        if signature.startswith("data:image/png;base64,"):
-            context["signature_image"] = signature
+        signature_image = validated_signature_image(receipt.signature_canvas)
+        if signature_image is not None:
+            context["signature_image"] = signature_image
 
         now = timezone.now()
         signing_sessions = CustodySigningSession.objects.select_related("operator", "intended_holder").filter(
