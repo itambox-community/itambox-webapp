@@ -214,6 +214,9 @@
           <td width="50%"><span class="label">{% translate "Signature hash" %}</span><br><span class="hash">{{ receipt_data.signature_hash|default:"-" }}</span></td>
           <td width="50%"><span class="label">{% translate "Verification hash" %}</span><br><span class="hash">{{ receipt_data.verification_hash|default:"-" }}</span></td>
         </tr>
+        <tr>
+          <td colspan="2"><span class="label">{% translate "Evidence seal" %}</span><br>{{ evidence_label }}</td>
+        </tr>
       </table>
     </div>
     <div class="section">

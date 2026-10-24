@@ -173,6 +173,7 @@ class CustodyReceiptApiReadOnlyTests(TenantTestMixin, _ReceiptFixtureMixin, APIT
         self.assertEqual(response.data["ip_address"], "192.0.2.1")
         self.assertEqual(response.data["user_agent"], "EvidenceUA")
         self.assertEqual(response.data["signature_provider"], "local")
+        self.assertEqual(response.data["evidence_status"], "unsealed")
 
     def test_writes_are_refused_even_with_every_receipt_permission(self):
         before = CustodyReceipt.objects.count()

@@ -1,4 +1,3 @@
-import hashlib
 import json
 import logging
 import re
@@ -46,8 +45,10 @@ from .services import (
     render_custody_handoff_qr_svg,
     resolve_custody_handoff,
     scope_custody_receipts,
+    seal_custody_evidence,
     send_custody_handoff_email,
     validated_signature_image,
+    verify_custody_evidence,
 )
 from .tables import CustodyReceiptTable, CustodyTemplateTable
 
@@ -315,6 +316,17 @@ def _isoformat_or_none(value):
     return value.isoformat() if value is not None else None
 
 
+def _evidence_export(receipt):
+    check = verify_custody_evidence(receipt)
+    return {
+        "version": receipt.evidence_version,
+        "key_id": receipt.evidence_key_id,
+        "status": check.status,
+        "differing_fields": list(check.differing_fields),
+        "snapshot": receipt.evidence_snapshot,
+    }
+
+
 def _custody_receipt_export_payload(receipt):
     signing_sessions = (
         CustodySigningSession.objects.select_related("operator", "intended_holder")
@@ -363,6 +375,7 @@ def _custody_receipt_export_payload(receipt):
             "upn": receipt.holder.upn,
             "email": receipt.holder.email,
         },
+        "evidence": _evidence_export(receipt),
         "signing_sessions": [
             {
                 "id": signing_session.pk,
@@ -412,6 +425,7 @@ def _process_custody_post(request, token, receipt, signing_session=None):
             receipt.acceptance_status = CustodyReceipt.STATUS_DECLINED
             receipt.signed_at = None
             evidence_fields = _record_signer_evidence(request, receipt)
+            evidence_fields += seal_custody_evidence(receipt, decided_at=consumed_at)
             receipt.save(
                 update_fields=["accepted_date", "acceptance_status", "signed_at", *evidence_fields, "updated_at"]
             )
@@ -442,19 +456,15 @@ def _process_custody_post(request, token, receipt, signing_session=None):
             )
 
         signed_at = timezone.now()
-        timestamp_str = signed_at.isoformat()
-        raw_to_hash = f"{holder.upn}|{asset.asset_tag}|{timestamp_str}|{signature_data}"
-        verification_hash = hashlib.sha256(raw_to_hash.encode("utf-8")).hexdigest()
         receipt.accepted_date = signed_at
         receipt.acceptance_method = "digital"
         receipt.acceptance_status = CustodyReceipt.STATUS_ACCEPTED
         receipt.signature_canvas = signature_data
         receipt.signature_data = signature_data
-        receipt.signature_hash = verification_hash
-        receipt.verification_hash = verification_hash
         receipt.eula_version = CustodyReceipt.EULA_VERSION
         receipt.signed_at = signed_at
         _record_signer_evidence(request, receipt)
+        seal_custody_evidence(receipt, decided_at=signed_at)
         receipt.save()
         _consume_custody_signing_session(
             signing_session,
@@ -477,7 +487,7 @@ def _process_custody_post(request, token, receipt, signing_session=None):
             action="audit",
             prechange_data=asset_state,
             postchange_data=asset_state,
-            message=f"EULA digital custody receipt accepted. SHA-256 Hash: {verification_hash[:16]}...",
+            message=f"EULA digital custody receipt accepted. Evidence seal: {receipt.verification_hash[:16]}...",
         )
         return render(
             request,
@@ -645,6 +655,7 @@ class CustodyReceiptDetailView(InternalCustodyPermissionMixin, ObjectDetailView)
         signature_image = validated_signature_image(receipt.signature_canvas)
         if signature_image is not None:
             context["signature_image"] = signature_image
+        context["evidence_check"] = verify_custody_evidence(receipt)
 
         now = timezone.now()
         signing_sessions = CustodySigningSession.objects.select_related("operator", "intended_holder").filter(
@@ -761,6 +772,7 @@ def _custody_receipt_pdf_context(receipt):
         "signing_sessions": payload["signing_sessions"],
         "tenant_name": tenant.name if tenant is not None else _("Global"),
         "signature_image": validated_signature_image(receipt.signature_canvas),
+        "evidence_label": verify_custody_evidence(receipt).label,
     }
 
 

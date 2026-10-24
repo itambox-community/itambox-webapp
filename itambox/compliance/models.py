@@ -143,6 +143,7 @@ class CustodyReceipt(ChangeLoggingMixin, BaseModel):
         "signature_hash",
         "verification_hash",
         "signature_canvas",
+        "evidence_snapshot",
     ]
 
     # Version label stamped on every signed receipt. The EULA text is snapshotted per receipt
@@ -215,6 +216,18 @@ class CustodyReceipt(ChangeLoggingMixin, BaseModel):
     created_date = models.DateTimeField(auto_now_add=True, null=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name=_("IP Address"))
     user_agent = models.TextField(blank=True, verbose_name=_("User Agent"))
+    # Keyed evidence seal (compliance.services.seal_custody_evidence). Version 0
+    # marks a receipt decided before sealing existed: its verification_hash is
+    # an unkeyed digest that cannot be verified.
+    evidence_version = models.PositiveSmallIntegerField(default=0, editable=False, verbose_name=_("Evidence Version"))
+    evidence_key_id = models.CharField(max_length=16, blank=True, editable=False, verbose_name=_("Evidence Key ID"))
+    evidence_snapshot = models.JSONField(
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name=_("Evidence Snapshot"),
+        help_text=_("What the holder attested to, frozen at the decision and covered by the evidence seal."),
+    )
 
     @property
     def accepted(self) -> bool:
