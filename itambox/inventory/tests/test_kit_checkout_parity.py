@@ -118,17 +118,12 @@ class KitCheckoutParityBase(TenantTestMixin, TestCase):
         self.tenant_role.save(update_fields=["permissions"])
 
     @contextmanager
-    def patched_notifications(self, provider=None):
-        """Email boundary double: no real provider/SMTP is involved."""
+    def patched_notifications(self):
+        """Email boundary double: no real SMTP is involved."""
         email_config = SimpleNamespace(enabled=True, from_address="itambox@example.test", test_recipient="")
-        if provider is None:
-            provider = SimpleNamespace(
-                initiate_signature=lambda receipt, request: f"https://example.test/accept/{receipt.pk}"
-            )
         request = SimpleNamespace(user=self.tenant_user)
         with (
             patch("core.models.EmailSettings.load", return_value=email_config),
-            patch("compliance.registry.signature_providers.get", return_value=provider),
             patch("assets.services.send_mail") as send_mail,
         ):
             yield request, send_mail
@@ -532,7 +527,7 @@ class KitCheckoutParityTests(KitCheckoutParityBase):
             self.assertEqual(call.kwargs["recipient_list"], [self.holder.email])
             self.assertFalse(call.kwargs["fail_silently"])
             self.assertIn("Accept custody using this link:", call.kwargs["message"])
-            self.assertIn("https://example.test/accept/", call.kwargs["message"])
+            self.assertIn("/compliance/custody/sign/", call.kwargs["message"])
             self.assertIn("This link expires in 7 days.", call.kwargs["message"])
 
         for asset in (first, second):
@@ -543,11 +538,14 @@ class KitCheckoutParityTests(KitCheckoutParityBase):
             self.assertIn(f"Asset Tag: {asset.asset_tag}", message)
             self.assertIn(f"Serial: {asset.serial_number}", message)
 
-    def test_provider_validation_error_after_commit_preserves_assignment_and_receipt(self):
+    def test_notification_failure_after_commit_preserves_assignment_and_receipt(self):
         item = self.add_hardware_item()
         chosen = self.make_asset("KP-NOTIFICATION-FAILURE")
-        provider = SimpleNamespace(initiate_signature=Mock(side_effect=ValidationError("Provider rejected request")))
-        with self.patched_notifications(provider=provider) as (request, send_mail):
+        sign_url = Mock(side_effect=ValidationError("Signing link could not be built"))
+        with (
+            self.patched_notifications() as (request, send_mail),
+            patch("assets.services.build_custody_sign_url", sign_url),
+        ):
             with self.assertLogs("assets.services", level="ERROR") as logs:
                 with self.captureOnCommitCallbacks(execute=True):
                     checkout_kit(
@@ -557,8 +555,8 @@ class KitCheckoutParityTests(KitCheckoutParityBase):
                         request=request,
                         selected_assets={item.pk: chosen.pk},
                     )
-                    provider.initiate_signature.assert_not_called()
-            provider.initiate_signature.assert_called_once()
+                    sign_url.assert_not_called()
+            sign_url.assert_called_once()
             send_mail.assert_not_called()
         self.assertTrue(AssetAssignment._base_manager.filter(asset=chosen, is_active=True).exists())
         self.assertTrue(CustodyReceipt.objects.filter(asset=chosen, holder=self.holder).exists())
@@ -590,54 +588,6 @@ class KitCheckoutParityTests(KitCheckoutParityBase):
         send_mail.assert_not_called()
         self.assertFalse(AssetAssignment._base_manager.filter(asset=control).exists())
         self.assertEqual(CustodyReceipt.objects.filter(asset=control).count(), 0)
-
-    def test_provider_handoff_is_deferred_until_commit(self):
-        item = self.add_hardware_item()
-        asset = self.make_asset("KP-2801")
-        provider = Mock()
-        provider.initiate_signature.return_value = "https://example.test/accept/deferred"
-
-        with self.patched_notifications(provider=provider) as (request, send_mail):
-            with self.captureOnCommitCallbacks(execute=True):
-                checkout_kit(
-                    self.kit,
-                    holder=self.holder,
-                    source_location=self.location,
-                    user=self.tenant_user,
-                    request=request,
-                    selected_assets={item.pk: asset.pk},
-                )
-                # Inside the transaction the provider must not have been handed
-                # anything yet — the handoff belongs to the commit.
-                provider.initiate_signature.assert_not_called()
-
-        provider.initiate_signature.assert_called_once()
-        send_mail.assert_called_once()
-
-    def test_rolled_back_checkout_never_calls_the_provider(self):
-        self.grant_role_permissions("inventory.add_consumableassignment")
-        hardware = self.add_hardware_item()
-        asset = self.make_asset("KP-2802")
-        consumable = self.make_consumable("Parity Glue")
-        KitItem.objects.create(kit=self.kit, consumable=consumable, qty=3)
-        ConsumableStock.objects.create(consumable=consumable, location=self.location, qty=1)
-        provider = Mock()
-
-        with self.patched_notifications(provider=provider) as (request, send_mail):
-            with self.captureOnCommitCallbacks(execute=True) as callbacks:
-                with self.assertRaisesMessage(ValidationError, "No stock available"):
-                    checkout_kit(
-                        self.kit,
-                        holder=self.holder,
-                        source_location=self.location,
-                        user=self.tenant_user,
-                        request=request,
-                        selected_assets={hardware.pk: asset.pk},
-                    )
-
-        self.assertEqual(callbacks, [])
-        provider.initiate_signature.assert_not_called()
-        send_mail.assert_not_called()
 
     def test_scheduled_notification_reenters_its_tenant_scope(self):
         item = self.add_hardware_item()

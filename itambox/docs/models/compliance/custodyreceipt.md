@@ -46,6 +46,9 @@ Only the intended holder, signed in to ITAMbox. If the holder is linked to a log
 | **Signature Data** | The signature data of the custody receipt. | Text | No |
 | **Signature Hash** | SHA-256 of the stored signature (the PNG data URI). | String | No |
 | **Signature Provider** | Service handling the signature: `local` for the on-platform canvas, or a provider registered by a plugin. | String | Yes |
+| **Provider Config** | The [Signature Provider Config](signatureproviderconfig.md) that started signing at an external provider. | Foreign Key | No |
+| **Provider Evidence** | What an external provider reported about the decision, such as the signer's address at the provider. Covered by the evidence seal. | JSON | No |
+| **Provider Reference** | The external provider's request or envelope ID. Callbacks are matched by this ID and the config. | String | No |
 | **Signed At** | The timestamp when the digital signature occurred. | DateTime | Yes |
 | **Token** | The token of the custody receipt. | String | Yes |
 | **User Agent** | Browser user agent recorded when the holder accepts or declines (at most 512 characters). | Text | No |
@@ -66,6 +69,10 @@ The receipt detail page, the JSON and PDF exports and the receipt API report one
 - **Not sealed**: the receipt is still pending or was superseded.
 
 Run `manage.py verify_custody_receipts` to check every decided receipt; `--tenant <slug>` limits the check, and `--fail-on-mismatch` exits non-zero for monitoring. When you rotate `ITAMBOX_FIELD_ENCRYPTION_KEYS`, keep the old key in the keyring for as long as receipts sealed with it must verify; once it is removed, they report **Unknown key**. Treat the receipt as electronic acceptance evidence and assess legal sufficiency with your organisation's legal advisers.
+
+### External signature providers
+
+When a receipt's template names an external provider, the holder still opens ITAMbox's signing page first. ITAMbox checks the holder and the custody period, then hands the holder to the provider. The provider's decision comes back through an authenticated callback or the holder's return to ITAMbox, and is recorded, re-checked and sealed exactly like a decision on the local pad. Setup and the full flow are described on [Signature Provider Configs](signatureproviderconfig.md).
 
 ### Operator-prepared signing handoff
 

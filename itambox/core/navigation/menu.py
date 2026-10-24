@@ -374,6 +374,7 @@ OPERATIONS_MENU = Menu(
                     ),
                 ),
                 get_model_item("compliance", "custodytemplate", _("Custody Templates")),
+                get_model_item("compliance", "signatureproviderconfig", _("Signature Provider Configs")),
                 # Explicit MenuItem, not get_model_item: custody receipts have
                 # no create route (receipts are system-generated), and the
                 # helper's full CRUD link family would emit a NoReverseMatch

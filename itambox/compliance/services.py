@@ -4,6 +4,7 @@ import hmac
 import io
 import ipaddress
 import json
+import logging
 import re
 from dataclasses import dataclass
 from datetime import timezone as dt_timezone
@@ -19,15 +20,25 @@ from django.urls import reverse
 from django.utils import timezone, translation
 from django.utils.translation import gettext_lazy as _
 
+from assets.models import AssetAssignment
 from core import events as core_events
 from core.crypto import derive_purpose_keys
 from core.events import DeliveryDisposition, DeliveryResult
 from core.managers import Scope
 from core.models import EmailSettings
 from extras.models import JournalEntry
+from extras.services.events import dispatch_event
 from organization.models import Tenant
 
-from .models import CustodyHandoffDelivery, CustodyReceipt, CustodySigningSession
+from .models import CustodyHandoffDelivery, CustodyReceipt, CustodySigningSession, SignatureProviderConfig
+from .providers import (
+    OUTCOME_ACCEPTED,
+    CallbackEvent,
+    ProviderSettings,
+    SignatureOutcome,
+    SignatureProviderError,
+    StartResult,
+)
 
 SIGNATURE_PNG_PREFIX = "data:image/png;base64,"
 MAX_SIGNATURE_IMAGE_BYTES = 2 * 1024 * 1024
@@ -116,6 +127,11 @@ def _bound_evidence(receipt):
         "assignment_id": receipt.assignment_id,
         "custody_template_id": receipt.custody_template_id,
         "signature_provider": receipt.signature_provider,
+        "provider_config_id": receipt.provider_config_id,
+        "provider_reference": receipt.provider_reference or "",
+        "provider_evidence_sha256": (
+            hashlib.sha256(_canonical_bytes(receipt.provider_evidence)).hexdigest() if receipt.provider_evidence else ""
+        ),
         "decision": {
             "status": receipt.acceptance_status,
             "method": receipt.acceptance_method,
@@ -554,3 +570,238 @@ def supersede_pending_receipts(assignment):
     ).update(canceled_at=now, updated_at=now)
     CustodyReceipt.objects.filter(pk__in=ids).update(acceptance_status=CustodyReceipt.STATUS_SUPERSEDED, updated_at=now)
     return len(ids)
+
+
+# ── Signature providers and the one decision path ──────────────────────────
+
+logger = logging.getLogger(__name__)
+
+# Bound the stored evidence string; browsers send well under this.
+MAX_EVIDENCE_USER_AGENT_LENGTH = 512
+
+
+class ProviderUnavailable(Exception):
+    """The receipt's provider is unregistered or has no active configuration."""
+
+
+class CustodyDecisionRefused(Exception):
+    """The receipt can no longer take a decision."""
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def build_custody_sign_url(request, receipt):
+    """The holder's signing link, on ITAMBOX_BASE_URL when configured."""
+    path = reverse("compliance:custody_eula_sign", kwargs={"token": receipt.token})
+    base_url = getattr(settings, "ITAMBOX_BASE_URL", "")
+    if base_url:
+        return f"{base_url}{path}"
+    if request is not None and hasattr(request, "build_absolute_uri"):
+        return request.build_absolute_uri(path)
+    return path
+
+
+def _absolute_url(request, path):
+    base_url = getattr(settings, "ITAMBOX_BASE_URL", "")
+    if base_url:
+        return f"{base_url}{path}"
+    return request.build_absolute_uri(path) if request is not None else path
+
+
+def provider_settings_for(config, *, request=None):
+    """The ProviderSettings view of a stored config: options, decrypted secrets, callback URL."""
+    if config is None:
+        return ProviderSettings(config_id=None)
+    callback = reverse("compliance:signature_provider_callback", kwargs={"config_pk": config.pk})
+    return ProviderSettings(
+        config_id=config.pk,
+        options=dict(config.options or {}),
+        secrets=config.get_secrets(),
+        callback_url=_absolute_url(request, callback),
+    )
+
+
+def resolve_provider_config(receipt, provider):
+    """The active config for the receipt's provider: the asset tenant's, else the install-wide one."""
+    if not provider.requires_config:
+        return None
+    # unscoped: the public signing flow runs without a tenant scope; the receipt token is the authority
+    candidates = SignatureProviderConfig._base_manager.filter(
+        provider=provider.name, is_active=True, deleted_at__isnull=True
+    )
+    tenant_id = receipt.asset.tenant_id
+    config = candidates.filter(tenant_id=tenant_id).first() if tenant_id is not None else None
+    if config is None:
+        config = candidates.filter(tenant__isnull=True).first()
+    if config is None:
+        raise ProviderUnavailable(f"no active {provider.name!r} configuration for tenant {tenant_id}")
+    return config
+
+
+def start_provider_signature(receipt, provider, *, request, return_url):
+    """Let the provider start (or resume) signing; remember which request it opened."""
+    config = resolve_provider_config(receipt, provider)
+    # Start under the receipt's row lock so two quick visits resume one request
+    # at the provider instead of opening two.
+    with transaction.atomic():
+        locked = CustodyReceipt.objects.select_for_update().select_related("asset", "holder").get(pk=receipt.pk)
+        result = provider.start(
+            locked, request=request, settings=provider_settings_for(config, request=request), return_url=return_url
+        )
+        if result is None:
+            return None
+        if not isinstance(result, StartResult) or not result.redirect_url:
+            raise SignatureProviderError(f"provider {provider.name!r} returned no redirect URL")
+        reference = (result.provider_reference or "")[:255]
+        changed = []
+        if config is not None and locked.provider_config_id != config.pk:
+            locked.provider_config = config
+            changed.append("provider_config")
+        if reference and reference != locked.provider_reference:
+            locked.provider_reference = reference
+            changed.append("provider_reference")
+        if changed:
+            locked.save(update_fields=[*changed, "updated_at"])
+    return result
+
+
+def receipt_period_is_active(receipt):
+    """True while the custody period the receipt evidences is the asset's active one."""
+    # Read through the base manager: the signing holder need not be a member of
+    # the asset's tenant, and the tenant-scoped manager would hide the assignment.
+    if receipt.assignment_id is not None:
+        # unscoped: the signing holder may not be a tenant member; the receipt token is the authority
+        return AssetAssignment._base_manager.filter(
+            pk=receipt.assignment_id, asset_id=receipt.asset_id, is_active=True, deleted_at__isnull=True
+        ).exists()
+    # unscoped: legacy receipt without a bound period; same token-authority reasoning as above
+    return AssetAssignment._base_manager.filter(
+        asset_id=receipt.asset_id, assigned_user_id=receipt.holder_id, is_active=True, deleted_at__isnull=True
+    ).exists()
+
+
+def _dispatch_custody_event(receipt, *, actor_id=None, tenant_id=None):
+    try:
+        dispatch_event(CustodyReceipt, receipt, action="update")
+    # broad except: boundary-isolation: event delivery failure must not invalidate a recorded custody decision
+    except Exception as exc:
+        logger.error(
+            "Custody event dispatch failed for receipt_id=%s tenant_id=%s actor_id=%s exception_type=%s",
+            receipt.pk,
+            tenant_id,
+            actor_id,
+            type(exc).__name__,
+        )
+
+
+def record_custody_decision(
+    receipt,
+    outcome: SignatureOutcome,
+    *,
+    method,
+    client_ip="",
+    user_agent="",
+    signing_session=None,
+    actor_id=None,
+):
+    """Write one holder decision onto a receipt the caller has locked.
+
+    Every provider ends here. The receipt must still be pending and its custody
+    period active; an acceptance must carry a well-formed PNG signature when the
+    provider supplies one. The decision is sealed, the signing session consumed,
+    the asset journal written and the receipt event scheduled after commit.
+    """
+    if receipt.acceptance_status != CustodyReceipt.STATUS_PENDING:
+        raise CustodyDecisionRefused("not_pending")
+    if not receipt_period_is_active(receipt):
+        raise CustodyDecisionRefused("superseded")
+    signature = None
+    if outcome.signature_image is not None:
+        signature = validated_signature_image(outcome.signature_image)
+        if signature is None:
+            raise CustodyDecisionRefused("invalid_signature")
+
+    decided_at = timezone.now()
+    receipt.ip_address = client_ip or None
+    receipt.user_agent = (user_agent or "")[:MAX_EVIDENCE_USER_AGENT_LENGTH]
+    if outcome.provider_reference:
+        receipt.provider_reference = outcome.provider_reference[:255]
+    if outcome.provider_evidence:
+        receipt.provider_evidence = outcome.provider_evidence
+    if outcome.status == OUTCOME_ACCEPTED:
+        receipt.accepted_date = decided_at
+        receipt.signed_at = decided_at
+        receipt.acceptance_method = method
+        receipt.acceptance_status = CustodyReceipt.STATUS_ACCEPTED
+        receipt.signature_canvas = signature or ""
+        receipt.signature_data = signature or ""
+        receipt.eula_version = CustodyReceipt.EULA_VERSION
+    else:
+        receipt.accepted_date = None
+        receipt.signed_at = None
+        receipt.acceptance_status = CustodyReceipt.STATUS_DECLINED
+    seal_custody_evidence(receipt, decided_at=decided_at)
+    receipt.save()
+
+    if signing_session is not None:
+        signing_session.consumed_at = decided_at
+        signing_session.outcome = receipt.acceptance_status
+        signing_session.save(update_fields=["consumed_at", "outcome", "updated_at"])
+
+    asset = receipt.asset
+    tenant_id = asset.tenant_id
+    transaction.on_commit(lambda: _dispatch_custody_event(receipt, actor_id=actor_id, tenant_id=tenant_id))
+    if receipt.acceptance_status == CustodyReceipt.STATUS_ACCEPTED:
+        # Journal-style audit write: no asset save, so tag allocation and model
+        # validation never re-run and a stale in-request copy of the asset row
+        # can never overwrite concurrent edits.
+        asset_state = asset._serialize_for_change(asset)
+        asset._log_change(
+            action="audit",
+            prechange_data=asset_state,
+            postchange_data=asset_state,
+            message=f"EULA digital custody receipt accepted. Evidence seal: {receipt.verification_hash[:16]}...",
+        )
+    return receipt
+
+
+def record_provider_outcome(receipt_pk, outcome: SignatureOutcome, *, provider_name, client_ip="", user_agent=""):
+    """Lock a receipt and record a provider-reported decision on it."""
+    with transaction.atomic():
+        receipt = CustodyReceipt.objects.select_for_update().select_related("asset", "holder").get(pk=receipt_pk)
+        if receipt.signature_provider != provider_name:
+            raise CustodyDecisionRefused("provider_mismatch")
+        return record_custody_decision(
+            receipt,
+            outcome,
+            method=f"provider:{provider_name}"[:50],
+            client_ip=client_ip,
+            user_agent=user_agent,
+        )
+
+
+def handle_provider_callback(config, event: CallbackEvent):
+    """Apply an authenticated provider callback; returns a short status word.
+
+    The callback is matched to a receipt through the config that started the
+    signing and the provider's own reference, so a config can never reach
+    another config's receipts.
+    """
+    if not event.provider_reference:
+        return "unknown_reference"
+    receipt_pk = (
+        CustodyReceipt.objects.filter(provider_config=config, provider_reference=event.provider_reference)
+        .values_list("pk", flat=True)
+        .first()
+    )
+    if receipt_pk is None:
+        return "unknown_reference"
+    if event.outcome is None:
+        return "acknowledged"
+    try:
+        record_provider_outcome(receipt_pk, event.outcome, provider_name=config.provider)
+    except CustodyDecisionRefused as refused:
+        return refused.reason
+    return event.outcome.status

@@ -4,7 +4,7 @@ from django_tables2.utils import A
 
 from core.tables import ActionsColumn, BaseTable, ToggleColumn
 
-from .models import CustodyReceipt, CustodyTemplate
+from .models import CustodyReceipt, CustodyTemplate, SignatureProviderConfig
 
 
 class CustodyTemplateTable(BaseTable):
@@ -74,3 +74,17 @@ class CustodyReceiptTable(BaseTable):
         from django.utils.html import format_html
 
         return format_html('<span class="badge {}">{}</span>', badge_class, value.title())
+
+
+class SignatureProviderConfigTable(BaseTable):
+    pk = ToggleColumn(accessor="pk")
+    name = tables.LinkColumn("compliance:signatureproviderconfig_detail", args=[A("pk")], verbose_name=_("Name"))
+    tenant = tables.Column(verbose_name=_("Tenant"), default=_("Install-wide"))
+    provider = tables.Column(verbose_name=_("Provider"))
+    is_active = tables.BooleanColumn(verbose_name=_("Active"))
+    actions = ActionsColumn()
+
+    class Meta(BaseTable.Meta):
+        model = SignatureProviderConfig
+        fields = ("pk", "name", "tenant", "provider", "is_active", "actions")
+        default_columns = ("pk", "name", "tenant", "provider", "is_active", "actions")

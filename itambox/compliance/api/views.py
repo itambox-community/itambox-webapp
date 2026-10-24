@@ -4,6 +4,7 @@ from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.permissions import SAFE_METHODS
 
 from assets.models import AssetMaintenance
 from compliance.audit_services import audit_asset, authorized_asset_audit_queryset, close_audit_session
@@ -13,7 +14,7 @@ from compliance.filters import (
     AuditSessionFilterSet,
     CustodyReceiptFilterSet,
 )
-from compliance.models import AssetAudit, AuditSession, CustodyReceipt, CustodyTemplate
+from compliance.models import AssetAudit, AuditSession, CustodyReceipt, CustodyTemplate, SignatureProviderConfig
 from core.managers import get_current_tenant
 from itambox.api.viewsets import ITAMBoxModelViewSet, ITAMBoxReadOnlyModelViewSet
 from itambox.middleware import get_current_user
@@ -24,6 +25,7 @@ from .serializers import (
     AuditSessionSerializer,
     CustodyReceiptSerializer,
     CustodyTemplateSerializer,
+    SignatureProviderConfigSerializer,
 )
 
 
@@ -58,6 +60,20 @@ class CustodyTemplateViewSet(ITAMBoxModelViewSet):
         CustodyTemplate.objects.select_related("tenant", "tenant_group", "category").prefetch_related("tags").all()
     )
     serializer_class = CustodyTemplateSerializer
+
+
+class SignatureProviderConfigViewSet(ITAMBoxModelViewSet):
+    # Nullable tenant + allow_global_tenant: the base viewset scopes reads to the
+    # active tenant's configs plus the install-wide ones. Install-wide rows are
+    # writable only by platform administrators.
+    queryset = SignatureProviderConfig.objects.select_related("tenant").all()
+    serializer_class = SignatureProviderConfigSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.method not in SAFE_METHODS and not self.request.user.is_superuser:
+            queryset = queryset.filter(tenant__isnull=False)
+        return queryset
 
 
 class CustodyReceiptViewSet(ITAMBoxReadOnlyModelViewSet):

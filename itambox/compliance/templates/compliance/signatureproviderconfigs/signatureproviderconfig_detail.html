@@ -1,0 +1,57 @@
+{% extends 'generic/object_detail.html' %}
+{% load i18n %}
+{% block title %}{{ object.name }} {% translate "- Signature Provider Config - ITAMbox" %}{% endblock %}
+{% block page_pretitle %}
+  {% translate "Compliance / Signature Provider Configs" %}
+{% endblock %}
+{% block object_details %}
+  <dl class="row mb-0">
+    <dt class="col-sm-4">{% translate "Name" %}</dt>
+    <dd class="col-sm-8">
+      {{ object.name }}
+    </dd>
+    <dt class="col-sm-4">{% translate "Scope" %}</dt>
+    <dd class="col-sm-8">
+      {% if object.tenant %}
+        {{ object.tenant }}
+      {% else %}
+        {% translate "Install-wide (tenants without their own config)" %}
+      {% endif %}
+    </dd>
+    <dt class="col-sm-4">{% translate "Signature Provider" %}</dt>
+    <dd class="col-sm-8">
+      <span class="badge bg-blue-lt">{{ provider_label }}</span>
+      {% if not provider_registered %}
+        <span class="badge bg-red-lt">{% translate "Provider not installed" %}</span>
+      {% endif %}
+    </dd>
+    <dt class="col-sm-4">{% translate "Status" %}</dt>
+    <dd class="col-sm-8">
+      {% if object.is_active %}
+        <span class="badge bg-green-lt">{% translate "Active" %}</span>
+      {% else %}
+        <span class="badge bg-secondary-lt">{% translate "Inactive" %}</span>
+      {% endif %}
+    </dd>
+    <dt class="col-sm-4">{% translate "Options" %}</dt>
+    <dd class="col-sm-8">
+      {% for key, value in object.options.items %}
+        <div><code>{{ key }}</code>: {{ value }}</div>
+      {% empty %}
+        -
+      {% endfor %}
+    </dd>
+    <dt class="col-sm-4">{% translate "Stored secrets" %}</dt>
+    <dd class="col-sm-8">
+      {% for key in secret_keys %}
+        <code>{{ key }}</code>{% if not forloop.last %}, {% endif %}
+      {% empty %}
+        -
+      {% endfor %}
+    </dd>
+    <dt class="col-sm-4">{% translate "Callback URL" %}</dt>
+    <dd class="col-sm-8 text-break font-monospace">
+      {{ callback_url }}
+    </dd>
+  </dl>
+{% endblock %}

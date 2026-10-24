@@ -1,4 +1,4 @@
-from compliance.filters import AuditSessionFilterSet, CustodyReceiptFilterSet
+from compliance.filters import AuditSessionFilterSet, CustodyReceiptFilterSet, SignatureProviderConfigFilterSet
 from core.forms import FilterForm
 
 
@@ -8,3 +8,7 @@ class AuditSessionFilterForm(FilterForm):
 
 class CustodyReceiptFilterForm(FilterForm):
     filterset_class = CustodyReceiptFilterSet
+
+
+class SignatureProviderConfigFilterForm(FilterForm):
+    filterset_class = SignatureProviderConfigFilterSet

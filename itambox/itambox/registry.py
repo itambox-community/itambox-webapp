@@ -160,6 +160,7 @@ class Registry:
         self._plugin_viewsets = defaultdict(list)
         self._plugin_permission_targets = defaultdict(list)
         self._plugin_graphql = []
+        self._plugin_signature_providers = []
         self._plugins_frozen = False
         self._generic_presentation_lock = RLock()
         self._generic_presentation_registrations = {}
@@ -546,6 +547,16 @@ class Registry:
     def get_plugin_graphql(self):
         return tuple(self._plugin_graphql)
 
+    def _register_plugin_signature_provider(self, plugin_name, provider_class):
+        self._guard_plugin_registration()
+        name = getattr(provider_class, "name", None)
+        if any(getattr(existing, "name", None) == name for _, existing in self._plugin_signature_providers):
+            raise ValueError(f"signature provider {name!r} is declared by more than one plugin")
+        self._plugin_signature_providers.append((plugin_name, provider_class))
+
+    def get_plugin_signature_providers(self):
+        return tuple(self._plugin_signature_providers)
+
     def _freeze_plugins(self):
         """Make plugin registrations read-only once assembly has completed."""
         self._plugins_frozen = True
@@ -570,6 +581,7 @@ class Registry:
         self._plugin_viewsets.clear()
         self._plugin_permission_targets.clear()
         self._plugin_graphql.clear()
+        self._plugin_signature_providers.clear()
         self._plugins_frozen = False
 
 
