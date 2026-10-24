@@ -1,6 +1,12 @@
 import base64
+import hashlib
+import hmac
 import io
+import ipaddress
+import json
 import re
+from dataclasses import dataclass
+from datetime import timezone as dt_timezone
 from urllib.parse import urlencode
 
 import segno
@@ -14,6 +20,7 @@ from django.utils import timezone, translation
 from django.utils.translation import gettext_lazy as _
 
 from core import events as core_events
+from core.crypto import derive_purpose_keys
 from core.events import DeliveryDisposition, DeliveryResult
 from core.managers import Scope
 from core.models import EmailSettings
@@ -35,6 +42,150 @@ CUSTODY_HANDOFF_QR_LIGHT = "#ffffff"
 CUSTODY_HANDOFF_COOLDOWN_SECONDS = 10
 CUSTODY_HANDOFF_SESSION_ATTEMPT_LIMIT = 3
 CUSTODY_HANDOFF_RECEIPT_ATTEMPT_LIMIT = 6
+
+
+# ── Keyed evidence seal ────────────────────────────────────────────────────
+# A decided receipt carries a frozen snapshot of what the holder attested to and
+# an HMAC over it, keyed by a purpose key derived from the field-encryption
+# keyring. Without the key, nobody with database access alone can rewrite a
+# receipt and recompute a matching seal.
+EVIDENCE_VERSION = 1
+EVIDENCE_KEY_PURPOSE = "custody-receipt-evidence"
+
+EVIDENCE_UNSEALED = "unsealed"
+EVIDENCE_LEGACY = "legacy"
+EVIDENCE_VERIFIED = "verified"
+EVIDENCE_MISMATCH = "mismatch"
+EVIDENCE_UNKNOWN_KEY = "unknown_key"
+EVIDENCE_STATUS_LABELS = {
+    EVIDENCE_UNSEALED: _("Not sealed"),
+    EVIDENCE_LEGACY: _("Legacy (unkeyed digest, cannot be verified)"),
+    EVIDENCE_VERIFIED: _("Verified"),
+    EVIDENCE_MISMATCH: _("Mismatch: the receipt no longer matches its sealed evidence"),
+    EVIDENCE_UNKNOWN_KEY: _("Unknown key: sealed with a key that is no longer configured"),
+}
+
+
+@dataclass(frozen=True)
+class EvidenceCheck:
+    status: str
+    differing_fields: tuple[str, ...] = ()
+
+    @property
+    def label(self):
+        return EVIDENCE_STATUS_LABELS[self.status]
+
+    @property
+    def verified(self):
+        return self.status == EVIDENCE_VERIFIED
+
+
+def _utc_timestamp(value):
+    if value is None:
+        return None
+    return value.astimezone(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _text_sha256(value):
+    return hashlib.sha256((value or "").encode("utf-8")).hexdigest()
+
+
+def _normalized_ip(value):
+    if not value:
+        return ""
+    try:
+        return ipaddress.ip_address(str(value)).compressed
+    except ValueError:
+        return str(value)
+
+
+def _canonical_bytes(snapshot):
+    return json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def _evidence_mac(key, snapshot):
+    return hmac.new(key, _canonical_bytes(snapshot), hashlib.sha256).hexdigest()
+
+
+def _bound_evidence(receipt):
+    """The evidence fields that the receipt row itself must keep agreeing with."""
+    return {
+        "receipt_id": receipt.pk,
+        "asset_id": receipt.asset_id,
+        "holder_id": receipt.holder_id,
+        "assignment_id": receipt.assignment_id,
+        "custody_template_id": receipt.custody_template_id,
+        "signature_provider": receipt.signature_provider,
+        "decision": {
+            "status": receipt.acceptance_status,
+            "method": receipt.acceptance_method,
+            "signed_at": _utc_timestamp(receipt.signed_at),
+        },
+        "terms": {
+            "eula_sha256": _text_sha256(receipt.eula_text),
+            "disclaimer_sha256": _text_sha256(receipt.disclaimer),
+            "qms_reference": receipt.qms_reference,
+            "eula_version": receipt.eula_version,
+        },
+        # Both copies of the signature are covered: signature_canvas is what
+        # the detail page and the PDF export render.
+        "signature_sha256": _text_sha256(receipt.signature_data) if receipt.signature_data else "",
+        "signature_canvas_sha256": _text_sha256(receipt.signature_canvas) if receipt.signature_canvas else "",
+        "client": {
+            "ip_address": _normalized_ip(receipt.ip_address),
+            "user_agent": receipt.user_agent or "",
+        },
+    }
+
+
+def seal_custody_evidence(receipt, *, decided_at):
+    """Freeze the decision's evidence onto ``receipt`` and seal it; the caller saves.
+
+    Returns the field names written so callers using ``update_fields`` can
+    include them.
+    """
+    receipt.signature_hash = _text_sha256(receipt.signature_data) if receipt.signature_data else ""
+    asset = receipt.asset
+    holder = receipt.holder
+    snapshot = {
+        "version": EVIDENCE_VERSION,
+        **_bound_evidence(receipt),
+        "decided_at": _utc_timestamp(decided_at),
+        # Descriptive identity as it stood at the decision; later edits to the
+        # asset or holder do not change what was attested.
+        "asset": {"asset_tag": asset.asset_tag, "serial_number": asset.serial_number or "", "name": asset.name},
+        "holder": {
+            "upn": holder.upn or "",
+            "email": holder.email or "",
+            "name": " ".join(part for part in (holder.first_name, holder.last_name) if part),
+        },
+    }
+    key_id, key = derive_purpose_keys(EVIDENCE_KEY_PURPOSE)[0]
+    receipt.evidence_snapshot = snapshot
+    receipt.evidence_version = EVIDENCE_VERSION
+    receipt.evidence_key_id = key_id
+    receipt.verification_hash = _evidence_mac(key, snapshot)
+    return ["signature_hash", "evidence_snapshot", "evidence_version", "evidence_key_id", "verification_hash"]
+
+
+def verify_custody_evidence(receipt):
+    """Check a receipt's evidence seal against the configured keyring."""
+    if receipt.evidence_version == 0:
+        return EvidenceCheck(EVIDENCE_LEGACY if receipt.verification_hash else EVIDENCE_UNSEALED)
+    snapshot = receipt.evidence_snapshot
+    keys = dict(derive_purpose_keys(EVIDENCE_KEY_PURPOSE))
+    key = keys.get(receipt.evidence_key_id)
+    if key is None:
+        return EvidenceCheck(EVIDENCE_UNKNOWN_KEY)
+    if not isinstance(snapshot, dict) or not hmac.compare_digest(
+        _evidence_mac(key, snapshot), receipt.verification_hash or ""
+    ):
+        return EvidenceCheck(EVIDENCE_MISMATCH, ("evidence_snapshot",))
+    bound = _bound_evidence(receipt)
+    differing = tuple(sorted(name for name, value in bound.items() if snapshot.get(name) != value))
+    if differing:
+        return EvidenceCheck(EVIDENCE_MISMATCH, differing)
+    return EvidenceCheck(EVIDENCE_VERIFIED)
 
 
 class CustodyHandoffNotFound(Exception):
