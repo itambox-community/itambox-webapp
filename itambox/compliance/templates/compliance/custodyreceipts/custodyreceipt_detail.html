@@ -96,6 +96,16 @@
       <dd class="col-sm-8 text-break font-monospace">
         {{ object.verification_hash|default:"-" }}
       </dd>
+      <dt class="col-sm-4">{% translate "Evidence seal" %}</dt>
+      <dd class="col-sm-8">
+        <span class="badge {% if evidence_check.verified %}bg-green-lt{% elif evidence_check.status == 'mismatch' %}bg-red-lt{% else %}bg-yellow-lt{% endif %}"
+              data-evidence-status="{{ evidence_check.status }}">{{ evidence_check.label }}</span>
+        {% if evidence_check.differing_fields %}
+          <div class="small text-secondary mt-1">
+            {% translate "Differs in:" %} {{ evidence_check.differing_fields|join:", " }}
+          </div>
+        {% endif %}
+      </dd>
       <dt class="col-sm-4">{% translate "EULA version" %}</dt>
       <dd class="col-sm-8">
         {{ object.eula_version|default:"-" }}

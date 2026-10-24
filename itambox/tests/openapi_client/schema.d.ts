@@ -3203,6 +3203,11 @@ export interface components {
       eula_version: string;
       ip_address: string | null;
       user_agent: string;
+      evidence_version: number;
+      evidence_key_id: string;
+      evidence_status: string;
+      /** @description What the holder attested to, frozen at the decision and covered by the evidence seal. */
+      evidence_snapshot: unknown;
       /** Format: date-time */
       created_date: string | null;
       /** Format: date-time */

@@ -7,6 +7,7 @@ from assets.api.serializers import CategorySerializer, StatusLabelSerializer
 from assets.models import Asset, AssetMaintenance, Category, StatusLabel
 from compliance.models import AssetAudit, AuditSession, CustodyReceipt, CustodyTemplate
 from compliance.registry import signature_providers
+from compliance.services import verify_custody_evidence
 from core.managers import Scope
 from extras.api.serializers import TagSerializer
 from itambox.api.base import BaseModelSerializer
@@ -81,6 +82,10 @@ class CustodyReceiptSerializer(BaseModelSerializer):
     asset = NestedAssetSerializer(read_only=True)
     holder = AssetHolderSerializer(read_only=True)
     acceptance_status_display = serializers.CharField(source="get_acceptance_status_display", read_only=True)
+    evidence_status = serializers.SerializerMethodField()
+
+    def get_evidence_status(self, obj) -> str:
+        return verify_custody_evidence(obj).status
 
     class Meta:
         model = CustodyReceipt
@@ -102,6 +107,10 @@ class CustodyReceiptSerializer(BaseModelSerializer):
             "eula_version",
             "ip_address",
             "user_agent",
+            "evidence_version",
+            "evidence_key_id",
+            "evidence_status",
+            "evidence_snapshot",
             "created_date",
             "created_at",
             "updated_at",

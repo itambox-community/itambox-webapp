@@ -37,19 +37,35 @@ Only the intended holder, signed in to ITAMbox. If the holder is linked to a log
 | **EULA Text** | The exact copy of the legal terms signed by the user. | Text | No |
 | **EULA Version** | Version label stamped at signing. Constant (`1.0`) by design: the signed terms themselves are snapshotted in EULA Text, and custody templates carry no version. | String | Yes |
 | **Holder** | The user or contractor taking custody. | Foreign Key | Yes |
-| **IP Address** | The IP address of the device used to sign the receipt. | IP Address | No |
+| **Evidence Key ID** | Non-secret identifier of the key that sealed the receipt. | String | No |
+| **Evidence Snapshot** | What the holder attested to, frozen at the decision: asset tag, serial number and holder UPN as they were at the time, hashes of the EULA, disclaimer and signature, client address and browser, and the decision time. Covered by the evidence seal. | JSON | No |
+| **Evidence Version** | `1` for receipts sealed with a keyed HMAC; `0` for receipts decided before sealing existed (legacy). | Integer | Yes |
+| **IP Address** | The client address of the device used to accept or decline, as resolved by the same proxy rules as rate limiting. | IP Address | No |
 | **Qms Reference** | The qms reference of the custody receipt. | String | No |
 | **Signature Canvas** | Base64 canvas stroke vector string representing the user's manual signature. | Text | No |
 | **Signature Data** | The signature data of the custody receipt. | Text | No |
-| **Signature Hash** | Cryptographic SHA-256 hash of the signature image data. | String | No |
+| **Signature Hash** | SHA-256 of the stored signature (the PNG data URI). | String | No |
 | **Signature Provider** | Service handling the signature: `local` for the on-platform canvas, or a provider registered by a plugin. | String | Yes |
 | **Signed At** | The timestamp when the digital signature occurred. | DateTime | Yes |
 | **Token** | The token of the custody receipt. | String | Yes |
-| **User Agent** | Browser header info logged at the time of signing. | Text | No |
-| **Verification Hash** | SHA-256 digest of holder UPN, asset tag, signing timestamp, and submitted signature data. It is a consistency check, not a keyed integrity guarantee. | String | No |
+| **User Agent** | Browser user agent recorded when the holder accepts or declines (at most 512 characters). | Text | No |
+| **Verification Hash** | The evidence seal: HMAC-SHA256 over the evidence snapshot, keyed by a key derived from the field-encryption keyring. On legacy receipts, an unkeyed SHA-256 digest. | String | No |
 
 ## Verification & Audit Trails
-The verification hash is `hashlib.sha256(f"{holder.upn}|{asset.asset_tag}|{signed_at.isoformat()}|{signature_data}".encode("utf-8")).hexdigest()`, so the timestamp enters the input in its full ISO-8601 form. IP address and user agent are stored separately and are not inputs to that digest. A plain SHA-256 digest can help detect an inconsistency with the recorded inputs, but does not prevent a privileged database editor from changing both the record and digest. Treat the receipt as electronic acceptance evidence and assess legal sufficiency with your organisation's legal advisers.
+
+When the holder accepts or declines, ITAMbox freezes an **evidence snapshot** of what was attested and seals it. The seal (**Verification Hash**) is an HMAC-SHA256 over the snapshot. Its key is derived with HKDF from `ITAMBOX_FIELD_ENCRYPTION_KEYS`, separately from the encryption key itself; when the keyring is unset it is derived from `SECRET_KEY`, the same fallback field encryption uses. Someone who can edit the database but does not hold the key cannot rewrite a receipt and produce a matching seal.
+
+A receipt verifies when the seal matches the snapshot under a configured key **and** the receipt row still agrees with the snapshot: holder, asset, assignment, template, provider, decision, signed-at time, terms, signature and client details. Later edits to the asset or holder, such as a renamed asset tag, do not affect verification, because the snapshot keeps the values as they were at the decision.
+
+The receipt detail page, the JSON and PDF exports and the receipt API report one of these statuses:
+
+- **Verified**: the seal and the row match.
+- **Mismatch**: the receipt no longer matches its sealed evidence. The detail page names the parts that differ.
+- **Unknown key**: the receipt was sealed with a key that is no longer in the keyring.
+- **Legacy**: the receipt was decided before sealing existed. It carries an unkeyed digest that cannot be verified.
+- **Not sealed**: the receipt is still pending or was superseded.
+
+Run `manage.py verify_custody_receipts` to check every decided receipt; `--tenant <slug>` limits the check, and `--fail-on-mismatch` exits non-zero for monitoring. When you rotate `ITAMBOX_FIELD_ENCRYPTION_KEYS`, keep the old key in the keyring for as long as receipts sealed with it must verify; once it is removed, they report **Unknown key**. Treat the receipt as electronic acceptance evidence and assess legal sufficiency with your organisation's legal advisers.
 
 ### Operator-prepared signing handoff
 
