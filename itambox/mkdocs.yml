@@ -153,6 +153,7 @@ nav:
               - Asset Maintenances: 'models/compliance/assetmaintenance.md'
               - Custody Templates: 'models/compliance/custodytemplate.md'
               - Custody Receipts: 'models/compliance/custodyreceipt.md'
+              - Signature Provider Configs: 'models/compliance/signatureproviderconfig.md'
               - Audit Sessions: 'models/compliance/auditsession.md'
               - Metadata Tags: 'models/extras/tag.md'
               - Object Changelog: 'models/core/objectchange.md'

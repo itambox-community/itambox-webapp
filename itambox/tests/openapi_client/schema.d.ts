@@ -333,6 +333,19 @@ export interface paths {
     delete: operations["compliance_custody_templates_destroy"];
     patch: operations["compliance_custody_templates_partial_update"];
   };
+  "/api/compliance/signature-provider-configs/": {
+    get: operations["compliance_signature_provider_configs_list"];
+    put: operations["compliance_signature_provider_configs_update_bulk"];
+    post: operations["compliance_signature_provider_configs_create"];
+    delete: operations["compliance_signature_provider_configs_destroy_bulk"];
+    patch: operations["compliance_signature_provider_configs_partial_update_bulk"];
+  };
+  "/api/compliance/signature-provider-configs/{id}/": {
+    get: operations["compliance_signature_provider_configs_retrieve"];
+    put: operations["compliance_signature_provider_configs_update"];
+    delete: operations["compliance_signature_provider_configs_destroy"];
+    patch: operations["compliance_signature_provider_configs_partial_update"];
+  };
   "/api/core/object-changes/": {
     get: operations["core_object_changes_list"];
   };
@@ -4975,6 +4988,23 @@ export interface components {
       /** @description True when `count` was capped at ITAMBOX_PAGINATOR_COUNT_CAP and the real total is larger. Use `start` (keyset cursor) pagination to iterate the full result set. */
       count_capped?: boolean;
     };
+    PaginatedSignatureProviderConfigList: {
+      /** @example 123 */
+      count: number | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/accounts/?offset=400&limit=100
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/accounts/?offset=200&limit=100
+       */
+      previous?: string | null;
+      results: components["schemas"]["SignatureProviderConfig"][];
+      /** @description True when `count` was capped at ITAMBOX_PAGINATOR_COUNT_CAP and the real total is larger. Use `start` (keyset cursor) pagination to iterate the full result set. */
+      count_capped?: boolean;
+    };
     PaginatedSiteGroupList: {
       /** @example 123 */
       count: number | null;
@@ -5990,6 +6020,19 @@ export interface components {
       schemas?: string[];
       Operations?: components["schemas"]["SCIMPatchOperationRequest"][];
     };
+    /** @description Provider account details. ``secrets`` is write-only; reads expose only the stored key names. */
+    PatchedSignatureProviderConfigRequest: {
+      name?: string;
+      tenant_id?: number | null;
+      /** Signature Provider */
+      provider?: string;
+      is_active?: boolean;
+      /** @description Non-secret provider settings, such as an account or template ID. */
+      options?: unknown;
+      secrets?: {
+        [key: string]: unknown;
+      };
+    };
     PatchedSiteGroupRequest: {
       name?: string;
       slug?: string;
@@ -6548,6 +6591,35 @@ export interface components {
      * @enum {string}
      */
     SeverityEnum: "info" | "warning" | "critical";
+    /** @description Provider account details. ``secrets`` is write-only; reads expose only the stored key names. */
+    SignatureProviderConfig: {
+      id: number;
+      name: string;
+      tenant: components["schemas"]["NestedTenant"];
+      /** Signature Provider */
+      provider: string;
+      is_active?: boolean;
+      /** @description Non-secret provider settings, such as an account or template ID. */
+      options?: unknown;
+      secret_keys: readonly string[];
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    /** @description Provider account details. ``secrets`` is write-only; reads expose only the stored key names. */
+    SignatureProviderConfigRequest: {
+      name: string;
+      tenant_id?: number | null;
+      /** Signature Provider */
+      provider: string;
+      is_active?: boolean;
+      /** @description Non-secret provider settings, such as an account or template ID. */
+      options?: unknown;
+      secrets?: {
+        [key: string]: unknown;
+      };
+    };
     Site: {
       id: number;
       /** Format: uri */
@@ -16599,6 +16671,454 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["CustodyTemplate"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      404: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      409: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      412: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        limit?: number;
+        /** @description The initial index from which to return the results. */
+        offset?: number;
+        /** @description Keyset/cursor pagination: return results with pk >= start, ordered by pk. Skips the (capped) row count and stays O(page) regardless of table size — use this instead of offset/limit for bulk export or iterating large collections. Follow the `next` link to walk subsequent pages. */
+        start?: number;
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["PaginatedSignatureProviderConfigList"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_update_bulk: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SignatureProviderConfigRequest"];
+        "application/x-www-form-urlencoded": components["schemas"]["SignatureProviderConfigRequest"];
+        "multipart/form-data": components["schemas"]["SignatureProviderConfigRequest"];
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["SignatureProviderConfig"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      409: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      412: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_create: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SignatureProviderConfigRequest"];
+        "application/x-www-form-urlencoded": components["schemas"]["SignatureProviderConfigRequest"];
+        "multipart/form-data": components["schemas"]["SignatureProviderConfigRequest"];
+      };
+    };
+    responses: {
+      201: {
+        content: {
+          "application/json": components["schemas"]["SignatureProviderConfig"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      409: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      412: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_destroy_bulk: {
+    responses: {
+      /** @description No response body */
+      204: {
+        content: never;
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      412: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_partial_update_bulk: {
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSignatureProviderConfigRequest"];
+        "application/x-www-form-urlencoded": components["schemas"]["PatchedSignatureProviderConfigRequest"];
+        "multipart/form-data": components["schemas"]["PatchedSignatureProviderConfigRequest"];
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["SignatureProviderConfig"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      409: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      412: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_retrieve: {
+    parameters: {
+      path: {
+        /** @description A unique integer value identifying this Signature Provider Config. */
+        id: number;
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["SignatureProviderConfig"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      404: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_update: {
+    parameters: {
+      path: {
+        /** @description A unique integer value identifying this Signature Provider Config. */
+        id: number;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SignatureProviderConfigRequest"];
+        "application/x-www-form-urlencoded": components["schemas"]["SignatureProviderConfigRequest"];
+        "multipart/form-data": components["schemas"]["SignatureProviderConfigRequest"];
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["SignatureProviderConfig"];
+        };
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      404: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      409: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      412: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_destroy: {
+    parameters: {
+      path: {
+        /** @description A unique integer value identifying this Signature Provider Config. */
+        id: number;
+      };
+    };
+    responses: {
+      /** @description No response body */
+      204: {
+        content: never;
+      };
+      /** @description The request could not be completed. */
+      400: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      401: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      403: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      404: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      412: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+      /** @description The request could not be completed. */
+      428: {
+        content: {
+          "application/json": components["schemas"]["APIError"];
+        };
+      };
+    };
+  };
+  compliance_signature_provider_configs_partial_update: {
+    parameters: {
+      path: {
+        /** @description A unique integer value identifying this Signature Provider Config. */
+        id: number;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSignatureProviderConfigRequest"];
+        "application/x-www-form-urlencoded": components["schemas"]["PatchedSignatureProviderConfigRequest"];
+        "multipart/form-data": components["schemas"]["PatchedSignatureProviderConfigRequest"];
+      };
+    };
+    responses: {
+      200: {
+        content: {
+          "application/json": components["schemas"]["SignatureProviderConfig"];
         };
       };
       /** @description The request could not be completed. */

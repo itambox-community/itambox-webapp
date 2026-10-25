@@ -259,6 +259,12 @@ ROLE_PERMISSION_PRESENTATION = {
         "model_name": "custodyreceipt",
         "group": _("Compliance & Custody"),
     },
+    "signatureproviderconfig": {
+        "label": _("Signature Provider Configs"),
+        "app": "compliance",
+        "model_name": "signatureproviderconfig",
+        "group": _("Compliance & Custody"),
+    },
     "assetmaintenance": {
         "label": _("Asset Maintenances"),
         "app": "assets",

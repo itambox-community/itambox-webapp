@@ -778,24 +778,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/management/commands/rotate_encryption_keys.py",
-      "context": "FunctionDef:encrypted_field_specs",
-      "statement": "from core.models import EmailSettings",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/rotate_encryption_keys.py",
-      "context": "FunctionDef:encrypted_field_specs",
-      "statement": "from extras.models import WebhookEndpoint",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/rotate_encryption_keys.py",
-      "context": "FunctionDef:encrypted_field_specs",
-      "statement": "from licenses.models import License",
-      "count": 1
-    },
-    {
       "path": "itambox/core/management/commands/seed_data.py",
       "context": "ClassDef:Command/FunctionDef:_clear_all_data",
       "statement": "from django.db import connection",

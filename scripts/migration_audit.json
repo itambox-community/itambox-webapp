@@ -2,7 +2,7 @@
   "graph": {
     "app_leaves": [
       "assets.0007_asset_type_identity_guard",
-      "compliance.0003_custody_receipt_evidence_seal",
+      "compliance.0004_signature_provider_configs",
       "core.0003_cross_app_relations_late",
       "extras.0005_label_template_object_types",
       "inventory.0002_cross_app_relations",
@@ -85,6 +85,10 @@
       [
         "compliance.0002_cross_app_relations",
         "compliance.0003_custody_receipt_evidence_seal"
+      ],
+      [
+        "compliance.0003_custody_receipt_evidence_seal",
+        "compliance.0004_signature_provider_configs"
       ],
       [
         "core.0001_baseline",
@@ -248,6 +252,10 @@
       ],
       [
         "organization.0002_cross_app_relations",
+        "compliance.0004_signature_provider_configs"
+      ],
+      [
+        "organization.0002_cross_app_relations",
         "subscriptions.0002_cross_app_relations"
       ],
       [
@@ -313,7 +321,7 @@
     ],
     "leaves": [
       "assets.0007_asset_type_identity_guard",
-      "compliance.0003_custody_receipt_evidence_seal",
+      "compliance.0004_signature_provider_configs",
       "extras.0005_label_template_object_types",
       "procurement.0002_cross_app_relations",
       "subscriptions.0002_cross_app_relations",
@@ -330,6 +338,7 @@
       "compliance.0001_baseline",
       "compliance.0002_cross_app_relations",
       "compliance.0003_custody_receipt_evidence_seal",
+      "compliance.0004_signature_provider_configs",
       "core.0001_baseline",
       "core.0002_cross_app_relations",
       "core.0003_cross_app_relations_late",
@@ -646,6 +655,35 @@
         }
       },
       "path": "itambox/compliance/migrations/0003_custody_receipt_evidence_seal.py",
+      "replaces_count": 0,
+      "reviewed_semantics": null,
+      "run_before": []
+    },
+    {
+      "dependencies": [
+        "compliance.0003_custody_receipt_evidence_seal",
+        "organization.0002_cross_app_relations"
+      ],
+      "id": "compliance.0004_signature_provider_configs",
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        }
+      },
+      "path": "itambox/compliance/migrations/0004_signature_provider_configs.py",
       "replaces_count": 0,
       "reviewed_semantics": null,
       "run_before": []
@@ -1702,7 +1740,7 @@
   "schema_version": 4,
   "summary": {
     "apps": 11,
-    "migrations": 32,
+    "migrations": 33,
     "replaced_identities": 397,
     "replacing_migrations": 28,
     "reviewed_custom_migrations": 9

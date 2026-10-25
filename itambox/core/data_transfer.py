@@ -113,6 +113,7 @@ DECLARATIONS = {
     ),
     "compliance.custodysigningsession": _deny(R_SECRET, "signing sessions carry bearer token material"),
     "compliance.custodytemplate": _allow(SCOPE_MANAGER),
+    "compliance.signatureproviderconfig": _deny(R_SECRET, "provider credentials stored encrypted"),
     # contenttypes
     "contenttypes.contenttype": _deny(R_SYSTEM, "framework or third-party system table"),
     # core

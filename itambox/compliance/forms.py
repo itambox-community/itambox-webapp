@@ -26,7 +26,7 @@ from core.managers import Scope
 from extras.models import Tag
 from organization.models import Tenant, TenantGroup
 
-from .models import CustodyTemplate
+from .models import CustodyTemplate, SignatureProviderConfig
 
 
 class AssetMaintenanceFilterForm(FilterForm):
@@ -408,3 +408,99 @@ class CustodyTemplateForm(TenantScopedFormMixin, forms.ModelForm):
                 )
 
         return cleaned_data
+
+
+class SignatureProviderConfigForm(TenantScopedFormMixin, forms.ModelForm):
+    """Account details for one external signature provider.
+
+    ``secrets`` is write-only: it is never rendered back. Leaving it blank keeps
+    the stored secrets; ``{}`` removes them. An install-wide config (no tenant)
+    applies to every tenant without its own, so only platform administrators
+    may create or keep one.
+    """
+
+    tenant_required = False
+    tenant_autoset_when_single = False
+
+    tenant = forms.ModelChoiceField(
+        queryset=Tenant.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label=_("Tenant"),
+        help_text=_("Leave blank for the install-wide default used by tenants without their own config."),
+    )
+    provider = forms.ChoiceField(
+        choices=[], widget=forms.Select(attrs={"class": "form-select"}), label=_("Signature Provider")
+    )
+    secrets = forms.JSONField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control font-monospace", "rows": 4, "autocomplete": "off"}),
+        label=_("Secrets"),
+        help_text=_(
+            "JSON object of credentials, stored encrypted and never shown again. Leave blank to keep the stored "
+            "secrets; enter {} to remove them."
+        ),
+    )
+
+    class Meta:
+        model = SignatureProviderConfig
+        fields = ["tenant", "name", "provider", "is_active", "options"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "options": forms.Textarea(attrs={"class": "form-control font-monospace", "rows": 4}),
+        }
+
+    def __init__(self, *args, request=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.request = request
+        scope_tenant_field(self, autoset_when_single=False)
+        self.fields["tenant"].required = False
+        self.fields["provider"].choices = signature_providers.configurable_choices()
+        # The stored secrets are never echoed back into the form.
+        self.initial["secrets"] = None
+        if self.instance.pk and self.instance.secrets_encrypted:
+            self.fields["secrets"].help_text = _(
+                "Stored secret keys: %(keys)s. Leave blank to keep them; enter {} to remove them."
+            ) % {"keys": ", ".join(self.instance.secret_keys) or "-"}
+
+    def _actor_is_platform_admin(self):
+        user = getattr(self.request, "user", None)
+        return bool(user is not None and user.is_authenticated and user.is_superuser)
+
+    def clean_secrets(self):
+        value = self.cleaned_data.get("secrets")
+        if value in (None, ""):
+            return None
+        if not isinstance(value, dict):
+            raise forms.ValidationError(_("Enter a JSON object."))
+        return value
+
+    def clean_options(self):
+        value = self.cleaned_data.get("options") or {}
+        if not isinstance(value, dict):
+            raise forms.ValidationError(_("Enter a JSON object."))
+        return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not cleaned_data.get("tenant") and not self._actor_is_platform_admin():
+            raise forms.ValidationError(_("Only platform administrators can manage install-wide provider configs."))
+        provider = signature_providers.get(cleaned_data.get("provider"))
+        if provider is not None:
+            secrets = cleaned_data.get("secrets")
+            if secrets is None:
+                secrets = self.instance.get_secrets() if self.instance.pk else {}
+            problems = provider.validate_config(cleaned_data.get("options") or {}, secrets)
+            if problems:
+                raise forms.ValidationError(problems)
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        secrets = self.cleaned_data.get("secrets")
+        if secrets is not None:
+            instance.set_secrets(secrets)
+        if commit:
+            instance.save()
+        return instance
