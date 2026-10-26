@@ -12,7 +12,7 @@ RUN npm run build:all
 
 
 # ---- Stage 2: resolve the exact production Python environment ----
-FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e AS python-deps
+FROM python:3.15-slim-bookworm@sha256:575f8bc12ec26542e0678bc6b60e385218248019d433157ec327264a78c3a853 AS python-deps
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -30,7 +30,7 @@ RUN uv sync --locked --no-dev --no-install-project
 
 
 # ---- Stage 3: build documentation from its locked dependency group ----
-FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e AS docs
+FROM python:3.15-slim-bookworm@sha256:575f8bc12ec26542e0678bc6b60e385218248019d433157ec327264a78c3a853 AS docs
 
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
@@ -47,7 +47,7 @@ RUN /app/.venv/bin/mkdocs build --strict
 
 
 # ---- Stage 4: minimal runtime image ----
-FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e
+FROM python:3.15-slim-bookworm@sha256:575f8bc12ec26542e0678bc6b60e385218248019d433157ec327264a78c3a853
 
 ARG ITAMBOX_VERSION=dev
 ARG ITAMBOX_REVISION=unknown
