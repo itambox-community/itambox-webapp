@@ -78,6 +78,7 @@ _BUSINESS_MODELS: tuple[tuple[str, str], ...] = (
 #: Soft configuration rows archived with the tenant (restored with it).
 _CONFIG_MODELS: tuple[str, ...] = (
     "assets.assettagsequence",
+    "compliance.signatureproviderconfig",
     "extras.alertrule",
     "extras.eventrule",
     "extras.notificationchannel",

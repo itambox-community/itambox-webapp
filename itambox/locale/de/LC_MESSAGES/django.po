@@ -16846,6 +16846,138 @@ msgid "Unknown signature provider. Choose one of: %(names)s."
 msgstr ""
 "Unbekannter Signaturanbieter. Wählen Sie einen der folgenden: %(names)s."
 
+msgid "Differs in:"
+msgstr "Abweichend in:"
+
+msgid "Evidence Key ID"
+msgstr "Nachweis-Schlüssel-ID"
+
+msgid "Evidence Snapshot"
+msgstr "Nachweis-Momentaufnahme"
+
+msgid "Evidence Version"
+msgstr "Nachweisversion"
+
+msgid "Evidence seal"
+msgstr "Nachweissiegel"
+
+msgid "Legacy (unkeyed digest, cannot be verified)"
+msgstr "Altbestand (ungeschlüsselter Hash, nicht prüfbar)"
+
+msgid "Mismatch: the receipt no longer matches its sealed evidence"
+msgstr ""
+"Abweichung: Der Beleg stimmt nicht mehr mit seinem versiegelten Nachweis "
+"überein"
+
+msgid "Not sealed"
+msgstr "Nicht versiegelt"
+
+msgid "Unknown key: sealed with a key that is no longer configured"
+msgstr ""
+"Unbekannter Schlüssel: mit einem Schlüssel versiegelt, der nicht mehr "
+"konfiguriert ist"
+
+msgid ""
+"What the holder attested to, frozen at the decision and covered by the "
+"evidence seal."
+msgstr ""
+"Was der Inhaber bestätigt hat, zum Zeitpunkt der Entscheidung festgehalten "
+"und durch das Nachweissiegel geschützt."
+
+msgid "Verified"
+msgstr "Verifiziert"
+
+msgid "- Signature Provider Config - ITAMbox"
+msgstr "- Signaturanbieter-Konfiguration - ITAMbox"
+
+msgid "Callback URL"
+msgstr "Callback-URL"
+
+msgid "Compliance / Signature Provider Configs"
+msgstr "Compliance / Signaturanbieter-Konfigurationen"
+
+msgid "Enter a JSON object."
+msgstr "Geben Sie ein JSON-Objekt ein."
+
+msgid "Install-wide"
+msgstr "Installationsweit"
+
+msgid "Install-wide (tenants without their own config)"
+msgstr "Installationsweit (Mandanten ohne eigene Konfiguration)"
+
+msgid ""
+"JSON object of credentials, stored encrypted and never shown again. Leave "
+"blank to keep the stored secrets; enter {} to remove them."
+msgstr ""
+"JSON-Objekt mit Zugangsdaten, verschlüsselt gespeichert und nie wieder "
+"angezeigt. Leer lassen, um die gespeicherten Geheimnisse zu behalten; {} "
+"eingeben, um sie zu entfernen."
+
+msgid ""
+"Leave blank for the install-wide default used by tenants without their own "
+"config."
+msgstr ""
+"Leer lassen für die installationsweite Vorgabe, die Mandanten ohne eigene "
+"Konfiguration verwenden."
+
+#, python-format
+msgid "Missing option: %(key)s"
+msgstr "Fehlende Option: %(key)s"
+
+#, python-format
+msgid "Missing secret: %(key)s"
+msgstr "Fehlendes Geheimnis: %(key)s"
+
+msgid "Non-secret provider settings, such as an account or template ID."
+msgstr ""
+"Nicht geheime Anbietereinstellungen, etwa eine Konto- oder Vorlagen-ID."
+
+msgid "Only platform administrators can manage install-wide provider configs."
+msgstr ""
+"Nur Plattformadministratoren können installationsweite "
+"Anbieterkonfigurationen verwalten."
+
+msgid "Options"
+msgstr "Optionen"
+
+msgid "Provider Config"
+msgstr "Anbieterkonfiguration"
+
+msgid "Provider Evidence"
+msgstr "Anbieternachweis"
+
+msgid "Provider Reference"
+msgstr "Anbieterreferenz"
+
+msgid "Provider not installed"
+msgstr "Anbieter nicht installiert"
+
+msgid "Secrets"
+msgstr "Geheimnisse"
+
+msgid "Signature Provider Config"
+msgstr "Signaturanbieter-Konfiguration"
+
+msgid "Signature Provider Configs"
+msgstr "Signaturanbieter-Konfigurationen"
+
+#, python-format
+msgid ""
+"Stored secret keys: %(keys)s. Leave blank to keep them; enter {} to remove "
+"them."
+msgstr ""
+"Gespeicherte Geheimnisschlüssel: %(keys)s. Leer lassen, um sie zu behalten; "
+"{} eingeben, um sie zu entfernen."
+
+msgid "Stored secrets"
+msgstr "Gespeicherte Geheimnisse"
+
+#, python-format
+msgid "Unknown configurable signature provider. Choose one of: %(names)s."
+msgstr ""
+"Unbekannter konfigurierbarer Signaturanbieter. Wählen Sie einen der "
+"folgenden: %(names)s."
+
 msgid "%(counter)s label"
 msgid_plural "%(counter)s labels"
 msgstr[0] "%(counter)s Etikett"

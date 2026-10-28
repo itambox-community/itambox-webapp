@@ -5,8 +5,9 @@ from rest_framework import serializers
 from assets.api.nested_serializers import NestedAssetSerializer
 from assets.api.serializers import CategorySerializer, StatusLabelSerializer
 from assets.models import Asset, AssetMaintenance, Category, StatusLabel
-from compliance.models import AssetAudit, AuditSession, CustodyReceipt, CustodyTemplate
+from compliance.models import AssetAudit, AuditSession, CustodyReceipt, CustodyTemplate, SignatureProviderConfig
 from compliance.registry import signature_providers
+from compliance.services import verify_custody_evidence
 from core.managers import Scope
 from extras.api.serializers import TagSerializer
 from itambox.api.base import BaseModelSerializer
@@ -75,12 +76,89 @@ class CustodyTemplateSerializer(BaseModelSerializer):
         brief_fields = ["id", "name", "tenant", "is_active"]
 
 
+class SignatureProviderConfigSerializer(BaseModelSerializer):
+    """Provider account details. ``secrets`` is write-only; reads expose only the stored key names."""
+
+    tenant = NestedTenantSerializer(read_only=True)
+    tenant_id = serializers.PrimaryKeyRelatedField(
+        queryset=Tenant.objects, source="tenant", write_only=True, required=False, allow_null=True
+    )
+    secrets = serializers.DictField(write_only=True, required=False)
+    secret_keys = serializers.ListField(child=serializers.CharField(), read_only=True)
+
+    def validate_provider(self, value):
+        provider = signature_providers.get(value)
+        if provider is None or not provider.requires_config:
+            raise serializers.ValidationError(
+                _("Unknown configurable signature provider. Choose one of: %(names)s.")
+                % {"names": ", ".join(name for name, _label in signature_providers.configurable_choices()) or "-"}
+            )
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = self.instance
+        tenant = attrs["tenant"] if "tenant" in attrs else getattr(instance, "tenant", None)
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if tenant is None and not getattr(user, "is_superuser", False):
+            raise serializers.ValidationError(
+                {"tenant_id": _("Only platform administrators can manage install-wide provider configs.")}
+            )
+        provider = signature_providers.get(attrs.get("provider") or getattr(instance, "provider", ""))
+        if provider is not None:
+            options = attrs.get("options", getattr(instance, "options", None) or {})
+            secrets = attrs.get("secrets")
+            if secrets is None:
+                secrets = instance.get_secrets() if instance is not None else {}
+            problems = provider.validate_config(options, secrets)
+            if problems:
+                raise serializers.ValidationError({"non_field_errors": problems})
+        return attrs
+
+    def _apply_secrets(self, instance, secrets):
+        if secrets is not None:
+            instance.set_secrets(secrets)
+            instance.save(update_fields=["secrets_encrypted", "updated_at"])
+        return instance
+
+    def create(self, validated_data):
+        secrets = validated_data.pop("secrets", None)
+        return self._apply_secrets(super().create(validated_data), secrets)
+
+    def update(self, instance, validated_data):
+        secrets = validated_data.pop("secrets", None)
+        return self._apply_secrets(super().update(instance, validated_data), secrets)
+
+    class Meta:
+        model = SignatureProviderConfig
+        fields = [
+            "id",
+            "name",
+            "tenant",
+            "tenant_id",
+            "provider",
+            "is_active",
+            "options",
+            "secrets",
+            "secret_keys",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+        brief_fields = ["id", "name", "tenant", "provider", "is_active"]
+
+
 class CustodyReceiptSerializer(BaseModelSerializer):
     # Read-only representation (the viewset accepts no writes). The signing
     # ``token`` is a bearer credential and is never serialized.
     asset = NestedAssetSerializer(read_only=True)
     holder = AssetHolderSerializer(read_only=True)
     acceptance_status_display = serializers.CharField(source="get_acceptance_status_display", read_only=True)
+    evidence_status = serializers.SerializerMethodField()
+
+    def get_evidence_status(self, obj) -> str:
+        return verify_custody_evidence(obj).status
 
     class Meta:
         model = CustodyReceipt
@@ -102,6 +180,10 @@ class CustodyReceiptSerializer(BaseModelSerializer):
             "eula_version",
             "ip_address",
             "user_agent",
+            "evidence_version",
+            "evidence_key_id",
+            "evidence_status",
+            "evidence_snapshot",
             "created_date",
             "created_at",
             "updated_at",

@@ -1,9 +1,12 @@
 import base64
 import hashlib
+import hmac
 import logging
 import os
 
 from cryptography.fernet import Fernet, MultiFernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
@@ -48,6 +51,38 @@ def get_fernet():
     key_bytes = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest()
     fernet_key = base64.urlsafe_b64encode(key_bytes)
     return Fernet(fernet_key)
+
+
+def derive_purpose_keys(purpose: str) -> list[tuple[str, bytes]]:
+    """Derive one 32-byte key per keyring entry for a single named purpose.
+
+    Each ITAMBOX_FIELD_ENCRYPTION_KEYS entry (or, when the keyring is unset,
+    the same SECRET_KEY-derived material get_fernet() falls back to) is fed
+    through HKDF-SHA256 with ``purpose`` as the context, so a derived key is
+    never the encryption key itself and two purposes never share a key. The
+    first entry is the current key; the rest exist so material written under
+    a rotated-out key can still be checked. Each key travels with a short,
+    non-secret identifier derived from it.
+    """
+    result = parse_field_encryption_keys(_configured_keys_str())
+    if result.state == ConfigState.MALFORMED:
+        raise ImproperlyConfigured(f"ITAMBOX_FIELD_ENCRYPTION_KEYS is malformed: {result.error}.")
+    if result.state == ConfigState.VALID:
+        materials = [base64.urlsafe_b64decode(key) for key in result.keys]
+    else:
+        materials = [hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest()]
+
+    derived = []
+    for material in materials:
+        key = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=f"itambox:{purpose}".encode(),
+        ).derive(material)
+        key_id = hmac.new(key, b"itambox-key-id", hashlib.sha256).hexdigest()[:16]
+        derived.append((key_id, key))
+    return derived
 
 
 def is_using_derived_encryption_key() -> bool:

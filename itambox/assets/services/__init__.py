@@ -25,7 +25,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from compliance.models import CustodyReceipt, CustodyTemplate
-from compliance.services import supersede_pending_receipts
+from compliance.services import build_custody_sign_url, supersede_pending_receipts
 from core.choices import ObjectChangeActionChoices
 from core.context import get_current_membership, get_current_tenant, override_current_tenant_scope
 from inventory.services import checkout_inventory_item, validate_checkout_targets
@@ -195,15 +195,13 @@ def checkout_asset(
                                 raise ValidationError(_("The holder has no e-mail address."))
                             from compliance.registry import signature_providers
 
-                            provider = signature_providers.get(receipt.signature_provider or "local")
-                            if provider is None:
+                            if signature_providers.get(receipt.signature_provider or "local") is None:
                                 raise LookupError(f"unregistered signature provider {receipt.signature_provider!r}")
                             transaction.on_commit(
                                 partial(
                                     _run_scoped_custody_notification,
                                     get_current_tenant(),
                                     get_current_membership(),
-                                    provider,
                                     asset,
                                     receipt,
                                     recipient,
@@ -269,7 +267,7 @@ def _resolve_custody_template(holder, category):
     return None
 
 
-def _run_scoped_custody_notification(tenant, membership, provider, asset, receipt, recipient, from_address, request):
+def _run_scoped_custody_notification(tenant, membership, asset, receipt, recipient, from_address, request):
     """Run a scheduled custody notification under the scope it was scheduled in.
 
     ``transaction.on_commit`` callbacks can run after the caller restored its
@@ -278,10 +276,10 @@ def _run_scoped_custody_notification(tenant, membership, provider, asset, receip
     callback — the notification must never observe a different tenant (or none).
     """
     with override_current_tenant_scope(tenant, membership):
-        _send_custody_signature_request(provider, asset, receipt, recipient, from_address, request)
+        _send_custody_signature_request(asset, receipt, recipient, from_address, request)
 
 
-def _send_custody_signature_request(provider, asset, receipt, recipient, from_address, request):
+def _send_custody_signature_request(asset, receipt, recipient, from_address, request):
     """Send one custody signature request; runs only after the outermost commit.
 
     Kept as a module-level seam so single-asset and kit checkouts share the
@@ -290,7 +288,9 @@ def _send_custody_signature_request(provider, asset, receipt, recipient, from_ad
     checkout failure, no matter which caller committed it.
     """
     try:
-        sign_url = provider.initiate_signature(receipt, request)
+        # Always ITAMbox's own signing page: it verifies the holder before any
+        # provider is involved, and the provider starts only when they open it.
+        sign_url = build_custody_sign_url(request, receipt)
         send_mail(
             subject=_("Asset Acceptance Required: %(name)s (%(tag)s)")
             % {

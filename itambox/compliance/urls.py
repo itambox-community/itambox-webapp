@@ -67,7 +67,39 @@ urlpatterns = [
     path(
         "custody-templates/<int:pk>/delete/", views.CustodyTemplateDeleteView.as_view(), name="custodytemplate_delete"
     ),
+    # Signature provider configs
+    path(
+        "signature-provider-configs/",
+        views.SignatureProviderConfigListView.as_view(),
+        name="signatureproviderconfig_list",
+    ),
+    path(
+        "signature-provider-configs/add/",
+        views.SignatureProviderConfigEditView.as_view(),
+        name="signatureproviderconfig_create",
+    ),
+    path(
+        "signature-provider-configs/<int:pk>/",
+        views.SignatureProviderConfigDetailView.as_view(),
+        name="signatureproviderconfig_detail",
+    ),
+    path(
+        "signature-provider-configs/<int:pk>/edit/",
+        views.SignatureProviderConfigEditView.as_view(),
+        name="signatureproviderconfig_update",
+    ),
+    path(
+        "signature-provider-configs/<int:pk>/delete/",
+        views.SignatureProviderConfigDeleteView.as_view(),
+        name="signatureproviderconfig_delete",
+    ),
     # Custody
     path("custody/sign/<str:token>/", views.custody_eula_sign, name="custody_eula_sign"),
+    path("custody/sign/<str:token>/return/", views.custody_provider_return, name="custody_provider_return"),
+    path(
+        "custody/providers/<int:config_pk>/callback/",
+        views.signature_provider_callback,
+        name="signature_provider_callback",
+    ),
     path("custody-templates/<int:pk>/preview/", views.custody_template_preview, name="custodytemplate_preview"),
 ]

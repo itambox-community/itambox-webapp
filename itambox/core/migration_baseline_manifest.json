@@ -65,7 +65,7 @@
   ],
   "current_leaf_ids": [
     "assets.0007_asset_type_identity_guard",
-    "compliance.0002_cross_app_relations",
+    "compliance.0004_signature_provider_configs",
     "core.0003_cross_app_relations_late",
     "extras.0005_label_template_object_types",
     "inventory.0002_cross_app_relations",
@@ -381,6 +381,8 @@
     "assets.0127_core_vocabulary_german_translations",
     "compliance.0001_baseline",
     "compliance.0002_cross_app_relations",
+    "compliance.0003_custody_receipt_evidence_seal",
+    "compliance.0004_signature_provider_configs",
     "compliance.0101_alter_custodyreceipt_signed_at",
     "compliance.0102_clear_unsigned_receipt_timestamps",
     "compliance.0103_alter_custodyreceipt_options",
@@ -462,7 +464,7 @@
   ],
   "post_transition_leaf_ids": [
     "assets.0007_asset_type_identity_guard",
-    "compliance.0002_cross_app_relations",
+    "compliance.0004_signature_provider_configs",
     "core.0003_cross_app_relations_late",
     "extras.0005_label_template_object_types",
     "inventory.0002_cross_app_relations",

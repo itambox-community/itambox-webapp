@@ -70,6 +70,7 @@ ROLE_PERMISSION_TARGETS: tuple[RolePermissionTarget, ...] = (
     RolePermissionTarget("recyclebin", "core", "recyclebin"),
     RolePermissionTarget("custodytemplate", "compliance", "custodytemplate"),
     RolePermissionTarget("custodyreceipt", "compliance", "custodyreceipt"),
+    RolePermissionTarget("signatureproviderconfig", "compliance", "signatureproviderconfig"),
     RolePermissionTarget("assetmaintenance", "assets", "assetmaintenance"),
     RolePermissionTarget("user", "users", "user"),
     RolePermissionTarget("token", "users", "token"),

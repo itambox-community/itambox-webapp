@@ -1,3 +1,4 @@
+import json
 import secrets
 from contextlib import nullcontext
 from datetime import timedelta
@@ -12,6 +13,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from compliance.choices import AuditSessionStatusChoices, AuditVerificationMethodChoices
+from core.crypto import decrypt_string, encrypt_string
 from core.managers import (
     ExplicitScopeAllObjectsManager,
     ExplicitScopeManager,
@@ -124,6 +126,77 @@ class CustodyTemplate(TaggableMixin, CloneableMixin, ExportableMixin, ChangeLogg
         return f"Global - {self.name}"
 
 
+class SignatureProviderConfig(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):
+    """Account details for one external signature provider, per tenant or install-wide.
+
+    A receipt uses the active config for its provider and its asset's tenant,
+    falling back to the install-wide (tenant-less) config. Secrets are stored
+    encrypted with the field-encryption keyring and never leave the server.
+    """
+
+    objects = ExplicitScopeSoftDeleteManager()
+    all_objects = ExplicitScopeAllObjectsManager()
+    allow_global_tenant = True
+    _change_logging_excluded_fields = ["updated_at", "secrets_encrypted"]
+
+    tenant = models.ForeignKey(
+        to="organization.Tenant",
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="signature_provider_configs",
+        verbose_name=_("Tenant"),
+        help_text=_("Leave blank for the install-wide default used by tenants without their own config."),
+    )
+    name = models.CharField(max_length=255, verbose_name=_("Name"))
+    provider = models.CharField(max_length=50, verbose_name=_("Signature Provider"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Is Active"))
+    options = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name=_("Options"),
+        help_text=_("Non-secret provider settings, such as an account or template ID."),
+    )
+    secrets_encrypted = models.TextField(blank=True, editable=False)
+    archive_operation_id = models.UUIDField(null=True, blank=True, editable=False, verbose_name=_("Archive Operation"))
+
+    class Meta:
+        ordering = ("provider", "name")
+        verbose_name = _("Signature Provider Config")
+        verbose_name_plural = _("Signature Provider Configs")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "provider"],
+                condition=models.Q(deleted_at__isnull=True, tenant__isnull=False),
+                name="unique_signature_provider_config_per_tenant",
+            ),
+            models.UniqueConstraint(
+                fields=["provider"],
+                condition=models.Q(deleted_at__isnull=True, tenant__isnull=True),
+                name="unique_signature_provider_config_global",
+            ),
+        ]
+
+    def __str__(self):
+        scope = self.tenant if self.tenant_id else _("Install-wide")
+        return f"{scope} - {self.name}"
+
+    def get_absolute_url(self):
+        return reverse("compliance:signatureproviderconfig_detail", kwargs={"pk": self.pk})
+
+    def get_secrets(self) -> dict:
+        if not self.secrets_encrypted:
+            return {}
+        return json.loads(decrypt_string(self.secrets_encrypted))
+
+    def set_secrets(self, values: dict) -> None:
+        self.secrets_encrypted = encrypt_string(json.dumps(values, sort_keys=True)) if values else ""
+
+    @property
+    def secret_keys(self) -> list[str]:
+        return sorted(self.get_secrets())
+
+
 class CustodyReceipt(ChangeLoggingMixin, BaseModel):
     # Tenant scoping is enforced at the API layer (CustodyReceiptViewSet uses
     # _scope_by_asset_tenant). The default manager is intentionally unscoped so
@@ -143,6 +216,7 @@ class CustodyReceipt(ChangeLoggingMixin, BaseModel):
         "signature_hash",
         "verification_hash",
         "signature_canvas",
+        "evidence_snapshot",
     ]
 
     # Version label stamped on every signed receipt. The EULA text is snapshotted per receipt
@@ -190,6 +264,19 @@ class CustodyReceipt(ChangeLoggingMixin, BaseModel):
         verbose_name=_("Custody Template"),
     )
     signature_provider = models.CharField(max_length=50, default="local", verbose_name=_("Signature Provider"))
+    provider_config = models.ForeignKey(
+        to="compliance.SignatureProviderConfig",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="receipts",
+        verbose_name=_("Provider Config"),
+    )
+    provider_reference = models.CharField(
+        max_length=255, blank=True, db_index=True, editable=False, verbose_name=_("Provider Reference")
+    )
+    provider_evidence = models.JSONField(null=True, blank=True, editable=False, verbose_name=_("Provider Evidence"))
     eula_text = models.TextField(blank=True, verbose_name=_("EULA Text"))
     disclaimer = models.TextField(blank=True, verbose_name=_("Disclaimer"))
     qms_reference = models.CharField(max_length=100, blank=True, verbose_name=_("QMS Reference"))
@@ -215,6 +302,18 @@ class CustodyReceipt(ChangeLoggingMixin, BaseModel):
     created_date = models.DateTimeField(auto_now_add=True, null=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name=_("IP Address"))
     user_agent = models.TextField(blank=True, verbose_name=_("User Agent"))
+    # Keyed evidence seal (compliance.services.seal_custody_evidence). Version 0
+    # marks a receipt decided before sealing existed: its verification_hash is
+    # an unkeyed digest that cannot be verified.
+    evidence_version = models.PositiveSmallIntegerField(default=0, editable=False, verbose_name=_("Evidence Version"))
+    evidence_key_id = models.CharField(max_length=16, blank=True, editable=False, verbose_name=_("Evidence Key ID"))
+    evidence_snapshot = models.JSONField(
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name=_("Evidence Snapshot"),
+        help_text=_("What the holder attested to, frozen at the decision and covered by the evidence seal."),
+    )
 
     @property
     def accepted(self) -> bool:

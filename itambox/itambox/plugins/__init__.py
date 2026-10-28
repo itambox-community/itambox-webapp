@@ -18,7 +18,8 @@ class PluginConfig(AppConfig):
     ``menu`` (``navigation.menu``), ``menu_items`` (``navigation.menu_items``),
     ``viewsets`` (``api.viewsets.viewsets``), ``permission_targets``
     (``permissions.targets``, plugin-owned model labels), and ``graphql_schema``
-    (``graphql.schema``, queries only).
+    (``graphql.schema``, queries only). ``signature_providers`` (Experimental,
+    no default location) lists custody signature provider classes.
 
     Operator configuration is declared by ``settings_schema`` (key -> ``type``,
     ``default``, ``required``, ``secret``, ``choices``); see
@@ -43,6 +44,7 @@ class PluginConfig(AppConfig):
     viewsets = None
     permission_targets = None
     graphql_schema = None
+    signature_providers = None
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)

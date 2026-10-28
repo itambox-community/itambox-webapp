@@ -146,6 +146,20 @@ def _validate_graphql(module):
     return module.Query
 
 
+def _compose_signature_providers(config):
+    # Experimental resource with no conventional default location: declared or absent.
+    declared = getattr(config, "signature_providers", None)
+    if declared is None:
+        return
+    for provider_class in _as_list(declared, "signature_providers"):
+        if isinstance(provider_class, str):
+            provider_class = import_string(provider_class)
+        name = getattr(provider_class, "name", None)
+        if not isinstance(provider_class, type) or not isinstance(name, str) or not name:
+            raise TypeError(f"signature provider {provider_class!r} must be a class with a non-empty name")
+        registry._register_plugin_signature_provider(config.name, provider_class)
+
+
 def compose_plugin(config):
     """Compose phase: load, validate and register every declared resource of one plugin."""
     if config.name not in getattr(settings, "PLUGINS_ACTIVE", ()):
@@ -163,6 +177,7 @@ def compose_plugin(config):
     schema_module = _resolve(config, "graphql_schema")
     if schema_module is not None:
         registry._register_plugin_graphql(config.name, _validate_graphql(schema_module))
+    _compose_signature_providers(config)
 
 
 def _trial_build(query):
