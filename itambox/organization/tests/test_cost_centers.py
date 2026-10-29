@@ -13,6 +13,7 @@ Covers:
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -67,7 +68,7 @@ class CostCenterModelTests(TestCase):
     def test_code_unique_within_tenant(self):
 
         self._make(name="Engineering", slug="engineering", code="CC-001")
-        with self.assertRaises(Exception):  # IntegrityError or ValidationError
+        with self.assertRaisesRegex(IntegrityError, "organization_costcenter_unique_tenant_code_active"):
             self._make(name="Other", slug="other", code="CC-001")
 
     def test_code_same_across_different_tenants(self):

@@ -75,8 +75,8 @@ class AssetDisposalModelTest(TenantTestMixin, TestCase):
         # A second disposal for the same asset should raise IntegrityError via OneToOne
         from django.db import IntegrityError
 
+        d2 = self._make_disposal()
         with self.assertRaises(IntegrityError):
-            d2 = self._make_disposal()
             d2.save()
 
     def test_blank_optional_fields_allowed(self):

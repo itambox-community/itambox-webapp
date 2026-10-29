@@ -140,14 +140,6 @@
       "count": 2
     },
     {
-      "path": "itambox/assets/tests/test_disposal.py",
-      "code": "B908",
-      "message": "assertRaises-type context should not contain more than one top-level statement.",
-      "source": "        with self.assertRaises(IntegrityError):",
-      "context": "Module:body/ClassDef:AssetDisposalModelTest:body/FunctionDef:test_one_disposal_per_asset_enforced:body/With:[(\"Call(func=Attribute(value=Name(id='self', ctx=Load()), attr='assertRaises', ctx=Load()), args=[Name(id='IntegrityError', ctx=Load())], keywords=[])\", None)]:self",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/tests/test_import_export.py",
       "code": "B907",
       "message": "'self.asset_type.pk' is manually surrounded by quotes, consider using the `!r` conversion flag.",
@@ -177,14 +169,6 @@
       "message": "'self.status.pk' is manually surrounded by quotes, consider using the `!r` conversion flag.",
       "source": "yaml_data = f\"\"\"\n- name: \"Asset Gamma\"\n  asset_tag: \"TAG-003\"\n  status: \"{self.status.pk}\"\n  asset_type: \"{self.asset_type.pk}\"\n\"\"\"",
       "context": "Module:body/ClassDef:AdvancedImportExportTestCase:body/FunctionDef:test_yaml_import_text_preview_and_confirm:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/tests/test_requests.py",
-      "code": "B908",
-      "message": "assertRaises-type context should not contain more than one top-level statement.",
-      "source": "        with self.assertRaises((ValidationError, IntegrityError)):",
-      "context": "Module:body/ClassDef:RequisitionSystemTestCase:body/FunctionDef:test_delegated_request_targets_and_constraints:body/With:[(\"Call(func=Attribute(value=Name(id='self', ctx=Load()), attr='assertRaises', ctx=Load()), args=[Tuple(elts=[Name(id='ValidationError', ctx=Load()), Name(id='IntegrityError', ctx=Load())], ctx=Load())], keywords=[])\", None)]:self",
       "count": 1
     },
     {
@@ -948,14 +932,6 @@
       "count": 1
     },
     {
-      "path": "itambox/extras/tests/test_bookmarks_watch.py",
-      "code": "B017",
-      "message": "`assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.",
-      "source": "        with self.assertRaises(Exception):",
-      "context": "Module:body/ClassDef:ObjectWatchModelTests:body/FunctionDef:test_watch_uniqueness:body/With:[(\"Call(func=Attribute(value=Name(id='self', ctx=Load()), attr='assertRaises', ctx=Load()), args=[Name(id='Exception', ctx=Load())], keywords=[])\", None)]:self",
-      "count": 1
-    },
-    {
       "path": "itambox/extras/tests/test_notification_channel_api.py",
       "code": "B907",
       "message": "'obj.updated_at.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
@@ -1116,14 +1092,6 @@
       "count": 1
     },
     {
-      "path": "itambox/licenses/tests/test_models.py",
-      "code": "B908",
-      "message": "assertRaises-type context should not contain more than one top-level statement.",
-      "source": "        with self.assertRaises(ValidationError):",
-      "context": "Module:body/ClassDef:LicenseSeatAssignmentTests:body/FunctionDef:test_seat_assignment_single_target_constraint:body/With:[(\"Call(func=Attribute(value=Name(id='self', ctx=Load()), attr='assertRaises', ctx=Load()), args=[Name(id='ValidationError', ctx=Load())], keywords=[])\", None)]:self",
-      "count": 1
-    },
-    {
       "path": "itambox/organization/access.py",
       "code": "C901",
       "message": "'tenant_access_report' is too complex (15)",
@@ -1193,14 +1161,6 @@
       "message": "'membership_post_data' is too complex (11)",
       "source": "def membership_post_data(",
       "context": "Module:body/FunctionDef:membership_post_data:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/tests/test_cost_centers.py",
-      "code": "B017",
-      "message": "`assertRaises(Exception)` and `pytest.raises(Exception)` should be considered evil. They can lead to your test passing even if the code being tested is never executed due to a typo. Assert for a more specific exception (builtin or custom), or use `assertRaisesRegex` (if using `assertRaises`), or add the `match` keyword argument (if using `pytest.raises`), or use the context manager form with a target.",
-      "source": "        with self.assertRaises(Exception):  # IntegrityError or ValidationError",
-      "context": "Module:body/ClassDef:CostCenterModelTests:body/FunctionDef:test_code_unique_within_tenant:body/With:[(\"Call(func=Attribute(value=Name(id='self', ctx=Load()), attr='assertRaises', ctx=Load()), args=[Name(id='Exception', ctx=Load())], keywords=[])\", None)]:self",
       "count": 1
     },
     {
