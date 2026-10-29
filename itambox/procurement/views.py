@@ -1,10 +1,11 @@
 import json
-from decimal import Decimal
+import logging
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.forms import formset_factory
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -39,6 +40,8 @@ from .services import (
     reopen_purchase_order,
 )
 from .tables import ContractTable, PurchaseOrderTable
+
+logger = logging.getLogger(__name__)
 
 
 class PurchaseOrderListView(ObjectListView):
@@ -227,6 +230,24 @@ class PurchaseOrderLineDeleteView(ObjectDeleteView):
         return super().post(request, *args, **kwargs)
 
 
+def _parse_line_values(data):
+    """Return ``(qty_ordered, unit_price)`` from a line edit submission, or ``None`` when invalid.
+
+    A blank price means "no price". Decimal accepts NaN and Infinity, which no price can be.
+    """
+    try:
+        qty_ordered = int(data.get("qty_ordered", 1))
+        raw_price = (data.get("unit_price") or "").strip()
+        unit_price = Decimal(raw_price) if raw_price else None
+    except (ValueError, InvalidOperation):
+        return None
+    if qty_ordered < 1:
+        return None
+    if unit_price is not None and (not unit_price.is_finite() or unit_price < 0):
+        return None
+    return qty_ordered, unit_price
+
+
 class PurchaseOrderLineEditView(PermissionRequiredMixin, View):
     permission_required = "procurement.change_purchaseorder"
 
@@ -254,24 +275,13 @@ class PurchaseOrderLineEditView(PermissionRequiredMixin, View):
             }
             return render(request, "procurement/includes/purchaseorder_lines_container.html", context)
 
-        try:
-            qty_ordered = int(request.POST.get("qty_ordered", 1))
-            if qty_ordered < 1:
-                raise ValueError("Quantity must be at least 1.")
-
-            unit_price_raw = request.POST.get("unit_price")
-            unit_price = None
-            if unit_price_raw and unit_price_raw.strip():
-                unit_price = Decimal(unit_price_raw)
-                if unit_price < 0:
-                    raise ValueError("Price cannot be negative.")
-
-            line.qty_ordered = qty_ordered
-            line.unit_price = unit_price
+        values = _parse_line_values(request.POST)
+        if values is None:
+            messages.error(request, _("Enter a whole quantity of at least 1 and a unit price that is not negative."))
+        else:
+            line.qty_ordered, line.unit_price = values
             line.save()
             messages.success(request, _("Line item updated successfully."))
-        except Exception as e:
-            messages.error(request, _("Failed to update line item: %(error)s") % {"error": e})
 
         context = {
             "object": po,
@@ -397,17 +407,15 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
             formset = DynamicAssetProvisionFormSet(request.POST)
 
             if formset.is_valid():
-                try:
-                    asset_details = formset.cleaned_data
-                    receive_purchase_order(po, line_quantities, asset_details, expected_received=expected_received)
-                    # Clear session
-                    if "receive_po_quantities" in request.session:
-                        request.session.pop("receive_po_quantities", None)
-                    messages.success(request, _("Stock received and assets provisioned successfully."))
-                    return redirect(po.get_absolute_url())
-                except Exception as e:
-                    messages.error(request, _("Error receiving purchase order: %(error)s") % {"error": e})
-                    return redirect(po.get_absolute_url())
+                return self._receive_and_redirect(
+                    request,
+                    po,
+                    line_quantities,
+                    formset.cleaned_data,
+                    expected_received,
+                    _("Stock received and assets provisioned successfully."),
+                    clear_session=True,
+                )
             else:
                 # Render step 2 again with errors
                 lines_info = []
@@ -419,7 +427,7 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
                             lines_info.append(line)
                         else:
                             lines_info.append(None)
-                    except Exception:
+                    except (ValueError, PurchaseOrderLine.DoesNotExist):
                         lines_info.append(None)
 
                 context = self.get_context_data(object=po)
@@ -488,13 +496,9 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
                     return render(request, "procurement/purchaseorder_receive_step2.html", context)
                 else:
                     # Call receiving service directly (only non-asset inventory items)
-                    try:
-                        receive_purchase_order(po, line_quantities, asset_details=None, expected_received=line_expected)
-                        messages.success(request, _("Stock received successfully."))
-                        return redirect(po.get_absolute_url())
-                    except Exception as e:
-                        messages.error(request, _("Error receiving purchase order: %(error)s") % {"error": e})
-                        return redirect(po.get_absolute_url())
+                    return self._receive_and_redirect(
+                        request, po, line_quantities, None, line_expected, _("Stock received successfully.")
+                    )
             else:
                 # Step 1 invalid, render again with errors
                 outstanding_lines = []
@@ -505,7 +509,7 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
                             outstanding_lines.append(po.lines.get(pk=int(line_id)))
                         else:
                             outstanding_lines.append(None)
-                    except Exception:
+                    except (ValueError, PurchaseOrderLine.DoesNotExist):
                         outstanding_lines.append(None)
 
                 context = self.get_context_data(object=po)
@@ -513,6 +517,33 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
                 context["lines_and_forms"] = list(zip(outstanding_lines, formset, strict=False))
                 context["step"] = "1"
                 return render(request, "procurement/purchaseorder_receive.html", context)
+
+    def _receive_and_redirect(
+        self, request, po, line_quantities, asset_details, expected_received, success_message, *, clear_session=False
+    ):
+        """Book the receipt and report the outcome. Unexpected errors propagate and are logged by Django."""
+        try:
+            receive_purchase_order(po, line_quantities, asset_details, expected_received=expected_received)
+        except ValidationError as exc:
+            # The service's own refusals (stale snapshot, over-receipt, wrong status) are written for users.
+            messages.error(request, _("Error receiving purchase order: %(error)s") % {"error": " ".join(exc.messages)})
+        except IntegrityError:
+            # The step-2 form checks active assets only, but asset tags stay reserved by deleted
+            # ones, and a concurrent receipt can claim a tag or serial between validation and save.
+            # The database is the last line; the receipt has rolled back.
+            logger.warning("Receipt for purchase order %s refused by a database constraint", po.pk, exc_info=True)
+            messages.error(
+                request,
+                _(
+                    "Nothing was received: an asset tag or serial number is already in use. Asset tags stay "
+                    "reserved by deleted assets. Change the values and submit again."
+                ),
+            )
+        else:
+            if clear_session:
+                request.session.pop("receive_po_quantities", None)
+            messages.success(request, success_message)
+        return redirect(po.get_absolute_url())
 
     def _parse_expected_received(self, request):
         """The receipt-state snapshot a receipt submission itself carries.

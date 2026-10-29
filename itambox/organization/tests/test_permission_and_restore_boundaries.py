@@ -245,7 +245,7 @@ class RestoreAuthorityDispatchTests(TestCase):
         first = SimpleNamespace(pk=1, _meta=SimpleNamespace(label_lower="assets.site"), restore=mock.Mock())
         second = SimpleNamespace(pk=2, _meta=SimpleNamespace(label_lower="assets.site"), restore=mock.Mock())
         model = SimpleNamespace(
-            _meta=SimpleNamespace(verbose_name_plural="sites"),
+            _meta=SimpleNamespace(verbose_name_plural="sites", app_label="assets", model_name="site"),
             _base_manager=SimpleNamespace(filter=mock.Mock(return_value=object())),
         )
         request = SimpleNamespace(

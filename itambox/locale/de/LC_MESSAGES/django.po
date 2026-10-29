@@ -6642,9 +6642,19 @@ msgstr ""
 msgid "Line item updated successfully."
 msgstr "Position erfolgreich aktualisiert."
 
-#, python-format
-msgid "Failed to update line item: %(error)s"
-msgstr "Aktualisierung der Position fehlgeschlagen: %(error)s"
+msgid ""
+"Enter a whole quantity of at least 1 and a unit price that is not negative."
+msgstr ""
+"Geben Sie eine ganze Menge von mindestens 1 und einen Stückpreis ein, der "
+"nicht negativ ist."
+
+msgid ""
+"Nothing was received: an asset tag or serial number is already in use. Asset "
+"tags stay reserved by deleted assets. Change the values and submit again."
+msgstr ""
+"Es wurde nichts empfangen: Eine Inventarnummer oder Seriennummer ist bereits "
+"vergeben. Inventarnummern bleiben auch von gelöschten Assets belegt. Ändern "
+"Sie die Werte und senden Sie das Formular erneut."
 
 msgid "Stock received and assets provisioned successfully."
 msgstr "Bestand erfasst und Assets erfolgreich bereitgestellt."
