@@ -236,30 +236,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/validators.py",
-      "scope": "FunctionDef:detect_image_mime",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "86dc2274821693c4424623401c88e8c8fa51d83caf83a857df7e4b8670becdeb",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/validators.py",
-      "scope": "FunctionDef:detect_image_mime",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "e93aac0e647f2aefefb70cf19482b49996360747e28d190a8570e95b4678531b",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/validators.py",
-      "scope": "FunctionDef:validate_file_attachment",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "ef796eee3c740d98599400b82b928aa97f512671db1c1ef96f83ee91af1d5447",
-      "count": 1
-    },
-    {
       "path": "itambox/core/views/graphql.py",
       "scope": "ClassDef:PrivateGraphQLView/FunctionDef:dispatch",
       "handler_type": "Exception",
@@ -596,38 +572,6 @@
       "count": 1
     },
     {
-      "path": "itambox/itambox/views/generic/restore.py",
-      "scope": "ClassDef:ObjectBulkPurgeView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "32c2381795a8516faf93c3bf83f215220ce4249917d29a26182b54883954c348",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/restore.py",
-      "scope": "ClassDef:ObjectBulkRestoreView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "32c2381795a8516faf93c3bf83f215220ce4249917d29a26182b54883954c348",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/restore.py",
-      "scope": "ClassDef:ObjectPurgeView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "32c2381795a8516faf93c3bf83f215220ce4249917d29a26182b54883954c348",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/restore.py",
-      "scope": "ClassDef:ObjectRestoreView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "32c2381795a8516faf93c3bf83f215220ce4249917d29a26182b54883954c348",
-      "count": 1
-    },
-    {
       "path": "itambox/itambox/views/generic/service_views.py",
       "scope": "ClassDef:GenericTransactionView/FunctionDef:form_valid",
       "handler_type": "Exception",
@@ -665,38 +609,6 @@
       "handler_type": "AssetRequest.DoesNotExist",
       "classification": "pass-only",
       "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
-      "count": 1
-    },
-    {
-      "path": "itambox/procurement/views.py",
-      "scope": "ClassDef:PurchaseOrderLineEditView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "39d661c90ba92bbcf103a3da205242e1cf983d7188a12425cbfb51ecf70b637d",
-      "count": 1
-    },
-    {
-      "path": "itambox/procurement/views.py",
-      "scope": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "4baf9568037f059dd3277b0c3cb019c5eb35429c2e105d3c8f1d7638c9251916",
-      "count": 2
-    },
-    {
-      "path": "itambox/procurement/views.py",
-      "scope": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "82c45a2fc415c5472d89ec9c0ff3d14a57f0c86ce062e3cf14159461b3f3fd4a",
-      "count": 1
-    },
-    {
-      "path": "itambox/procurement/views.py",
-      "scope": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "8645faa7e36d4ce81902f82caf9474d5fc17df33f71ccef570d4991a487f8415",
       "count": 1
     },
     {

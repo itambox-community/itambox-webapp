@@ -1182,7 +1182,7 @@
     {
       "path": "itambox/procurement/views.py",
       "code": "C901",
-      "message": "'PurchaseOrderReceiveFormView.post' is too complex (26)",
+      "message": "'PurchaseOrderReceiveFormView.post' is too complex (21)",
       "source": "    def post(self, request, *args, **kwargs):",
       "context": "Module:body/ClassDef:PurchaseOrderReceiveFormView:body/FunctionDef:post:self",
       "count": 1
