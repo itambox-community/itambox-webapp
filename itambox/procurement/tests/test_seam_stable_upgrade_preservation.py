@@ -35,7 +35,11 @@ class SeamUpgradePreservationTests(TenantTestMixin, TransactionTestCase):
 
     def setUp(self):
         super().setUp()
-        StatusLabel.objects.create(name="Deployable", slug="seam-upgrade-deployable", type="deployable")
+        # The reference-data migration may already have seeded a deployable label on this
+        # worker's database (a TransactionTestCase only flushes after it runs), so use our own.
+        self.deployable = StatusLabel.objects.create(
+            name="Deployable", slug="seam-upgrade-deployable", type="deployable"
+        )
         self.tenant = Tenant.objects.create(name="Seam upgrade tenant", slug="seam-upgrade-tenant")
         self.site = Site.objects.create(name="Seam upgrade site", slug="seam-upgrade-site")
         self.location = Location.objects.create(
@@ -177,7 +181,7 @@ class SeamUpgradePreservationTests(TenantTestMixin, TransactionTestCase):
             name="Delivered before the upgrade",
             asset_type=self.asset_type,
             serial_number="UPG-SN-1",
-            status=StatusLabel.objects.get(type="deployable"),
+            status=self.deployable,
             location=self.location,
             supplier=self.supplier,
             purchase_cost=line.unit_price,
@@ -335,7 +339,7 @@ class SeamUpgradePreservationTests(TenantTestMixin, TransactionTestCase):
             name="Delivered serialised unit",
             asset_type=self.asset_type,
             serial_number="UPG-SN-7",
-            status=StatusLabel.objects.get(type="deployable"),
+            status=self.deployable,
             location=self.location,
             supplier=self.supplier,
             purchase_cost=line.unit_price,
