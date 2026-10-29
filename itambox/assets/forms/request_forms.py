@@ -1,6 +1,10 @@
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import HTML, Layout, Submit
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.forms import formset_factory
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, AssetRequest, AssetType
@@ -68,9 +72,6 @@ class AssetRequestForm(TenantScopedFormMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        from crispy_forms.helper import FormHelper
-        from crispy_forms.layout import HTML, Layout, Submit
-        from django.db.models import Q
 
         from core.managers import get_current_tenant
         from inventory.models import Accessory, Component, Consumable
@@ -155,8 +156,6 @@ class AssetRequestForm(TenantScopedFormMixin, forms.ModelForm):
         if self.instance and self.instance.pk:
             cancel_url = self.instance.get_absolute_url()
         else:
-            from django.urls import reverse
-
             cancel_url = reverse("assets:assetrequest_list")
 
         button_text = _("Update") if self.instance and self.instance.pk else _("Create")
@@ -280,7 +279,6 @@ class AssetRequestActionForm(TenantScopedFormMixin, forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
-        from django.db.models import Q
 
         from core.managers import get_current_tenant
         from organization.models import Location

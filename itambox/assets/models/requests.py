@@ -1,9 +1,11 @@
 """AssetRequest — user-facing request workflow for assets and consumables."""
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from assets.choices import RequestStatusChoices
@@ -352,9 +354,6 @@ class AssetRequest(JournalingMixin, TaggableMixin, ChangeLoggingMixin, BaseModel
         # only over-approve, never over-allocate.
 
         if not self.pk and self.status == RequestStatusChoices.PENDING:
-            from django.conf import settings
-            from django.utils import timezone
-
             thresholds = getattr(settings, "ITAMBOX_REQUISITION_AUTO_APPROVAL_THRESHOLDS", None)
 
             if thresholds is None:

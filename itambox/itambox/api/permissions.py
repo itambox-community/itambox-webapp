@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.http import Http404
+from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from core.tenant_access import accessible_tenant_ids, shared_stock_read_allowed
@@ -42,8 +44,6 @@ class TokenPermissions(BasePermission):
         kwargs = {"app_label": model._meta.app_label, "model_name": model._meta.model_name}
 
         if method not in self.perms_map:
-            from rest_framework.exceptions import MethodNotAllowed
-
             raise MethodNotAllowed(method)
 
         return [perm % kwargs for perm in self.perms_map[method]]
@@ -164,7 +164,6 @@ class StrictTenantPermission(BasePermission):
             # enumeration).
             if get_current_tenant_group() is not None or get_current_all_accessible():
                 return self._has_multi_tenant_object_permission(request, obj)
-            from django.http import Http404
 
             raise Http404()
 
@@ -175,8 +174,6 @@ class StrictTenantPermission(BasePermission):
                 # non-superusers.  Hide the mutation as a 404 to avoid leaking
                 # the object's existence.
                 if request.method not in SAFE_METHODS:
-                    from django.http import Http404
-
                     raise Http404()
                 return True
             # Enforce boundary: Object's tenant must match user's tenant
@@ -191,7 +188,6 @@ class StrictTenantPermission(BasePermission):
                     request.user,
                 ):
                     return True
-                from django.http import Http404
 
                 raise Http404()
 
@@ -211,7 +207,6 @@ class StrictTenantPermission(BasePermission):
         scopes never surface cross-tenant shared pools, so a foreign-tenant
         object fails closed here.
         """
-        from django.http import Http404
 
         if not hasattr(obj, "tenant"):
             return True

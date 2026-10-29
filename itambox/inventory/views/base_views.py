@@ -3,8 +3,9 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -20,7 +21,6 @@ from ..models import Accessory, AccessoryStock, Component, ComponentStock, Consu
 
 class InventoryListView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        from django.core.exceptions import PermissionDenied
 
         target_type = request.GET.get("type")
         if target_type == "accessories" and request.user.has_perm("inventory.view_accessory"):
@@ -57,17 +57,11 @@ def bulk_checkout_inventory(request):
     elif model_name_str in ("inventory.component", "inventory.componentstock"):
         perm = "inventory.change_component"
     else:
-        from django.http import HttpResponseBadRequest
-
         return HttpResponseBadRequest(_("Invalid model specified."))
 
     if not request.user.has_perm(perm):
-        from django.http import HttpResponseForbidden
-
         return HttpResponseForbidden(_("Permission denied."))
     if request.method != "POST":
-        from django.http import HttpResponseNotAllowed
-
         return HttpResponseNotAllowed(["POST"])
 
     object_pks = request.POST.getlist("pk")

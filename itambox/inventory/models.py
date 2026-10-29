@@ -1,6 +1,7 @@
 from django.core.exceptions import FieldError, ValidationError
 from django.db import models, transaction
-from django.db.models import CheckConstraint, Q, Sum
+from django.db.models import CheckConstraint, IntegerField, OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -83,8 +84,6 @@ class AssignmentAllObjectsManager(ExplicitScopeAllObjectsManager.from_queryset(A
 
 class AccessoryQuerySet(TenantScopingSoftDeleteQuerySet):
     def with_counts(self):
-        from django.db.models import IntegerField, OuterRef, Subquery, Sum
-        from django.db.models.functions import Coalesce
 
         # One independent correlated Subquery per multi-valued reverse relation.
         # Annotating two Sum() over different relations in a single .annotate()
@@ -131,8 +130,6 @@ class AllObjectsAccessoryManager(models.Manager.from_queryset(AccessoryQuerySet)
 
 class ConsumableQuerySet(TenantScopingSoftDeleteQuerySet):
     def with_counts(self):
-        from django.db.models import IntegerField, OuterRef, Subquery, Sum
-        from django.db.models.functions import Coalesce
 
         # See AccessoryQuerySet.with_counts: independent Subqueries avoid the
         # stocks x consumptions cartesian-product double-count.
@@ -177,8 +174,6 @@ class AllObjectsConsumableManager(models.Manager.from_queryset(ConsumableQuerySe
 
 class ComponentQuerySet(SoftDeleteQuerySet, TenantScopingQuerySet):
     def with_counts(self):
-        from django.db.models import IntegerField, OuterRef, Subquery, Sum
-        from django.db.models.functions import Coalesce
 
         # Subquery to sum the quantities in ComponentStock for this component
         total_stock_subquery = (

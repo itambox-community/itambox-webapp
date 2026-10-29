@@ -1,6 +1,7 @@
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Column, Fieldset, Layout, Row, Submit
 from django import forms
+from django.conf import settings
 from django.db import transaction
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -398,8 +399,6 @@ class CustodyTemplateForm(TenantScopedFormMixin, forms.ModelForm):
 
         if tenant and tenant_group:
             raise forms.ValidationError(_("Choose either a Tenant or a Tenant Group for this template, not both."))
-
-        from django.conf import settings
 
         if not getattr(settings, "ALLOW_GLOBAL_CUSTODY_TEMPLATES", True):
             if not tenant and not tenant_group:

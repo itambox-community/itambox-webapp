@@ -28,6 +28,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.management.base import CommandError
 from django.db import transaction
 
 from core.management.commands._seed.access import SeedAccessMixin, check_seed_access_invariants
@@ -95,7 +96,6 @@ class Command(
         )
 
     def handle(self, *args, **options):
-        from django.core.management.base import CommandError
 
         random.seed(42)  # reproducible dataset
 

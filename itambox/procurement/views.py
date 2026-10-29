@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.forms import formset_factory
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -373,7 +374,6 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
         po = self.get_object()
         self.object = po
         step = request.POST.get("step", "1")
-        from django.forms import formset_factory
 
         from .forms import AssetProvisionForm, BaseAssetProvisionFormSet, ReceiveLineFormSet
 

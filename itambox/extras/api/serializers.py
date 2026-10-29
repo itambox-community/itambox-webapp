@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
@@ -237,7 +238,6 @@ class WebhookEndpointSerializer(BaseModelSerializer):
         # SSRF guard at the API write boundary (BaseModelSerializer does not run full_clean,
         # so WebhookEndpoint.clean() would not fire otherwise). Reject internal targets at
         # create/update instead of only at dispatch time.
-        from django.core.exceptions import ValidationError as DjangoValidationError
 
         from core.validators import validate_external_url
 
@@ -414,8 +414,6 @@ class NotificationChannelSerializer(BaseModelSerializer):
             # internal URLs at write time (a newly-supplied value, not a restored placeholder).
             url_val = cleaned.get("webhook_url")
             if url_val and url_val != _REDACTED_PLACEHOLDER:
-                from django.core.exceptions import ValidationError as DjangoValidationError
-
                 from core.validators import validate_external_url
 
                 try:

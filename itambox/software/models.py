@@ -1,4 +1,5 @@
 from django.apps import apps
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -224,8 +225,6 @@ class InstalledSoftware(SoftDeleteMixin, ChangeLoggingMixin, BaseModel):
             and self.software.tenant_id is not None
             and self.software.tenant_id != self.asset.tenant_id
         ):
-            from django.core.exceptions import ValidationError
-
             raise ValidationError(
                 {
                     "software": _("Selected software belongs to a different tenant than the asset."),

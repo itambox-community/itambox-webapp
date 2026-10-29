@@ -3,7 +3,7 @@ from copy import deepcopy
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
+from django.db.models import Count, Q
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.generics import RetrieveUpdateAPIView
@@ -66,7 +66,6 @@ class GroupViewSet(ITAMBoxReadOnlyModelViewSet):
         # one member in the requester's active tenant. The path Group -> User is
         # the default reverse `user`, then User -> Membership is `memberships`.
         # Superusers remain unscoped; no active tenant fails closed to none().
-        from django.db.models import Q
 
         from core.managers import get_current_tenant
 
