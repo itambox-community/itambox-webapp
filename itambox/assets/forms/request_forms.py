@@ -7,9 +7,11 @@ from django.forms import formset_factory
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from assets.models import Asset, AssetRequest, AssetType
+from assets.models import Asset, AssetRequest, AssetType, StatusLabel, Supplier
 from core.forms import TenantScopedFormMixin
 from core.managers import Scope
+from inventory.models import Accessory, Component, Consumable
+from organization.models import AssetHolder, Location
 
 
 class AssetRequestForm(TenantScopedFormMixin, forms.ModelForm):
@@ -74,8 +76,6 @@ class AssetRequestForm(TenantScopedFormMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
 
         from core.managers import get_current_tenant
-        from inventory.models import Accessory, Component, Consumable
-        from organization.models import AssetHolder, Location
 
         self.request = kwargs.pop("request", None)
         super().__init__(*args, **kwargs)
@@ -281,7 +281,6 @@ class AssetRequestActionForm(TenantScopedFormMixin, forms.Form):
     def __init__(self, *args, **kwargs):
 
         from core.managers import get_current_tenant
-        from organization.models import Location
 
         self.request_instance = kwargs.pop("request_instance", None)
         kwargs.pop("instance", None)
@@ -398,9 +397,7 @@ class AssetReceiveForm(TenantScopedFormMixin, forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
-        from assets.models import StatusLabel, Supplier
         from core.managers import get_current_tenant
-        from organization.models import Location
 
         super().__init__(*args, **kwargs)
 

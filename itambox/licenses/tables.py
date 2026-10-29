@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from core.tables import ActionsColumn, BaseTable, ToggleColumn
 from core.tables.constants import TABLE_EMPTY_VALUE
 from extras.tables import TagColumn
+from organization.models import AssetHolder
 
 from .models import License, LicenseSeatAssignment
 
@@ -134,8 +135,6 @@ class LicenseSeatAssignmentTable(BaseTable):
     )
 
     def render_assigned_holder(self, record):
-
-        from organization.models import AssetHolder
 
         holder = record.assigned_holder
         via_asset = False

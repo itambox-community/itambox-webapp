@@ -8,6 +8,7 @@ from core.html_styles import status_color_class
 from core.tables import ActionsColumn, BaseTable, ToggleColumn
 from core.tables.constants import TABLE_EMPTY_VALUE
 from extras.tables import TagColumn
+from itambox.utils import get_status_color
 
 from .models import Subscription, SubscriptionAssignment
 
@@ -67,8 +68,6 @@ class SubscriptionTable(BaseTable):
 
     def render_status(self, value, record):
         if record and record.status:
-            from itambox.utils import get_status_color
-
             display = record.get_status_display()
             color = get_status_color(record.status)
             color_class, style_block = status_color_class(color)

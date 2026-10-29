@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from core.managers import get_current_tenant
+from core.validators import validate_external_url
 from extras.definition_contract import custom_field_definition_contract_errors
 from extras.models import (
     AlertLog,
@@ -239,8 +240,6 @@ class WebhookEndpointSerializer(BaseModelSerializer):
         # so WebhookEndpoint.clean() would not fire otherwise). Reject internal targets at
         # create/update instead of only at dispatch time.
 
-        from core.validators import validate_external_url
-
         try:
             validate_external_url(value)
         except DjangoValidationError as exc:
@@ -414,8 +413,6 @@ class NotificationChannelSerializer(BaseModelSerializer):
             # internal URLs at write time (a newly-supplied value, not a restored placeholder).
             url_val = cleaned.get("webhook_url")
             if url_val and url_val != _REDACTED_PLACEHOLDER:
-                from core.validators import validate_external_url
-
                 try:
                     validate_external_url(url_val)
                 except DjangoValidationError as exc:

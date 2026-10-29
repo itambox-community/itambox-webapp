@@ -18,6 +18,7 @@ from extras.dashboard.forms import DashboardWidgetAddForm, DashboardWidgetConfig
 from extras.dashboard.utils import get_dashboard, get_default_dashboard
 from extras.dashboard.widgets import get_widget
 from extras.models import Dashboard
+from itambox.utils import get_help_url
 from itambox.views.htmx import BaseHTMXView
 from organization.access import accessible_tenant_ids
 
@@ -372,16 +373,12 @@ class DashboardView(LoginRequiredMixin, BaseHTMXView, TemplateView):
         context["title"] = _("Dashboard")
         context["breadcrumbs"] = [(None, _("Dashboard"))]
 
-        from itambox.utils import get_help_url
-
         context["help_url"] = get_help_url(self)
 
         # Resolve active dashboard ID from query params or session cache
         dashboard_id = self.request.GET.get("dashboard")
         if not dashboard_id:
             dashboard_id = self.request.session.get("active_dashboard_id")
-
-        from extras.dashboard.utils import get_dashboard
 
         dashboard = get_dashboard(self.request.user, dashboard_id=dashboard_id)
 

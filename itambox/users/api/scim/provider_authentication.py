@@ -8,6 +8,7 @@ from rest_framework import exceptions
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.request import Request
 
+from itambox.ratelimit import get_client_ip
 from organization.models import Tenant
 from users.models import Token
 
@@ -83,8 +84,6 @@ class SCIMProviderBearerTokenAuthentication(BaseAuthentication):
                 raise exceptions.AuthenticationFailed("Token expired.")
 
             if token.allowed_ips:
-                from itambox.ratelimit import get_client_ip
-
                 client_ip = get_client_ip(request)
                 if not token.validate_client_ip(client_ip):
                     logger.warning(

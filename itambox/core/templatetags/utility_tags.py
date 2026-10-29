@@ -9,10 +9,12 @@ from pathlib import Path
 
 from django import template
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.staticfiles import finders
 from django.utils.translation import gettext_lazy as _  # Import gettext_lazy
 
 from core.html_styles import color_chip_class, length_class, percentage_class, status_tint_class
+from itambox.utils import get_status_color
 
 register = template.Library()
 
@@ -242,7 +244,6 @@ def content_type_id(obj):
     """Return ContentType ID for the given model instance."""
     if not obj:
         return None
-    from django.contrib.contenttypes.models import ContentType
 
     return ContentType.objects.get_for_model(obj).id
 
@@ -273,7 +274,6 @@ def pretty_json(value):
 @register.filter
 def status_color(status):
     """Template filter to get color code for a status."""
-    from itambox.utils import get_status_color
 
     return get_status_color(status)
 

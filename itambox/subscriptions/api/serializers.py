@@ -9,7 +9,7 @@ from extras.api.serializers import TagSerializer
 from itambox.api.base import BaseModelSerializer
 from itambox.api.fields import validate_gfk_target_tenant
 from organization.api.serializers import NestedTenantSerializer
-from organization.models import CostCenter, Tenant
+from organization.models import CostCenter, Membership, Tenant
 from procurement.models import Contract
 from subscriptions.models import Subscription, SubscriptionAssignment, SubscriptionStatusChoices
 
@@ -24,7 +24,6 @@ def _tenant_member_user_queryset():
     cannot assign or attribute records to users from another tenant.
     """
     from core.managers import get_current_tenant
-    from organization.models import Membership
 
     tenant = get_current_tenant()
     if tenant is None:

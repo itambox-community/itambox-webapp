@@ -1,5 +1,6 @@
 # itambox/assets/tables.py
 import django_tables2 as tables
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -22,6 +23,7 @@ from core.tables import (
     ToggleColumn,
 )
 from core.tables.constants import TABLE_EMPTY_VALUE
+from extras.templatetags.money import money
 
 from .models import (
     Asset,
@@ -210,8 +212,6 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
 
     def render_actions(self, record):
         if getattr(record, "deleted_at", None) is not None:
-            from django.contrib.contenttypes.models import ContentType
-
             ct = ContentType.objects.get_for_model(record)
 
             restore_url = reverse("object_restore", kwargs={"content_type_id": ct.pk, "object_id": record.pk})
@@ -570,7 +570,6 @@ class AssetDisposalTable(BaseTable):
     def render_proceeds(self, value, record):
         if value is None:
             return TABLE_EMPTY_VALUE
-        from extras.templatetags.money import money
 
         return money(value, record)
 

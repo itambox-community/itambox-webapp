@@ -18,11 +18,14 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy as _lazy
 
-from assets.models import Asset, AssetMaintenance, StatusLabel
+from assets.models import Asset, AssetMaintenance, AssetType, StatusLabel
 from core.context import override_current_tenant_scope
 from core.forms import TenantScopedFormMixin
 from core.managers import Scope
+from core.models import ObjectChange
 from core.tenant_access import accessible_tenant_ids, active_membership
+from extras.models import Bookmark
+from extras.utils import resolve_generic_items
 from inventory.models import (
     Accessory,
     AccessoryAssignment,
@@ -35,7 +38,7 @@ from inventory.models import (
     ConsumableStock,
 )
 from licenses.models import License
-from organization.models import Tenant
+from organization.models import Location, Site, Tenant
 from subscriptions.models import Subscription
 
 # -----------------------------------------------------------------------------
@@ -483,8 +486,6 @@ class ObjectCountsWidget(DashboardWidget):
         if not selected:
             return {"counts": [], "has_data": False}
         from assets.models import AssetType, Manufacturer
-        from inventory.models import Component
-        from organization.models import Location, Site, Tenant
         from software.models import Software
 
         model_map = {
@@ -574,8 +575,6 @@ class FinancialWidget(DashboardWidget):
         tenant = None
         tenant_id = self.get_config_value("tenant_id") or self.config.get("tenant_id")
         if tenant_id:
-            from organization.models import Tenant
-
             tenant = Tenant.objects.for_scope(Scope.current()).filter(id=tenant_id).first()
         if tenant is None:
             tenant = getattr(request, "active_tenant", None)
@@ -870,7 +869,6 @@ class EOLAlertsWidget(DashboardWidget):
         alerts = []
 
         # 1. Resolve distinct EOL months in the catalog
-        from assets.models import AssetType
 
         eol_month_values = list(
             AssetType.objects.filter(eol_months__isnull=False).values_list("eol_months", flat=True).distinct()
@@ -955,7 +953,6 @@ class ChangelogWidget(DashboardWidget):
         )
 
     def get_context(self, request):
-        from core.models import ObjectChange
 
         limit = self.get_config_value("limit", 10)
         action = self.get_config_value("action_filter", "")
@@ -1030,8 +1027,6 @@ class RenewalsWidget(DashboardWidget):
         tenant = None
         tenant_id = self.get_config_value("tenant_id") or self.config.get("tenant_id")
         if tenant_id:
-            from organization.models import Tenant
-
             tenant = Tenant.objects.for_scope(Scope.current()).filter(id=tenant_id).first()
         if tenant is None:
             tenant = getattr(request, "active_tenant", None)
@@ -1303,8 +1298,6 @@ class BookmarksWidget(DashboardWidget):
         )
 
     def get_context(self, request):
-        from extras.models import Bookmark
-        from extras.utils import resolve_generic_items
 
         limit = self.get_config_value("limit") or 10
         rows = list(Bookmark.objects.filter(user=request.user).select_related("model")[:limit])

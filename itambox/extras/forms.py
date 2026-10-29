@@ -17,6 +17,7 @@ from django.utils.translation import gettext_lazy as _
 from core.data_transfer import policy_for
 from core.forms import ColorFieldFormMixin, FilterForm, TenantScopedFormMixin
 from core.managers import Scope, get_current_tenant
+from core.models import ChangeLoggingMixin
 from core.validators import validate_external_url
 from itambox.labels import label_registry
 from itambox.middleware import get_current_user
@@ -483,7 +484,6 @@ def logged_content_types():
     An EventRule pointed at any other model would never fire — constraining the dropdown
     to these keeps users out of that silent dead-end.
     """
-    from core.models import ChangeLoggingMixin
 
     ids = []
     for ct in ContentType.objects.all():

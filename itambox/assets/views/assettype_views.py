@@ -11,6 +11,8 @@ from assets.customfields import composed_fieldsets, fetch_definitions_by_name, r
 from assets.spec_display import build_spec_panel
 from core.managers import Scope
 from extras.services.vocabulary_translations import VocabularyTranslator
+from inventory.models import Kit
+from inventory.tables import KitTable
 from itambox.panels import Panel
 from itambox.quick_add import QuickAddMixin
 from itambox.utils import get_paginate_count
@@ -23,7 +25,7 @@ from itambox.views.generic import (
 )
 
 from .. import filters, forms, tables
-from ..models import Asset, AssetType, AssetTypeFieldset
+from ..models import Asset, AssetRequest, AssetType, AssetTypeFieldset
 
 
 class AssetTypeListView(ObjectListView):
@@ -96,7 +98,6 @@ class AssetTypeDetailView(ObjectDetailView):
         context["hide_generic_custom_fields"] = True
 
         # Requests
-        from ..models import AssetRequest
 
         req_qs = (
             AssetRequest.objects.for_scope(Scope.current())
@@ -109,8 +110,6 @@ class AssetTypeDetailView(ObjectDetailView):
         context["request_count"] = requests_table.page.paginator.count
 
         # Kits
-        from inventory.models import Kit
-        from inventory.tables import KitTable
 
         kits_qs = (
             Kit.objects.for_scope(Scope.current())

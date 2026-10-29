@@ -12,17 +12,22 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 
+from assets.models import AssetRequest
 from core.managers import Scope
 from itambox.views.generic import ObjectDeleteView, ObjectDetailView, ObjectEditView, ObjectListView
 from itambox.views.generic.service_views import SimplePostView
+from procurement.models import FulfillmentLink
 
 from .filters import ContractFilterSet, PurchaseOrderFilterSet
 from .forms import (
+    AssetProvisionForm,
+    BaseAssetProvisionFormSet,
     ContractFilterForm,
     ContractForm,
     PurchaseOrderFilterForm,
     PurchaseOrderForm,
     PurchaseOrderLineForm,
+    ReceiveLineFormSet,
 )
 from .models import Contract, PurchaseOrder, PurchaseOrderLine
 from .services import (
@@ -64,7 +69,6 @@ class PurchaseOrderDetailView(ObjectDetailView):
         context["total_value"] = total_value
 
         # Fetch linked fulfillment links
-        from procurement.models import FulfillmentLink
 
         context["fulfillment_links"] = (
             FulfillmentLink.objects.for_scope(Scope.current())
@@ -87,7 +91,6 @@ class PurchaseOrderEditView(ObjectEditView):
                 from_request_id = int(self.request.GET.get("from_request"))
             except (TypeError, ValueError) as exc:
                 raise Http404(_("Invalid Asset Request identifier.")) from exc
-            from assets.models import AssetRequest
 
             try:
                 asset_request = AssetRequest.objects.for_scope(Scope.current()).get(pk=from_request_id)
@@ -361,8 +364,6 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
                 initial_data.append({"line_id": line.pk, "qty_to_receive": line.qty_outstanding})
                 outstanding_lines.append(line)
 
-        from .forms import ReceiveLineFormSet
-
         formset = ReceiveLineFormSet(initial=initial_data)
 
         context["formset"] = formset
@@ -374,8 +375,6 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
         po = self.get_object()
         self.object = po
         step = request.POST.get("step", "1")
-
-        from .forms import AssetProvisionForm, BaseAssetProvisionFormSet, ReceiveLineFormSet
 
         if step == "2":
             # Submitting Step 2 (Asset Provisioning)

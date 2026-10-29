@@ -21,7 +21,7 @@ from itambox.views.generic import (
 from ..filters import SiteFilterSet
 from ..forms import SiteFilterForm, SiteForm
 from ..models import Site
-from ..tables import SiteTable
+from ..tables import LocationTable, SiteTable
 
 
 class SiteListView(ObjectListView):
@@ -49,8 +49,6 @@ class SiteDetailView(ObjectDetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         site = self.get_object()
-
-        from ..tables import LocationTable
 
         locations_table = LocationTable(site.locations.all(), request=self.request)
         locations_table.configure(self.request)

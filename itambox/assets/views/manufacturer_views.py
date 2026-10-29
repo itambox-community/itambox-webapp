@@ -5,6 +5,8 @@ from django_tables2 import RequestConfig
 
 from assets.models.catalog import scoped_related_count
 from core.managers import Scope
+from inventory.models import Accessory, Component, Consumable
+from inventory.tables import AccessoryTable, ComponentTable, ConsumableTable
 from itambox.panels import Panel
 from itambox.utils import get_paginate_count
 from itambox.views.generic import (
@@ -14,6 +16,7 @@ from itambox.views.generic import (
     ObjectEditView,
     ObjectListView,
 )
+from software.tables import SoftwareTable
 
 from .. import filters, forms, tables
 from ..models import Asset, Manufacturer
@@ -86,8 +89,6 @@ class ManufacturerDetailView(ObjectDetailView):
         context["related_objects_list"] = related_objects_list
 
         # Components
-        from inventory.models import Component
-        from inventory.tables import ComponentTable
 
         comp_qs = (
             Component.objects.for_scope(Scope.current())
@@ -99,8 +100,6 @@ class ManufacturerDetailView(ObjectDetailView):
         context["components_table"] = components_table
 
         # Accessories
-        from inventory.models import Accessory
-        from inventory.tables import AccessoryTable
 
         acc_qs = (
             Accessory.objects.for_scope(Scope.current())
@@ -114,8 +113,6 @@ class ManufacturerDetailView(ObjectDetailView):
         context["accessories_table"] = accessories_table
 
         # Consumables
-        from inventory.models import Consumable
-        from inventory.tables import ConsumableTable
 
         con_qs = (
             Consumable.objects.for_scope(Scope.current())
@@ -130,7 +127,6 @@ class ManufacturerDetailView(ObjectDetailView):
 
         # Software products
         from software.models import Software
-        from software.tables import SoftwareTable
 
         sw_qs = (
             Software.objects.for_scope(Scope.current())

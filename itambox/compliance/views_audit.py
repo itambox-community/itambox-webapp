@@ -331,7 +331,6 @@ class AuditSessionCommitView(LoginRequiredMixin, PermissionRequiredMixin, View):
             return response
 
         # Return the updated reconciliation container using a helper-like template render
-        from compliance.forms_audit import AuditBarcodeScanForm
 
         # Classification is performed inside the atomic write above using the
         # actor-only scan permission, rather than the separate read permission.

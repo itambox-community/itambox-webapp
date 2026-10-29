@@ -681,8 +681,6 @@ ADMIN_MENU = Menu(
 def get_menus():
     from itambox.registry import registry
 
-    from . import Menu, MenuGroup, MenuItem, MenuItemButton
-
     menus = [
         ORG_MENU,
         ASSETS_MENU,
