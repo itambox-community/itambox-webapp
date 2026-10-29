@@ -1,6 +1,4 @@
-import logging
-
-from django.db import DatabaseError, models, transaction
+from django.db import models, transaction
 from django.db.models import signals as model_signals
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -16,8 +14,6 @@ from assets.services.request_fulfillment import (
 from extras.services.events import dispatch_event
 from organization.models import AssetHolder
 
-logger = logging.getLogger(__name__)
-
 
 @receiver(model_signals.post_migrate, dispatch_uid="assets.ensure_canonical_missing_status")
 def ensure_canonical_missing_status(sender, using, **kwargs):
@@ -30,33 +26,31 @@ def ensure_canonical_missing_status(sender, using, **kwargs):
     )
 
 
+# Event dispatch and notifications run after the save commits. robust=True isolates each
+# callback: a failure is logged with its traceback, the remaining callbacks still run, and
+# the committed write is never reported as failed. Without a transaction (autocommit) Django
+# runs the callback at once, under the same isolation.
+
+
 @receiver(post_save, sender=AssetAssignment)
 def on_asset_assignment_save(sender, instance, created, **kwargs):
-    try:
-        if created:
-            transaction.on_commit(lambda: dispatch_event(sender, instance, action="checkout"))
-        elif not instance.is_active and instance.checked_in_at:
-            transaction.on_commit(lambda: dispatch_event(sender, instance, action="checkin"))
-    except DatabaseError as e:
-        logger.exception("Database error occurred while processing asset assignment event: %s", e)
-    except Exception as e:
-        logger.exception("Unexpected error occurred while processing asset assignment event: %s", e)
+    if created:
+        transaction.on_commit(lambda: dispatch_event(sender, instance, action="checkout"), robust=True)
+    elif not instance.is_active and instance.checked_in_at:
+        transaction.on_commit(lambda: dispatch_event(sender, instance, action="checkin"), robust=True)
 
 
 @receiver(post_save, sender=AssetRequest)
 def on_asset_request_save(sender, instance, created, **kwargs):
-    try:
-        if created:
-            transaction.on_commit(lambda: dispatch_event(sender, instance, action="create"))
-
-            # Only notify admins for parent requests or standalone requests, avoiding N+1 queries
-            if instance.parent is None:
-                request_id = instance.pk
-                transaction.on_commit(lambda: async_task("assets.tasks.requests.notify_new_request_task", request_id))
-    except DatabaseError as e:
-        logger.exception("Database error occurred while processing asset request notification: %s", e)
-    except Exception as e:
-        logger.exception("Unexpected error occurred while processing asset request notification: %s", e)
+    if not created:
+        return
+    transaction.on_commit(lambda: dispatch_event(sender, instance, action="create"), robust=True)
+    # Only notify admins for parent requests or standalone requests, avoiding N+1 queries
+    if instance.parent_id is None:
+        request_id = instance.pk
+        transaction.on_commit(
+            lambda: async_task("assets.tasks.requests.notify_new_request_task", request_id), robust=True
+        )
 
 
 def _pick_fulfillment_unit(units, asset_pk, assignee_pk, assignee_user_id):

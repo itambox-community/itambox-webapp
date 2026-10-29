@@ -44,22 +44,6 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/signals.py",
-      "scope": "FunctionDef:on_asset_assignment_save",
-      "handler_type": "Exception",
-      "classification": "log-only",
-      "body_sha256": "60e0e1abcbd7239269d99994cda423c5000f0883015a9372b41979d0b3ead568",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/signals.py",
-      "scope": "FunctionDef:on_asset_request_save",
-      "handler_type": "Exception",
-      "classification": "log-only",
-      "body_sha256": "8724ddb0771c7ed9432d7d7535ee4294a0e39a05a454ac4185895fa99c42a508",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/tables.py",
       "scope": "ClassDef:WarrantyTable/FunctionDef:render_cost",
       "handler_type": "Exception",
@@ -180,46 +164,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/tables/base.py",
-      "scope": "ClassDef:BaseTable/FunctionDef:_apply_prefetching",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "5c996044cbf518f982cf97e0e929ebcb4316fa2c7c12a54bc8bcdd4a22006d5f",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/base.py",
-      "scope": "ClassDef:BaseTable/FunctionDef:_apply_prefetching",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "a3a5855c52af8daccafffebd6d0cc6e7ce017e2a25717513e2d2da8a7405725d",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/base.py",
-      "scope": "ClassDef:BaseTable/FunctionDef:configure",
-      "handler_type": "Exception",
-      "classification": "log-only",
-      "body_sha256": "8d258e0b0b2b4c47256eb58e9237a81e0f5030d20c2e94f63fa693e7306e9e0e",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/columns.py",
-      "scope": "ClassDef:AssigneeColumn/FunctionDef:render",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "88061d38e80a32ccc9ff040f8b0ad0ad432782381873bd2456da26e9096343b2",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/columns.py",
-      "scope": "ClassDef:IDColumn/FunctionDef:_detail_url",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "122cdb7faad01863e33bd02c5849da4de23b6bf625c24d27706e642f57ed9aa3",
-      "count": 1
-    },
-    {
       "path": "itambox/core/templatetags/utility_tags.py",
       "scope": "FunctionDef:pretty_json",
       "handler_type": "Exception",
@@ -294,30 +238,6 @@
     {
       "path": "itambox/extras/services/events.py",
       "scope": "FunctionDef:_send_notification",
-      "handler_type": "Exception",
-      "classification": "pass-only",
-      "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/signals.py",
-      "scope": "FunctionDef:_defer_notify_watchers",
-      "handler_type": "Exception",
-      "classification": "log-only",
-      "body_sha256": "377a81ef59bc1c21611526868d8fa99d4ce9409796822ec82d26af2314df7abb",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/signals.py",
-      "scope": "FunctionDef:_defer_notify_watchers",
-      "handler_type": "Exception",
-      "classification": "log-only",
-      "body_sha256": "c215f488c5820ce035fb7d5a6ed83d55f5a731733692081c00bd4d40b19ee5b3",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/signals.py",
-      "scope": "FunctionDef:_notify_watchers",
       "handler_type": "Exception",
       "classification": "pass-only",
       "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
@@ -465,118 +385,6 @@
       "handler_type": "Exception",
       "classification": "silent",
       "body_sha256": "50ee25091dc78fe74b3d034691c0c39bb8bb5f5c60a373ac6e605509a864e2a5",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/features.py",
-      "scope": "FunctionDef:resolve_serialized_data",
-      "handler_type": "Exception",
-      "classification": "pass-only",
-      "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
-      "count": 2
-    },
-    {
-      "path": "itambox/itambox/views/features.py",
-      "scope": "FunctionDef:resolve_serialized_data",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "5f66a4ffd42501b3f8c172b51671b949f223761e1854d5050bcc71a56350b964",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/features.py",
-      "scope": "FunctionDef:resolve_serialized_data",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "cc6c52f0cc7f1740e0308247145354244c21604dfb6a775026f79e6f08f94433",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/features.py",
-      "scope": "FunctionDef:resolve_serialized_data",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "fbf26a117de4f2f6fbbef664e79cd6956f4c7bfa30c72a62ce3b481e434e7d77",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/edit.py",
-      "scope": "ClassDef:ObjectEditView/FunctionDef:form_valid",
-      "handler_type": "NoReverseMatch",
-      "classification": "pass-only",
-      "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
-      "count": 2
-    },
-    {
-      "path": "itambox/itambox/views/generic/edit.py",
-      "scope": "ClassDef:ObjectEditView/FunctionDef:get_form",
-      "handler_type": "Exception",
-      "classification": "pass-only",
-      "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/edit.py",
-      "scope": "ClassDef:ObjectEditView/FunctionDef:get_form",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "ba2d55f91097ed89ea20107e27f4e5dcd63a8bbabd536c602370cd3a386e9755",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/import_.py",
-      "scope": "ClassDef:ObjectImportView/FunctionDef:_get_cancel_url",
-      "handler_type": "NoReverseMatch",
-      "classification": "pass-only",
-      "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/list_.py",
-      "scope": "ClassDef:ObjectListView/FunctionDef:get_context_data",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "650e7b54f2256d590295b2357b7f06c3a7085b9ea1a5ac94749a532eee0ec884",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/mixins.py",
-      "scope": "ClassDef:GetReturnURLMixin/FunctionDef:get_return_url",
-      "handler_type": "NoReverseMatch",
-      "classification": "pass-only",
-      "body_sha256": "5c04595997820c90159baeb6d4411d9a479f4dc26f1ac532dd740dcb011f3e23",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/related_objects.py",
-      "scope": "ClassDef:RelatedObjectProvider/FunctionDef:_annotate",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "122cdb7faad01863e33bd02c5849da4de23b6bf625c24d27706e642f57ed9aa3",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/related_objects.py",
-      "scope": "ClassDef:RelatedObjectProvider/FunctionDef:_collect_relations",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "d61728e9c392f748bd7aefbf069c5a0bd19e8455c9e215353c2bdd1e6b46c238",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/related_objects.py",
-      "scope": "ClassDef:RelatedObjectProvider/FunctionDef:build",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "d2901397a05f8b063d17e43aa593f3b42c9018038e7c7d25549ee2f76b44f61b",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/service_views.py",
-      "scope": "ClassDef:GenericTransactionView/FunctionDef:form_valid",
-      "handler_type": "Exception",
-      "classification": "log-only",
-      "body_sha256": "5d297c3908c8a46196f04686a91fcceba56dbf0b0843424d3fe31840bc677993",
       "count": 1
     },
     {

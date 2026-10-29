@@ -264,13 +264,9 @@ class ObjectListView(TenantScopingViewMixin, PermissionRequiredMixin, LoginRequi
             context["pretitle"] = _("Trash")
             context["is_deleted_view"] = True
 
-            try:
-                ct = self._get_list_presentation(_model).content_type
-                context["bulk_restore_url"] = reverse("object_bulk_restore", kwargs={"content_type_id": ct.pk})
-                context["bulk_purge_url"] = reverse("object_bulk_purge", kwargs={"content_type_id": ct.pk})
-            except Exception:
-                context["bulk_restore_url"] = None
-                context["bulk_purge_url"] = None
+            ct = self._get_list_presentation(_model).content_type
+            context["bulk_restore_url"] = reverse("object_bulk_restore", kwargs={"content_type_id": ct.pk})
+            context["bulk_purge_url"] = reverse("object_bulk_purge", kwargs={"content_type_id": ct.pk})
 
             if not mutation_allowed:
                 context["bulk_restore_url"] = None
