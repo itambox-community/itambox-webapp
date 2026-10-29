@@ -10,6 +10,7 @@ Usage on a CreateView:
 
 import json
 
+from crispy_forms.helper import FormHelper
 from django.http import HttpResponse
 from django.shortcuts import render
 
@@ -59,8 +60,6 @@ class QuickAddMixin:
             form = context.get("form")
             if form:
                 if not hasattr(form, "helper") or form.helper is None:
-                    from crispy_forms.helper import FormHelper
-
                     form.helper = FormHelper(form)
                 form.helper.form_tag = False
             context["quick_add_form"] = form

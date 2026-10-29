@@ -1311,7 +1311,6 @@ class BookmarksWidget(DashboardWidget):
         return {"bookmarked_items": resolve_generic_items(rows)}
 
     def get_footer_links(self, request):
-        from django.urls import reverse
 
         return [{"url": reverse("users:user_bookmarks"), "label": _("All Bookmarks")}]
 

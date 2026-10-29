@@ -304,8 +304,6 @@ class ITAMBoxModelViewSet(
             and isinstance(validated, dict)
             and not self.request.user.is_superuser
         ):
-            from django.core.exceptions import FieldDoesNotExist
-
             for scope_field in ("tenant", "tenant_group"):
                 if scope_field not in validated:
                     continue

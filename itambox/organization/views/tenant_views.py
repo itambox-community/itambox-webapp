@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -6,7 +7,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
+from django.urls import NoReverseMatch, reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.decorators.http import require_POST
@@ -72,8 +73,6 @@ class TenantDetailView(ObjectDetailView):
         context["tenant_accessory_count"] = tenant.accessories.count()
         context["tenant_consumable_count"] = tenant.consumables.count()
         context["tenant_component_count"] = tenant.components.count()
-
-        from django.conf import settings
 
         from compliance.models import CustodyTemplate
 
@@ -410,10 +409,7 @@ class TenantBulkDeleteView(ObjectBulkDeleteView):
 @login_required
 @require_POST
 def tenant_ldap_sync(request, pk):
-    from django.conf import settings
     from django.contrib.contenttypes.models import ContentType
-    from django.db import transaction
-    from django.urls import NoReverseMatch
     from django_q.tasks import async_task
 
     from core.models import Job

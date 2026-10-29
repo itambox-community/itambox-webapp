@@ -1,6 +1,6 @@
 import logging
 
-from django.db import DatabaseError, transaction
+from django.db import DatabaseError, models, transaction
 from django.db.models import signals as model_signals
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -108,8 +108,6 @@ def auto_fulfill_asset_requests(sender, instance, created, **kwargs):
     targeting a different holder/location/asset are never touched here.
     """
     if created and instance.is_active:
-        from django.db import models
-
         from organization.models import AssetHolder
 
         with transaction.atomic():

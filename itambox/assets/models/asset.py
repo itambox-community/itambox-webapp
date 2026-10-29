@@ -3,6 +3,7 @@
 import datetime
 from decimal import Decimal
 
+from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -261,8 +262,6 @@ class Asset(CustomFieldDataMixin, BookmarkableMixin, SubscribableMixin, Deletabl
     @property
     def eol_date(self):
         if self.purchase_date and self.asset_type and self.asset_type.eol_months:
-            from dateutil.relativedelta import relativedelta
-
             # relativedelta clamps month-end overflow (Jan 31 + 1 month = Feb 28/29).
             return self.purchase_date + relativedelta(months=self.asset_type.eol_months)
         return None
@@ -271,8 +270,6 @@ class Asset(CustomFieldDataMixin, BookmarkableMixin, SubscribableMixin, Deletabl
     def time_to_eol(self):
         eol = self.eol_date
         if eol:
-            from dateutil.relativedelta import relativedelta
-
             today = datetime.date.today()
             if today >= eol:
                 return str(_("Expired"))

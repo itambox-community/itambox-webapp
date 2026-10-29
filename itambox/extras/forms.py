@@ -4,7 +4,10 @@ import re
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Column, Div, Fieldset, Layout, Row, Submit
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import validate_email
 from django.db import transaction
 from django.templatetags.static import static
 from django.urls import reverse
@@ -1584,7 +1587,6 @@ class NotificationChannelForm(TenantScopedFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from django.contrib.auth import get_user_model
 
         User = get_user_model()
 
@@ -1620,8 +1622,6 @@ class NotificationChannelForm(TenantScopedFormMixin, forms.ModelForm):
                 self.initial.setdefault("in_app_recipient_users", recipient_users)
 
     def clean(self):
-        from django.core.exceptions import ValidationError as DjangoValidationError
-        from django.core.validators import validate_email
 
         cleaned = super().clean()
         channel_type = cleaned.get("channel_type")

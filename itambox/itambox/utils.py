@@ -8,7 +8,9 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Model
+from django.db.models.fields.files import FieldFile
 from django.utils.module_loading import import_string
+from django.utils.text import slugify
 
 from itambox.constants import DEFAULT_PAGINATE_COUNT, PAGINATE_COUNT_CHOICES
 
@@ -114,8 +116,6 @@ def serialize_object(obj: Model, extra_fields=None, exclude_fields=None) -> dict
             elif isinstance(field_value, (Decimal, UUID)):
                 data[field_name] = str(field_value)
             else:
-                from django.db.models.fields.files import FieldFile
-
                 if isinstance(field_value, FieldFile):
                     data[field_name] = field_value.name if field_value else None
                 else:
@@ -182,8 +182,6 @@ def generate_unique_slug(instance, slug_source=None, slug_field="slug"):
     """
     if getattr(instance, slug_field, None):
         return
-
-    from django.utils.text import slugify
 
     if slug_source is None:
         slug_source = getattr(instance, "slug_source", "name")

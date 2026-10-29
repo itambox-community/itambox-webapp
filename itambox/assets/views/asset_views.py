@@ -3,7 +3,7 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse, reverse_lazy
@@ -447,7 +447,6 @@ class AssetCheckoutView(GenericTransactionView):
         request_id = self.request.GET.get("request_id")
         if not request_id:
             return
-        from django.db.models import Q
 
         from ..models import AssetRequest
 

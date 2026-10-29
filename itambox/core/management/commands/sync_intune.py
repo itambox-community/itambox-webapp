@@ -25,6 +25,7 @@ import logging
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import CommandError
+from django.db import transaction
 
 from assets.tasks.intune_sync import sync_tenant_intune
 from core.models import Job
@@ -95,7 +96,6 @@ class Command(SystemTaskCommand):
             if job.result:
                 self.stdout.write(str(job.result))
         else:
-            from django.db import transaction
             from django_q.tasks import async_task
 
             def _enqueue():

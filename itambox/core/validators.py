@@ -4,6 +4,7 @@ import re
 import socket
 from urllib.parse import urlsplit
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
@@ -74,7 +75,6 @@ class CustomValidator:
 
     @classmethod
     def validate_object(cls, instance):
-        from django.conf import settings
 
         model_path = f"{instance._meta.app_label}.{instance._meta.model_name}"
         rules = getattr(settings, "CUSTOM_VALIDATORS", {}).get(model_path, {})

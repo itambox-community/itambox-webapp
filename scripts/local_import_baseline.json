@@ -22,42 +22,6 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/filters.py",
-      "context": "ClassDef:AssetFilterSet/FunctionDef:filter_audit_due",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/asset_form.py",
-      "context": "ClassDef:AssetForm/FunctionDef:clean_status",
-      "statement": "from django.db.models import Q",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/category_form.py",
-      "context": "ClassDef:CategoryForm/FunctionDef:__init__",
-      "statement": "from crispy_forms.helper import FormHelper",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/category_form.py",
-      "context": "ClassDef:CategoryForm/FunctionDef:__init__",
-      "statement": "from crispy_forms.layout import HTML, Column, Layout, Row, Submit",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/category_form.py",
-      "context": "ClassDef:CategoryForm/FunctionDef:__init__",
-      "statement": "from django.urls import reverse",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/fields.py",
-      "context": "ClassDef:StatusModelChoiceField/FunctionDef:to_python",
-      "statement": "from django.db.models import Q",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/forms/request_forms.py",
       "context": "ClassDef:AssetReceiveForm/FunctionDef:__init__",
       "statement": "from assets.models import StatusLabel, Supplier",
@@ -96,12 +60,6 @@
     {
       "path": "itambox/assets/forms/request_forms.py",
       "context": "ClassDef:AssetRequestActionForm/FunctionDef:__init__",
-      "statement": "from django.db.models import Q",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestActionForm/FunctionDef:__init__",
       "statement": "from organization.models import Location",
       "count": 1
     },
@@ -109,30 +67,6 @@
       "path": "itambox/assets/forms/request_forms.py",
       "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
-      "statement": "from crispy_forms.helper import FormHelper",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
-      "statement": "from crispy_forms.layout import HTML, Layout, Submit",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
-      "statement": "from django.db.models import Q",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
-      "statement": "from django.urls import reverse",
       "count": 1
     },
     {
@@ -148,51 +82,9 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/models/asset.py",
-      "context": "ClassDef:Asset/FunctionDef:eol_date",
-      "statement": "from dateutil.relativedelta import relativedelta",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/asset.py",
-      "context": "ClassDef:Asset/FunctionDef:time_to_eol",
-      "statement": "from dateutil.relativedelta import relativedelta",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/models/requests.py",
       "context": "ClassDef:AssetRequest/FunctionDef:save",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/requests.py",
-      "context": "ClassDef:AssetRequest/FunctionDef:save",
-      "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/requests.py",
-      "context": "ClassDef:AssetRequest/FunctionDef:save",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/tagsequence.py",
-      "context": "ClassDef:AssetTagSequence/FunctionDef:_get_or_create_global_default",
-      "statement": "from django.db import IntegrityError",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/tagsequence.py",
-      "context": "ClassDef:AssetTagSequence/FunctionDef:next_tag",
-      "statement": "from django.db import transaction",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/models/tagsequence.py",
-      "context": "ClassDef:AssetTagSequence/FunctionDef:next_tag",
-      "statement": "from django.db.models import F",
       "count": 1
     },
     {
@@ -217,12 +109,6 @@
       "path": "itambox/assets/services/__init__.py",
       "context": "FunctionDef:checkout_asset",
       "statement": "from core.models import EmailSettings",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/signals.py",
-      "context": "FunctionDef:auto_fulfill_asset_requests",
-      "statement": "from django.db import models",
       "count": 1
     },
     {
@@ -265,12 +151,6 @@
       "path": "itambox/assets/views/asset_views.py",
       "context": "ClassDef:AssetCheckoutView/FunctionDef:post_service",
       "statement": "from ..models import AssetRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetCheckoutView/FunctionDef:post_service",
-      "statement": "from django.db.models import Q",
       "count": 1
     },
     {
@@ -384,12 +264,6 @@
     {
       "path": "itambox/assets/views/depreciation_views.py",
       "context": "ClassDef:DepreciationDetailView/FunctionDef:get_context_data",
-      "statement": "from django_tables2 import RequestConfig",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/depreciation_views.py",
-      "context": "ClassDef:DepreciationDetailView/FunctionDef:get_context_data",
       "statement": "from itambox.utils import get_paginate_count",
       "count": 1
     },
@@ -478,45 +352,15 @@
       "count": 1
     },
     {
-      "path": "itambox/compliance/forms.py",
-      "context": "ClassDef:CustodyTemplateForm/FunctionDef:clean",
-      "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
       "path": "itambox/compliance/forms_audit.py",
       "context": "ClassDef:AuditSessionForm/FunctionDef:__init__",
       "statement": "from organization.models import Membership",
       "count": 1
     },
     {
-      "path": "itambox/compliance/tables.py",
-      "context": "ClassDef:CustodyReceiptTable/FunctionDef:render_acceptance_status",
-      "statement": "from django.utils.html import format_html",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/tables.py",
-      "context": "ClassDef:CustodyReceiptTable/FunctionDef:render_actions",
-      "statement": "from django.urls import reverse",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/tables.py",
-      "context": "ClassDef:CustodyReceiptTable/FunctionDef:render_actions",
-      "statement": "from django.utils.html import format_html",
-      "count": 1
-    },
-    {
       "path": "itambox/compliance/views.py",
       "context": "ClassDef:CustodyTemplateDetailView/FunctionDef:get_context_data",
       "statement": "from .tables import CustodyReceiptTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/views.py",
-      "context": "ClassDef:CustodyTemplateDetailView/FunctionDef:get_context_data",
-      "statement": "from django_tables2 import RequestConfig",
       "count": 1
     },
     {
@@ -550,18 +394,6 @@
       "count": 1
     },
     {
-      "path": "itambox/compliance/views_audit.py",
-      "context": "ClassDef:AuditSessionStartView/FunctionDef:perform_action",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/views_audit.py",
-      "context": "ClassDef:AuditSessionTable/FunctionDef:render_status",
-      "statement": "from django.utils.html import format_html",
-      "count": 1
-    },
-    {
       "path": "itambox/core/apps.py",
       "context": "ClassDef:CoreConfig/FunctionDef:_register_prune_schedule",
       "statement": "from core.schedules import register_schedule",
@@ -574,27 +406,9 @@
       "count": 1
     },
     {
-      "path": "itambox/core/events.py",
-      "context": "FunctionDef:_post_pinned",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
       "path": "itambox/core/filters.py",
       "context": "ClassDef:BaseFilterSet/FunctionDef:__init__",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/forms/mixins.py",
-      "context": "ClassDef:BulkEditForm/FunctionDef:__init__",
-      "statement": "from django.db.models import ForeignKey, ManyToManyField",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/forms/mixins.py",
-      "context": "ClassDef:BulkEditForm/FunctionDef:__init__",
-      "statement": "from django.db.models.fields import related",
       "count": 1
     },
     {
@@ -685,12 +499,6 @@
       "path": "itambox/core/management/commands/_seed/finance.py",
       "context": "ClassDef:SeedFinanceMixin/FunctionDef:_seed_cost_centers",
       "statement": "from organization.models import CostCenter",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/_seed/history.py",
-      "context": "ClassDef:SeedHistoryMixin/FunctionDef:_simulate_history",
-      "statement": "from django.utils import timezone as _tz",
       "count": 1
     },
     {
@@ -814,33 +622,9 @@
       "count": 1
     },
     {
-      "path": "itambox/core/management/commands/seed_data.py",
-      "context": "ClassDef:Command/FunctionDef:handle",
-      "statement": "from django.core.management.base import CommandError",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/sync_intune.py",
-      "context": "ClassDef:Command/FunctionDef:handle",
-      "statement": "from django.db import transaction",
-      "count": 1
-    },
-    {
       "path": "itambox/core/management/commands/sync_intune.py",
       "context": "ClassDef:Command/FunctionDef:handle",
       "statement": "from django_q.tasks import async_task",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/mixins.py",
-      "context": "ClassDef:SoftDeleteMixin/FunctionDef:delete",
-      "statement": "from django.db import transaction",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/mixins.py",
-      "context": "ClassDef:SoftDeleteMixin/FunctionDef:soft_delete",
-      "statement": "from django.utils import timezone",
       "count": 1
     },
     {
@@ -853,12 +637,6 @@
       "path": "itambox/core/models.py",
       "context": "ClassDef:ChangeLoggingMixin/FunctionDef:_log_change",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/models.py",
-      "context": "ClassDef:ChangeLoggingMixin/FunctionDef:_log_change",
-      "statement": "from django.contrib.auth import get_user_model",
       "count": 1
     },
     {
@@ -886,12 +664,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/navigation/__init__.py",
-      "context": "FunctionDef:get_model_buttons",
-      "statement": "from django.apps import apps",
-      "count": 1
-    },
-    {
       "path": "itambox/core/navigation/menu.py",
       "context": "FunctionDef:get_menus",
       "statement": "from . import Menu, MenuGroup, MenuItem, MenuItemButton",
@@ -901,24 +673,6 @@
       "path": "itambox/core/navigation/menu.py",
       "context": "FunctionDef:get_menus",
       "statement": "from itambox.registry import registry",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/reports/exporters.py",
-      "context": "FunctionDef:report_xlsx_bytes",
-      "statement": "from openpyxl import Workbook",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/reports/exporters.py",
-      "context": "FunctionDef:report_xlsx_bytes",
-      "statement": "from openpyxl.styles import Font",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/reports/exporters.py",
-      "context": "FunctionDef:report_xlsx_bytes",
-      "statement": "from openpyxl.utils import get_column_letter",
       "count": 1
     },
     {
@@ -937,12 +691,6 @@
       "path": "itambox/core/tables/columns.py",
       "context": "ClassDef:AssigneeColumn/FunctionDef:_build_cache",
       "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/columns.py",
-      "context": "ClassDef:AssigneeColumn/FunctionDef:_get_assignment_model",
-      "statement": "from django.apps import apps",
       "count": 1
     },
     {
@@ -967,60 +715,6 @@
       "path": "itambox/core/templatetags/utility_tags.py",
       "context": "FunctionDef:status_color",
       "statement": "from itambox.utils import get_status_color",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/validators.py",
-      "context": "ClassDef:CustomValidator/FunctionDef:validate_object",
-      "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "ClassDef:PrivateGraphQLView/FunctionDef:dispatch",
-      "statement": "from django.middleware.csrf import CsrfViewMiddleware",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "FunctionDef:query_complexity_validator",
-      "statement": "from graphql import visit",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "FunctionDef:query_complexity_validator",
-      "statement": "from graphql.error import GraphQLError",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "FunctionDef:query_complexity_validator",
-      "statement": "from graphql.language.visitor import Visitor",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "FunctionDef:query_complexity_validator",
-      "statement": "from graphql.type import GraphQLList, GraphQLNonNull",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "FunctionDef:query_complexity_validator",
-      "statement": "from graphql.utilities import TypeInfo, TypeInfoVisitor, type_from_ast",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "context": "FunctionDef:query_complexity_validator",
-      "statement": "from graphql.validation import ValidationRule",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/worker_status.py",
-      "context": "FunctionDef:get_worker_status",
-      "statement": "from django.conf import settings",
       "count": 1
     },
     {
@@ -1049,27 +743,9 @@
     },
     {
       "path": "itambox/extras/api/serializers.py",
-      "context": "ClassDef:NotificationChannelSerializer/FunctionDef:validate_config",
-      "statement": "from django.core.exceptions import ValidationError as DjangoValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/api/serializers.py",
       "context": "ClassDef:WebhookEndpointSerializer/FunctionDef:validate_target_url",
       "statement": "from core.validators import validate_external_url",
       "count": 1
-    },
-    {
-      "path": "itambox/extras/api/serializers.py",
-      "context": "ClassDef:WebhookEndpointSerializer/FunctionDef:validate_target_url",
-      "statement": "from django.core.exceptions import ValidationError as DjangoValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/views.py",
-      "context": "ClassDef:DashboardCreateView/FunctionDef:post",
-      "statement": "from django.contrib import messages",
-      "count": 3
     },
     {
       "path": "itambox/extras/dashboard/views.py",
@@ -1093,12 +769,6 @@
       "path": "itambox/extras/dashboard/widgets.py",
       "context": "ClassDef:BookmarksWidget/FunctionDef:get_context",
       "statement": "from extras.utils import resolve_generic_items",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:BookmarksWidget/FunctionDef:get_footer_links",
-      "statement": "from django.urls import reverse",
       "count": 1
     },
     {
@@ -1163,44 +833,14 @@
     },
     {
       "path": "itambox/extras/forms.py",
-      "context": "ClassDef:NotificationChannelForm/FunctionDef:__init__",
-      "statement": "from django.contrib.auth import get_user_model",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/forms.py",
-      "context": "ClassDef:NotificationChannelForm/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError as DjangoValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/forms.py",
-      "context": "ClassDef:NotificationChannelForm/FunctionDef:clean",
-      "statement": "from django.core.validators import validate_email",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/forms.py",
       "context": "FunctionDef:logged_content_types",
       "statement": "from core.models import ChangeLoggingMixin",
       "count": 1
     },
     {
       "path": "itambox/extras/models.py",
-      "context": "ClassDef:AlertRule/FunctionDef:get_absolute_url",
-      "statement": "from django.urls import reverse",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/models.py",
       "context": "ClassDef:ScheduledReport/FunctionDef:clean",
       "statement": "from croniter import croniter",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/models.py",
-      "context": "ClassDef:ScheduledReport/FunctionDef:clean",
-      "statement": "from django.core.validators import validate_email",
       "count": 1
     },
     {
@@ -1219,12 +859,6 @@
       "path": "itambox/extras/models.py",
       "context": "ClassDef:WebhookEndpoint/FunctionDef:secret_decrypted",
       "statement": "from core.crypto import decrypt_string",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/utils.py",
-      "context": "FunctionDef:resolve_generic_items",
-      "statement": "from django.urls import reverse",
       "count": 1
     },
     {
@@ -1282,63 +916,9 @@
       "count": 2
     },
     {
-      "path": "itambox/inventory/abstract_models.py",
-      "context": "ClassDef:AbstractAssignment/FunctionDef:_source_stock",
-      "statement": "from django.apps import apps",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/abstract_models.py",
-      "context": "ClassDef:AbstractAssignment/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/abstract_models.py",
-      "context": "ClassDef:AbstractStock/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
       "path": "itambox/inventory/apps.py",
       "context": "ClassDef:InventoryConfig/FunctionDef:ready",
       "statement": "import inventory.search",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/models.py",
-      "context": "ClassDef:AccessoryQuerySet/FunctionDef:with_counts",
-      "statement": "from django.db.models import IntegerField, OuterRef, Subquery, Sum",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/models.py",
-      "context": "ClassDef:AccessoryQuerySet/FunctionDef:with_counts",
-      "statement": "from django.db.models.functions import Coalesce",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/models.py",
-      "context": "ClassDef:ComponentQuerySet/FunctionDef:with_counts",
-      "statement": "from django.db.models import IntegerField, OuterRef, Subquery, Sum",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/models.py",
-      "context": "ClassDef:ComponentQuerySet/FunctionDef:with_counts",
-      "statement": "from django.db.models.functions import Coalesce",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/models.py",
-      "context": "ClassDef:ConsumableQuerySet/FunctionDef:with_counts",
-      "statement": "from django.db.models import IntegerField, OuterRef, Subquery, Sum",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/models.py",
-      "context": "ClassDef:ConsumableQuerySet/FunctionDef:with_counts",
-      "statement": "from django.db.models.functions import Coalesce",
       "count": 1
     },
     {
@@ -1373,32 +953,8 @@
     },
     {
       "path": "itambox/inventory/views/base_views.py",
-      "context": "ClassDef:InventoryListView/FunctionDef:get",
-      "statement": "from django.core.exceptions import PermissionDenied",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/base_views.py",
       "context": "FunctionDef:bulk_checkout_inventory",
       "statement": "from assets.models import Asset",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/base_views.py",
-      "context": "FunctionDef:bulk_checkout_inventory",
-      "statement": "from django.http import HttpResponseBadRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/base_views.py",
-      "context": "FunctionDef:bulk_checkout_inventory",
-      "statement": "from django.http import HttpResponseForbidden",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/base_views.py",
-      "context": "FunctionDef:bulk_checkout_inventory",
-      "statement": "from django.http import HttpResponseNotAllowed",
       "count": 1
     },
     {
@@ -1463,26 +1019,8 @@
     },
     {
       "path": "itambox/itambox/api/permissions.py",
-      "context": "ClassDef:StrictTenantPermission/FunctionDef:_has_multi_tenant_object_permission",
-      "statement": "from django.http import Http404",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/api/permissions.py",
       "context": "ClassDef:StrictTenantPermission/FunctionDef:has_object_permission",
       "statement": "from core.managers import get_current_all_accessible, get_current_tenant, get_current_tenant_group",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/api/permissions.py",
-      "context": "ClassDef:StrictTenantPermission/FunctionDef:has_object_permission",
-      "statement": "from django.http import Http404",
-      "count": 3
-    },
-    {
-      "path": "itambox/itambox/api/permissions.py",
-      "context": "ClassDef:TokenPermissions/FunctionDef:get_required_permissions",
-      "statement": "from rest_framework.exceptions import MethodNotAllowed",
       "count": 1
     },
     {
@@ -1498,39 +1036,9 @@
       "count": 1
     },
     {
-      "path": "itambox/itambox/api/viewsets.py",
-      "context": "ClassDef:ITAMBoxModelViewSet/FunctionDef:perform_update",
-      "statement": "from django.core.exceptions import FieldDoesNotExist",
-      "count": 1
-    },
-    {
       "path": "itambox/itambox/context_processors.py",
       "context": "FunctionDef:notifications_processor",
       "statement": "from core.models import Notification",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/context_processors.py",
-      "context": "FunctionDef:notifications_processor",
-      "statement": "from django.utils.functional import SimpleLazyObject",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/quick_add.py",
-      "context": "ClassDef:QuickAddMixin/FunctionDef:get_context_data",
-      "statement": "from crispy_forms.helper import FormHelper",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/utils.py",
-      "context": "FunctionDef:generate_unique_slug",
-      "statement": "from django.utils.text import slugify",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/utils.py",
-      "context": "FunctionDef:serialize_object",
-      "statement": "from django.db.models.fields.files import FieldFile",
       "count": 1
     },
     {
@@ -1558,24 +1066,6 @@
       "count": 1
     },
     {
-      "path": "itambox/licenses/models.py",
-      "context": "ClassDef:LicenseQuerySet/FunctionDef:with_counts",
-      "statement": "from django.db.models import Count",
-      "count": 1
-    },
-    {
-      "path": "itambox/licenses/tables.py",
-      "context": "ClassDef:LicenseSeatAssignmentTable/FunctionDef:render_assigned_holder",
-      "statement": "from django.urls import reverse",
-      "count": 1
-    },
-    {
-      "path": "itambox/licenses/tables.py",
-      "context": "ClassDef:LicenseSeatAssignmentTable/FunctionDef:render_assigned_holder",
-      "statement": "from django.utils.html import format_html",
-      "count": 1
-    },
-    {
       "path": "itambox/licenses/tables.py",
       "context": "ClassDef:LicenseSeatAssignmentTable/FunctionDef:render_assigned_holder",
       "statement": "from organization.models import AssetHolder",
@@ -1585,12 +1075,6 @@
       "path": "itambox/licenses/views.py",
       "context": "ClassDef:LicenseDetailView/FunctionDef:get_context_data",
       "statement": "from assets.models import AssetAssignment",
-      "count": 1
-    },
-    {
-      "path": "itambox/licenses/views.py",
-      "context": "ClassDef:LicenseDetailView/FunctionDef:get_context_data",
-      "statement": "from django.db.models import Prefetch",
       "count": 1
     },
     {
@@ -1618,12 +1102,6 @@
       "count": 1
     },
     {
-      "path": "itambox/organization/api/views.py",
-      "context": "ClassDef:ContactAssignmentViewSet/FunctionDef:get_queryset",
-      "statement": "from django.db.models import Q",
-      "count": 1
-    },
-    {
       "path": "itambox/organization/apps.py",
       "context": "ClassDef:OrganizationConfig/FunctionDef:ready",
       "statement": "import organization.search",
@@ -1636,12 +1114,6 @@
       "count": 1
     },
     {
-      "path": "itambox/organization/filters.py",
-      "context": "FunctionDef:_user_queryset",
-      "statement": "from django.contrib.auth import get_user_model",
-      "count": 1
-    },
-    {
       "path": "itambox/organization/forms/assetholder_form.py",
       "context": "ClassDef:AssetHolderForm/FunctionDef:__init__",
       "statement": "from core.managers import get_current_tenant",
@@ -1651,36 +1123,6 @@
       "path": "itambox/organization/forms/site_form.py",
       "context": "ClassDef:SiteForm/FunctionDef:__init__",
       "statement": "from ..models import Tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/models.py",
-      "context": "ClassDef:CostCenter/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/models.py",
-      "context": "ClassDef:Tenant/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/models.py",
-      "context": "ClassDef:TenantGroup/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/models.py",
-      "context": "ClassDef:TenantResourceGrant/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/models.py",
-      "context": "ClassDef:TenantResourceGrant/FunctionDef:delete",
-      "statement": "from django.db import transaction",
       "count": 1
     },
     {
@@ -1817,12 +1259,6 @@
     },
     {
       "path": "itambox/organization/views/tenant_views.py",
-      "context": "ClassDef:TenantDetailView/FunctionDef:get_context_data",
-      "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
       "context": "ClassDef:TenantDetailView/FunctionDef:get_tab_components",
       "statement": "from inventory.tables import ComponentTable",
       "count": 1
@@ -1848,25 +1284,7 @@
     {
       "path": "itambox/organization/views/tenant_views.py",
       "context": "FunctionDef:tenant_ldap_sync",
-      "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "FunctionDef:tenant_ldap_sync",
       "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "FunctionDef:tenant_ldap_sync",
-      "statement": "from django.db import transaction",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "FunctionDef:tenant_ldap_sync",
-      "statement": "from django.urls import NoReverseMatch",
       "count": 1
     },
     {
@@ -1936,21 +1354,9 @@
       "count": 1
     },
     {
-      "path": "itambox/procurement/views.py",
-      "context": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
-      "statement": "from django.forms import formset_factory",
-      "count": 1
-    },
-    {
       "path": "itambox/software/apps.py",
       "context": "ClassDef:SoftwareConfig/FunctionDef:ready",
       "statement": "import software.search",
-      "count": 1
-    },
-    {
-      "path": "itambox/software/models.py",
-      "context": "ClassDef:InstalledSoftware/FunctionDef:clean",
-      "statement": "from django.core.exceptions import ValidationError",
       "count": 1
     },
     {
@@ -1963,12 +1369,6 @@
       "path": "itambox/software/views.py",
       "context": "ClassDef:SoftwareDetailView/FunctionDef:get_context_data",
       "statement": "from licenses.tables import LicenseTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/admin.py",
-      "context": "ClassDef:SubscriptionAdmin/FunctionDef:mark_cancelled",
-      "statement": "from django.utils import timezone",
       "count": 1
     },
     {
@@ -1990,57 +1390,15 @@
       "count": 1
     },
     {
-      "path": "itambox/subscriptions/filters.py",
-      "context": "ClassDef:SubscriptionFilterSet/FunctionDef:filter_renewal_within",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/forms.py",
-      "context": "ClassDef:SubscriptionCancelForm/FunctionDef:__init__",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
       "path": "itambox/subscriptions/forms.py",
       "context": "ClassDef:SubscriptionCheckoutForm/FunctionDef:clean",
       "statement": "from django.contrib.contenttypes.models import ContentType",
       "count": 1
     },
     {
-      "path": "itambox/subscriptions/forms.py",
-      "context": "ClassDef:SubscriptionRenewForm/FunctionDef:__init__",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/models.py",
-      "context": "ClassDef:Subscription/FunctionDef:days_until_renewal",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/models.py",
-      "context": "ClassDef:Subscription/FunctionDef:is_expired",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/models.py",
-      "context": "ClassDef:Subscription/FunctionDef:total_seats",
-      "statement": "from django.db.models import Sum",
-      "count": 1
-    },
-    {
       "path": "itambox/subscriptions/tables.py",
       "context": "ClassDef:SubscriptionTable/FunctionDef:render_status",
       "statement": "from itambox.utils import get_status_color",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/views.py",
-      "context": "ClassDef:SubscriptionAssignmentCreateView/FunctionDef:_render_quickadd",
-      "statement": "from crispy_forms.helper import FormHelper",
       "count": 1
     },
     {
@@ -2056,39 +1414,9 @@
       "count": 1
     },
     {
-      "path": "itambox/users/api/scim/provider_views.py",
-      "context": "ClassDef:SCIMProviderMixin/FunctionDef:handle_exception",
-      "statement": "from django.core.exceptions import FieldError as DjangoFieldError",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/api/scim/provider_views.py",
-      "context": "ClassDef:SCIMProviderMixin/FunctionDef:handle_exception",
-      "statement": "from django.core.exceptions import ValidationError as DjangoValidationError",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/api/scim/views.py",
-      "context": "ClassDef:SCIMTenantMixin/FunctionDef:handle_exception",
-      "statement": "from django.core.exceptions import FieldError as DjangoFieldError",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/api/scim/views.py",
-      "context": "ClassDef:SCIMTenantMixin/FunctionDef:handle_exception",
-      "statement": "from django.core.exceptions import ValidationError as DjangoValidationError",
-      "count": 1
-    },
-    {
       "path": "itambox/users/api/views.py",
       "context": "ClassDef:GroupViewSet/FunctionDef:get_queryset",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/api/views.py",
-      "context": "ClassDef:GroupViewSet/FunctionDef:get_queryset",
-      "statement": "from django.db.models import Q",
       "count": 1
     },
     {
@@ -2104,12 +1432,6 @@
       "count": 1
     },
     {
-      "path": "itambox/users/forms.py",
-      "context": "ClassDef:UserPreferencesForm/FunctionDef:__init__",
-      "statement": "from django.utils import translation",
-      "count": 1
-    },
-    {
       "path": "itambox/users/models.py",
       "context": "ClassDef:Token/FunctionDef:save",
       "statement": "from core.managers import get_current_tenant",
@@ -2119,18 +1441,6 @@
       "path": "itambox/users/views.py",
       "context": "ClassDef:BookmarkToggleView/FunctionDef:post",
       "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:BookmarkToggleView/FunctionDef:post",
-      "statement": "from django.http import Http404",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:BookmarkToggleView/FunctionDef:post",
-      "statement": "from django.middleware.csrf import get_token",
       "count": 1
     },
     {
@@ -2189,12 +1499,6 @@
     },
     {
       "path": "itambox/users/views.py",
-      "context": "ClassDef:UserApiTokensView/FunctionDef:post",
-      "statement": "from django.utils import timezone",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
       "context": "ClassDef:UserBookmarksView/FunctionDef:get_context_data",
       "statement": "from extras.models import Bookmark",
       "count": 1
@@ -2207,26 +1511,8 @@
     },
     {
       "path": "itambox/users/views.py",
-      "context": "ClassDef:UserGroupBulkDeleteView/FunctionDef:post",
-      "statement": "from django.http import HttpResponseRedirect",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
       "context": "ClassDef:UserNotificationsView/FunctionDef:get_context_data",
       "statement": "from core.models import Notification",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserPreferencesView/FunctionDef:post",
-      "statement": "from django.conf import settings",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserPreferencesView/FunctionDef:post",
-      "statement": "from django.utils import translation",
       "count": 1
     },
     {
@@ -2257,18 +1543,6 @@
       "path": "itambox/users/views.py",
       "context": "ClassDef:WatchToggleView/FunctionDef:post",
       "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:WatchToggleView/FunctionDef:post",
-      "statement": "from django.http import Http404",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:WatchToggleView/FunctionDef:post",
-      "statement": "from django.middleware.csrf import get_token",
       "count": 1
     },
     {

@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse_lazy
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from django.views.generic import View
@@ -102,7 +103,6 @@ class AuditSessionTable(BaseTable):
         }
         badge_class = badges.get(value, "bg-secondary text-secondary-fg")
         display = record.get_status_display() if value else _("Planned")
-        from django.utils.html import format_html
 
         return format_html('<span class="badge {}">{}</span>', badge_class, display)
 
@@ -505,7 +505,6 @@ class AuditSessionStartView(SimplePostView):
     permission_required = "compliance.change_auditsession"
 
     def perform_action(self, session, request) -> dict:
-        from django.core.exceptions import ValidationError
 
         if session.status != "planned":
             raise ValidationError(_("Only planned sessions can be started."))

@@ -12,6 +12,8 @@ caches, so a running worker is invisible from here. In that case we report
 ``detectable=False`` rather than a misleading "offline".
 """
 
+from django.conf import settings
+
 
 def get_worker_status():
     """Return a dict describing background-worker availability.
@@ -23,7 +25,6 @@ def get_worker_status():
         queued_tasks  — tasks waiting in the ORM broker queue (None if unavailable)
         cache_alias   — the cache alias django-q uses for heartbeats
     """
-    from django.conf import settings
 
     result = {
         "detectable": True,

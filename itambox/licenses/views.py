@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -54,7 +55,6 @@ class LicenseDetailView(ObjectDetailView):
         # Query all seat assignments (to either assets or holders). Prefetch each
         # asset's active assignment + its holder so the "Asset Holder" column can
         # resolve an asset-targeted seat's effective holder without N+1 queries.
-        from django.db.models import Prefetch
 
         from assets.models import AssetAssignment
 

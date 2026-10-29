@@ -180,8 +180,6 @@ class ContactAssignmentViewSet(ITAMBoxModelViewSet):
         if self.request.user.is_superuser:
             return qs
 
-        from django.db.models import Q
-
         from core.managers import TenantScopingQuerySet, get_current_tenant
 
         active_tenant = get_current_tenant()

@@ -9,6 +9,7 @@ from operator import attrgetter
 # Third-party / Django
 from django.apps import apps
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
@@ -310,8 +311,6 @@ class ChangeLoggingMixin:
                 _user_validation_cache.set(cache)
             validated = cache[1]
             if user.pk not in validated:
-                from django.contrib.auth import get_user_model
-
                 User = get_user_model()
                 if User.objects.filter(pk=user.pk).exists():
                     validated.add(user.pk)

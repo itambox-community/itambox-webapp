@@ -134,8 +134,6 @@ class LicenseSeatAssignmentTable(BaseTable):
     )
 
     def render_assigned_holder(self, record):
-        from django.urls import reverse
-        from django.utils.html import format_html
 
         from organization.models import AssetHolder
 
