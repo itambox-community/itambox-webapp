@@ -1,5 +1,6 @@
 from django.utils.functional import SimpleLazyObject
 
+from core.models import Notification
 from itambox.plugins.utils import get_plugin_diagnostics
 from itambox.release import VERSION
 
@@ -15,7 +16,6 @@ def settings_processor(request):
 def notifications_processor(request):
     """Context processor providing unread notification counts and items globally."""
     if request.user.is_authenticated:
-        from core.models import Notification
 
         def get_unread_count():
             return Notification.objects.filter(user=request.user, is_read=False).count()

@@ -19,12 +19,15 @@ from assets.customfields import (
     resolve_asset_custom_fields,
     resolve_asset_type_custom_fields,
 )
+from assets.depreciation import resolve_policy
+from assets.models import AssetDisposal
 from assets.services.request_authorization import can_asset_request_action, is_self_service_claim
 from assets.services.timeline import build_asset_timeline
 from assets.spec_display import build_spec_panel
 from compliance.audit_services import audit_asset_from_form
-from compliance.models import CustodyReceipt
+from compliance.models import AssetAudit, CustodyReceipt
 from compliance.services import scope_custody_receipts
+from compliance.tables import CustodyReceiptTable
 from core.managers import Scope
 from extras.services.vocabulary_translations import VocabularyTranslator
 from inventory.models import AccessoryAssignment, ConsumableAssignment
@@ -40,12 +43,14 @@ from itambox.views.generic import (
     ObjectListView,
 )
 from itambox.views.generic.service_views import GenericTransactionView
+from licenses.models import LicenseSeatAssignment
+from licenses.tables import LicenseSeatAssignmentTable
 from organization.models import AssetHolder
 from software.models import InstalledSoftware
 from software.tables import InstalledSoftwareTable
 
 from .. import filters, forms, tables
-from ..models import Asset, AssetAssignment, AssetTypeFieldset
+from ..models import Asset, AssetAssignment, AssetRequest, AssetTypeFieldset
 from ..services import checkin_asset, checkout_asset
 
 logger = logging.getLogger(__name__)
@@ -194,7 +199,6 @@ class AssetDetailView(ObjectDetailView):
         context["consumable_table"] = con_table
 
         # Requests
-        from ..models import AssetRequest
 
         req_qs = (
             AssetRequest.objects.for_scope(Scope.current())
@@ -206,7 +210,6 @@ class AssetDetailView(ObjectDetailView):
         context["requests_table"] = requests_table
 
         # Audits
-        from compliance.models import AssetAudit
 
         audit_qs = AssetAudit.objects.filter(asset=asset).select_related("session", "auditor", "location", "status")
         audits_table = tables.AssetAuditTable(audit_qs, request=self.request)
@@ -214,7 +217,6 @@ class AssetDetailView(ObjectDetailView):
         context["audits_table"] = audits_table
 
         # Custody Receipts
-        from compliance.tables import CustodyReceiptTable
 
         can_view_receipts = self.request.user.has_perm("compliance.view_custodyreceipt", obj=asset)
         context["can_view_custody_receipts"] = can_view_receipts
@@ -232,8 +234,6 @@ class AssetDetailView(ObjectDetailView):
             context["receipts_table"] = receipts_table
 
         # License Seat Assignments
-        from licenses.models import LicenseSeatAssignment
-        from licenses.tables import LicenseSeatAssignmentTable
 
         license_qs = (
             LicenseSeatAssignment.objects.for_scope(Scope.current())
@@ -248,8 +248,6 @@ class AssetDetailView(ObjectDetailView):
         context["eol_expired"] = asset.eol_date is not None and timezone.localdate() >= asset.eol_date
         context["time_to_eol"] = asset.time_to_eol
         context["total_cost_of_ownership"] = asset.total_cost_of_ownership
-
-        from assets.depreciation import resolve_policy
 
         policy, rung = resolve_policy(asset)
         context["resolved_depreciation_policy"] = str(policy) if policy else None
@@ -290,8 +288,6 @@ class AssetDetailView(ObjectDetailView):
         # Check if current user can claim an approved request for this asset
         approved_request = None
         if self.request.user.is_authenticated:
-            from assets.models import AssetRequest
-
             approved_request_qs = AssetRequest.objects.for_scope(Scope.current()).filter(
                 asset=asset, status=RequestStatusChoices.APPROVED
             )
@@ -316,7 +312,6 @@ class AssetDetailView(ObjectDetailView):
 
         # Local-import debt: hoisting this lands in the second import block below
         # `logger = ...`, which is pre-existing E402 debt. Hoist it with that cleanup.
-        from assets.models import AssetDisposal
 
         # Disposal is a history, not a single one-to-one record. The active
         # record owns the life cycle state; cancelled records stay visible.
@@ -417,8 +412,6 @@ class AssetCheckoutView(GenericTransactionView):
 
         request_id = self.request.GET.get("request_id")
         if request_id:
-            from ..models import AssetRequest
-
             try:
                 asset_request = AssetRequest.objects.for_scope(Scope.current()).get(pk=request_id)
                 if "initial" not in kwargs:
@@ -447,8 +440,6 @@ class AssetCheckoutView(GenericTransactionView):
         request_id = self.request.GET.get("request_id")
         if not request_id:
             return
-
-        from ..models import AssetRequest
 
         request_filter = Q(asset=obj)
         if obj.asset_type_id:

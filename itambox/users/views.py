@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import PasswordChangeView as DjangoPasswordChangeView
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Prefetch
@@ -23,8 +24,10 @@ from django.views.generic.base import TemplateResponseMixin
 
 from core.context import get_current_all_accessible, get_current_tenant, get_current_tenant_group
 from core.managers import Scope
-from core.models import ObjectChange
+from core.models import Notification, ObjectChange
 from core.tables import ObjectChangeTable
+from extras.models import Bookmark, ObjectWatch
+from extras.utils import resolve_generic_items
 from itambox.views.generic import (
     BaseHTMXView,
     ObjectBulkDeleteView,
@@ -37,11 +40,12 @@ from itambox.views.generic import (
     safe_return_url,
 )
 from organization.access import accessible_tenant_ids, get_descendant_tenant_group_ids
-from organization.models import RoleGrant, Tenant
+from organization.models import Membership, RoleGrant, Tenant
 from organization.services.role_grant_validation import validate_group_membership_grant
 
 from .filters import UserFilterSet, UserGroupFilterSet
 from .forms import (
+    TokenForm,
     UserBulkEditForm,
     UserFilterForm,
     UserForm,
@@ -51,7 +55,7 @@ from .forms import (
     UserPreferencesForm,
     UserProfileForm,
 )
-from .models import GroupMembership, UserGroup
+from .models import GroupMembership, Token, UserGroup
 from .services import clear_workspace_session
 from .tables import UserGroupTable, UserTable
 
@@ -76,7 +80,6 @@ class UserProfileView(LoginRequiredMixin, BaseHTMXView, UpdateView):
         context = super().get_context_data(**kwargs)
         context["active_tab"] = "profile"
         context["user"] = self.request.user
-        from organization.models import Membership
 
         context["user_memberships"] = (
             Membership.objects.filter(
@@ -231,8 +234,6 @@ class UserApiTokensView(UserGenericTabView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from .forms import TokenForm
-        from .models import Token
 
         context["tokens"] = Token.objects.filter(user=self.request.user).order_by("-created")
         if "form" not in context:
@@ -242,7 +243,6 @@ class UserApiTokensView(UserGenericTabView):
         return context
 
     def post(self, request, *args, **kwargs):
-        from .forms import TokenForm
 
         form = TokenForm(request.POST)
         if form.is_valid():
@@ -277,7 +277,6 @@ class UserNotificationsView(UserGenericTabView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from core.models import Notification
 
         context["notifications"] = Notification.objects.filter(user=self.request.user).order_by("-created_at")
         return context
@@ -285,7 +284,6 @@ class UserNotificationsView(UserGenericTabView):
 
 class MarkNotificationReadView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        from core.models import Notification
 
         notification = get_object_or_404(Notification, pk=pk, user=request.user)
         notification.is_read = True
@@ -295,7 +293,6 @@ class MarkNotificationReadView(LoginRequiredMixin, View):
 
 class ViewNotificationView(LoginRequiredMixin, View):
     def get(self, request, pk):
-        from core.models import Notification
 
         # Only the recipient may open a notification by pk. The previous
         # Q(user__isnull=True) clause let ANY authenticated user (any tenant) open a global
@@ -313,7 +310,6 @@ class ViewNotificationView(LoginRequiredMixin, View):
 
 class MarkAllNotificationsReadView(LoginRequiredMixin, View):
     def post(self, request):
-        from core.models import Notification
 
         Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
         return redirect("users:user_notifications")
@@ -321,7 +317,6 @@ class MarkAllNotificationsReadView(LoginRequiredMixin, View):
 
 class DeleteApiTokenView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        from .models import Token
 
         token = get_object_or_404(Token, pk=pk, user=request.user)
         token.delete()
@@ -340,8 +335,6 @@ def notification_poll(request):
     if not getattr(request, "htmx", False):
         return HttpResponse(status=204)
 
-    from core.models import Notification
-
     unread_qs = Notification.objects.filter(user=request.user, is_read=False)
     context = {
         "unread_notifications_count": unread_qs.count(),
@@ -357,8 +350,6 @@ class UserBookmarksView(UserGenericTabView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from extras.models import Bookmark
-        from extras.utils import resolve_generic_items
 
         user_bookmarks = list(Bookmark.objects.filter(user=self.request.user).select_related("model"))
         context["bookmarked_items"] = resolve_generic_items(user_bookmarks)
@@ -373,8 +364,6 @@ class UserSubscriptionsView(UserGenericTabView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from extras.models import ObjectWatch
-        from extras.utils import resolve_generic_items
 
         user_watches = list(ObjectWatch.objects.filter(user=self.request.user).select_related("model"))
         context["watched_items"] = resolve_generic_items(user_watches, toggle_url_name="users:watch_toggle")
@@ -389,9 +378,7 @@ class BookmarkToggleView(LoginRequiredMixin, View):
     """
 
     def post(self, request, content_type_id, object_id):
-        from django.contrib.contenttypes.models import ContentType
 
-        from extras.models import Bookmark
         from itambox.registry import registry
 
         content_type = get_object_or_404(ContentType, id=content_type_id)
@@ -463,9 +450,7 @@ class WatchToggleView(LoginRequiredMixin, View):
     """Toggle an ObjectWatch for a generic object (used via HTMX)."""
 
     def post(self, request, content_type_id, object_id):
-        from django.contrib.contenttypes.models import ContentType
 
-        from extras.models import ObjectWatch
         from itambox.registry import registry
 
         content_type = get_object_or_404(ContentType, id=content_type_id)

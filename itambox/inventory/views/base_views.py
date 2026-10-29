@@ -15,6 +15,7 @@ from django.views.generic import View
 from core.managers import Scope
 from inventory.services import checkout_inventory_item
 from itambox.views.generic.utils import safe_return_url
+from organization.models import AssetHolder, Location
 
 from ..models import Accessory, AccessoryStock, Component, ComponentStock, Consumable, ConsumableStock
 
@@ -81,7 +82,6 @@ def bulk_checkout_inventory(request):
         return HttpResponseRedirect(safe_return_url(request, request.META.get("HTTP_REFERER"), "/"))
 
     from assets.models import Asset
-    from organization.models import AssetHolder, Location
 
     holder_id = request.POST.get("assigned_holder")
     location_id = request.POST.get("assigned_location")

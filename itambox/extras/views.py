@@ -25,6 +25,7 @@ from django.views.generic import View
 from assets.services.specification_consumers.contracts import FieldReference, parse_filter_document
 from assets.services.specification_consumers.exporting import machine_csv_bytes
 from assets.tables import AssetTable  # Import AssetTable
+from core.events import send_notification_to_channel
 from core.managers import Scope, get_current_tenant
 from core.reports.rendering import render_report_csv, render_report_html
 from core.schedules import (
@@ -47,6 +48,7 @@ from itambox.views.generic import (
 from itambox.views.generic.mixins import CapabilityRequiredMixin, is_managed_definition
 from itambox.views.generic.service_views import SimplePostView
 from itambox.views.generic.utils import safe_return_url
+from organization.models import Tenant
 
 from .filters import (
     AlertLogFilterSet,
@@ -755,7 +757,6 @@ class NotificationChannelTestView(SimplePostView):
     permission_required = ("extras.change_notificationchannel",)
 
     def perform_action(self, channel, request):
-        from core.events import send_notification_to_channel
 
         ok = send_notification_to_channel(
             channel,
@@ -1433,8 +1434,6 @@ class ReportTemplatePreviewView(CapabilityRequiredMixin, PermissionRequiredMixin
         selected_tenant_id = request.POST.get("tenant")
         active_tenant = None
         if selected_tenant_id and request.user.is_superuser:
-            from organization.models import Tenant
-
             active_tenant = Tenant.objects.filter(pk=selected_tenant_id).first()
         else:
             from core.managers import get_current_tenant
@@ -1445,8 +1444,6 @@ class ReportTemplatePreviewView(CapabilityRequiredMixin, PermissionRequiredMixin
         selected_filter_tenant_ids = request.POST.getlist("filter_tenants")
         filter_tenants = []
         if selected_filter_tenant_ids and request.user.is_superuser:
-            from organization.models import Tenant
-
             filter_tenants = list(Tenant.objects.filter(pk__in=selected_filter_tenant_ids))
 
         # Create dynamic in-memory ReportTemplate object

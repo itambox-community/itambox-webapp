@@ -3,6 +3,7 @@ from datetime import timedelta
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Div, Fieldset, Layout, Submit
 from django import forms
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models as db_models
 from django.urls import reverse
@@ -445,8 +446,6 @@ class SubscriptionCheckoutForm(TenantScopedFormMixin, forms.Form):
             target_obj = location
 
         if target_obj and getattr(self, "subscription", None):
-            from django.contrib.contenttypes.models import ContentType
-
             content_type = ContentType.objects.get_for_model(target_obj)
             if (
                 SubscriptionAssignment.objects.for_scope(Scope.current())

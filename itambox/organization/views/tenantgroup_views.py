@@ -4,6 +4,8 @@ from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
+from compliance.models import CustodyTemplate
+from compliance.tables import CustodyTemplateTable
 from core.managers import Scope
 from itambox.panels import Panel
 from itambox.views.generic import (
@@ -42,8 +44,6 @@ class TenantGroupDetailView(ObjectDetailView):
         tenants_table.configure(self.request)
 
         # Custody Templates
-        from compliance.models import CustodyTemplate
-        from compliance.tables import CustodyTemplateTable
 
         custody_templates_qs = CustodyTemplate.objects.for_scope(Scope.current()).filter(tenant_group=tenantgroup)
         custody_templates_table = CustodyTemplateTable(custody_templates_qs, request=self.request)

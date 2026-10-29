@@ -10,33 +10,9 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/api/serializers.py",
-      "context": "ClassDef:AssetCheckOutAPISerializer/FunctionDef:validate",
-      "statement": "from organization.models import AssetHolder, Location",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/api/serializers.py",
-      "context": "ClassDef:AssetSerializer/FunctionDef:get_fields",
-      "statement": "from organization.models import CostCenter",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetReceiveForm/FunctionDef:__init__",
-      "statement": "from assets.models import StatusLabel, Supplier",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/forms/request_forms.py",
       "context": "ClassDef:AssetReceiveForm/FunctionDef:__init__",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetReceiveForm/FunctionDef:__init__",
-      "statement": "from organization.models import Location",
       "count": 1
     },
     {
@@ -59,26 +35,8 @@
     },
     {
       "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestActionForm/FunctionDef:__init__",
-      "statement": "from organization.models import Location",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
       "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
-      "statement": "from inventory.models import Accessory, Component, Consumable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "context": "ClassDef:AssetRequestForm/FunctionDef:__init__",
-      "statement": "from organization.models import AssetHolder, Location",
       "count": 1
     },
     {
@@ -119,18 +77,6 @@
     },
     {
       "path": "itambox/assets/tables.py",
-      "context": "ClassDef:AssetDisposalTable/FunctionDef:render_proceeds",
-      "statement": "from extras.templatetags.money import money",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/tables.py",
-      "context": "ClassDef:AssetTable/FunctionDef:render_actions",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/tables.py",
       "context": "ClassDef:WarrantyTable/FunctionDef:render_cost",
       "statement": "from extras.templatetags.money import money",
       "count": 1
@@ -142,117 +88,9 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetCheckoutView/FunctionDef:get_form_kwargs",
-      "statement": "from ..models import AssetRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetCheckoutView/FunctionDef:post_service",
-      "statement": "from ..models import AssetRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from ..models import AssetRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from assets.depreciation import resolve_policy",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from assets.models import AssetDisposal",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from assets.models import AssetRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.models import AssetAudit",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.tables import CustodyReceiptTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.models import LicenseSeatAssignment",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/asset_views.py",
-      "context": "ClassDef:AssetDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.tables import LicenseSeatAssignmentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/assettype_views.py",
-      "context": "ClassDef:AssetTypeDetailView/FunctionDef:get_context_data",
-      "statement": "from ..models import AssetRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/assettype_views.py",
-      "context": "ClassDef:AssetTypeDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Kit",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/assettype_views.py",
-      "context": "ClassDef:AssetTypeDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import KitTable",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/views/bulk_scan_views.py",
       "context": "FunctionDef:_enqueue",
       "statement": "from django_q.tasks import async_task",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/category_views.py",
-      "context": "ClassDef:CategoryDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.models import CustodyTemplate",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/category_views.py",
-      "context": "ClassDef:CategoryDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Component",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/category_views.py",
-      "context": "ClassDef:CategoryDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Consumable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/category_views.py",
-      "context": "ClassDef:CategoryDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import ComponentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/category_views.py",
-      "context": "ClassDef:CategoryDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import ConsumableTable",
       "count": 1
     },
     {
@@ -262,135 +100,15 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/views/depreciation_views.py",
-      "context": "ClassDef:DepreciationDetailView/FunctionDef:get_context_data",
-      "statement": "from itambox.utils import get_paginate_count",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/manufacturer_views.py",
-      "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Accessory",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/manufacturer_views.py",
-      "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Component",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/manufacturer_views.py",
-      "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Consumable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/manufacturer_views.py",
-      "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import AccessoryTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/manufacturer_views.py",
-      "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import ComponentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/manufacturer_views.py",
-      "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import ConsumableTable",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/views/manufacturer_views.py",
       "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
       "statement": "from software.models import Software",
       "count": 1
     },
     {
-      "path": "itambox/assets/views/manufacturer_views.py",
-      "context": "ClassDef:ManufacturerDetailView/FunctionDef:get_context_data",
-      "statement": "from software.tables import SoftwareTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/supplier_views.py",
-      "context": "ClassDef:SupplierDetailView/FunctionDef:get_context_data",
-      "statement": "from assets.models import AssetMaintenance",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/supplier_views.py",
-      "context": "ClassDef:SupplierDetailView/FunctionDef:get_context_data",
-      "statement": "from assets.tables import AssetMaintenanceTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/supplier_views.py",
-      "context": "ClassDef:SupplierDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Accessory",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/supplier_views.py",
-      "context": "ClassDef:SupplierDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import AccessoryTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/supplier_views.py",
-      "context": "ClassDef:SupplierDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.models import License",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/views/supplier_views.py",
-      "context": "ClassDef:SupplierDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.tables import LicenseTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/forms_audit.py",
-      "context": "ClassDef:AuditSessionForm/FunctionDef:__init__",
-      "statement": "from organization.models import Membership",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/views.py",
-      "context": "ClassDef:CustodyTemplateDetailView/FunctionDef:get_context_data",
-      "statement": "from .tables import CustodyReceiptTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/views.py",
-      "context": "ClassDef:CustodyTemplateDetailView/FunctionDef:get_context_data",
-      "statement": "from itambox.utils import get_paginate_count",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/views.py",
-      "context": "FunctionDef:custody_eula_sign",
-      "statement": "from django.contrib.auth.views import redirect_to_login",
-      "count": 1
-    },
-    {
       "path": "itambox/compliance/views.py",
       "context": "FunctionDef:custody_template_preview",
       "statement": "from assets.models import Asset",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/views.py",
-      "context": "FunctionDef:custody_template_preview",
-      "statement": "from organization.models import AssetHolder",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/views_audit.py",
-      "context": "ClassDef:AuditSessionCommitView/FunctionDef:post",
-      "statement": "from compliance.forms_audit import AuditBarcodeScanForm",
       "count": 1
     },
     {
@@ -658,18 +376,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/navigation/__init__.py",
-      "context": "FunctionDef:get_model_buttons",
-      "statement": "from core.forms.import_forms import is_model_importable",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/navigation/menu.py",
-      "context": "FunctionDef:get_menus",
-      "statement": "from . import Menu, MenuGroup, MenuItem, MenuItemButton",
-      "count": 1
-    },
-    {
       "path": "itambox/core/navigation/menu.py",
       "context": "FunctionDef:get_menus",
       "statement": "from itambox.registry import registry",
@@ -679,42 +385,6 @@
       "path": "itambox/core/tables/base.py",
       "context": "ClassDef:BaseTable/FunctionDef:configure",
       "statement": "from django.apps import apps",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/columns.py",
-      "context": "ClassDef:ActionsColumn/FunctionDef:render",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/columns.py",
-      "context": "ClassDef:AssigneeColumn/FunctionDef:_build_cache",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tables/object_change.py",
-      "context": "ClassDef:ObjectChangeTable/FunctionDef:render_action",
-      "statement": "from core.choices import ObjectChangeActionChoices",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/templatetags/helpers.py",
-      "context": "FunctionDef:get_action_color",
-      "statement": "from core.choices import ObjectChangeActionChoices",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/templatetags/utility_tags.py",
-      "context": "FunctionDef:content_type_id",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/templatetags/utility_tags.py",
-      "context": "FunctionDef:status_color",
-      "statement": "from itambox.utils import get_status_color",
       "count": 1
     },
     {
@@ -736,60 +406,6 @@
       "count": 1
     },
     {
-      "path": "itambox/extras/api/serializers.py",
-      "context": "ClassDef:NotificationChannelSerializer/FunctionDef:validate_config",
-      "statement": "from core.validators import validate_external_url",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/api/serializers.py",
-      "context": "ClassDef:WebhookEndpointSerializer/FunctionDef:validate_target_url",
-      "statement": "from core.validators import validate_external_url",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/views.py",
-      "context": "ClassDef:DashboardView/FunctionDef:get_context_data",
-      "statement": "from extras.dashboard.utils import get_dashboard",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/views.py",
-      "context": "ClassDef:DashboardView/FunctionDef:get_context_data",
-      "statement": "from itambox.utils import get_help_url",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:BookmarksWidget/FunctionDef:get_context",
-      "statement": "from extras.models import Bookmark",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:BookmarksWidget/FunctionDef:get_context",
-      "statement": "from extras.utils import resolve_generic_items",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:ChangelogWidget/FunctionDef:get_context",
-      "statement": "from core.models import ObjectChange",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:EOLAlertsWidget/FunctionDef:get_context",
-      "statement": "from assets.models import AssetType",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:FinancialWidget/FunctionDef:get_context",
-      "statement": "from organization.models import Tenant",
-      "count": 1
-    },
-    {
       "path": "itambox/extras/dashboard/widgets.py",
       "context": "ClassDef:ObjectCountsWidget/FunctionDef:get_context",
       "statement": "from assets.models import AssetType, Manufacturer",
@@ -798,25 +414,7 @@
     {
       "path": "itambox/extras/dashboard/widgets.py",
       "context": "ClassDef:ObjectCountsWidget/FunctionDef:get_context",
-      "statement": "from inventory.models import Component",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:ObjectCountsWidget/FunctionDef:get_context",
-      "statement": "from organization.models import Location, Site, Tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:ObjectCountsWidget/FunctionDef:get_context",
       "statement": "from software.models import Software",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/dashboard/widgets.py",
-      "context": "ClassDef:RenewalsWidget/FunctionDef:get_context",
-      "statement": "from organization.models import Tenant",
       "count": 1
     },
     {
@@ -829,12 +427,6 @@
       "path": "itambox/extras/forms.py",
       "context": "ClassDef:NotificationChannelForm/FunctionDef:__init__",
       "statement": "from core.managers import get_current_tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/forms.py",
-      "context": "FunctionDef:logged_content_types",
-      "statement": "from core.models import ChangeLoggingMixin",
       "count": 1
     },
     {
@@ -875,12 +467,6 @@
     },
     {
       "path": "itambox/extras/views.py",
-      "context": "ClassDef:NotificationChannelTestView/FunctionDef:perform_action",
-      "statement": "from core.events import send_notification_to_channel",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/views.py",
       "context": "ClassDef:ReportTemplateDownloadView/FunctionDef:get",
       "statement": "from core.csv_utils import safe_csv_filename",
       "count": 1
@@ -910,33 +496,15 @@
       "count": 1
     },
     {
-      "path": "itambox/extras/views.py",
-      "context": "ClassDef:ReportTemplatePreviewView/FunctionDef:post",
-      "statement": "from organization.models import Tenant",
-      "count": 2
-    },
-    {
       "path": "itambox/inventory/apps.py",
       "context": "ClassDef:InventoryConfig/FunctionDef:ready",
       "statement": "import inventory.search",
       "count": 1
     },
     {
-      "path": "itambox/inventory/tables.py",
-      "context": "ClassDef:SharePoolActionMixin/FunctionDef:share_pool_html",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
       "path": "itambox/inventory/views/accessory_views.py",
       "context": "ClassDef:AccessoryListView/FunctionDef:get_context_data",
       "statement": "from assets.models import Asset",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/accessory_views.py",
-      "context": "ClassDef:AccessoryListView/FunctionDef:get_context_data",
-      "statement": "from organization.models import AssetHolder, Location",
       "count": 1
     },
     {
@@ -946,21 +514,9 @@
       "count": 1
     },
     {
-      "path": "itambox/inventory/views/accessory_views.py",
-      "context": "ClassDef:AccessoryStockListView/FunctionDef:get_context_data",
-      "statement": "from organization.models import AssetHolder, Location",
-      "count": 1
-    },
-    {
       "path": "itambox/inventory/views/base_views.py",
       "context": "FunctionDef:bulk_checkout_inventory",
       "statement": "from assets.models import Asset",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/base_views.py",
-      "context": "FunctionDef:bulk_checkout_inventory",
-      "statement": "from organization.models import AssetHolder, Location",
       "count": 1
     },
     {
@@ -971,20 +527,8 @@
     },
     {
       "path": "itambox/inventory/views/component_views.py",
-      "context": "ClassDef:ComponentListView/FunctionDef:get_context_data",
-      "statement": "from organization.models import AssetHolder, Location",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/component_views.py",
       "context": "ClassDef:ComponentStockListView/FunctionDef:get_context_data",
       "statement": "from assets.models import Asset",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/component_views.py",
-      "context": "ClassDef:ComponentStockListView/FunctionDef:get_context_data",
-      "statement": "from organization.models import AssetHolder, Location",
       "count": 1
     },
     {
@@ -995,20 +539,8 @@
     },
     {
       "path": "itambox/inventory/views/consumable_views.py",
-      "context": "ClassDef:ConsumableListView/FunctionDef:get_context_data",
-      "statement": "from organization.models import AssetHolder, Location",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/consumable_views.py",
       "context": "ClassDef:ConsumableStockListView/FunctionDef:get_context_data",
       "statement": "from assets.models import Asset",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/views/consumable_views.py",
-      "context": "ClassDef:ConsumableStockListView/FunctionDef:get_context_data",
-      "statement": "from organization.models import AssetHolder, Location",
       "count": 1
     },
     {
@@ -1036,12 +568,6 @@
       "count": 1
     },
     {
-      "path": "itambox/itambox/context_processors.py",
-      "context": "FunctionDef:notifications_processor",
-      "statement": "from core.models import Notification",
-      "count": 1
-    },
-    {
       "path": "itambox/itambox/views/features.py",
       "context": "FunctionDef:resolve_serialized_data",
       "statement": "from django.contrib.contenttypes.fields import GenericForeignKey",
@@ -1063,30 +589,6 @@
       "path": "itambox/licenses/apps.py",
       "context": "ClassDef:LicensesConfig/FunctionDef:ready",
       "statement": "import licenses.search",
-      "count": 1
-    },
-    {
-      "path": "itambox/licenses/tables.py",
-      "context": "ClassDef:LicenseSeatAssignmentTable/FunctionDef:render_assigned_holder",
-      "statement": "from organization.models import AssetHolder",
-      "count": 1
-    },
-    {
-      "path": "itambox/licenses/views.py",
-      "context": "ClassDef:LicenseDetailView/FunctionDef:get_context_data",
-      "statement": "from assets.models import AssetAssignment",
-      "count": 1
-    },
-    {
-      "path": "itambox/licenses/views.py",
-      "context": "ClassDef:LicenseDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import Kit",
-      "count": 1
-    },
-    {
-      "path": "itambox/licenses/views.py",
-      "context": "ClassDef:LicenseDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import KitTable",
       "count": 1
     },
     {
@@ -1120,189 +622,9 @@
       "count": 1
     },
     {
-      "path": "itambox/organization/forms/site_form.py",
-      "context": "ClassDef:SiteForm/FunctionDef:__init__",
-      "statement": "from ..models import Tenant",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/tables.py",
-      "context": "ClassDef:LocationTable/FunctionDef:render_status",
-      "statement": "from itambox.utils import get_status_color",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/tables.py",
-      "context": "ClassDef:SiteTable/FunctionDef:render_status",
-      "statement": "from itambox.utils import get_status_color",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.models import CustodyReceipt",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.tables import CustodyReceiptTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import AccessoryAssignment",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import ConsumableAssignment",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import AccessoryAssignmentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import ConsumableAssignmentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.models import LicenseSeatAssignment",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/assetholder_views.py",
-      "context": "ClassDef:AssetHolderDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.tables import LicenseSeatAssignmentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from assets.models import AssetAssignment",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.models import AuditSession",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.views_audit import AuditSessionTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import AccessoryStock",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import ComponentStock",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.models import ConsumableStock",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import AccessoryStockTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import ComponentStockTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from inventory.tables import ConsumableStockTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/location_views.py",
-      "context": "ClassDef:LocationDetailView/FunctionDef:get_context_data",
-      "statement": "from organization.tables import AssetAssignmentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/site_views.py",
-      "context": "ClassDef:SiteDetailView/FunctionDef:get_context_data",
-      "statement": "from ..tables import LocationTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "ClassDef:TenantDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.models import CustodyTemplate",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "ClassDef:TenantDetailView/FunctionDef:get_tab_components",
-      "statement": "from inventory.tables import ComponentTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "ClassDef:TenantDetailView/FunctionDef:get_tab_custody_policies",
-      "statement": "from compliance.models import CustodyTemplate",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "ClassDef:TenantDetailView/FunctionDef:get_tab_custody_policies",
-      "statement": "from compliance.tables import CustodyTemplateTable",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "FunctionDef:tenant_ldap_sync",
-      "statement": "from core.models import Job",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenant_views.py",
-      "context": "FunctionDef:tenant_ldap_sync",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
       "path": "itambox/organization/views/tenant_views.py",
       "context": "FunctionDef:tenant_ldap_sync",
       "statement": "from django_q.tasks import async_task",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenantgroup_views.py",
-      "context": "ClassDef:TenantGroupDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.models import CustodyTemplate",
-      "count": 1
-    },
-    {
-      "path": "itambox/organization/views/tenantgroup_views.py",
-      "context": "ClassDef:TenantGroupDetailView/FunctionDef:get_context_data",
-      "statement": "from compliance.tables import CustodyTemplateTable",
       "count": 1
     },
     {
@@ -1325,30 +647,6 @@
     },
     {
       "path": "itambox/procurement/views.py",
-      "context": "ClassDef:PurchaseOrderDetailView/FunctionDef:get_context_data",
-      "statement": "from procurement.models import FulfillmentLink",
-      "count": 1
-    },
-    {
-      "path": "itambox/procurement/views.py",
-      "context": "ClassDef:PurchaseOrderEditView/FunctionDef:get_initial",
-      "statement": "from assets.models import AssetRequest",
-      "count": 1
-    },
-    {
-      "path": "itambox/procurement/views.py",
-      "context": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:get_context_data",
-      "statement": "from .forms import ReceiveLineFormSet",
-      "count": 1
-    },
-    {
-      "path": "itambox/procurement/views.py",
-      "context": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
-      "statement": "from .forms import AssetProvisionForm, BaseAssetProvisionFormSet, ReceiveLineFormSet",
-      "count": 1
-    },
-    {
-      "path": "itambox/procurement/views.py",
       "context": "ClassDef:PurchaseOrderReceiveFormView/FunctionDef:post",
       "statement": "from assets.models import Asset, AssetTagSequence",
       "count": 1
@@ -1360,57 +658,15 @@
       "count": 1
     },
     {
-      "path": "itambox/software/views.py",
-      "context": "ClassDef:SoftwareDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.models import License",
-      "count": 1
-    },
-    {
-      "path": "itambox/software/views.py",
-      "context": "ClassDef:SoftwareDetailView/FunctionDef:get_context_data",
-      "statement": "from licenses.tables import LicenseTable",
-      "count": 1
-    },
-    {
       "path": "itambox/subscriptions/api/serializers.py",
       "context": "FunctionDef:_tenant_member_user_queryset",
       "statement": "from core.managers import get_current_tenant",
       "count": 1
     },
     {
-      "path": "itambox/subscriptions/api/serializers.py",
-      "context": "FunctionDef:_tenant_member_user_queryset",
-      "statement": "from organization.models import Membership",
-      "count": 1
-    },
-    {
       "path": "itambox/subscriptions/apps.py",
       "context": "ClassDef:SubscriptionsConfig/FunctionDef:_register_subscription_tasks",
       "statement": "from core.schedules import register_schedule",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/forms.py",
-      "context": "ClassDef:SubscriptionCheckoutForm/FunctionDef:clean",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/subscriptions/tables.py",
-      "context": "ClassDef:SubscriptionTable/FunctionDef:render_status",
-      "statement": "from itambox.utils import get_status_color",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/api/scim/authentication.py",
-      "context": "ClassDef:SCIMBearerTokenAuthentication/FunctionDef:authenticate",
-      "statement": "from itambox.ratelimit import get_client_ip",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/api/scim/provider_authentication.py",
-      "context": "ClassDef:SCIMProviderBearerTokenAuthentication/FunctionDef:authenticate",
-      "statement": "from itambox.ratelimit import get_client_ip",
       "count": 1
     },
     {
@@ -1440,55 +696,7 @@
     {
       "path": "itambox/users/views.py",
       "context": "ClassDef:BookmarkToggleView/FunctionDef:post",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:BookmarkToggleView/FunctionDef:post",
-      "statement": "from extras.models import Bookmark",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:BookmarkToggleView/FunctionDef:post",
       "statement": "from itambox.registry import registry",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:DeleteApiTokenView/FunctionDef:post",
-      "statement": "from .models import Token",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:MarkAllNotificationsReadView/FunctionDef:post",
-      "statement": "from core.models import Notification",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:MarkNotificationReadView/FunctionDef:post",
-      "statement": "from core.models import Notification",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserApiTokensView/FunctionDef:get_context_data",
-      "statement": "from .forms import TokenForm",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserApiTokensView/FunctionDef:get_context_data",
-      "statement": "from .models import Token",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserApiTokensView/FunctionDef:post",
-      "statement": "from .forms import TokenForm",
       "count": 1
     },
     {
@@ -1499,68 +707,8 @@
     },
     {
       "path": "itambox/users/views.py",
-      "context": "ClassDef:UserBookmarksView/FunctionDef:get_context_data",
-      "statement": "from extras.models import Bookmark",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserBookmarksView/FunctionDef:get_context_data",
-      "statement": "from extras.utils import resolve_generic_items",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserNotificationsView/FunctionDef:get_context_data",
-      "statement": "from core.models import Notification",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserProfileView/FunctionDef:get_context_data",
-      "statement": "from organization.models import Membership",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserSubscriptionsView/FunctionDef:get_context_data",
-      "statement": "from extras.models import ObjectWatch",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:UserSubscriptionsView/FunctionDef:get_context_data",
-      "statement": "from extras.utils import resolve_generic_items",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:ViewNotificationView/FunctionDef:get",
-      "statement": "from core.models import Notification",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:WatchToggleView/FunctionDef:post",
-      "statement": "from django.contrib.contenttypes.models import ContentType",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "ClassDef:WatchToggleView/FunctionDef:post",
-      "statement": "from extras.models import ObjectWatch",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
       "context": "ClassDef:WatchToggleView/FunctionDef:post",
       "statement": "from itambox.registry import registry",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "context": "FunctionDef:notification_poll",
-      "statement": "from core.models import Notification",
       "count": 1
     }
   ]

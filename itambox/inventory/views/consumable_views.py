@@ -21,7 +21,7 @@ from itambox.views.generic import (
 )
 from itambox.views.generic.service_views import GenericTransactionView
 from organization.access import resolved_shared_stock_ids
-from organization.models import TenantResourceGrant
+from organization.models import AssetHolder, Location, TenantResourceGrant
 
 from .. import filters, forms, tables
 from ..models import Consumable, ConsumableAssignment, ConsumableStock, Kit
@@ -50,7 +50,6 @@ class ConsumableListView(ObjectListView):
         ]
         if not (self.is_htmx_partial() and self.content_partial_name):
             from assets.models import Asset
-            from organization.models import AssetHolder, Location
 
             context["asset_holders"] = AssetHolder.objects.all().order_by("last_name", "first_name")
             context["locations"] = Location.objects.for_scope(Scope.current()).order_by("name")
@@ -206,7 +205,6 @@ class ConsumableStockListView(ObjectListView):
         ]
         if not (self.is_htmx_partial() and self.content_partial_name):
             from assets.models import Asset
-            from organization.models import AssetHolder, Location
 
             context["asset_holders"] = AssetHolder.objects.all().order_by("last_name", "first_name")
             context["locations"] = Location.objects.for_scope(Scope.current()).order_by("name")

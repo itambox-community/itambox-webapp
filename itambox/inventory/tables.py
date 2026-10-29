@@ -1,4 +1,5 @@
 import django_tables2 as tables
+from django.contrib.contenttypes.models import ContentType
 from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
@@ -88,7 +89,6 @@ class SharePoolActionMixin:
             record,
         ):
             return ""
-        from django.contrib.contenttypes.models import ContentType
 
         ct = ContentType.objects.get_for_model(type(record))
         share_url = reverse(

@@ -1,5 +1,6 @@
 import django_tables2 as tables
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -169,8 +170,6 @@ class ActionsColumn(tables.Column):
 
         is_deleted = getattr(record, "deleted_at", None) is not None
         if is_deleted:
-            from django.contrib.contenttypes.models import ContentType
-
             ct = ContentType.objects.get_for_model(record)
 
             restore_url = reverse("object_restore", kwargs={"content_type_id": ct.pk, "object_id": record.pk})
@@ -398,7 +397,6 @@ class AssigneeColumn(tables.Column):
         return format_html('<span class="text-muted">{}</span>', TABLE_EMPTY_VALUE)
 
     def _build_cache(self, table, model_class, cache_attr):
-        from django.contrib.contenttypes.models import ContentType
 
         AssignmentModel = self._get_assignment_model()
         page = getattr(table, "page", None)
