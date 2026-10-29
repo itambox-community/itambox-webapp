@@ -1,5 +1,6 @@
 import json
 
+from croniter import croniter
 from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -12,6 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from core.crypto import decrypt_string, encrypt_string
 from core.csv_utils import csv_safe, safe_csv_filename
 from core.managers import (
     AllObjectsManager,
@@ -812,8 +814,6 @@ class WebhookEndpoint(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):
 
     def save(self, *args, **kwargs):
         if self.secret and not self.secret.startswith("enc$"):
-            from core.crypto import encrypt_string
-
             self.secret = encrypt_string(self.secret)
         super().save(*args, **kwargs)
 
@@ -822,8 +822,6 @@ class WebhookEndpoint(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):
         if not self.secret:
             return ""
         if self.secret.startswith("enc$"):
-            from core.crypto import decrypt_string
-
             return decrypt_string(self.secret)
         return self.secret
 
@@ -1682,9 +1680,6 @@ class ScheduledReport(ChangeLoggingMixin, BaseModel):
                     {"cron_expression": _("Cron expression is required when frequency is set to Custom Cron.")}
                 )
             try:
-                from croniter import croniter
-                from django.utils import timezone
-
                 croniter(self.cron_expression, timezone.now())
             except Exception as e:
                 raise ValidationError(

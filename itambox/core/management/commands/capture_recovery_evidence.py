@@ -12,6 +12,7 @@ from django.db.migrations.recorder import MigrationRecorder
 from core.models import EmailSettings
 from extras.models import FileAttachment, WebhookEndpoint
 from licenses.models import License
+from organization.access import accessible_tenant_ids
 from users.models import Token
 
 _FULL_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -46,8 +47,6 @@ def validate_probe_context(license_obj, webhook, attachment, token):
     if token.tenant.deleted_at is not None:
         raise ValidationError("recovery API token tenant is inactive")
     if not token.user.is_superuser:
-        from organization.access import accessible_tenant_ids
-
         if token.tenant_id not in accessible_tenant_ids(token.user):
             raise ValidationError(
                 "recovery API token user cannot access its tenant",

@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import View
 from django_tables2 import RequestConfig
 
+from assets.models import Asset
 from core.context import get_current_request_id
 from core.managers import Scope
 from core.reports.exporters import PDF_MIME, report_pdf_bytes
@@ -996,8 +997,6 @@ class CustodyTemplateDeleteView(ObjectDeleteView):
 @permission_required("compliance.view_custodytemplate", raise_exception=True)
 def custody_template_preview(request, pk):
     template = get_object_or_404(CustodyTemplate.objects.for_scope(Scope.current()), pk=pk)
-
-    from assets.models import Asset
 
     asset = Asset.objects.for_scope(Scope.current()).first()
     if not asset:

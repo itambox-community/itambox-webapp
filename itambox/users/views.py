@@ -28,6 +28,7 @@ from core.models import Notification, ObjectChange
 from core.tables import ObjectChangeTable
 from extras.models import Bookmark, ObjectWatch
 from extras.utils import resolve_generic_items
+from itambox.registry import registry
 from itambox.views.generic import (
     BaseHTMXView,
     ObjectBulkDeleteView,
@@ -248,7 +249,6 @@ class UserApiTokensView(UserGenericTabView):
         if form.is_valid():
             token = form.save(commit=False)
             token.user = request.user
-            from core.managers import get_current_tenant
 
             token.tenant = get_current_tenant()
             if form.cleaned_data.get("expires"):
@@ -379,8 +379,6 @@ class BookmarkToggleView(LoginRequiredMixin, View):
 
     def post(self, request, content_type_id, object_id):
 
-        from itambox.registry import registry
-
         content_type = get_object_or_404(ContentType, id=content_type_id)
         model_class = content_type.model_class()
         if model_class is None or not registry.model_has_feature(model_class, "bookmarkable"):
@@ -450,8 +448,6 @@ class WatchToggleView(LoginRequiredMixin, View):
     """Toggle an ObjectWatch for a generic object (used via HTMX)."""
 
     def post(self, request, content_type_id, object_id):
-
-        from itambox.registry import registry
 
         content_type = get_object_or_404(ContentType, id=content_type_id)
         model_class = content_type.model_class()

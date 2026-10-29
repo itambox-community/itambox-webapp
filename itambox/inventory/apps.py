@@ -9,6 +9,7 @@ class InventoryConfig(AppConfig):
     name = "inventory"
 
     def ready(self):
+        # inline import: app-registry: inventory.search imports inventory models to register its search providers
         import inventory.search  # noqa: F401  # registers search providers
 
         # isort: split

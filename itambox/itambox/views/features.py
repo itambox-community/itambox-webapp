@@ -4,6 +4,7 @@ import difflib
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.serializers.json import DjangoJSONEncoder
 from django.urls import reverse
@@ -79,8 +80,6 @@ def resolve_serialized_data(model_class, data):
 
     # Resolve generic foreign keys if present
     try:
-        from django.contrib.contenttypes.fields import GenericForeignKey
-
         for gfk in [f for f in model_class._meta.private_fields if isinstance(f, GenericForeignKey)]:
             ct_field = gfk.ct_field
             fk_field = gfk.fk_field

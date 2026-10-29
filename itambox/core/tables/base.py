@@ -1,6 +1,7 @@
 import logging
 
 import django_tables2 as tables
+from django.apps import apps
 from django.utils.translation import gettext_lazy as _
 from django_tables2.data import TableQuerysetData
 
@@ -283,8 +284,6 @@ class BaseTable(tables.Table):
 
         if request.user.is_authenticated:
             try:
-                from django.apps import apps
-
                 UserPreference = apps.get_model("users", "UserPreference")
                 if not hasattr(request, "_user_preferences_cache"):
                     request._user_preferences_cache = UserPreference.objects.filter(user=request.user).first()

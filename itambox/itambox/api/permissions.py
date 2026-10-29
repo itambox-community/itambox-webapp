@@ -3,6 +3,7 @@ from django.http import Http404
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
+from core.managers import get_current_all_accessible, get_current_tenant, get_current_tenant_group
 from core.tenant_access import accessible_tenant_ids, shared_stock_read_allowed
 
 
@@ -62,11 +63,6 @@ class TokenPermissions(BasePermission):
         # Permission evaluation must never silently choose the user's first
         # membership: that makes an unbound request's authorization depend on
         # database ordering and can stomp an intentional tenant-group scope.
-        from core.managers import (
-            get_current_all_accessible,
-            get_current_tenant,
-            get_current_tenant_group,
-        )
 
         tenant = get_current_tenant()
         token_tenant_id = getattr(getattr(request, "auth", None), "tenant_id", None)
@@ -115,8 +111,6 @@ class TokenPermissions(BasePermission):
         # READABLE across the boundary — the view permission is then checked
         # in the ACTIVE tenant instead of the (foreign) object tenant.
         if request.method in SAFE_METHODS:
-            from core.managers import get_current_tenant
-
             tenant = get_current_tenant()
             if tenant is not None and StrictTenantPermission._shared_read_allowed(
                 obj,
@@ -145,12 +139,6 @@ class StrictTenantPermission(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.user.is_superuser:
             return True
-
-        from core.managers import (
-            get_current_all_accessible,
-            get_current_tenant,
-            get_current_tenant_group,
-        )
 
         user_tenant = getattr(request, "active_tenant", None) or get_current_tenant()
 

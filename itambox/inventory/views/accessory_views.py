@@ -3,6 +3,7 @@ from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
+from assets.models import Asset
 from core.managers import Scope, get_current_tenant
 from inventory.services import (
     checkin_accessory,
@@ -50,8 +51,6 @@ class AccessoryListView(ObjectListView):
             (None, _("Accessories")),
         ]
         if not (self.is_htmx_partial() and self.content_partial_name):
-            from assets.models import Asset
-
             context["asset_holders"] = AssetHolder.objects.all().order_by("last_name", "first_name")
             context["locations"] = Location.objects.for_scope(Scope.current()).order_by("name")
             context["assets"] = Asset.objects.for_scope(Scope.current()).all().order_by("asset_tag")
@@ -238,8 +237,6 @@ class AccessoryStockListView(ObjectListView):
             (None, _("Stocks")),
         ]
         if not (self.is_htmx_partial() and self.content_partial_name):
-            from assets.models import Asset
-
             context["asset_holders"] = AssetHolder.objects.all().order_by("last_name", "first_name")
             context["locations"] = Location.objects.for_scope(Scope.current()).order_by("name")
             context["assets"] = Asset.objects.for_scope(Scope.current()).all().order_by("asset_tag")

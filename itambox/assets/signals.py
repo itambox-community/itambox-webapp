@@ -14,6 +14,7 @@ from assets.services.request_fulfillment import (
     complete_request_from_checkout,
 )
 from extras.services.events import dispatch_event
+from organization.models import AssetHolder
 
 logger = logging.getLogger(__name__)
 
@@ -108,8 +109,6 @@ def auto_fulfill_asset_requests(sender, instance, created, **kwargs):
     targeting a different holder/location/asset are never touched here.
     """
     if created and instance.is_active:
-        from organization.models import AssetHolder
-
         with transaction.atomic():
             asset = instance.asset
             assignee = instance.assigned_user

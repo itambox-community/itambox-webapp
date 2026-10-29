@@ -8,6 +8,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from core.forms import FilterForm, TenantScopedFormMixin
+from core.managers import get_current_tenant
 from extras.customfields import CustomFieldModelFormMixin
 from extras.models import Tag
 
@@ -70,7 +71,6 @@ class AssetHolderForm(TenantScopedFormMixin, CustomFieldModelFormMixin, forms.Mo
 
         # Filter the user choices to only show unlinked users in the active tenant plus the currently linked user
         UserClass = get_user_model()
-        from core.managers import get_current_tenant
 
         tenant = getattr(self.instance, "tenant", None) or get_current_tenant()
         if tenant:

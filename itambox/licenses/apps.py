@@ -6,6 +6,7 @@ class LicensesConfig(AppConfig):
     name = "licenses"
 
     def ready(self):
+        # inline import: app-registry: licenses.search imports license models to register its search providers
         import licenses.search  # noqa
 
         # inline imports: app-registry: the archive registry is populated once models are loaded.

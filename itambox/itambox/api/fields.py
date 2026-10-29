@@ -11,6 +11,8 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.relations import PKOnlyObject, PrimaryKeyRelatedField, RelatedField
 
+from core.managers import get_current_tenant
+
 
 class ChoiceField(serializers.Field[object, object, dict[str, object] | None, object]):
     """
@@ -95,7 +97,6 @@ def validate_gfk_target_tenant(content_type: ContentType | None, object_id: obje
     check still holds for models whose default manager is not tenant-scoped.
     Objects with no tenant (global/shared catalogue rows) are permitted.
     """
-    from core.managers import get_current_tenant
 
     if content_type is None or object_id is None:
         return None

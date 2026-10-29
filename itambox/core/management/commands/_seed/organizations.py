@@ -24,6 +24,8 @@ import random
 
 from django.contrib.contenttypes.models import ContentType
 
+from organization.models import AssetHolder
+
 
 def _seed_saas_suppliers(supplier_model, supplier_data, tenant, tenant_group):
     suppliers = {}
@@ -954,7 +956,6 @@ class SeedOrganizationsMixin:
         )
 
     def _make_holders(self, tenant, domain, n):
-        from organization.models import AssetHolder
 
         holders = []
         used = set()

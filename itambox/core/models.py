@@ -23,8 +23,10 @@ from django.utils.translation import gettext_lazy as _
 
 from core.choices import JobStatusChoices, ObjectChangeActionChoices
 from core.context import get_current_request_id, get_current_user
+from core.crypto import decrypt_string, encrypt_string
 from core.managers import (
     ExplicitScopeManager,
+    get_current_tenant,
 )
 from core.mixins import (
     CloneableMixin,
@@ -38,6 +40,7 @@ from core.mixins import (
 from core.oidc_identity import oidc_audit_excluded_fields, oidc_audit_object_repr
 from core.serialization import serialize_object
 from core.tenant_scope import get_descendant_tenant_group_ids
+from core.validators import CustomValidator
 
 # Local application
 from itambox.registry import registry
@@ -135,7 +138,6 @@ class BaseModel(models.Model):
 
     def clean(self):
         super().clean()
-        from core.validators import CustomValidator
 
         CustomValidator.validate_object(self)
 
@@ -323,7 +325,6 @@ class ChangeLoggingMixin:
         # `changelog_tenant_lookup` ORM path for objects whose owning tenant lives
         # on a relation (e.g. AssetAudit -> asset.tenant); finally fall back to the
         # active request tenant for objects that carry no tenant of their own.
-        from core.managers import get_current_tenant
 
         try:
             change_tenant = getattr(self, "tenant", None)
@@ -519,7 +520,6 @@ class ChangeLoggingMixin:
         # is change-logged whether ChangeLoggingMixin or SoftDeleteMixin runs
         # first. (Never treat a positional arg as the flag: positionally,
         # delete()'s first arg is Django's `using`.)
-        from core.mixins import SoftDeleteMixin
 
         force_hard = bool(kwargs.pop("force_hard_delete", False)) or getattr(self, "_force_hard_delete", False)
         self._force_hard_delete = force_hard
@@ -755,8 +755,6 @@ class EmailSettings(ChangeLoggingMixin, BaseModel):
         # Per-tenant *destinations* are configured on NotificationChannel.config['recipients'].
         self.pk = 1
         if self.smtp_password and not self.smtp_password.startswith("enc$"):
-            from core.crypto import encrypt_string
-
             self.smtp_password = encrypt_string(self.smtp_password)
         super().save(*args, **kwargs)
 
@@ -765,8 +763,6 @@ class EmailSettings(ChangeLoggingMixin, BaseModel):
         if not self.smtp_password:
             return ""
         if self.smtp_password.startswith("enc$"):
-            from core.crypto import decrypt_string
-
             return decrypt_string(self.smtp_password)
         return self.smtp_password
 

@@ -852,8 +852,6 @@ class WarrantyTable(BaseTable):
         if value is None:
             return TABLE_EMPTY_VALUE
         try:
-            from extras.templatetags.money import money
-
             return money(value, record)
         except Exception:
             return f"{value}"

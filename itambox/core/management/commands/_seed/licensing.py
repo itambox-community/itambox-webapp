@@ -16,6 +16,8 @@ Designed to be mixed into ``Command`` in seed_data.py:
 import datetime
 import random
 
+from licenses.models import License, LicenseSeatAssignment
+
 TODAY = datetime.date.today()
 
 
@@ -31,7 +33,6 @@ class SeedLicensingMixin:
     """Mixin for Command(BaseCommand).  Reads/writes self._ registries."""
 
     def _seed_licensing(self):
-        from licenses.models import License, LicenseSeatAssignment
 
         self.stdout.write("--- Licensing ---")
         self._licenses = []

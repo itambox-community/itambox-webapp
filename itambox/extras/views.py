@@ -25,8 +25,10 @@ from django.views.generic import View
 from assets.services.specification_consumers.contracts import FieldReference, parse_filter_document
 from assets.services.specification_consumers.exporting import machine_csv_bytes
 from assets.tables import AssetTable  # Import AssetTable
+from core.csv_utils import safe_csv_filename
 from core.events import send_notification_to_channel
 from core.managers import Scope, get_current_tenant
+from core.reports.exporters import PDF_MIME, XLSX_MIME, report_pdf_bytes, report_xlsx_bytes
 from core.reports.rendering import render_report_csv, render_report_html
 from core.schedules import (
     SCHEDULED_REPORT_FIRE_KWARG,
@@ -516,8 +518,6 @@ class AlertLogListView(ObjectListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["title"] = _("Alerts Center")
-
-        from core.managers import get_current_tenant
 
         current_tenant = get_current_tenant()
 
@@ -1436,8 +1436,6 @@ class ReportTemplatePreviewView(CapabilityRequiredMixin, PermissionRequiredMixin
         if selected_tenant_id and request.user.is_superuser:
             active_tenant = Tenant.objects.filter(pk=selected_tenant_id).first()
         else:
-            from core.managers import get_current_tenant
-
             active_tenant = get_current_tenant()
 
         # Resolve multi-tenant filter scoping constellation for preview
@@ -1529,7 +1527,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
         template = get_object_or_404(ReportTemplate.objects.for_scope(Scope.current()).all(), pk=pk)
 
         # Enforce multi-tenant thread-local active tenant binding
-        from core.managers import get_current_tenant
 
         active_tenant = get_current_tenant()
 
@@ -1548,7 +1545,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
             )
 
             format_type = request.GET.get("format", "html").lower()
-            from core.csv_utils import safe_csv_filename
 
             safe_name = safe_csv_filename(template.name).lower().replace(" ", "_")
             stamp = f"{timezone.now():%Y%m%d}"
@@ -1570,8 +1566,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
                 return _apply_report_disclosure_headers(response, context_data)
 
             if format_type == "xlsx":
-                from core.reports.exporters import XLSX_MIME, report_xlsx_bytes
-
                 machine_export = context_data.get("specification_export")
                 export_headers = machine_export.columns if machine_export is not None else headers
                 export_rows = machine_export.rows if machine_export is not None else rows
@@ -1592,8 +1586,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
             rendered_html = render_report_html(context_data, template)
 
             if format_type == "pdf":
-                from core.reports.exporters import PDF_MIME, report_pdf_bytes
-
                 response = HttpResponse(report_pdf_bytes(rendered_html), content_type=PDF_MIME)
                 disposition = "inline" if request.GET.get("print") == "true" else "attachment"
                 response["Content-Disposition"] = f'{disposition}; filename="{safe_name}_{stamp}.pdf"'
