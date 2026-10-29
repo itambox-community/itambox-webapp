@@ -6,6 +6,7 @@ import json
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist, ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.urls import reverse
 from django.utils.decorators import method_decorator
@@ -42,6 +43,18 @@ class ObjectChangeListView(ObjectListView):
         return context
 
 
+# What looking up a row by a logged primary key can raise: the row is gone (or outside
+# the active tenant), or the stored value does not fit the key's type.
+_LOOKUP_ERRORS = (ObjectDoesNotExist, ValueError, TypeError, ValidationError)
+
+
+def _related_label(related_model, pk):
+    try:
+        return str(related_model.objects.get(pk=pk))
+    except _LOOKUP_ERRORS:
+        return f"{related_model._meta.model_name} #{pk} (deleted)"
+
+
 def resolve_serialized_data(model_class, data):
     if not model_class or not data:
         return data
@@ -54,48 +67,31 @@ def resolve_serialized_data(model_class, data):
 
         try:
             field = model_class._meta.get_field(k)
-        except Exception:
+        except FieldDoesNotExist:
             resolved_data[k] = v
             continue
 
         if field.is_relation and field.related_model:
             related_model = field.related_model
             if isinstance(v, list):
-                resolved_list = []
-                for item_id in v:
-                    try:
-                        related_obj = related_model.objects.get(pk=item_id)
-                        resolved_list.append(str(related_obj))
-                    except Exception:
-                        resolved_list.append(f"{related_model._meta.model_name} #{item_id} (deleted)")
-                resolved_data[k] = resolved_list
+                resolved_data[k] = [_related_label(related_model, item_id) for item_id in v]
             else:
-                try:
-                    related_obj = related_model.objects.get(pk=v)
-                    resolved_data[k] = str(related_obj)
-                except Exception:
-                    resolved_data[k] = f"{related_model._meta.model_name} #{v} (deleted)"
+                resolved_data[k] = _related_label(related_model, v)
         else:
             resolved_data[k] = v
 
-    # Resolve generic foreign keys if present
-    try:
-        for gfk in [f for f in model_class._meta.private_fields if isinstance(f, GenericForeignKey)]:
-            ct_field = gfk.ct_field
-            fk_field = gfk.fk_field
-            if ct_field in resolved_data and fk_field in resolved_data:
-                ct_val = data.get(ct_field)
-                fk_val = data.get(fk_field)
-                if ct_val and fk_val:
-                    try:
-                        ct = ContentType.objects.get(pk=ct_val)
-                        related_model = ct.model_class()
-                        related_obj = related_model.objects.get(pk=fk_val)
-                        resolved_data[fk_field] = str(related_obj)
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+    # Resolve generic foreign keys if present; an unresolvable target keeps its raw id.
+    for gfk in [f for f in model_class._meta.private_fields if isinstance(f, GenericForeignKey)]:
+        ct_val = data.get(gfk.ct_field)
+        fk_val = data.get(gfk.fk_field)
+        if gfk.ct_field not in resolved_data or gfk.fk_field not in resolved_data or not (ct_val and fk_val):
+            continue
+        try:
+            related_model = ContentType.objects.get(pk=ct_val).model_class()
+            if related_model is not None:
+                resolved_data[gfk.fk_field] = str(related_model.objects.get(pk=fk_val))
+        except _LOOKUP_ERRORS:
+            continue
 
     return resolved_data
 

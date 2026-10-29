@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Model
 from django.db.models.fields.files import FieldFile
+from django.urls import NoReverseMatch, reverse
 from django.utils.module_loading import import_string
 from django.utils.text import slugify
 
@@ -29,6 +30,14 @@ def get_model_viewname(model, action):
         act = "add" if action == "create" else action
         return f"{model_name}_{act}"
     return f"{app_label}:{model_name}_{action}"
+
+
+def model_view_url(model, action, **kwargs):
+    """URL of ``model``'s ``action`` view, or ``None`` when the model has no such view."""
+    try:
+        return reverse(get_model_viewname(model, action), kwargs=kwargs or None)
+    except NoReverseMatch:
+        return None
 
 
 def get_paginate_count(request):

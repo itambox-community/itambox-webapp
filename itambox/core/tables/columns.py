@@ -103,6 +103,7 @@ class IDColumn(tables.Column):
             return None
         try:
             return get_url()
+        # broad except: render-degrade: a record whose detail URL cannot be built shows its id without a link
         except Exception:
             return None
 
@@ -377,6 +378,7 @@ class AssigneeColumn(tables.Column):
                 if getattr(holder, "_meta", None) is not None and holder._meta.label_lower == "organization.location":
                     return format_html('{}: <a href="{}">{}</a>', _("Location"), url, holder)
                 return format_html('<a href="{}">{}</a>', url, holder)
+            # broad except: render-degrade: an assignee link may fail without breaking the table
             except Exception:
                 return str(holder)
 

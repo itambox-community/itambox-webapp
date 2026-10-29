@@ -1054,7 +1054,7 @@
     {
       "path": "itambox/itambox/views/features.py",
       "code": "C901",
-      "message": "'resolve_serialized_data' is too complex (20)",
+      "message": "'resolve_serialized_data' is too complex (13)",
       "source": "def resolve_serialized_data(model_class, data):",
       "context": "Module:body/FunctionDef:resolve_serialized_data:self",
       "count": 1
@@ -1081,14 +1081,6 @@
       "message": "'self.object.get_absolute_url()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
       "source": "msg_link = (\n            f\"<a href='{self.object.get_absolute_url()}'>{self.object}</a>\"\n            if hasattr(self.object, \"get_absolute_url\")\n            else str(self.object)\n        )",
       "context": "Module:body/ClassDef:ObjectEditView:body/FunctionDef:form_valid:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/edit.py",
-      "code": "C901",
-      "message": "'ObjectEditView.form_valid' is too complex (11)",
-      "source": "    def form_valid(self, form):",
-      "context": "Module:body/ClassDef:ObjectEditView:body/FunctionDef:form_valid:self",
       "count": 1
     },
     {

@@ -11,6 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
+from django.urls import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
 
 from core.mixins import SoftDeleteMixin
@@ -161,15 +162,9 @@ def event_on_delete(sender, instance, **kwargs):
 
 def _defer_notify_watchers(sender, instance, action):
     """Schedule watcher notification for after the triggering transaction commits."""
-    try:
-        transaction.on_commit(lambda: _notify_watchers(sender, instance, action))
-    except Exception:
-        # No active transaction (autocommit): run inline so the notification still fires.
-        logger.debug("Failed to defer watcher notification; notifying inline", exc_info=True)
-        try:
-            _notify_watchers(sender, instance, action)
-        except Exception as e:
-            logger.debug("Failed to notify watchers: %s", e)
+    # Without a transaction (autocommit) Django runs the callback at once. robust=True logs a
+    # failure with its traceback instead of failing the committed write or later callbacks.
+    transaction.on_commit(lambda: _notify_watchers(sender, instance, action), robust=True)
 
 
 def _safe_dispatch(sender, instance, action, created=None, *, object_id=None):
@@ -205,8 +200,8 @@ def _notify_watchers(sender, instance, action):
     if action != "deleted" and hasattr(instance, "get_absolute_url"):
         try:
             target_url = instance.get_absolute_url()
-        except Exception:
-            pass
+        except NoReverseMatch:
+            target_url = ""
 
     subject = _("Watched item %(action)s: %(instance)s") % {"action": action, "instance": instance}
     message = _("The item '%(instance)s' you are watching has been %(action)s.") % {

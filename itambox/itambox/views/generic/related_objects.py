@@ -114,6 +114,7 @@ class RelatedObjectProvider:
                         )
                         count_key = f"_relcount_{len(annotations)}"
                         annotations[count_key] = Coalesce(subquery, 0)
+                    # broad except: render-degrade: a relation the batch subquery cannot express keeps its own count
                     except Exception:
                         # Couldn't stage the subquery — fall back to .count().
                         count_key = None
@@ -131,6 +132,7 @@ class RelatedObjectProvider:
         try:
             # unscoped: re-reads the already-authorized detail object by pk to attach counts
             return type(self.obj)._base_manager.filter(pk=self.obj.pk).annotate(**annotations).first()
+        # broad except: render-degrade: a failed batch count falls back to per-relation counts
         except Exception:
             return None
 
@@ -152,6 +154,7 @@ class RelatedObjectProvider:
                 # keep the legacy per-relation count (identical to before).
                 try:
                     count = getattr(obj, accessor_name).count()
+                # broad except: render-degrade: one uncountable relation drops out of the sidebar, not the detail page
                 except Exception:
                     continue
 
