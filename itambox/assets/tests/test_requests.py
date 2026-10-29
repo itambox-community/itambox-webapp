@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.messages.middleware import MessageMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -415,19 +416,19 @@ class RequisitionSystemTestCase(TestCase):
         self.assertEqual(req_asset.assigned_to_type, "asset")
         req_asset.delete()
 
-        # 4. Request with multiple targets should fail CheckConstraint / validation
-        from django.db import IntegrityError
-
-        with self.assertRaises((ValidationError, IntegrityError)):
-            req_invalid = AssetRequest(
-                requester=self.other_user,
-                asset_type=self.type_requestable,
-                assigned_user=self.holder,
-                assigned_location=self.location,
-                tenant=self.tenant,
-            )
+        # 4. Request with multiple targets is refused by validation and by the CheckConstraint
+        req_invalid = AssetRequest(
+            requester=self.other_user,
+            asset_type=self.type_requestable,
+            assigned_user=self.holder,
+            assigned_location=self.location,
+            tenant=self.tenant,
+        )
+        with self.assertRaises(ValidationError):
             req_invalid.full_clean()
-            req_invalid.save()
+        # save() runs full_clean(); bulk_create() skips it, so this reaches the database constraint.
+        with transaction.atomic(), self.assertRaisesRegex(IntegrityError, "at_most_one_request_target"):
+            AssetRequest.objects.bulk_create([req_invalid])
 
     def test_delegation_permissions(self):
         from django.test import RequestFactory
