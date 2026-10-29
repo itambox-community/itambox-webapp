@@ -15,7 +15,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from core.managers import ExplicitScopeAllObjectsManager, SoftDeleteManager
+from core.managers import ExplicitScopeAllObjectsManager, SoftDeleteManager, get_current_tenant
 from core.mixins import AutoSlugMixin, SoftDeleteMixin
 from core.models import ChangeLoggingMixin, StandardModel
 from core.oidc_identity import (
@@ -284,8 +284,6 @@ class Token(ChangeLoggingMixin, models.Model):
             self.digest = hash_token(self._plaintext, self.pepper)
             self.key_preview = self._plaintext[:8]
         if not getattr(self, "tenant_id", None):
-            from core.managers import get_current_tenant
-
             tenant = get_current_tenant()
             if not tenant:
                 Tenant = apps.get_model("organization", "Tenant")

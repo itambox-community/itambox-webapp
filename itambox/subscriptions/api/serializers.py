@@ -23,7 +23,6 @@ def _tenant_member_user_queryset():
     Used to scope ``owner_id`` / ``assigned_by_id`` so a tenant-scoped request
     cannot assign or attribute records to users from another tenant.
     """
-    from core.managers import get_current_tenant
 
     tenant = get_current_tenant()
     if tenant is None:

@@ -12,6 +12,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from django.views.generic import View
 
+from assets.models import Asset
 from core.managers import Scope
 from inventory.services import checkout_inventory_item
 from itambox.views.generic.utils import safe_return_url
@@ -80,8 +81,6 @@ def bulk_checkout_inventory(request):
     if not object_pks:
         messages.error(request, _("No items selected."))
         return HttpResponseRedirect(safe_return_url(request, request.META.get("HTTP_REFERER"), "/"))
-
-    from assets.models import Asset
 
     holder_id = request.POST.get("assigned_holder")
     location_id = request.POST.get("assigned_location")

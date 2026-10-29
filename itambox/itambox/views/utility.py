@@ -11,7 +11,7 @@ from django.views.generic.base import TemplateResponseMixin
 
 from core.forms import SearchForm
 from itambox.scanning import strip_itambox_prefix
-from itambox.utils import get_table_for_model
+from itambox.utils import get_model_viewname, get_table_for_model
 
 from .generic import BaseHTMXView
 
@@ -48,8 +48,6 @@ class SearchView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixin, View):
                 if table_class:
                     data["table"] = table_class(list(data["queryset"][:10]), request=request)
                     try:
-                        from itambox.utils import get_model_viewname
-
                         data["list_url"] = reverse(get_model_viewname(model, "list"))
                     except Exception:
                         data["list_url"] = f"/{model._meta.app_label}/{model._meta.model_name}s/"

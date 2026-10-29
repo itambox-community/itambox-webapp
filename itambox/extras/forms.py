@@ -21,6 +21,7 @@ from core.models import ChangeLoggingMixin
 from core.validators import validate_external_url
 from itambox.labels import label_registry
 from itambox.middleware import get_current_user
+from itambox.registry import registry
 
 from .definition_contract import custom_field_definition_contract_errors
 from .filters import TagFilter
@@ -173,7 +174,6 @@ class CustomFieldForm(TenantScopedFormMixin, forms.ModelForm):
         self.fields["namespace"].initial = self.instance.namespace or "local"
 
         # Only models that actually store custom field data are selectable.
-        from itambox.registry import registry
 
         supported = [
             ContentType.objects.get_for_model(model).pk
@@ -1598,8 +1598,6 @@ class NotificationChannelForm(TenantScopedFormMixin, forms.ModelForm):
         if is_admin:
             self.fields["in_app_recipient_users"].queryset = User.objects.filter(is_active=True)
         else:
-            from core.managers import get_current_tenant
-
             tenant = get_current_tenant()
             if tenant:
                 self.fields["in_app_recipient_users"].queryset = User.objects.filter(

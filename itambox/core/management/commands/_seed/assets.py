@@ -27,12 +27,14 @@ import random
 
 from django.utils import timezone
 
-from assets.models import AssetAssignment
+from assets.models import Asset, AssetAssignment, AssetTagSequence, Warranty, WarrantyTypeChoices
 from assets.services import checkout_asset
 from assets.services.specification_writers import apply_asset_specification_patch
+from compliance.models import CustodyReceipt, CustodyTemplate
 from core.management.commands._seed.engine import as_aware_datetime
 from core.tasks.context import TaskContext
 from inventory.services import COMPONENT_ALLOCATION_OPERATION, create_component_allocation
+from software.models import InstalledSoftware
 
 TODAY = datetime.date.today()
 
@@ -175,9 +177,6 @@ class SeedAssetsMixin:
         )
 
     def _seed_assets(self):
-        from assets.models import Asset, AssetTagSequence
-        from compliance.models import CustodyReceipt, CustodyTemplate
-        from software.models import InstalledSoftware
 
         self.stdout.write("--- Assets ---")
 
@@ -373,7 +372,6 @@ class SeedAssetsMixin:
                 custom_field_data={},
             )
             asset.save()
-            from assets.models import Warranty, WarrantyTypeChoices
 
             Warranty.objects.create(
                 asset=asset,

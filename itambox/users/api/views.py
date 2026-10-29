@@ -67,8 +67,6 @@ class GroupViewSet(ITAMBoxReadOnlyModelViewSet):
         # the default reverse `user`, then User -> Membership is `memberships`.
         # Superusers remain unscoped; no active tenant fails closed to none().
 
-        from core.managers import get_current_tenant
-
         qs = super().get_queryset()
         if self.request.user.is_superuser:
             # Global admin: total membership count is acceptable.

@@ -24,10 +24,13 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from assets.models import AssetReservation, ReservationStatusChoices
 from compliance.models import CustodyReceipt, CustodyTemplate
+from compliance.registry import signature_providers
 from compliance.services import build_custody_sign_url, supersede_pending_receipts
 from core.choices import ObjectChangeActionChoices
 from core.context import get_current_membership, get_current_tenant, override_current_tenant_scope
+from core.models import EmailSettings
 from inventory.services import checkout_inventory_item, validate_checkout_targets
 from licenses.models import LicenseSeatAssignment
 
@@ -99,7 +102,6 @@ def checkout_asset(
         # the asset may only go to the reserved holder; location and asset
         # targets are refused outright, so the guard applies to every target
         # type (holder, location, asset).
-        from assets.models import AssetReservation, ReservationStatusChoices
 
         today = datetime.date.today()
         # unscoped: preserve the reservation row lock for this asset; only live rows block checkout.
@@ -186,14 +188,11 @@ def checkout_asset(
                 # checkout itself and stays inside the transaction.
                 if resolved_template.email_signature_request and request:
                     try:
-                        from core.models import EmailSettings
-
                         email_config = EmailSettings.load()
                         if email_config and email_config.enabled and email_config.from_address:
                             recipient = holder.email
                             if not recipient:
                                 raise ValidationError(_("The holder has no e-mail address."))
-                            from compliance.registry import signature_providers
 
                             if signature_providers.get(receipt.signature_provider or "local") is None:
                                 raise LookupError(f"unregistered signature provider {receipt.signature_provider!r}")

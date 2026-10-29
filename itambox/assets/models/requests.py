@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from assets.choices import RequestStatusChoices
-from core.managers import ExplicitScopeAllObjectsManager, ExplicitScopeSoftDeleteManager, Scope
+from core.managers import ExplicitScopeAllObjectsManager, ExplicitScopeSoftDeleteManager, Scope, get_current_tenant
 from core.mixins import JournalingMixin, SoftDeleteMixin, TaggableMixin
 from core.models import BaseModel, ChangeLoggingMixin
 
@@ -341,8 +341,6 @@ class AssetRequest(JournalingMixin, TaggableMixin, ChangeLoggingMixin, BaseModel
     def save(self, *args, **kwargs):
 
         if not self.tenant:
-            from core.managers import get_current_tenant
-
             self.tenant = get_current_tenant()
 
         # Auto-approval check for Accessories and Consumables.

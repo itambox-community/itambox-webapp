@@ -9,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, AssetRequest, AssetType, StatusLabel, Supplier
 from core.forms import TenantScopedFormMixin
-from core.managers import Scope
+from core.managers import Scope, get_current_tenant
 from inventory.models import Accessory, Component, Consumable
 from organization.models import AssetHolder, Location
 
@@ -74,8 +74,6 @@ class AssetRequestForm(TenantScopedFormMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-
-        from core.managers import get_current_tenant
 
         self.request = kwargs.pop("request", None)
         super().__init__(*args, **kwargs)
@@ -280,8 +278,6 @@ class AssetRequestActionForm(TenantScopedFormMixin, forms.Form):
 
     def __init__(self, *args, **kwargs):
 
-        from core.managers import get_current_tenant
-
         self.request_instance = kwargs.pop("request_instance", None)
         kwargs.pop("instance", None)
         super().__init__(*args, **kwargs)
@@ -397,7 +393,6 @@ class AssetReceiveForm(TenantScopedFormMixin, forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
-        from core.managers import get_current_tenant
 
         super().__init__(*args, **kwargs)
 
@@ -421,7 +416,6 @@ class AssetReceiveForm(TenantScopedFormMixin, forms.Form):
         asset_tag = self.cleaned_data.get("asset_tag", "").strip()
         if not asset_tag:
             raise ValidationError(_("Asset tag is required."))
-        from assets.models import Asset
 
         if Asset.objects.for_scope(Scope.current()).filter(asset_tag=asset_tag).exists():
             raise ValidationError(_("Asset with this tag already exists."))
@@ -431,7 +425,6 @@ class AssetReceiveForm(TenantScopedFormMixin, forms.Form):
         serial_number = self.cleaned_data.get("serial_number", "").strip()
         if not serial_number:
             raise ValidationError(_("Serial number is required."))
-        from assets.models import Asset
 
         if Asset.objects.for_scope(Scope.current()).filter(serial_number=serial_number).exists():
             raise ValidationError(_("Asset with this serial number already exists."))

@@ -16,6 +16,18 @@ Wire-up (in seed_data.py):
 import datetime
 import random
 
+from assets.models import (
+    AssetDisposal,
+    AssetReservation,
+    DataSanitizationMethodChoices,
+    DisposalMethodChoices,
+    ReservationStatusChoices,
+    Warranty,
+    WarrantyTypeChoices,
+)
+from assets.models import AssetDisposal as _AD
+from core.management.commands._seed.engine import ChangeLogEngine
+
 
 class SeedLifecycleMixin:
     """Mixin for Command(BaseCommand).  Reads/writes self._ registries."""
@@ -31,8 +43,6 @@ class SeedLifecycleMixin:
     def _ensure_engine(self):
         """Lazily instantiate self._engine if the wiring step hasn't done it yet."""
         if not hasattr(self, "_engine") or self._engine is None:
-            from core.management.commands._seed.engine import ChangeLogEngine
-
             self._engine = ChangeLogEngine(stdout=self.stdout, style=self.style)
 
     # ------------------------------------------------------------------ main entry
@@ -40,15 +50,6 @@ class SeedLifecycleMixin:
         """Create Warranty, AssetReservation, and AssetDisposal records with
         back-dated changelog entries so history looks naturally grown over ~2 years.
         """
-        from assets.models import (
-            AssetDisposal,
-            AssetReservation,
-            DataSanitizationMethodChoices,
-            DisposalMethodChoices,
-            ReservationStatusChoices,
-            Warranty,
-            WarrantyTypeChoices,
-        )
 
         self._ensure_engine()
         eng = self._engine
@@ -370,8 +371,6 @@ class SeedLifecycleMixin:
             ):
                 continue
             try:
-                from assets.models import AssetDisposal as _AD
-
                 if _AD.all_objects.filter(asset=asset).exists():
                     continue
             except Exception:

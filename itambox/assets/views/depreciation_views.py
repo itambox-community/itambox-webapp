@@ -14,7 +14,7 @@ from itambox.views.generic import (
 )
 
 from .. import filters, forms, tables
-from ..models import Depreciation
+from ..models import Asset, AssetType, Depreciation
 
 
 class DepreciationListView(ObjectListView):
@@ -33,8 +33,6 @@ class DepreciationDetailView(ObjectDetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         depreciation = self.get_object()
-
-        from ..models import Asset, AssetType
 
         # Affected Asset Types
         assettype_qs = (

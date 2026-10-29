@@ -19,6 +19,9 @@ import random
 
 from django.utils import timezone
 
+from compliance.choices import AuditSessionStatusChoices, AuditVerificationMethodChoices
+from compliance.models import AssetAudit, AuditSession, CustodyReceipt
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 TODAY = datetime.date.today()
@@ -52,15 +55,6 @@ class SeedComplianceMixin:
     """Mixin for Command — provides _seed_compliance()."""
 
     def _seed_compliance(self):
-        from compliance.choices import (
-            AuditSessionStatusChoices,
-            AuditVerificationMethodChoices,
-        )
-        from compliance.models import (
-            AssetAudit,
-            AuditSession,
-            CustodyReceipt,
-        )
 
         self.stdout.write("--- Compliance: audit sessions & custody receipts ---")
 

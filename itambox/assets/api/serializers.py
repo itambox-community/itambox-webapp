@@ -911,8 +911,6 @@ class AssetCheckOutAPISerializer(serializers.Serializer[object]):
         if len(filled) > 1:
             raise serializers.ValidationError(_("You can only check out an asset to ONE target."))
 
-        from assets.models import Asset
-
         # Resolve entity references
         if holder_id:
             try:

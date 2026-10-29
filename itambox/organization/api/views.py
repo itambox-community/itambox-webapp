@@ -3,7 +3,7 @@ from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 
-from core.managers import Scope
+from core.managers import Scope, TenantScopingQuerySet, get_current_tenant
 from itambox.api.permissions import (
     IsSuperuserOrReadOnly,
     StrictTenantPermission,
@@ -179,8 +179,6 @@ class ContactAssignmentViewSet(ITAMBoxModelViewSet):
 
         if self.request.user.is_superuser:
             return qs
-
-        from core.managers import TenantScopingQuerySet, get_current_tenant
 
         active_tenant = get_current_tenant()
         if active_tenant is None:

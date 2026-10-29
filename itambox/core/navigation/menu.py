@@ -5,6 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from core.managers import Scope
 from core.tenant_scope import accessible_tenant_ids, tenant_model
 from itambox.capabilities import registry
+from itambox.registry import registry as model_registry
 
 from . import Menu, MenuGroup, MenuItem, MenuItemButton, get_model_buttons, get_model_item
 
@@ -679,8 +680,6 @@ ADMIN_MENU = Menu(
 
 @cache
 def get_menus():
-    from itambox.registry import registry
-
     menus = [
         ORG_MENU,
         ASSETS_MENU,
@@ -693,7 +692,7 @@ def get_menus():
     ]
 
     # Dynamically append registered PluginNavigationMenu classes
-    for menu_cls in registry.get_plugin_menus():
+    for menu_cls in model_registry.get_plugin_menus():
         if isinstance(menu_cls, type):
             menu_instance = menu_cls()
         else:
@@ -746,7 +745,7 @@ def get_menus():
 
     # Dynamically append registered PluginNavigationItem classes
     standalone_items = []
-    for item_cls in registry.get_plugin_menu_items():
+    for item_cls in model_registry.get_plugin_menu_items():
         if isinstance(item_cls, type):
             item_inst = item_cls()
         else:

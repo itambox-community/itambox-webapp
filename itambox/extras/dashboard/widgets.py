@@ -18,7 +18,7 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy as _lazy
 
-from assets.models import Asset, AssetMaintenance, AssetType, StatusLabel
+from assets.models import Asset, AssetMaintenance, AssetType, Manufacturer, StatusLabel
 from core.context import override_current_tenant_scope
 from core.forms import TenantScopedFormMixin
 from core.managers import Scope
@@ -39,6 +39,7 @@ from inventory.models import (
 )
 from licenses.models import License
 from organization.models import Location, Site, Tenant
+from software.models import Software
 from subscriptions.models import Subscription
 
 # -----------------------------------------------------------------------------
@@ -485,8 +486,6 @@ class ObjectCountsWidget(DashboardWidget):
         selected = self.get_config_value("models", [])
         if not selected:
             return {"counts": [], "has_data": False}
-        from assets.models import AssetType, Manufacturer
-        from software.models import Software
 
         model_map = {
             "assets.asset": (Asset, "assets:asset_list"),

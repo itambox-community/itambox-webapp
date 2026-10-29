@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from assets.choices import RequestStatusChoices
+from core.models import Notification
 from extras.services.events import dispatch_event
 from itambox.panels import Panel
 from itambox.views.generic import (
@@ -103,8 +104,6 @@ class AssetRequestEditView(ObjectEditView):
                     child.save()
 
         try:
-            from core.models import Notification
-
             dispatch_event(AssetRequest, self.object, action="update")
             Notification.objects.create(
                 user=self.object.requester,

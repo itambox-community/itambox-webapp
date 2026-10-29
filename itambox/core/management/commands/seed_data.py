@@ -31,6 +31,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import CommandError
 from django.db import transaction
 
+from assets.models import Asset, StatusLabel
 from core.management.commands._seed.access import SeedAccessMixin, check_seed_access_invariants
 from core.management.commands._seed.assets import SeedAssetsMixin
 from core.management.commands._seed.catalog import SeedCatalogMixin
@@ -48,6 +49,8 @@ from core.management.commands._seed.organizations import SeedOrganizationsMixin
 from core.management.commands._seed.procurement import SeedProcurementMixin
 from core.management.commands._seed.subscriptions import SeedSubscriptionsMixin
 from core.tasks.management import SystemTaskCommand
+from extras.models import ExportTemplate
+from licenses.models import License
 
 User = get_user_model()
 
@@ -238,7 +241,6 @@ class Command(
     # ─────────────────────────────────────────────────────────────────
 
     def _seed_minimal(self):
-        from assets.models import StatusLabel
 
         if not User.objects.filter(is_superuser=True).exists():
             # Never ship a hardcoded credential. Use DJANGO_SUPERUSER_PASSWORD when
@@ -315,11 +317,6 @@ class Command(
     # ─────────────────────────────────────────────────────────────────
 
     def _seed_export_templates(self):
-        from django.contrib.contenttypes.models import ContentType
-
-        from assets.models import Asset
-        from extras.models import ExportTemplate
-        from licenses.models import License
 
         asset_csv = (
             "Asset Tag,Name,Serial Number,Status\n"

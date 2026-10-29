@@ -32,6 +32,7 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 
 from core.mfa import role_is_privileged
+from organization.models import Membership, Role, RoleGrant, RoleGrantScope
 from organization.services.role_permission_policy import active_role_permission_targets
 
 User = get_user_model()
@@ -323,7 +324,6 @@ class SeedAccessMixin:
         return team_leads, end_users
 
     def _seed_access(self):
-        from organization.models import Membership, Role, RoleGrant, RoleGrantScope
 
         self.stdout.write("--- Access: users, roles, role grants ---")
         seed_grant_expiry = timezone.now() + timedelta(days=3650)

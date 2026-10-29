@@ -16,6 +16,7 @@ from itambox.views.generic import (
     ObjectEditView,
     ObjectListView,
 )
+from software.models import Software
 from software.tables import SoftwareTable
 
 from .. import filters, forms, tables
@@ -126,7 +127,6 @@ class ManufacturerDetailView(ObjectDetailView):
         context["consumables_table"] = consumables_table
 
         # Software products
-        from software.models import Software
 
         sw_qs = (
             Software.objects.for_scope(Scope.current())
