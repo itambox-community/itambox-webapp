@@ -6,6 +6,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db import models as db_models
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset, Supplier
@@ -350,8 +351,6 @@ class SubscriptionRenewForm(TenantScopedFormMixin, forms.Form):
                 else:
                     self.fields["renewal_date"].initial = current_date + timedelta(days=365)
             else:
-                from django.utils import timezone
-
                 self.fields["renewal_date"].initial = timezone.now().date()
 
         self.helper = FormHelper()
@@ -377,7 +376,6 @@ class SubscriptionCancelForm(TenantScopedFormMixin, forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from django.utils import timezone
 
         self.fields["cancellation_date"].initial = timezone.now().date()
 

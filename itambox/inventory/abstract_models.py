@@ -1,4 +1,5 @@
 from django.apps import apps
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -133,7 +134,6 @@ class AbstractStock(SoftDeleteMixin, ChangeLoggingMixin, BaseModel):
         ordering = ("location",)
 
     def clean(self):
-        from django.core.exceptions import ValidationError
 
         super().clean()
         if self.location_id:
@@ -301,7 +301,6 @@ class AbstractAssignment(JournalingMixin, TaggableMixin, SoftDeleteMixin, Change
         return None
 
     def clean(self):
-        from django.core.exceptions import ValidationError
 
         super().clean()
         if not self._state.adding and self.pk is not None:
@@ -401,7 +400,6 @@ class AbstractAssignment(JournalingMixin, TaggableMixin, SoftDeleteMixin, Change
         item_id = getattr(self, f"{self._item_attr}_id", None)
         if not item_id:
             return None
-        from django.apps import apps
 
         stock_model = apps.get_model(self._stock_model_label)
         return stock_model._base_manager.filter(

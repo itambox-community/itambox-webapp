@@ -5,7 +5,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -234,7 +234,6 @@ class Subscription(CustomFieldDataMixin, AutoSlugMixin, BookmarkableMixin, Delet
     @property
     def total_seats(self):
         """Total entitled seats across all licenses funded by this subscription."""
-        from django.db.models import Sum
 
         return (
             self.licenses.model._base_manager.filter(subscription=self, deleted_at__isnull=True).aggregate(
@@ -253,8 +252,6 @@ class Subscription(CustomFieldDataMixin, AutoSlugMixin, BookmarkableMixin, Delet
     def is_expired(self):
         """Check if the subscription is past its renewal date."""
         if self.renewal_date:
-            from django.utils import timezone
-
             return self.renewal_date < timezone.now().date()
         return False
 
@@ -262,8 +259,6 @@ class Subscription(CustomFieldDataMixin, AutoSlugMixin, BookmarkableMixin, Delet
     def days_until_renewal(self):
         """Number of days until the next renewal. Negative if overdue."""
         if self.renewal_date:
-            from django.utils import timezone
-
             return (self.renewal_date - timezone.now().date()).days
         return None
 

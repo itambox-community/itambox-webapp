@@ -1,4 +1,5 @@
 import django_tables2 as tables
+from django.apps import apps
 from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -351,7 +352,6 @@ class AssigneeColumn(tables.Column):
         super().__init__(*args, **kwargs)
 
     def _get_assignment_model(self):
-        from django.apps import apps
 
         return apps.get_model(self._assignment_model_path)
 

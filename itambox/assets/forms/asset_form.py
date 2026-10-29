@@ -5,6 +5,7 @@ from crispy_forms.layout import HTML, Div, Fieldset, Layout
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import get_language
@@ -202,8 +203,6 @@ class AssetForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelForm):
     def clean_status(self):
         status = self.cleaned_data.get("status")
         if isinstance(status, str):
-            from django.db.models import Q
-
             status_obj = StatusLabel.objects.filter(Q(slug=status) | Q(name__iexact=status)).first()
             if status_obj:
                 return status_obj

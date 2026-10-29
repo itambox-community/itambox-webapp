@@ -4,7 +4,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F
 from django.urls import reverse
 from django.utils import timezone
@@ -216,7 +216,6 @@ class TenantGroup(StandardModel, SoftDeleteMixin):
         # A parent cycle would send every group-scoped descendant walk in
         # circles (the walks are cycle-tolerant, but the tree would be wrong),
         # so reject it at write time like CostCenter does.
-        from django.core.exceptions import ValidationError
 
         super().clean()
         if self.parent_id is None:
@@ -314,7 +313,6 @@ class Tenant(DeletableVaultModel, BookmarkableMixin):
         # Runs on every save via the global pre_save validator — keep it cheap.
         # Depth-1 management tree (decided 2026-07-10): a manager cannot itself be
         # managed, and a managed tenant cannot manage others.
-        from django.core.exceptions import ValidationError
 
         super().clean()
         if self.managed_by_id:
@@ -1223,7 +1221,6 @@ class CostCenter(AutoSlugMixin, CustomFieldDataMixin, StandardModel, SoftDeleteM
         return " / ".join(parts)
 
     def clean(self):
-        from django.core.exceptions import ValidationError
 
         if self.parent_id is None:
             return
@@ -1410,7 +1407,6 @@ class TenantResourceGrant(SoftDeleteMixin, ChangeLoggingMixin, BaseModel):
         force_hard = force_hard_delete or getattr(self, "_force_hard_delete", False)
         if force_hard:
             return super().delete(*args, force_hard_delete=True, **kwargs)
-        from django.db import transaction
 
         with transaction.atomic():
             if hasattr(self, "_changelog_action"):
@@ -1421,7 +1417,6 @@ class TenantResourceGrant(SoftDeleteMixin, ChangeLoggingMixin, BaseModel):
 
     def clean(self):
         # Runs on every save via the global pre_save validator — keep it cheap.
-        from django.core.exceptions import ValidationError
 
         super().clean()
 

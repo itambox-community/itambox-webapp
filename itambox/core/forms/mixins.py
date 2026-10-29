@@ -9,6 +9,8 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Submit
 from django import forms
 from django.apps import apps
+from django.db.models import ForeignKey, ManyToManyField
+from django.db.models.fields import related
 from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
@@ -178,9 +180,6 @@ class BulkEditForm(forms.Form):
 
         if model is None:
             return
-
-        from django.db.models import ForeignKey, ManyToManyField
-        from django.db.models.fields import related
 
         choices = [
             ("add_tags", "add_tags"),

@@ -1,10 +1,12 @@
+from django.urls import reverse
+
+
 def resolve_generic_items(rows, toggle_url_name=None):
     """
     Resolve a list of Bookmark or ObjectWatch rows to dicts suitable for templates.
     Rows must have .user, .model (ContentType FK), .object_id, .created, .pk.
     Objects that no longer exist under the active tenant scope are silently skipped.
     """
-    from django.urls import reverse
 
     by_ct = {}
     for row in rows:

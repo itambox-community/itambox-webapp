@@ -3,11 +3,17 @@ from urllib.parse import quote
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpResponse, JsonResponse
+from django.middleware.csrf import CsrfViewMiddleware
 from django.shortcuts import redirect, resolve_url
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
+from graphql import visit
 from graphql.error import GraphQLError
+from graphql.language.visitor import Visitor
+from graphql.type import GraphQLList, GraphQLNonNull
+from graphql.utilities import TypeInfo, TypeInfoVisitor, type_from_ast
+from graphql.validation import ValidationRule
 from rest_framework import exceptions
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from strawberry.django.views import GraphQLView
@@ -97,12 +103,6 @@ def query_complexity_validator(max_complexity=1000, fan_out=10):
     base ``ValidationRule`` runs under graphql-core's ``TypeInfo`` visitor, so
     ``self.context.get_type()`` yields the live output type used to detect lists.
     """
-    from graphql import visit
-    from graphql.error import GraphQLError
-    from graphql.language.visitor import Visitor
-    from graphql.type import GraphQLList, GraphQLNonNull
-    from graphql.utilities import TypeInfo, TypeInfoVisitor, type_from_ast
-    from graphql.validation import ValidationRule
 
     def _returns_list(output_type):
         """True if the field's output type is (a non-null wrapper around) a list."""
@@ -277,8 +277,6 @@ class PrivateGraphQLView(GraphQLView):
             return redirect(f"{resolve_url(settings.LOGIN_URL)}?next={quote(request.get_full_path())}")
         elif request.method == "POST":
             if request.user.is_authenticated:
-                from django.middleware.csrf import CsrfViewMiddleware
-
                 csrf_reject = CsrfViewMiddleware(lambda r: None).process_view(request, None, (), {})
                 if csrf_reject:
                     return csrf_reject

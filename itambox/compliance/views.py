@@ -19,6 +19,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.views.generic import View
+from django_tables2 import RequestConfig
 
 from core.context import get_current_request_id
 from core.managers import Scope
@@ -648,8 +649,6 @@ class CustodyTemplateDetailView(ObjectDetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         template = self.get_object()
-
-        from django_tables2 import RequestConfig
 
         from itambox.utils import get_paginate_count
 

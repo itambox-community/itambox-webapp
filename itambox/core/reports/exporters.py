@@ -21,6 +21,7 @@ def report_xlsx_bytes(headers, rows, sheet_title="Report", disclosure_text=""):
     ``disclosure_text`` is written as an italic note row below the grid when
     the compiled window was capped or the report shows its sample.
     """
+    # inline imports: heavy-import: openpyxl is loaded only when an XLSX export is requested, not on every exporters import
     from openpyxl import Workbook
     from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter

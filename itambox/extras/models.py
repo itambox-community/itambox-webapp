@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, validate_email
 from django.db import models
 from django.db.models.deletion import ProtectedError
 from django.urls import reverse
@@ -1691,8 +1691,6 @@ class ScheduledReport(ChangeLoggingMixin, BaseModel):
                     {"cron_expression": _("Invalid Cron expression: %(error)s") % {"error": str(e)}}
                 ) from None
         if self.recipients:
-            from django.core.validators import validate_email
-
             emails = [e.strip() for e in self.recipients.split(",") if e.strip()]
             if not emails:
                 raise ValidationError({"recipients": _("No recipient email addresses entered.")})
@@ -2096,7 +2094,6 @@ class AlertRule(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):
         return f"{self.name} ({self.get_alert_type_display()})"
 
     def get_absolute_url(self):
-        from django.urls import reverse
 
         return reverse("extras:alertrule_detail", kwargs={"pk": self.pk})
 

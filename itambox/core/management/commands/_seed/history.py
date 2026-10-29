@@ -17,6 +17,8 @@ Wire-up (in seed_data.py):
 import datetime
 import random
 
+from django.utils import timezone as _tz
+
 from core.management.commands._seed.engine import as_aware_datetime
 
 
@@ -413,7 +415,6 @@ class SeedHistoryMixin:
                         today - datetime.timedelta(days=90),
                         today - datetime.timedelta(days=1),
                     )
-                    from django.utils import timezone as _tz
 
                     audit_dt = _tz.make_aware(
                         datetime.datetime(

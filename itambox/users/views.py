@@ -1,6 +1,7 @@
 import datetime
 import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -9,9 +10,11 @@ from django.contrib.auth.views import PasswordChangeView as DjangoPasswordChange
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Prefetch
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseRedirect
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone, translation
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy as _lazy
 from django.utils.translation import ngettext
@@ -158,8 +161,6 @@ class UserPreferencesView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixi
             messages.success(request, _("Preferences saved successfully."))
             # Apply the chosen interface language app-wide via the standard
             # language cookie (read by Django's LocaleMiddleware on every request).
-            from django.conf import settings
-            from django.utils import translation
 
             language = form.cleaned_data.get("language")
             if language and language in dict(settings.LANGUAGES):
@@ -251,8 +252,6 @@ class UserApiTokensView(UserGenericTabView):
 
             token.tenant = get_current_tenant()
             if form.cleaned_data.get("expires"):
-                from django.utils import timezone
-
                 expires_date = form.cleaned_data["expires"]
                 token.expires = timezone.make_aware(datetime.datetime.combine(expires_date, datetime.time.max))
             token.save()
@@ -391,7 +390,6 @@ class BookmarkToggleView(LoginRequiredMixin, View):
 
     def post(self, request, content_type_id, object_id):
         from django.contrib.contenttypes.models import ContentType
-        from django.http import Http404
 
         from extras.models import Bookmark
         from itambox.registry import registry
@@ -428,8 +426,6 @@ class BookmarkToggleView(LoginRequiredMixin, View):
                 response = HttpResponse("")
                 response["HX-Trigger"] = json.dumps({"showMessage": {"message": msg, "level": "success"}})
                 return response
-
-            from django.middleware.csrf import get_token
 
             csrf_token = get_token(request)
             btn_class = "btn-soft-warning" if is_bookmarked else "btn-ghost-secondary"
@@ -468,7 +464,6 @@ class WatchToggleView(LoginRequiredMixin, View):
 
     def post(self, request, content_type_id, object_id):
         from django.contrib.contenttypes.models import ContentType
-        from django.http import Http404
 
         from extras.models import ObjectWatch
         from itambox.registry import registry
@@ -505,8 +500,6 @@ class WatchToggleView(LoginRequiredMixin, View):
                 response = HttpResponse("")
                 response["HX-Trigger"] = json.dumps({"showMessage": {"message": msg, "level": "success"}})
                 return response
-
-            from django.middleware.csrf import get_token
 
             csrf_token = get_token(request)
             btn_class = "btn-soft-info" if is_watched else "btn-ghost-secondary"
@@ -929,7 +922,6 @@ class UserGroupBulkDeleteView(GlobalGroupAdminMixin, ObjectBulkDeleteView):
         return self.scope_group_queryset(super()._get_queryset(pks, with_tenant=with_tenant))
 
     def post(self, request, *args, **kwargs):
-        from django.http import HttpResponseRedirect
 
         pks = request.POST.getlist("pk")
         model = self._get_model()

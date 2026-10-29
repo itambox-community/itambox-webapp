@@ -1,6 +1,7 @@
 import json
 import logging
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.http import HttpResponse
@@ -238,8 +239,6 @@ class DashboardCreateView(LoginRequiredMixin, View):
             name = "New Dashboard"
 
         if not tenant_id:
-            from django.contrib import messages
-
             if request.headers.get("HX-Request"):
                 return HttpResponse(
                     '<div class="alert alert-danger mb-0">%s</div>' % _("Tenant is required."), status=400
@@ -250,12 +249,9 @@ class DashboardCreateView(LoginRequiredMixin, View):
         tenant = dashboard_widgets.resolve_dashboard_target_tenant(request.user, tenant_id)
         if tenant is None:
             if request.headers.get("HX-Request"):
-                from django.contrib import messages
-
                 return HttpResponse(
                     '<div class="alert alert-danger mb-0">%s</div>' % _("Selected tenant does not exist."), status=400
                 )
-            from django.contrib import messages
 
             messages.error(request, _("Selected tenant does not exist."))
             return redirect("dashboard")

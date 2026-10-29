@@ -1,5 +1,6 @@
 import json
 
+from crispy_forms.helper import FormHelper
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.contenttypes.models import ContentType
@@ -428,8 +429,6 @@ class SubscriptionAssignmentCreateView(LoginRequiredMixin, PermissionRequiredMix
         # Render the shared quick-add modal. The modal template owns the <form>
         # wrapper, so suppress the crispy helper's own form tag.
         if not hasattr(form, "helper") or form.helper is None:
-            from crispy_forms.helper import FormHelper
-
             form.helper = FormHelper(form)
         form.helper.form_tag = False
         return render(
