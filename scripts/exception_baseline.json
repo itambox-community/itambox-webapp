@@ -4,14 +4,6 @@
   "policy_sha256": "a1884d3bf44c2befd07ba001949baa321f6519a6fa5005585c94aeedc37f9b52",
   "findings": [
     {
-      "path": "itambox/core/crypto.py",
-      "scope": "FunctionDef:decrypt_string",
-      "handler_type": "Exception",
-      "classification": "log-and-raise",
-      "body_sha256": "cf0c7cd709477ea0be4518ca381e925bc05ceb2af33b0d730d2aa10caad31711",
-      "count": 1
-    },
-    {
       "path": "itambox/core/views/graphql.py",
       "scope": "ClassDef:PrivateGraphQLView/FunctionDef:dispatch",
       "handler_type": "Exception",

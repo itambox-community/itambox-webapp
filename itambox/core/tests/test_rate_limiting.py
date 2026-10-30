@@ -98,6 +98,17 @@ class RateLimitCacheOutageTestCase(TestCase):
             ),
         )
 
+    def test_counter_failure_fails_open_and_is_logged(self):
+        broken_cache = mock.Mock()
+        broken_cache.add.side_effect = ConnectionError("cache backend unreachable")
+
+        with mock.patch("itambox.ratelimit._get_cache", return_value=broken_cache):
+            with self.assertLogs("itambox.ratelimit", level="ERROR") as logs:
+                response = self.client.get(self.LIMITED_PATH)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("failing open", logs.output[0])
+
 
 @override_settings(RATELIMIT_LIMIT=1, RATELIMIT_PERIOD=60, RATELIMIT_CACHE="default")
 class RateLimitAtomicAdmissionTestCase(SimpleTestCase):
