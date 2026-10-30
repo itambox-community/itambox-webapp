@@ -16,6 +16,9 @@ Designed to be mixed into ``Command`` in seed_data.py:
 import datetime
 import random
 
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
+
 from licenses.models import License, LicenseSeatAssignment
 
 TODAY = datetime.date.today()
@@ -78,13 +81,18 @@ class SeedLicensingMixin:
                 if ltype == "subscription_seat" and holders and sw_name in ("Microsoft 365 E5", "CrowdStrike Falcon"):
                     device_bound = sw_name in DEVICE_BOUND_SOFTWARE
                     for h in random.sample(holders, k=min(len(holders), max(3, len(holders) // 2))):
+                        laptop = self._primary_laptop_by_holder.get(h.pk)
                         try:
-                            laptop = self._primary_laptop_by_holder.get(h.pk)
-                            if device_bound and laptop is not None:
-                                LicenseSeatAssignment.objects.create(license=lic, asset=laptop)
-                            else:
-                                LicenseSeatAssignment.objects.create(license=lic, assigned_holder=h)
-                            seat_assigns += 1
-                        except Exception:
-                            pass
+                            # Savepoint: the whole seed runs in one transaction, which a
+                            # swallowed IntegrityError would otherwise leave unusable.
+                            with transaction.atomic():
+                                if device_bound and laptop is not None:
+                                    LicenseSeatAssignment.objects.create(license=lic, asset=laptop)
+                                else:
+                                    LicenseSeatAssignment.objects.create(license=lic, assigned_holder=h)
+                        except (IntegrityError, ValidationError):
+                            # The sample draw can repeat a target or exceed the seat count;
+                            # the demo data just skips that seat.
+                            continue
+                        seat_assigns += 1
         self.stdout.write(f"  {len(self._licenses)} licenses, {seat_assigns} seat assignments.")

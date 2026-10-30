@@ -3,7 +3,7 @@ import django_tables2 as tables
 from django.apps import apps
 from django.core.exceptions import ObjectDoesNotExist
 from django.middleware.csrf import get_token
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.html import escape, format_html
 from django.utils.safestring import mark_safe
@@ -324,7 +324,7 @@ class JournalEntryTable(BaseTable):
         if get_url is not None:
             try:
                 url = get_url()
-            except Exception:
+            except NoReverseMatch:
                 url = None
         if url:
             return format_html('<a href="{}">{}</a>', url, str(value))

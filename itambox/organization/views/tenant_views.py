@@ -12,6 +12,7 @@ from django.urls import NoReverseMatch, reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.decorators.http import require_POST
+from django_q.tasks import async_task
 
 from assets.tables import AccessoryTable, AssetTable, ConsumableTable, KitTable
 from compliance.models import CustodyTemplate
@@ -409,8 +410,6 @@ class TenantBulkDeleteView(ObjectBulkDeleteView):
 @login_required
 @require_POST
 def tenant_ldap_sync(request, pk):
-    from django_q.tasks import async_task
-
     tenant = get_object_or_404(Tenant, pk=pk)
 
     # LDAP synchronization mutates the tenant named by the URL. Under a

@@ -14,6 +14,14 @@ from rest_framework.relations import PKOnlyObject, PrimaryKeyRelatedField, Relat
 from core.managers import get_current_tenant
 
 
+def _int_or_unchanged(value: str) -> int | str:
+    """Return ``value`` as an int when it parses as one, else unchanged."""
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
 class ChoiceField(serializers.Field[object, object, dict[str, object] | None, object]):
     """
     Represent a ChoiceField as {'value': <DB value>, 'label': <string>}. Accepts a single value on write.
@@ -66,18 +74,19 @@ class ChoiceField(serializers.Field[object, object, dict[str, object] | None, ob
             elif data.lower() == "false":
                 data = False
             else:
-                try:
-                    data = int(data)
-                except ValueError:
-                    pass
+                data = _int_or_unchanged(data)
 
-        try:
-            if data in self._choices:
-                return data
-        except TypeError:
-            pass
+        if self._is_choice(data):
+            return data
 
         raise ValidationError(_("{value} is not a valid choice.").format(value=data))
+
+    def _is_choice(self, data: object) -> bool:
+        try:
+            return data in self._choices
+        except TypeError:
+            # An unhashable value cannot be one of the choices.
+            return False
 
     @property
     def choices(self) -> dict[object, object]:

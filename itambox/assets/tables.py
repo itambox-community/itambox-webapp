@@ -851,10 +851,7 @@ class WarrantyTable(BaseTable):
     def render_cost(self, value, record):
         if value is None:
             return TABLE_EMPTY_VALUE
-        try:
-            return money(value, record)
-        except Exception:
-            return f"{value}"
+        return money(value, record)
 
     def render_is_active(self, record):
         return record.is_active

@@ -31,6 +31,8 @@ def serialize_object(obj: Model, extra_fields=None, exclude_fields=None) -> dict
             if hasattr(field_value, "all"):
                 try:
                     data[field_name] = sorted(field_value.values_list("pk", flat=True))
+                # broad except: boundary-isolation: an unreadable M2M relation is recorded as empty
+                # rather than aborting the audited save (pinned by test_kernel_serialization)
                 except Exception:
                     data[field_name] = []
             else:

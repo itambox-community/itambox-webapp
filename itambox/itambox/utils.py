@@ -66,6 +66,7 @@ def get_paginate_count(request):
                             return user_pref
                     except (ValueError, TypeError):
                         logger.debug("Invalid user preference pagination value: '%s'", user_pref_val)
+        # broad except: render-degrade: an unreadable preference falls back to the default page size
         except Exception as e:
             logger.debug("Error reading user pagination preferences: %s", e)
 
@@ -110,6 +111,8 @@ def serialize_object(obj: Model, extra_fields=None, exclude_fields=None) -> dict
             if hasattr(field_value, "all"):
                 try:
                     data[field_name] = sorted(list(field_value.values_list("pk", flat=True)))
+                # broad except: boundary-isolation: an unreadable M2M relation is recorded as empty
+                # rather than aborting the audited save
                 except Exception:
                     data[field_name] = []
             else:

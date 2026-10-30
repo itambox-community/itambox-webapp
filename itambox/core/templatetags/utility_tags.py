@@ -267,7 +267,7 @@ def pretty_json(value):
         if isinstance(value, str):
             value = json.loads(value)
         return json.dumps(value, indent=2)
-    except Exception:
+    except (TypeError, ValueError):
         return str(value)
 
 

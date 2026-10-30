@@ -12,7 +12,15 @@ caches, so a running worker is invisible from here. In that case we report
 ``detectable=False`` rather than a misleading "offline".
 """
 
+import logging
+
 from django.conf import settings
+from django.db import DatabaseError
+from django_q.conf import Conf
+from django_q.models import OrmQ
+from django_q.status import Stat
+
+logger = logging.getLogger(__name__)
 
 
 def get_worker_status():
@@ -34,12 +42,7 @@ def get_worker_status():
         "cache_alias": "default",
     }
 
-    try:
-        from django_q.conf import Conf
-
-        cache_alias = Conf.CACHE
-    except Exception:
-        cache_alias = "default"
+    cache_alias = Conf.CACHE
     result["cache_alias"] = cache_alias
 
     backend = (settings.CACHES.get(cache_alias, {}) or {}).get("BACKEND", "")
@@ -48,21 +51,19 @@ def get_worker_status():
         result["detectable"] = False
 
     try:
-        from django_q.status import Stat
-
         clusters = Stat.get_all()
         result["cluster_count"] = len(clusters)
         result["online"] = len(clusters) > 0
+    # broad except: boundary-isolation: django-q reads the heartbeat through the cache backend
+    # (redis, memcached, ...), whose connection errors are not enumerable; the page degrades to "offline"
     except Exception:
-        pass
+        logger.warning("Could not read django-q cluster heartbeats", exc_info=True)
 
     # Pending tasks in the ORM broker live in the shared DB, so this count is
     # reliable across processes regardless of the cache backend.
     try:
-        from django_q.models import OrmQ
-
         result["queued_tasks"] = OrmQ.objects.count()
-    except Exception:
-        pass
+    except DatabaseError:
+        logger.warning("Could not count queued django-q tasks", exc_info=True)
 
     return result

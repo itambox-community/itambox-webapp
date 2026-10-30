@@ -13,7 +13,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
+from django.urls import NoReverseMatch, reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.html import escape
@@ -21,6 +21,7 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import View
+from django_q.tasks import async_task
 
 from assets.services.specification_consumers.contracts import FieldReference, parse_filter_document
 from assets.services.specification_consumers.exporting import machine_csv_bytes
@@ -378,8 +379,8 @@ class SavedFilterSaveView(LoginRequiredMixin, PermissionRequiredMixin, View):
             if model is not None:
                 try:
                     return reverse(get_model_viewname(model, "list"))
-                except Exception:
-                    pass
+                except NoReverseMatch:
+                    return reverse("extras:savedfilter_list")
         return reverse("extras:savedfilter_list")
 
     def _respond(self, request, model_str, pk, error):
@@ -485,8 +486,6 @@ class AlertRuleRunNowView(SimplePostView):
     permission_required = ("extras.change_alertrule",)
 
     def perform_action(self, rule, request):
-        from django_q.tasks import async_task
-
         rule_id = rule.pk
         async_task("extras.tasks.alerts.run_alert_rule_now", rule_id)
         return {"message": f"Evaluation queued for '{rule.name}'. New alerts will appear shortly."}
@@ -1482,6 +1481,8 @@ class ReportTemplatePreviewView(CapabilityRequiredMixin, PermissionRequiredMixin
             return HttpResponse(
                 f"<h3>{gettext('Invalid report template configuration.')}</h3><p>{details}</p>", status=400
             )
+        # broad except: render-degrade: report rendering runs author-written templates and providers
+        # whose failures cannot be enumerated; the traceback is logged and the client gets a fixed message
         except Exception:
             # Full detail (with traceback) goes to the server log; the client gets a
             # generic message so exception text is never reflected in the response.
@@ -1597,6 +1598,8 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
             return _apply_report_disclosure_headers(response, context_data)
         except PermissionError:
             return HttpResponse(gettext("You may not view this report's data."), status=403)
+        # broad except: render-degrade: report rendering runs author-written templates and providers
+        # whose failures cannot be enumerated; the traceback is logged and the client gets a fixed message
         except Exception:
             # Full detail (with traceback) goes to the server log; the client gets a
             # generic message so exception text is never reflected in the response.

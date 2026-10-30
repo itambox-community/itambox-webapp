@@ -4133,9 +4133,11 @@ msgstr ""
 "Ein Cron-Ausdruck ist erforderlich, wenn die Häufigkeit auf "
 "Benutzerdefinierter Cron-Ausdruck gesetzt ist."
 
-#, python-format
-msgid "Invalid Cron expression: %(error)s"
-msgstr "Ungültiger Cron-Ausdruck: %(error)s"
+msgid ""
+"Invalid Cron expression. Use five space-separated fields, e.g. 0 8 * * 1-5."
+msgstr ""
+"Ungültiger Cron-Ausdruck. Verwenden Sie fünf durch Leerzeichen getrennte "
+"Felder, z. B. 0 8 * * 1-5."
 
 msgid "No recipient email addresses entered."
 msgstr "Keine Empfänger-E-Mail-Adressen eingegeben."

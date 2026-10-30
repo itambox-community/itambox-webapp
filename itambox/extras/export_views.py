@@ -44,7 +44,8 @@ def get_filterset_for_model(model):
             if attr_name.lower() == f"{model_name}filterset":
                 return getattr(filters_module, attr_name)
     except ImportError:
-        pass
+        # The app ships no filters module.
+        return None
     return None
 
 

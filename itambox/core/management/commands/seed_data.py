@@ -29,7 +29,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import CommandError
-from django.db import transaction
+from django.db import connection, transaction
 
 from assets.models import Asset, StatusLabel
 from core.management.commands._seed.access import SeedAccessMixin, check_seed_access_invariants
@@ -214,8 +214,6 @@ class Command(
         # afterwards. A previous best-effort multi-pass delete printed dozens of
         # spurious "could not fully clear" warnings even when cascade had already
         # emptied the rows.
-        from django.db import connection
-
         existing = set(connection.introspection.table_names())
         tables = []
         for app_label, model_name in models_to_clear:

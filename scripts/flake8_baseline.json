@@ -70,7 +70,7 @@
     {
       "path": "itambox/assets/models/requests.py",
       "code": "C901",
-      "message": "'AssetRequest.clean' is too complex (29)",
+      "message": "'AssetRequest.clean' is too complex (27)",
       "source": "    def clean(self):",
       "context": "Module:body/ClassDef:AssetRequest:body/FunctionDef:clean:self",
       "count": 1
@@ -377,14 +377,6 @@
       "message": "'SeedComplianceMixin._seed_compliance' is too complex (24)",
       "source": "    def _seed_compliance(self):",
       "context": "Module:body/ClassDef:SeedComplianceMixin:body/FunctionDef:_seed_compliance:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/_seed/engine.py",
-      "code": "C901",
-      "message": "'ChangeLogEngine.change' is too complex (12)",
-      "source": "    def change(self, obj, *, when, user, action=\"update\", **field_updates):",
-      "context": "Module:body/ClassDef:ChangeLogEngine:body/FunctionDef:change:self",
       "count": 1
     },
     {
@@ -1009,14 +1001,6 @@
       "message": "'bulk_checkout_inventory' is too complex (30)",
       "source": "def bulk_checkout_inventory(request):",
       "context": "Module:body/FunctionDef:bulk_checkout_inventory:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/api/fields.py",
-      "code": "C901",
-      "message": "'ChoiceField.to_internal_value' is too complex (12)",
-      "source": "    def to_internal_value(self, data: Any) -> object:",
-      "context": "Module:body/ClassDef:ChoiceField:body/FunctionDef:to_internal_value:self",
       "count": 1
     },
     {

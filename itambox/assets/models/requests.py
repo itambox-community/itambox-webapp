@@ -207,44 +207,37 @@ class AssetRequest(JournalingMixin, TaggableMixin, ChangeLoggingMixin, BaseModel
         super().clean()
 
         if self.pk:
-            try:
-                # _base_manager: state-machine checks must not depend on the active
+            # _base_manager: state-machine checks must not depend on the active
+            # tenant context (see Asset.clean). A row that no longer exists has no
+            # previous state to transition from.
+            old_status = AssetRequest._base_manager.filter(pk=self.pk).values_list("status", flat=True).first()
+            if old_status is not None and old_status != self.status:
+                VALID_TRANSITIONS = {
+                    RequestStatusChoices.PENDING: {
+                        RequestStatusChoices.APPROVED,
+                        RequestStatusChoices.DENIED,
+                        RequestStatusChoices.CANCELLED,
+                        RequestStatusChoices.FULFILLED,
+                    },
+                    RequestStatusChoices.APPROVED: {
+                        RequestStatusChoices.FULFILLED,
+                        RequestStatusChoices.CANCELLED,
+                        RequestStatusChoices.PROCUREMENT,
+                    },
+                    RequestStatusChoices.PROCUREMENT: {
+                        RequestStatusChoices.FULFILLED,
+                        RequestStatusChoices.CANCELLED,
+                        RequestStatusChoices.APPROVED,
+                    },
+                    RequestStatusChoices.DENIED: set(),
+                    RequestStatusChoices.FULFILLED: set(),
+                    RequestStatusChoices.CANCELLED: set(),
+                }
 
-                # tenant context (see Asset.clean).
-
-                old_status = AssetRequest._base_manager.get(pk=self.pk).status
-
-                if old_status != self.status:
-                    VALID_TRANSITIONS = {
-                        RequestStatusChoices.PENDING: {
-                            RequestStatusChoices.APPROVED,
-                            RequestStatusChoices.DENIED,
-                            RequestStatusChoices.CANCELLED,
-                            RequestStatusChoices.FULFILLED,
-                        },
-                        RequestStatusChoices.APPROVED: {
-                            RequestStatusChoices.FULFILLED,
-                            RequestStatusChoices.CANCELLED,
-                            RequestStatusChoices.PROCUREMENT,
-                        },
-                        RequestStatusChoices.PROCUREMENT: {
-                            RequestStatusChoices.FULFILLED,
-                            RequestStatusChoices.CANCELLED,
-                            RequestStatusChoices.APPROVED,
-                        },
-                        RequestStatusChoices.DENIED: set(),
-                        RequestStatusChoices.FULFILLED: set(),
-                        RequestStatusChoices.CANCELLED: set(),
-                    }
-
-                    if self.status not in VALID_TRANSITIONS.get(old_status, set()):
-                        raise ValidationError(
-                            _("Invalid state transition from %(old)s to %(new)s.")
-                            % {"old": old_status, "new": self.status}
-                        )
-
-            except AssetRequest.DoesNotExist:
-                pass
+                if self.status not in VALID_TRANSITIONS.get(old_status, set()):
+                    raise ValidationError(
+                        _("Invalid state transition from %(old)s to %(new)s.") % {"old": old_status, "new": self.status}
+                    )
 
         categories_filled = []
 

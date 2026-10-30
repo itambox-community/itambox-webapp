@@ -132,7 +132,8 @@ def _json_pattern_error(field_name, value, field_rules):
                 params={"field": field_name},
             )
     except re.error:
-        pass
+        # A malformed schema pattern is a definition problem, not bad user input.
+        return None
     return None
 
 

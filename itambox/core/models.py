@@ -328,7 +328,8 @@ class ChangeLoggingMixin:
 
         try:
             change_tenant = getattr(self, "tenant", None)
-        except Exception:
+        except ObjectDoesNotExist:
+            # A relation-derived `tenant` whose link target is gone has no tenant to attribute.
             change_tenant = None
         if change_tenant is None and self.changelog_tenant_lookup:
             change_tenant = self._resolve_changelog_tenant(self.changelog_tenant_lookup)

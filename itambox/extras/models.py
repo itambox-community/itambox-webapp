@@ -1681,9 +1681,15 @@ class ScheduledReport(ChangeLoggingMixin, BaseModel):
                 )
             try:
                 croniter(self.cron_expression, timezone.now())
-            except Exception as e:
+            except (TypeError, ValueError):
+                # croniter reports a malformed expression as CroniterError (a ValueError)
+                # or CroniterBadTypeRangeError (a TypeError); its text is library-internal.
                 raise ValidationError(
-                    {"cron_expression": _("Invalid Cron expression: %(error)s") % {"error": str(e)}}
+                    {
+                        "cron_expression": _(
+                            "Invalid Cron expression. Use five space-separated fields, e.g. 0 8 * * 1-5."
+                        )
+                    }
                 ) from None
         if self.recipients:
             emails = [e.strip() for e in self.recipients.split(",") if e.strip()]

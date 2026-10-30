@@ -190,7 +190,9 @@ class Command(BaseCommand):
                     _compile_po(str(po_file), str(mo_file))
                     self.stdout.write(self.style.SUCCESS(f"  compiled {po_file.relative_to(locale_root.parent)}"))
                     compiled += 1
-                except Exception as exc:
+                except (OSError, LookupError, ValueError, SyntaxError) as exc:
+                    # Unreadable file, undecodable text (UnicodeError is a ValueError), unknown
+                    # charset, or a malformed string literal. CommandError from _compile_po already names file:line.
                     raise CommandError(f"Failed to compile {po_file}: {exc}") from exc
 
         if compiled == 0:

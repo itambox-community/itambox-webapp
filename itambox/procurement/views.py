@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 
-from assets.models import AssetRequest
+from assets.models import Asset, AssetRequest, AssetTagSequence
 from core.managers import Scope
 from itambox.views.generic import ObjectDeleteView, ObjectDetailView, ObjectEditView, ObjectListView
 from itambox.views.generic.service_views import SimplePostView
@@ -95,15 +95,13 @@ class PurchaseOrderEditView(ObjectEditView):
             except (TypeError, ValueError) as exc:
                 raise Http404(_("Invalid Asset Request identifier.")) from exc
 
-            try:
-                asset_request = AssetRequest.objects.for_scope(Scope.current()).get(pk=from_request_id)
+            asset_request = AssetRequest.objects.for_scope(Scope.current()).filter(pk=from_request_id).first()
+            if asset_request is not None:
                 if not self.request.user.has_perm("assets.fulfill_assetrequest", asset_request):
                     raise PermissionDenied(_("You do not have permission to fulfill this Asset Request."))
                 loc = asset_request.assigned_location or asset_request.source_location
                 if loc:
                     initial["destination_location"] = loc.pk
-            except AssetRequest.DoesNotExist:
-                pass
         return initial
 
     def add_success_message(self, message):
@@ -460,8 +458,6 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
                         if line.asset_type:
                             has_assets = True
                             # Generate asset tag previews
-                            from assets.models import Asset, AssetTagSequence
-
                             dummy_asset = Asset(tenant=po.tenant, asset_type=line.asset_type)
                             seq = AssetTagSequence.resolve_sequence_for_asset(dummy_asset)
                             for i in range(qty):

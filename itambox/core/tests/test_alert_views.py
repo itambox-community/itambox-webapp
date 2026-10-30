@@ -125,7 +125,7 @@ class AlertRuleRunNowViewTests(TestCase):
 
     def test_change_permission_queues_the_single_rule_evaluation(self):
         user = User.objects.create_superuser(username="alertrunner", password="x", email="runner@example.com")
-        with patch("django_q.tasks.async_task") as async_task:
+        with patch("extras.views.async_task") as async_task:
             response = self._client_for(user).post(self.url)
         self.assertEqual(response.status_code, 302)
         async_task.assert_called_once_with("extras.tasks.alerts.run_alert_rule_now", self.rule.pk)
