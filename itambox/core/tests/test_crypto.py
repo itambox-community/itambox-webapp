@@ -43,9 +43,10 @@ class CoreCryptoTestCase(TestCase):
             def decrypt(_token):
                 raise RuntimeError("keyring backend exploded")
 
+        cipher = encrypt_string("x")
         with patch("core.crypto.get_fernet", return_value=_BrokenFernet()):
             with self.assertRaises(RuntimeError):
-                decrypt_string("enc$" + encrypt_string("x")[4:])
+                decrypt_string(cipher)
 
     def test_multi_key_encryption_consolidation(self):
         """Test encryption key rotation using MultiFernet."""

@@ -886,7 +886,7 @@
     {
       "path": "itambox/core/views/graphql.py",
       "code": "C901",
-      "message": "'PrivateGraphQLView.dispatch' is too complex (13)",
+      "message": "'PrivateGraphQLView.dispatch' is too complex (11)",
       "source": "    def dispatch(self, request, *args, **kwargs):",
       "context": "Module:body/ClassDef:PrivateGraphQLView:body/FunctionDef:dispatch:self",
       "count": 1
