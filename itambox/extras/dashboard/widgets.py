@@ -200,13 +200,12 @@ def _narrow_queryset_to_tenant(qs, model_class, tenant_id):
     """Intersect a canonical queryset with one authorized tenant."""
     try:
         model_class._meta.get_field("tenant")
-        return qs.filter(tenant_id=tenant_id)
     except FieldDoesNotExist:
-        pass
-    tenant_lookup = getattr(model_class, "tenant_lookup", None)
-    if tenant_lookup:
-        return qs.filter(**{f"{tenant_lookup}_id": tenant_id})
-    return qs
+        tenant_lookup = getattr(model_class, "tenant_lookup", None)
+        if tenant_lookup:
+            return qs.filter(**{f"{tenant_lookup}_id": tenant_id})
+        return qs
+    return qs.filter(tenant_id=tenant_id)
 
 
 def internal_change_noise_q():
@@ -514,6 +513,7 @@ class ObjectCountsWidget(DashboardWidget):
                 label = self._get_model_label(key)
                 url = reverse(url_name)
                 counts.append({"label": label, "count": count, "url": url})
+            # broad except: render-degrade: one unreadable model shows "?" instead of failing the widget
             except Exception:
                 counts.append({"label": self._get_model_label(key), "count": "?", "url": None})
         return {

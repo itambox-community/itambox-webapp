@@ -412,8 +412,8 @@ class AssetCheckoutView(GenericTransactionView):
 
         request_id = self.request.GET.get("request_id")
         if request_id:
-            try:
-                asset_request = AssetRequest.objects.for_scope(Scope.current()).get(pk=request_id)
+            asset_request = AssetRequest.objects.for_scope(Scope.current()).filter(pk=request_id).first()
+            if asset_request is not None:
                 if "initial" not in kwargs:
                     kwargs["initial"] = {}
                 initial = kwargs["initial"]
@@ -426,8 +426,6 @@ class AssetCheckoutView(GenericTransactionView):
                 elif asset_request.assigned_asset:
                     initial["target_type"] = "asset"
                     initial["asset_target"] = asset_request.assigned_asset
-            except AssetRequest.DoesNotExist:
-                pass
 
         return kwargs
 

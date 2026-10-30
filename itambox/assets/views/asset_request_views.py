@@ -1,3 +1,5 @@
+import logging
+
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -15,6 +17,8 @@ from itambox.views.generic import (
 
 from .. import filters, forms, tables
 from ..models import AssetRequest
+
+logger = logging.getLogger(__name__)
 
 
 class AssetRequestListView(ObjectListView):
@@ -113,8 +117,10 @@ class AssetRequestEditView(ObjectEditView):
                 level=Notification.LEVEL_INFO,
                 target_url=self.object.get_absolute_url(),
             )
+        # broad except: boundary-isolation: event dispatch and the requester notification are
+        # best-effort side effects of a request that is already saved; they must not fail the edit
         except Exception:
-            pass
+            logger.exception("Asset request %s: event dispatch or requester notification failed", self.object.pk)
         return response
 
     def get_success_url(self):

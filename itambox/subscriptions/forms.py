@@ -288,15 +288,15 @@ class SubscriptionAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
         self.object_id = object_id
 
         if content_type and object_id:
-            try:
-                target_obj = content_type.model_class().objects.get(id=object_id)
-                if hasattr(target_obj, "tenant") and target_obj.tenant:
-                    # Filter subscriptions to active ones that belong to the same tenant or are global
-                    self.fields["subscription"].queryset = Subscription.objects.for_scope(Scope.current()).filter(
-                        db_models.Q(tenant=target_obj.tenant) | db_models.Q(tenant__isnull=True), status="active"
-                    )
-            except Exception:
-                pass
+            # A content type whose model is gone, or a target that no longer exists,
+            # simply leaves the subscription choices unfiltered.
+            target_model = content_type.model_class()
+            target_obj = target_model.objects.filter(id=object_id).first() if target_model is not None else None
+            if target_obj is not None and hasattr(target_obj, "tenant") and target_obj.tenant:
+                # Filter subscriptions to active ones that belong to the same tenant or are global
+                self.fields["subscription"].queryset = Subscription.objects.for_scope(Scope.current()).filter(
+                    db_models.Q(tenant=target_obj.tenant) | db_models.Q(tenant__isnull=True), status="active"
+                )
 
         self.helper = FormHelper(self)
         self.helper.form_method = "post"

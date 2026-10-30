@@ -15,6 +15,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import connection, transaction
 from django.db.models import Q
+from django.urls import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
 from django_q.tasks import async_task
 
@@ -437,8 +438,10 @@ def _send_notification(rule, event):
             instance = model_class.objects.filter(pk=event.object_id).first()
             if instance:
                 target_url = instance.get_absolute_url()
-    except Exception:
-        pass
+    except (NoReverseMatch, ValueError):
+        # An object id the model cannot parse, or a model without a routable detail
+        # view, leaves the notification without a link rather than failing the dispatch.
+        target_url = ""
 
     if rule.tenant_id:
         # A tenant-scoped rule must fan out to the rule's tenant members, NOT create a global

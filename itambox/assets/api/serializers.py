@@ -724,6 +724,7 @@ class AssetAssignmentSerializer(BaseModelSerializer):
     def get_assigned_to_name(self, obj: AssetAssignment) -> str | None:
         try:
             return str(obj.assigned_to)
+        # broad except: render-degrade: a stale or unresolvable assignment target must not fail the list
         except Exception:
             return None
 

@@ -310,9 +310,8 @@ class ITAMBoxModelViewSet(
                 try:
                     model._meta.get_field(scope_field)
                 except FieldDoesNotExist:
-                    pass
-                else:
-                    save_kwargs[scope_field] = getattr(serializer.instance, scope_field, None)
+                    continue
+                save_kwargs[scope_field] = getattr(serializer.instance, scope_field, None)
 
         try:
             with transaction.atomic(using=router.db_for_write(model)):

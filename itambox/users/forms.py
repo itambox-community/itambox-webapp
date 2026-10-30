@@ -252,6 +252,7 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
             prefs = UserPreference.objects.filter(user=self.user).first()
             if prefs and prefs.data:
                 stored_language = prefs.data.get("language")
+        # broad except: render-degrade: an unreadable stored language falls back to the active one
         except Exception:
             stored_language = None
         if stored_language not in valid_languages:

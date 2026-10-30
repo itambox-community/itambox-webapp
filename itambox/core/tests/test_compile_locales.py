@@ -11,6 +11,7 @@ import shutil
 import struct
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -150,6 +151,36 @@ msgstr[1] "Einträge"
                 call_command("compile_locales", stdout=io.StringIO())
         self.assertIn("Failed to compile", str(context.exception))
         self.assertIn("django.po", str(context.exception))
+
+    def test_compile_errors_that_already_name_the_file_are_not_wrapped_again(self):
+        base = locale_fixture(self, de=True, js=False)
+        po_file = write_catalog(base / "locale" / "de", "django", '"orphan"\n')
+
+        with override_settings(BASE_DIR=base):
+            with self.assertRaises(CommandError) as context:
+                call_command("compile_locales", stdout=io.StringIO())
+
+        self.assertIn(f"Syntax error on {po_file}:1", str(context.exception))
+        self.assertNotIn("Failed to compile", str(context.exception))
+
+    def test_io_failure_is_reported_as_a_compile_failure(self):
+        base = locale_fixture(self, de=True, js=False)
+        po_file = base / "locale" / "de" / "LC_MESSAGES" / "django.po"
+
+        with override_settings(BASE_DIR=base):
+            with patch("core.management.commands.compile_locales._compile_po", side_effect=OSError("disk full")):
+                with self.assertRaises(CommandError) as context:
+                    call_command("compile_locales", stdout=io.StringIO())
+
+        self.assertIn(f"Failed to compile {po_file}: disk full", str(context.exception))
+
+    def test_unexpected_failure_is_not_converted_into_a_command_error(self):
+        base = locale_fixture(self, de=True, js=False)
+
+        with override_settings(BASE_DIR=base):
+            with patch("core.management.commands.compile_locales._compile_po", side_effect=RuntimeError("boom")):
+                with self.assertRaises(RuntimeError):
+                    call_command("compile_locales", stdout=io.StringIO())
 
     def test_missing_djangojs_does_not_break_django_only_locale(self):
         base = locale_fixture(self, de=True, js=False)

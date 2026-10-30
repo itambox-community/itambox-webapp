@@ -1,4 +1,4 @@
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 
 
 def resolve_generic_items(rows, toggle_url_name=None):
@@ -30,8 +30,8 @@ def resolve_generic_items(rows, toggle_url_name=None):
         if hasattr(obj, "get_absolute_url"):
             try:
                 url = obj.get_absolute_url()
-            except Exception:
-                pass
+            except NoReverseMatch:
+                url = "#"
         item = {
             "id": row.pk,
             "type_name": obj._meta.verbose_name.title(),
@@ -50,7 +50,7 @@ def resolve_generic_items(rows, toggle_url_name=None):
                         "object_id": row.object_id,
                     },
                 )
-            except Exception:
+            except NoReverseMatch:
                 item["toggle_url"] = "#"
         items.append(item)
     return items
