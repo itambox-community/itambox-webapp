@@ -68,14 +68,6 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/models/requests.py",
-      "code": "C901",
-      "message": "'AssetRequest.clean' is too complex (27)",
-      "source": "    def clean(self):",
-      "context": "Module:body/ClassDef:AssetRequest:body/FunctionDef:clean:self",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/services/__init__.py",
       "code": "C901",
       "message": "'checkin_asset' is too complex (13)",
