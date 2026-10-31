@@ -12,30 +12,6 @@
       "count": 1
     },
     {
-      "path": "itambox/assets/forms/category_form.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            Row(Column(\"name\", css_class=\"col-md-6\"), Column(\"slug\", css_class=\"col-md-6\")),\n            Row(Column(\"color\", css_class=\"col-md-6\"), Column(\"tags\", css_class=\"col-md-6\")),\n            \"description\",\n            \"applies_to_flags\",\n            \"audit_interval_months\",\n            HTML('<div class=\"mt-4\"></div>'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">Cancel</a>'),\n        )",
-      "context": "Module:body/ClassDef:CategoryForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/depreciation_form.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            \"name\",\n            Row(\n                Column(\"months\", css_class=\"col-md-6\"),\n                Column(\"method\", css_class=\"col-md-6\"),\n            ),\n            Row(\n                Column(\"convention\", css_class=\"col-md-6\"),\n                Column(\"immediate_expense_threshold\", css_class=\"col-md-6\"),\n            ),\n            Field(\"description\"),\n            HTML('<div class=\"mt-3\">'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">Cancel</a>'),\n            HTML(\"</div>\"),\n        )",
-      "context": "Module:body/ClassDef:DepreciationForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/request_forms.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            \"request_category\",\n            \"asset_type\",\n            \"asset\",\n            \"component\",\n            \"accessory\",\n            \"consumable\",\n            \"qty\",\n            \"target_type\",\n            \"assigned_user\",\n            \"assigned_location\",\n            \"assigned_asset\",\n            \"notes\",\n            HTML('<div class=\"mt-4\"></div>'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">Cancel</a>'),\n        )",
-      "context": "Module:body/ClassDef:AssetRequestForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/forms/request_forms.py",
       "code": "C901",
       "message": "'AssetRequestForm.__init__' is too complex (12)",
@@ -49,22 +25,6 @@
       "message": "'AssetRequestForm.clean' is too complex (20)",
       "source": "    def clean(self):",
       "context": "Module:body/ClassDef:AssetRequestForm:body/FunctionDef:clean:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/statuslabel_form.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            Fieldset(\n                \"\",\n                Row(\n                    Column(\"name\", css_class=\"col-md-6\"),\n                    Column(\"slug\", css_class=\"col-md-6\"),\n                ),\n                \"type\",\n                \"description\",\n                \"color\",\n                \"tags\",\n            ),\n            Row(\n                Column(Submit(\"submit\", _(\"Save\"), css_class=\"btn btn-primary\"), css_class=\"col\"),\n                Column(\n                    HTML(\n                        f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\" data-no-dirty-track=\"true\">Cancel</a>'\n                    ),\n                    css_class=\"col text-end\",\n                ),\n            ),\n        )",
-      "context": "Module:body/ClassDef:StatusLabelForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/forms/tag_sequence_form.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            Div(\n                Div(\"prefix\", css_class=\"col-md-6\"),\n                Div(\"next_value\", css_class=\"col-md-3\"),\n                Div(\"zero_padding\", css_class=\"col-md-3\"),\n                css_class=\"row\",\n            ),\n            Div(\n                Div(\"tenant\", css_class=\"col-md-6\"),\n                Div(\"category\", css_class=\"col-md-6\"),\n                css_class=\"row\",\n            ),\n            \"is_active\",\n            HTML('<div class=\"mt-3\">'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">Cancel</a>'),\n            HTML(\"</div>\"),\n        )",
-      "context": "Module:body/ClassDef:AssetTagSequenceForm:body/FunctionDef:__init__:body",
       "count": 1
     },
     {
@@ -124,46 +84,6 @@
       "count": 2
     },
     {
-      "path": "itambox/assets/tests/test_import_export.py",
-      "code": "B907",
-      "message": "'self.asset_type.pk' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "yaml_content = f\"\"\"\n- name: \"Asset Epsilon\"\n  asset_tag: \"TAG-005\"\n  status: \"{self.status.pk}\"\n  asset_type: \"{self.asset_type.pk}\"\n\"\"\".encode(\"utf-8\")",
-      "context": "Module:body/ClassDef:AdvancedImportExportTestCase:body/FunctionDef:test_yaml_import_file_upload_preview_and_confirm:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/tests/test_import_export.py",
-      "code": "B907",
-      "message": "'self.asset_type.pk' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "yaml_data = f\"\"\"\n- name: \"Asset Gamma\"\n  asset_tag: \"TAG-003\"\n  status: \"{self.status.pk}\"\n  asset_type: \"{self.asset_type.pk}\"\n\"\"\"",
-      "context": "Module:body/ClassDef:AdvancedImportExportTestCase:body/FunctionDef:test_yaml_import_text_preview_and_confirm:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/tests/test_import_export.py",
-      "code": "B907",
-      "message": "'self.status.pk' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "yaml_content = f\"\"\"\n- name: \"Asset Epsilon\"\n  asset_tag: \"TAG-005\"\n  status: \"{self.status.pk}\"\n  asset_type: \"{self.asset_type.pk}\"\n\"\"\".encode(\"utf-8\")",
-      "context": "Module:body/ClassDef:AdvancedImportExportTestCase:body/FunctionDef:test_yaml_import_file_upload_preview_and_confirm:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/tests/test_import_export.py",
-      "code": "B907",
-      "message": "'self.status.pk' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "yaml_data = f\"\"\"\n- name: \"Asset Gamma\"\n  asset_tag: \"TAG-003\"\n  status: \"{self.status.pk}\"\n  asset_type: \"{self.asset_type.pk}\"\n\"\"\"",
-      "context": "Module:body/ClassDef:AdvancedImportExportTestCase:body/FunctionDef:test_yaml_import_text_preview_and_confirm:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/assets/tests/test_sprint2.py",
-      "code": "B907",
-      "message": "'code' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.fail(f\"full_clean rejected valid currency code '{code}': {exc}\")",
-      "context": "Module:body/ClassDef:AssetCurrencyFieldTests:body/FunctionDef:test_currency_accepts_all_defined_choices:body/For:Tuple(elts=[Name(id='code', ctx=Store()), Name(id='_', ctx=Store())], ctx=Store()):Name(id='CURRENCY_CHOICES', ctx=Load()):body/Try:handlers/ExceptHandler:Name(id='ValidationError', ctx=Load()):exc:body/If:Compare(left=Constant(value='currency'), ops=[In()], comparators=[Attribute(value=Name(id='exc', ctx=Load()), attr='message_dict', ctx=Load())]):body",
-      "count": 1
-    },
-    {
       "path": "itambox/assets/views/asset_views.py",
       "code": "B907",
       "message": "'self.get_object()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
@@ -185,22 +105,6 @@
       "message": "'approve_asset_request' is too complex (14)",
       "source": "def approve_asset_request(request_instance, user, request=None, **kwargs):",
       "context": "Module:body/FunctionDef:approve_asset_request:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/forms.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            Row(\n                Column(\"tenant\", css_class=\"col-md-4\"),\n                Column(\"tenant_group\", css_class=\"col-md-4\"),\n                Column(\"name\", css_class=\"col-md-4\"),\n                css_class=\"row g-3\",\n            ),\n            Row(\n                Column(\"category\", css_class=\"col-md-6\"),\n                Column(\"signature_provider\", css_class=\"col-md-6\"),\n                css_class=\"row g-3\",\n            ),\n            Row(\n                Column(\"qms_reference\", css_class=\"col-md-6\"),\n                Column(\"is_active\", css_class=\"col-md-6 mt-2\"),\n                css_class=\"row g-3\",\n            ),\n            \"logo\",\n            Fieldset(\n                _(\"Content\"),\n                \"eula_text\",\n                \"disclaimer\",\n            ),\n            Row(\n                Column(\"require_acceptance\", css_class=\"col-md-6 mt-2\"),\n                Column(\"email_signature_request\", css_class=\"col-md-6 mt-2\"),\n                css_class=\"row g-3\",\n            ),\n            \"tags\",\n            HTML('<div class=\"mt-3\">'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">{_(\"Cancel\")}</a>'),\n            HTML(\"</div>\"),\n        )",
-      "context": "Module:body/ClassDef:CustodyTemplateForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/compliance/forms_audit.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            Row(\n                Column(\"tenant\", css_class=\"col-md-6\"),\n                Column(\"name\", css_class=\"col-md-6\"),\n                css_class=\"row g-3\",\n            ),\n            \"location\",\n            Fieldset(\n                _(\"Campaign Options\"),\n                \"start_immediately\",\n            ),\n            HTML('<div class=\"mt-4\"></div>'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(\n                f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\"'\n                f' data-no-dirty-track=\"true\">{_(\"Cancel\")}</a>'\n            ),\n        )",
-      "context": "Module:body/ClassDef:AuditSessionForm:body/FunctionDef:__init__:body",
       "count": 1
     },
     {
@@ -517,34 +421,10 @@
     },
     {
       "path": "itambox/extras/forms.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            \"name\",\n            \"description\",\n            \"content_type\",\n            Div(\"shared\", css_class=\"mb-3 form-check\"),\n            Div(\"enabled\", css_class=\"mb-3 form-check\"),\n            HTML('<div class=\"mt-3\">'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">{_(\"Cancel\")}</a>'),\n            HTML(\"</div>\"),\n        )",
-      "context": "Module:body/ClassDef:SavedFilterForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/forms.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            \"name\",\n            \"slug\",\n            \"color\",\n            \"description\",\n            HTML('<div class=\"mt-3\">'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">{_(\"Cancel\")}</a>'),\n            HTML(\"</div>\"),\n        )",
-      "context": "Module:body/ClassDef:TagForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/forms.py",
       "code": "C901",
       "message": "'NotificationChannelForm.clean' is too complex (13)",
       "source": "    def clean(self):",
       "context": "Module:body/ClassDef:NotificationChannelForm:body/FunctionDef:clean:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/tests/test_notification_channel_api.py",
-      "code": "B907",
-      "message": "'obj.updated_at.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return f'W/\"{obj.updated_at.isoformat()}\"'",
-      "context": "Module:body/ClassDef:NotificationChannelConfigRedactionTests:body/FunctionDef:_etag:body",
       "count": 1
     },
     {
@@ -556,83 +436,11 @@
       "count": 1
     },
     {
-      "path": "itambox/extras/views.py",
-      "code": "B907",
-      "message": "'alert.subject' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return {\"message\": f\"Alert '{alert.subject}' acknowledged.\"}",
-      "context": "Module:body/ClassDef:AlertAcknowledgeView:body/FunctionDef:perform_action:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/views.py",
-      "code": "B907",
-      "message": "'alert.subject' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return {\"message\": f\"Alert '{alert.subject}' marked as resolved.\"}",
-      "context": "Module:body/ClassDef:AlertResolveView:body/FunctionDef:perform_action:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/views.py",
-      "code": "B907",
-      "message": "'channel.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "raise Exception(f\"Channel '{channel.name}' returned a delivery failure.\")",
-      "context": "Module:body/ClassDef:NotificationChannelTestView:body/FunctionDef:perform_action:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/views.py",
-      "code": "B907",
-      "message": "'channel.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return {\"message\": f\"Test notification sent successfully via '{channel.name}'.\"}",
-      "context": "Module:body/ClassDef:NotificationChannelTestView:body/FunctionDef:perform_action:body/If:Name(id='ok', ctx=Load()):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/extras/views.py",
-      "code": "B907",
-      "message": "'rule.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return {\"message\": f\"Evaluation queued for '{rule.name}'. New alerts will appear shortly.\"}",
-      "context": "Module:body/ClassDef:AlertRuleRunNowView:body/FunctionDef:perform_action:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/forms/kit_forms.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            \"kit\",\n            \"asset_type\",\n            \"accessory\",\n            \"license\",\n            \"consumable\",\n            \"qty\",\n            HTML('<div class=\"mt-3\">'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">Cancel</a>'),\n            HTML(\"</div>\"),\n        )",
-      "context": "Module:body/ClassDef:KitItemForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/inventory/forms/kit_forms.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.helper.layout = Layout(\n            \"name\",\n            \"description\",\n            \"tenant\",\n            \"tags\",\n            HTML('<div class=\"mt-3\">'),\n            Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n            HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">Cancel</a>'),\n            HTML(\"</div>\"),\n        )",
-      "context": "Module:body/ClassDef:KitForm:body/FunctionDef:__init__:body",
-      "count": 1
-    },
-    {
       "path": "itambox/inventory/views/base_views.py",
       "code": "C901",
       "message": "'bulk_checkout_inventory' is too complex (30)",
       "source": "def bulk_checkout_inventory(request):",
       "context": "Module:body/FunctionDef:bulk_checkout_inventory:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/api/mixins.py",
-      "code": "B907",
-      "message": "'ts.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return f'W/\"{ts.isoformat()}\"'",
-      "context": "Module:body/ClassDef:ETagMixin:body/FunctionDef:_get_etag:body/If:NamedExpr(target=Name(id='ts', ctx=Store()), value=BoolOp(op=Or(), values=[Call(func=Name(id='getattr', ctx=Load()), args=[Name(id='obj', ctx=Load()), Constant(value='last_updated'), Constant(value=None)], keywords=[]), Call(func=Name(id='getattr', ctx=Load()), args=[Name(id='obj', ctx=Load()), Constant(value='updated_at'), Constant(value=None)], keywords=[])])):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/tests/test_etag_precondition.py",
-      "code": "B907",
-      "message": "'self.software.updated_at.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return f'W/\"{self.software.updated_at.isoformat()}\"'",
-      "context": "Module:body/ClassDef:ETagPreconditionTests:body/FunctionDef:_current_etag:body",
       "count": 1
     },
     {
@@ -665,22 +473,6 @@
       "message": "'ObjectBulkEditView.post' is too complex (19)",
       "source": "    def post(self, request, *args, **kwargs):",
       "context": "Module:body/ClassDef:ObjectBulkEditView:body/FunctionDef:post:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/edit.py",
-      "code": "B907",
-      "message": "'cancel_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "layout_elements.extend(\n                [\n                    HTML('<div class=\"mt-4\"></div>'),\n                    Submit(\"submit\", button_text, css_class=\"btn btn-primary\"),\n                    HTML(f'<a href=\"{cancel_url}\" class=\"btn btn-outline-secondary ms-2\">{_(\"Cancel\")}</a>'),\n                ]\n            )",
-      "context": "Module:body/ClassDef:ObjectEditView:body/FunctionDef:get_form:body/If:BoolOp(op=Or(), values=[UnaryOp(op=Not(), operand=Call(func=Name(id='hasattr', ctx=Load()), args=[Name(id='form', ctx=Load()), Constant(value='helper')], keywords=[])), Compare(left=Attribute(value=Name(id='form', ctx=Load()), attr='helper', ctx=Load()), ops=[Is()], comparators=[Constant(value=None)])]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/views/generic/edit.py",
-      "code": "B907",
-      "message": "'self.object.get_absolute_url()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "msg_link = (\n            f\"<a href='{self.object.get_absolute_url()}'>{self.object}</a>\"\n            if hasattr(self.object, \"get_absolute_url\")\n            else str(self.object)\n        )",
-      "context": "Module:body/ClassDef:ObjectEditView:body/FunctionDef:form_valid:body",
       "count": 1
     },
     {
@@ -756,14 +548,6 @@
       "count": 1
     },
     {
-      "path": "itambox/organization/tests/test_topology_mutation_boundaries.py",
-      "code": "B907",
-      "message": "'obj.updated_at.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return f'W/\"{obj.updated_at.isoformat()}\"'",
-      "context": "Module:body/ClassDef:TopologyMutationBoundaryTests:body/FunctionDef:etag:body",
-      "count": 1
-    },
-    {
       "path": "itambox/organization/views/membership_views.py",
       "code": "C901",
       "message": "'MembershipBulkEditView.post' is too complex (16)",
@@ -772,35 +556,11 @@
       "count": 1
     },
     {
-      "path": "itambox/software/tests/test_api.py",
-      "code": "B907",
-      "message": "'self.software.updated_at.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "etag = f'W/\"{self.software.updated_at.isoformat()}\"'",
-      "context": "Module:body/ClassDef:SoftwareAPITests:body/FunctionDef:test_software_api_delete_verifies_cascade_protection:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/software/tests/test_api_tenant_repin.py",
-      "code": "B907",
-      "message": "'self.software.updated_at.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "etag = f'W/\"{self.software.updated_at.isoformat()}\"'",
-      "context": "Module:body/ClassDef:SoftwareApiTenantRepinTests:body/FunctionDef:test_patch_tenant_null_does_not_globalize:body",
-      "count": 1
-    },
-    {
       "path": "itambox/users/api/scim/authentication.py",
       "code": "C901",
       "message": "'SCIMBearerTokenAuthentication.authenticate' is too complex (20)",
       "source": "    def authenticate(self, request: Request) -> _SCIMAuthenticationResult:",
       "context": "Module:body/ClassDef:SCIMBearerTokenAuthentication:body/FunctionDef:authenticate:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/api/scim/filters.py",
-      "code": "B907",
-      "message": "'op' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "raise SCIMFilterError(f\"Operator '{op}' requires a value.\")",
-      "context": "Module:body/FunctionDef:parse_scim_filter:body/If:BoolOp(op=And(), values=[Compare(left=Name(id='op', ctx=Load()), ops=[NotEq()], comparators=[Constant(value='pr')]), Compare(left=Name(id='val', ctx=Load()), ops=[Is()], comparators=[Constant(value=None)])]):body",
       "count": 1
     },
     {
@@ -857,54 +617,6 @@
       "message": "'UserPreferencesForm.__init__' is too complex (11)",
       "source": "    def __init__(self, user, *args, **kwargs):",
       "context": "Module:body/ClassDef:UserPreferencesForm:body/FunctionDef:__init__:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/tests/test_provider_scim.py",
-      "code": "B907",
-      "message": "'self.admin_user.id' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "patch_payload = {\n            \"schemas\": [\"urn:ietf:params:scim:api:messages:2.0:PatchOp\"],\n            \"Operations\": [{\"op\": \"remove\", \"path\": f'members[value eq \"{self.admin_user.id}\"]'}],\n        }",
-      "context": "Module:body/ClassDef:ProviderSCIMProvisioningTests:body/FunctionDef:test_group_detail_put_patch_delete:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/tests/test_scim_stress.py",
-      "code": "B907",
-      "message": "'val' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "query_url = f'{url}?filter=displayName eq \"{val}\"'",
-      "context": "Module:body/ClassDef:SCIMStressTests:body/FunctionDef:test_sql_injection_group_filter:body/For:Name(id='val', ctx=Store()):Name(id='sqli_payloads', ctx=Load()):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/tests/test_scim_stress.py",
-      "code": "B907",
-      "message": "'val' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "query_url = f'{url}?filter=userName eq \"{val}\"'",
-      "context": "Module:body/ClassDef:SCIMStressTests:body/FunctionDef:test_sql_injection_username_filter:body/For:Name(id='val', ctx=Store()):Name(id='sqli_payloads', ctx=Load()):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "code": "B907",
-      "message": "\"reverse('users:watch_toggle', kwargs={'content_type_id': content_type_id, 'object_id': object_id})\" is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "button_html = (\n                f'<button type=\"button\" class=\"btn btn-icon {btn_class}\"'\n                f' hx-post=\"{reverse(\"users:watch_toggle\", kwargs={\"content_type_id\": content_type_id, \"object_id\": object_id})}\"'\n                f' hx-headers=\\'{{\"X-CSRFToken\": \"{csrf_token}\"}}\\''\n                f' hx-target=\"this\" hx-swap=\"outerHTML\" title=\"{title}\">'\n                f'<i class=\"mdi {bell_icon}\"></i></button>'\n            )",
-      "context": "Module:body/ClassDef:WatchToggleView:body/FunctionDef:post:body/If:Call(func=Name(id='getattr', ctx=Load()), args=[Name(id='request', ctx=Load()), Constant(value='htmx'), Constant(value=False)], keywords=[]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "code": "B907",
-      "message": "'csrf_token' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "button_html = (\n                f'<button type=\"button\" class=\"btn btn-icon {btn_class}\"'\n                f' hx-post=\"{reverse(\"users:watch_toggle\", kwargs={\"content_type_id\": content_type_id, \"object_id\": object_id})}\"'\n                f' hx-headers=\\'{{\"X-CSRFToken\": \"{csrf_token}\"}}\\''\n                f' hx-target=\"this\" hx-swap=\"outerHTML\" title=\"{title}\">'\n                f'<i class=\"mdi {bell_icon}\"></i></button>'\n            )",
-      "context": "Module:body/ClassDef:WatchToggleView:body/FunctionDef:post:body/If:Call(func=Name(id='getattr', ctx=Load()), args=[Name(id='request', ctx=Load()), Constant(value='htmx'), Constant(value=False)], keywords=[]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/users/views.py",
-      "code": "B907",
-      "message": "'title' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "button_html = (\n                f'<button type=\"button\" class=\"btn btn-icon {btn_class}\"'\n                f' hx-post=\"{reverse(\"users:watch_toggle\", kwargs={\"content_type_id\": content_type_id, \"object_id\": object_id})}\"'\n                f' hx-headers=\\'{{\"X-CSRFToken\": \"{csrf_token}\"}}\\''\n                f' hx-target=\"this\" hx-swap=\"outerHTML\" title=\"{title}\">'\n                f'<i class=\"mdi {bell_icon}\"></i></button>'\n            )",
-      "context": "Module:body/ClassDef:WatchToggleView:body/FunctionDef:post:body/If:Call(func=Name(id='getattr', ctx=Load()), args=[Name(id='request', ctx=Load()), Constant(value='htmx'), Constant(value=False)], keywords=[]):body",
       "count": 1
     }
   ]
