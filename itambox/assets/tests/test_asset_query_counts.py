@@ -15,6 +15,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
+from assets.choices import StatusTypeChoices
 from assets.models import Asset, AssetMaintenance, AssetRole, AssetType, Manufacturer, StatusLabel, Warranty
 from assets.services import checkout_asset
 from core.tests.mixins import TenantTestMixin
@@ -48,6 +49,9 @@ class AssetPageQueryCountTests(TenantTestMixin, TestCase):
         self.asset_type = AssetType.objects.create(manufacturer=manufacturer, model="QB Model", slug="qb-model")
         self.role = AssetRole.objects.create(name="QB Role", slug="qb-role")
         self.status = StatusLabel.objects.create(name="QB Deployable", slug="qb-deployable", type="deployable")
+        self.deployed_status = StatusLabel.objects.create(
+            name="Deployed", slug="deployed", type=StatusTypeChoices.DEPLOYED
+        )
         site = Site.objects.create(name="QB Site", slug="qb-site")
         self.location = Location.objects.create(name="QB Loc", slug="qb-loc", tenant=self.tenant, site=site)
         self.tags = [Tag.objects.create(name=f"QB Tag {i}", slug=f"qb-tag-{i}") for i in range(3)]
