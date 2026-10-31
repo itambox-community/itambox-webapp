@@ -34,7 +34,7 @@ class NotificationChannelConfigRedactionTests(APITestCase):
 
     def _etag(self, obj):
         obj.refresh_from_db()
-        return f'W/"{obj.updated_at.isoformat()}"'
+        return 'W/"%s"' % obj.updated_at.isoformat()
 
     def test_read_redacts_webhook_url(self):
         resp = self.client.get(self._detail(self.slack.pk))

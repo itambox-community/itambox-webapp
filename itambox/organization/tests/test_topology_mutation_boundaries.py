@@ -66,7 +66,7 @@ class TopologyMutationBoundaryTests(APITestCase):
 
     @staticmethod
     def etag(obj):
-        return f'W/"{obj.updated_at.isoformat()}"'
+        return 'W/"%s"' % obj.updated_at.isoformat()
 
     def test_tenant_group_ui_reads_remain_available_but_mutations_are_denied(self):
         self.login_operator()

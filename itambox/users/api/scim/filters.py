@@ -180,7 +180,7 @@ def parse_scim_filter(filter_str: str | None, model_type: str = "user") -> _SCIM
     op = op.lower()
 
     if op != "pr" and val is None:
-        raise SCIMFilterError(f"Operator '{op}' requires a value.")
+        raise SCIMFilterError("Operator '%s' requires a value." % op)
 
     # Never expose Django's double-underscore relation grammar through SCIM filters.
     if "__" in attr:

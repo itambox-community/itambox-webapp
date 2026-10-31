@@ -16,7 +16,7 @@ class ETagMixin:
     @staticmethod
     def _get_etag(obj):
         if ts := getattr(obj, "last_updated", None) or getattr(obj, "updated_at", None):
-            return f'W/"{ts.isoformat()}"'
+            return 'W/"%s"' % ts.isoformat()
         return None
 
     @staticmethod

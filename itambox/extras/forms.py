@@ -81,7 +81,7 @@ class TagForm(TenantScopedFormMixin, ColorFieldFormMixin, forms.ModelForm):
             "description",
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">{_("Cancel")}</a>'),
+            HTML('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))),
             HTML("</div>"),
         )
 
@@ -459,7 +459,7 @@ class SavedFilterForm(TenantScopedFormMixin, forms.ModelForm):
             Div("enabled", css_class="mb-3 form-check"),
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">{_("Cancel")}</a>'),
+            HTML('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))),
             HTML("</div>"),
         )
 

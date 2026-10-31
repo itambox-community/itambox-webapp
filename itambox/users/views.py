@@ -487,11 +487,20 @@ class WatchToggleView(LoginRequiredMixin, View):
             bell_icon = "mdi-bell" if is_watched else "mdi-bell-outline"
             title = _("Stop Watching") if is_watched else _("Watch (notify me on changes)")
             button_html = (
-                f'<button type="button" class="btn btn-icon {btn_class}"'
-                f' hx-post="{reverse("users:watch_toggle", kwargs={"content_type_id": content_type_id, "object_id": object_id})}"'
-                f' hx-headers=\'{{"X-CSRFToken": "{csrf_token}"}}\''
-                f' hx-target="this" hx-swap="outerHTML" title="{title}">'
-                f'<i class="mdi {bell_icon}"></i></button>'
+                '<button type="button" class="btn btn-icon {}"'
+                ' hx-post="{}"'
+                ' hx-headers=\'{{"X-CSRFToken": "{}"}}\''
+                ' hx-target="this" hx-swap="outerHTML" title="{}">'
+                '<i class="mdi {}"></i></button>'
+            ).format(
+                btn_class,
+                reverse(
+                    "users:watch_toggle",
+                    kwargs={"content_type_id": content_type_id, "object_id": object_id},
+                ),
+                csrf_token,
+                title,
+                bell_icon,
             )
             msg = (
                 _("Now watching {name}.").format(name=str(target_obj))

@@ -135,7 +135,7 @@ class SoftwareAPITests(APITestCase):
 
         # Verify initial record
         self.assertTrue(Software.objects.filter(pk=self.software.pk).exists())
-        etag = f'W/"{self.software.updated_at.isoformat()}"'
+        etag = 'W/"%s"' % self.software.updated_at.isoformat()
 
         # Perform deletion
         detail_url = reverse("api:software_api:software-detail", kwargs={"pk": self.software.pk})

@@ -488,7 +488,7 @@ class AlertRuleRunNowView(SimplePostView):
     def perform_action(self, rule, request):
         rule_id = rule.pk
         async_task("extras.tasks.alerts.run_alert_rule_now", rule_id)
-        return {"message": f"Evaluation queued for '{rule.name}'. New alerts will appear shortly."}
+        return {"message": "Evaluation queued for '%s'. New alerts will appear shortly." % rule.name}
 
     def get_success_redirect(self, obj, result):
         return redirect(
@@ -551,7 +551,7 @@ class AlertAcknowledgeView(_TenantBoundAlertActionMixin, SimplePostView):
             alert.status = AlertLog.STATUS_ACKNOWLEDGED
             alert.acknowledged_by = request.user
             alert.save(update_fields=["status", "acknowledged_by"])
-        return {"message": f"Alert '{alert.subject}' acknowledged."}
+        return {"message": "Alert '%s' acknowledged." % alert.subject}
 
     def get_success_redirect(self, obj, result):
         return redirect(
@@ -573,7 +573,7 @@ class AlertResolveView(_TenantBoundAlertActionMixin, SimplePostView):
             alert.resolved_by = request.user
             alert.resolved_at = timezone.now()
             alert.save(update_fields=["status", "resolved_by", "resolved_at"])
-        return {"message": f"Alert '{alert.subject}' marked as resolved."}
+        return {"message": "Alert '%s' marked as resolved." % alert.subject}
 
     def get_success_redirect(self, obj, result):
         return redirect(
@@ -767,8 +767,8 @@ class NotificationChannelTestView(SimplePostView):
             },
         )
         if ok:
-            return {"message": f"Test notification sent successfully via '{channel.name}'."}
-        raise Exception(f"Channel '{channel.name}' returned a delivery failure.")
+            return {"message": "Test notification sent successfully via '%s'." % channel.name}
+        raise Exception("Channel '%s' returned a delivery failure." % channel.name)
 
     def get_success_redirect(self, obj, result):
         return redirect(reverse("extras:notificationchannel_list"))
