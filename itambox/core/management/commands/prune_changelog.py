@@ -164,7 +164,7 @@ class Command(SystemTaskCommand):
             # command, but stay consistent with every other lookup below).
             tenant = Tenant._base_manager.filter(slug=tenant_slug).first()
             if tenant is None:
-                raise CommandError(f"No tenant found with slug '{tenant_slug}'.")
+                raise CommandError("No tenant found with slug '%s'." % tenant_slug)
             if classes - {"changelog"}:
                 self.stderr.write(
                     self.style.WARNING(

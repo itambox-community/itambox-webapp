@@ -204,22 +204,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/auth/oidc.py",
-      "code": "B907",
-      "message": "'name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "raise AttributeError(f\"'{self.__class__.__name__}' object has no attribute '{name}'\")",
-      "context": "Module:body/ClassDef:TenantOIDCSettingsMixin:body/FunctionDef:__getattr__:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/auth/oidc.py",
-      "code": "B907",
-      "message": "'self.__class__.__name__' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "raise AttributeError(f\"'{self.__class__.__name__}' object has no attribute '{name}'\")",
-      "context": "Module:body/ClassDef:TenantOIDCSettingsMixin:body/FunctionDef:__getattr__:body",
-      "count": 1
-    },
-    {
       "path": "itambox/core/filters.py",
       "code": "C901",
       "message": "'BaseFilterSet.__init__' is too complex (13)",
@@ -249,94 +233,6 @@
       "message": "'BulkImportForm.clean' is too complex (29)",
       "source": "    def clean(self):",
       "context": "Module:body/ClassDef:BulkImportForm:body/FunctionDef:clean:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'grant.role.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return Finding(\n        check=\"rbac_grant_inconsistent\",\n        model=\"organization.RoleGrant\",\n        pk=grant.pk,\n        summary=(\n            f\"RoleGrant #{grant.pk} (own scope): role \"\n            f'\"{grant.role.name}\" owned by \"{topo.name(role_tenant_id)}\" granted '\n            f'to a principal in \"{topo.name(owner_id)}\" without a valid '\n            f\"shared-role relationship\"\n        ),\n        classification=topo.classify(role_tenant_id, owner_id),\n        details={\n            \"role_id\": grant.role_id,\n            \"role_tenant_id\": role_tenant_id,\n            \"membership_id\": grant.membership_id,\n            \"user_group_id\": grant.user_group_id,\n            \"principal_tenant_id\": owner_id,\n            \"shared_with_managed\": grant.role.shared_with_managed,\n        },\n    )",
-      "context": "Module:body/FunctionDef:_own_scope_finding:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'group.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "findings.append(\n                Finding(\n                    check=\"rbac_group_inconsistent\",\n                    model=\"users.UserGroup\",\n                    pk=group.pk,\n                    summary=(\n                        f'UserGroup #{group.pk} \"{group.name}\" has no owning tenant '\n                        f\"(global groups are disallowed by the target design)\"\n                    ),\n                    classification=CLASS_AMBIGUOUS,\n                    details={},\n                )\n            )",
-      "context": "Module:body/FunctionDef:_check_group_memberships:body/For:Name(id='group', ctx=Store()):Name(id='groups', ctx=Load()):body/If:Compare(left=Attribute(value=Name(id='group', ctx=Load()), attr='tenant_id', ctx=Load()), ops=[Is()], comparators=[Constant(value=None)]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(group.tenant_id)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "findings.append(\n                Finding(\n                    check=\"rbac_group_inconsistent\",\n                    model=\"users.GroupMembership\",\n                    pk=link.pk,\n                    summary=(\n                        f\"GroupMembership #{link.pk}: membership tenant \"\n                        f'\"{topo.name(link.membership.tenant_id)}\" differs from '\n                        f'group owner \"{topo.name(group.tenant_id)}\"'\n                    ),\n                    classification=topo.classify(\n                        group.tenant_id,\n                        link.membership.tenant_id,\n                    ),\n                    details={\"user_group_id\": group.pk, \"membership_id\": link.membership_id},\n                )\n            )",
-      "context": "Module:body/FunctionDef:_group_membership_findings:body/For:Name(id='link', ctx=Store()):Call(func=Attribute(value=Attribute(value=Name(id='group', ctx=Load()), attr='group_memberships', ctx=Load()), attr='all', ctx=Load()), args=[], keywords=[]):body/If:Compare(left=Attribute(value=Attribute(value=Name(id='link', ctx=Load()), attr='membership', ctx=Load()), attr='tenant_id', ctx=Load()), ops=[NotEq()], comparators=[Attribute(value=Name(id='group', ctx=Load()), attr='tenant_id', ctx=Load())]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(item_tenant)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "findings.append(\n                Finding(\n                    check=\"po_line_item_tenant_mismatch\",\n                    model=\"procurement.PurchaseOrderLine\",\n                    pk=row[\"pk\"],\n                    summary=(\n                        f\"procurement.PurchaseOrderLine #{row['pk']}: {fk} \"\n                        f'#{item_id} belongs to \"{topo.name(item_tenant)}\", '\n                        f'line belongs to \"{topo.name(line_tenant)}\"'\n                    ),\n                    classification=topo.classify(line_tenant, item_tenant),\n                    details={\n                        \"item_fk\": fk,\n                        \"item_id\": item_id,\n                        \"item_tenant_id\": item_tenant,\n                        \"tenant_id\": line_tenant,\n                    },\n                )\n            )",
-      "context": "Module:body/FunctionDef:_po_line_item_findings:body/For:Name(id='fk', ctx=Store()):Name(id='tenant_bearing_fks', ctx=Load()):body/If:BoolOp(op=And(), values=[Compare(left=Name(id='line_tenant', ctx=Load()), ops=[IsNot()], comparators=[Constant(value=None)]), Compare(left=Name(id='item_tenant', ctx=Load()), ops=[NotEq()], comparators=[Name(id='line_tenant', ctx=Load())])]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(item_tenant)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "findings.append(\n                Finding(\n                    check=\"stock_tenant_conflict\",\n                    model=label,\n                    pk=row[\"pk\"],\n                    summary=(\n                        f\"{label} #{row['pk']}: item tenant \"\n                        f'\"{topo.name(item_tenant)}\" != location tenant '\n                        f'\"{topo.name(loc_tenant)}\"'\n                    ),\n                    classification=cls,\n                    details={\n                        \"location_id\": row[\"location_id\"],\n                        \"location_tenant_id\": loc_tenant,\n                        \"item_id\": row[f\"{item_attr}_id\"],\n                        \"item_tenant_id\": item_tenant,\n                    },\n                )\n            )",
-      "context": "Module:body/FunctionDef:check_stock_tenant_conflicts:body/For:Tuple(elts=[Name(id='label', ctx=Store()), Name(id='item_attr', ctx=Store())], ctx=Store()):Name(id='STOCK_SPECS', ctx=Load()):body/For:Name(id='row', ctx=Store()):Name(id='rows', ctx=Load()):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(line_tenant)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "findings.append(\n                Finding(\n                    check=\"po_line_item_tenant_mismatch\",\n                    model=\"procurement.PurchaseOrderLine\",\n                    pk=row[\"pk\"],\n                    summary=(\n                        f\"procurement.PurchaseOrderLine #{row['pk']}: {fk} \"\n                        f'#{item_id} belongs to \"{topo.name(item_tenant)}\", '\n                        f'line belongs to \"{topo.name(line_tenant)}\"'\n                    ),\n                    classification=topo.classify(line_tenant, item_tenant),\n                    details={\n                        \"item_fk\": fk,\n                        \"item_id\": item_id,\n                        \"item_tenant_id\": item_tenant,\n                        \"tenant_id\": line_tenant,\n                    },\n                )\n            )",
-      "context": "Module:body/FunctionDef:_po_line_item_findings:body/For:Name(id='fk', ctx=Store()):Name(id='tenant_bearing_fks', ctx=Load()):body/If:BoolOp(op=And(), values=[Compare(left=Name(id='line_tenant', ctx=Load()), ops=[IsNot()], comparators=[Constant(value=None)]), Compare(left=Name(id='item_tenant', ctx=Load()), ops=[NotEq()], comparators=[Name(id='line_tenant', ctx=Load())])]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(link.membership.tenant_id)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "findings.append(\n                Finding(\n                    check=\"rbac_group_inconsistent\",\n                    model=\"users.GroupMembership\",\n                    pk=link.pk,\n                    summary=(\n                        f\"GroupMembership #{link.pk}: membership tenant \"\n                        f'\"{topo.name(link.membership.tenant_id)}\" differs from '\n                        f'group owner \"{topo.name(group.tenant_id)}\"'\n                    ),\n                    classification=topo.classify(\n                        group.tenant_id,\n                        link.membership.tenant_id,\n                    ),\n                    details={\"user_group_id\": group.pk, \"membership_id\": link.membership_id},\n                )\n            )",
-      "context": "Module:body/FunctionDef:_group_membership_findings:body/For:Name(id='link', ctx=Store()):Call(func=Attribute(value=Attribute(value=Name(id='group', ctx=Load()), attr='group_memberships', ctx=Load()), attr='all', ctx=Load()), args=[], keywords=[]):body/If:Compare(left=Attribute(value=Attribute(value=Name(id='link', ctx=Load()), attr='membership', ctx=Load()), attr='tenant_id', ctx=Load()), ops=[NotEq()], comparators=[Attribute(value=Name(id='group', ctx=Load()), attr='tenant_id', ctx=Load())]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(loc_tenant)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "findings.append(\n                Finding(\n                    check=\"stock_tenant_conflict\",\n                    model=label,\n                    pk=row[\"pk\"],\n                    summary=(\n                        f\"{label} #{row['pk']}: item tenant \"\n                        f'\"{topo.name(item_tenant)}\" != location tenant '\n                        f'\"{topo.name(loc_tenant)}\"'\n                    ),\n                    classification=cls,\n                    details={\n                        \"location_id\": row[\"location_id\"],\n                        \"location_tenant_id\": loc_tenant,\n                        \"item_id\": row[f\"{item_attr}_id\"],\n                        \"item_tenant_id\": item_tenant,\n                    },\n                )\n            )",
-      "context": "Module:body/FunctionDef:check_stock_tenant_conflicts:body/For:Tuple(elts=[Name(id='label', ctx=Store()), Name(id='item_attr', ctx=Store())], ctx=Store()):Name(id='STOCK_SPECS', ctx=Load()):body/For:Name(id='row', ctx=Store()):Name(id='rows', ctx=Load()):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(owner_id)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return Finding(\n        check=\"rbac_grant_inconsistent\",\n        model=\"organization.RoleGrant\",\n        pk=grant.pk,\n        summary=(\n            f\"RoleGrant #{grant.pk} (own scope): role \"\n            f'\"{grant.role.name}\" owned by \"{topo.name(role_tenant_id)}\" granted '\n            f'to a principal in \"{topo.name(owner_id)}\" without a valid '\n            f\"shared-role relationship\"\n        ),\n        classification=topo.classify(role_tenant_id, owner_id),\n        details={\n            \"role_id\": grant.role_id,\n            \"role_tenant_id\": role_tenant_id,\n            \"membership_id\": grant.membership_id,\n            \"user_group_id\": grant.user_group_id,\n            \"principal_tenant_id\": owner_id,\n            \"shared_with_managed\": grant.role.shared_with_managed,\n        },\n    )",
-      "context": "Module:body/FunctionDef:_own_scope_finding:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(role_tenant_id)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "problems.append(\n            f'managed-scope role must be owned by the granting provider, but is owned by \"{topo.name(role_tenant_id)}\"'\n        )",
-      "context": "Module:body/FunctionDef:_managed_scope_finding:body/If:Compare(left=Name(id='role_tenant_id', ctx=Load()), ops=[NotEq()], comparators=[Name(id='owner_id', ctx=Load())]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/integrity.py",
-      "code": "B907",
-      "message": "'topo.name(role_tenant_id)' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "return Finding(\n        check=\"rbac_grant_inconsistent\",\n        model=\"organization.RoleGrant\",\n        pk=grant.pk,\n        summary=(\n            f\"RoleGrant #{grant.pk} (own scope): role \"\n            f'\"{grant.role.name}\" owned by \"{topo.name(role_tenant_id)}\" granted '\n            f'to a principal in \"{topo.name(owner_id)}\" without a valid '\n            f\"shared-role relationship\"\n        ),\n        classification=topo.classify(role_tenant_id, owner_id),\n        details={\n            \"role_id\": grant.role_id,\n            \"role_tenant_id\": role_tenant_id,\n            \"membership_id\": grant.membership_id,\n            \"user_group_id\": grant.user_group_id,\n            \"principal_tenant_id\": owner_id,\n            \"shared_with_managed\": grant.role.shared_with_managed,\n        },\n    )",
-      "context": "Module:body/FunctionDef:_own_scope_finding:body",
       "count": 1
     },
     {
@@ -380,14 +276,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/management/commands/_seed/operations.py",
-      "code": "B907",
-      "message": "'lic.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "AlertLog.objects.create(\n                rule=rules[\"license_expiry\"],\n                content_type=ct_lic,\n                object_id=lic.pk,\n                subject=f\"License '{lic.name}' expires {lic.expiration_date:%Y-%m-%d}\",\n                message=f\"{lic.name} ({lic.seats} seats) is due to expire on {lic.expiration_date:%Y-%m-%d}.\",\n                severity=\"warning\",\n                status=random.choice([\"active\", \"active\", \"acknowledged\"]),\n            )",
-      "context": "Module:body/ClassDef:SeedOperationsMixin:body/FunctionDef:_seed_operations:body/For:Name(id='lic', ctx=Store()):Subscript(value=Name(id='expiring_licenses', ctx=Load()), slice=Slice(upper=Constant(value=12)), ctx=Load()):body",
-      "count": 1
-    },
-    {
       "path": "itambox/core/management/commands/_seed/organizations.py",
       "code": "C901",
       "message": "'SeedOrganizationsMixin._seed_organizations' is too complex (20)",
@@ -413,26 +301,10 @@
     },
     {
       "path": "itambox/core/management/commands/import_snipeit.py",
-      "code": "B907",
-      "message": "'token_env' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "raise CommandError(\n                f\"Environment variable '{token_env}' is empty or not set. \"\n                \"Export it before running: export SNIPEIT_TOKEN=<your-token>\"\n            )",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:body/If:UnaryOp(op=Not(), operand=Name(id='token', ctx=Load())):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/import_snipeit.py",
       "code": "C901",
       "message": "'Command.handle' is too complex (24)",
       "source": "    def handle(self, *args, **options):",
       "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/prune_changelog.py",
-      "code": "B907",
-      "message": "'tenant_slug' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "raise CommandError(f\"No tenant found with slug '{tenant_slug}'.\")",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:body/If:Name(id='tenant_slug', ctx=Load()):body/If:Compare(left=Name(id='tenant', ctx=Load()), ops=[Is()], comparators=[Constant(value=None)]):body",
       "count": 1
     },
     {
@@ -444,83 +316,11 @@
       "count": 1
     },
     {
-      "path": "itambox/core/management/commands/rotate_encryption_keys.py",
-      "code": "B907",
-      "message": "'field_name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stdout.write(f\"Inspecting {rows.count()} {model.__name__} row(s) for '{field_name}'.\")",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:_rotate_field:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/run_jobs.py",
-      "code": "B907",
-      "message": "'job.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stderr.write(self.style.ERROR(f'Job \"{job.name}\" failed: {e}'))",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:body/For:Name(id='job', ctx=Store()):Name(id='pending_jobs', ctx=Load()):body/Try:handlers/ExceptHandler:Name(id='Exception', ctx=Load()):e:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/run_jobs.py",
-      "code": "B907",
-      "message": "'job.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stdout.write(self.style.SUCCESS(f'Job \"{job.name}\" completed.'))",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:body/For:Name(id='job', ctx=Store()):Name(id='pending_jobs', ctx=Load()):body/Try:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/seed_data.py",
-      "code": "B907",
-      "message": "'username' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stdout.write(\n                    self.style.WARNING(\n                        f'  Created superuser \"{username}\" with a generated password: {password}\\n'\n                        f\"  Store it now and change it after first login.\"\n                    )\n                )",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:_seed_minimal:body/If:UnaryOp(op=Not(), operand=Call(func=Attribute(value=Call(func=Attribute(value=Attribute(value=Name(id='User', ctx=Load()), attr='objects', ctx=Load()), attr='filter', ctx=Load()), args=[], keywords=[keyword(arg='is_superuser', value=Constant(value=True))]), attr='exists', ctx=Load()), args=[], keywords=[])):body/If:Name(id='generated', ctx=Load())#2:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/seed_data.py",
-      "code": "B907",
-      "message": "'username' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stdout.write(f'  Created superuser \"{username}\" (password from DJANGO_SUPERUSER_PASSWORD).')",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:_seed_minimal:body/If:UnaryOp(op=Not(), operand=Call(func=Attribute(value=Call(func=Attribute(value=Attribute(value=Name(id='User', ctx=Load()), attr='objects', ctx=Load()), attr='filter', ctx=Load()), args=[], keywords=[keyword(arg='is_superuser', value=Constant(value=True))]), attr='exists', ctx=Load()), args=[], keywords=[])):body/If:Name(id='generated', ctx=Load())#2:orelse",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/sync_intune.py",
-      "code": "B907",
-      "message": "'tenant_slug' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "raise CommandError(\n                f\"No ITAMBOX_TENANT_INTUNE_CONFIGS entry for tenant '{tenant_slug}'. \"\n                \"Set the environment variable and restart.\"\n            )",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:body/If:Compare(left=Name(id='tenant_slug', ctx=Load()), ops=[NotIn()], comparators=[Name(id='intune_configs', ctx=Load())]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/sync_intune.py",
-      "code": "B907",
-      "message": "'tenant_slug' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stdout.write(self.style.SUCCESS(f\"Intune sync for tenant '{tenant_slug}' enqueued (Job #{job.pk}).\"))",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:body/If:Name(id='run_now', ctx=Load()):orelse",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/sync_tenant_ldap.py",
-      "code": "B907",
-      "message": "'tenant.slug' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stdout.write(\n                self.style.SUCCESS(\n                    f\"LDAP sync complete for tenant '{tenant.slug}'. Created: {created_count}, Updated: {updated_count}\"\n                )\n            )",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:_run_sync:body/Try#3:body",
-      "count": 1
-    },
-    {
       "path": "itambox/core/management/commands/sync_tenant_ldap.py",
       "code": "C901",
       "message": "'Command._run_sync' is too complex (26)",
       "source": "    def _run_sync(self, tenant):",
       "context": "Module:body/ClassDef:Command:body/FunctionDef:_run_sync:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/management/commands/validate_role_permissions.py",
-      "code": "B907",
-      "message": "'role.name' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.stdout.write(\n                    self.style.WARNING(\n                        f\"Role #{role.pk} '{role.name}' [{tenant_name}] has {len(stale)} \"\n                        f\"stale codename(s): {', '.join(stale)}\"\n                    )\n                )",
-      "context": "Module:body/ClassDef:Command:body/FunctionDef:handle:body/For:Name(id='role', ctx=Store()):Name(id='roles', ctx=Load()):body/If:Name(id='stale', ctx=Load()):body",
       "count": 1
     },
     {
@@ -689,54 +489,6 @@
       "message": "'import_csv_task' is too complex (12)",
       "source": "def import_csv_task(",
       "context": "Module:body/FunctionDef:import_csv_task:self",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tests/test_count_link_column.py",
-      "code": "B907",
-      "message": "'expected_url' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "assert f'href=\"{expected_url}\"' in html",
-      "context": "Module:body/ClassDef:TestCountLinkColumnRender:body/FunctionDef:test_links_count_to_filtered_list:body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tests/test_report_custody_compliance.py",
-      "code": "B907",
-      "message": "\"card['label']\" is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.assertFalse(\n                str(card[\"value\"]).startswith(\"$\"),\n                msg=f\"Summary card '{card['label']}' = '{card['value']}' unexpectedly starts with '$'\",\n            )",
-      "context": "Module:body/ClassDef:CustodyComplianceReportTests:body/FunctionDef:test_no_money_cell_starts_with_dollar:body/For:Name(id='card', ctx=Store()):Name(id='summary_cards', ctx=Load()):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tests/test_report_custody_compliance.py",
-      "code": "B907",
-      "message": "\"card['value']\" is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.assertFalse(\n                str(card[\"value\"]).startswith(\"$\"),\n                msg=f\"Summary card '{card['label']}' = '{card['value']}' unexpectedly starts with '$'\",\n            )",
-      "context": "Module:body/ClassDef:CustodyComplianceReportTests:body/FunctionDef:test_no_money_cell_starts_with_dollar:body/For:Name(id='card', ctx=Store()):Name(id='summary_cards', ctx=Load()):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tests/test_report_custody_compliance.py",
-      "code": "B907",
-      "message": "'key' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.assertFalse(str(val).startswith(\"$\"), msg=f\"Cell '{key}' = '{val}' unexpectedly starts with '$'\")",
-      "context": "Module:body/ClassDef:CustodyComplianceReportTests:body/FunctionDef:test_no_money_cell_starts_with_dollar:body/For:Name(id='row', ctx=Store()):Name(id='rows', ctx=Load()):body/For:Tuple(elts=[Name(id='key', ctx=Store()), Name(id='val', ctx=Store())], ctx=Store()):Call(func=Attribute(value=Name(id='row', ctx=Load()), attr='items', ctx=Load()), args=[], keywords=[]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tests/test_report_custody_compliance.py",
-      "code": "B907",
-      "message": "'val' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.assertFalse(str(val).startswith(\"$\"), msg=f\"Cell '{key}' = '{val}' unexpectedly starts with '$'\")",
-      "context": "Module:body/ClassDef:CustodyComplianceReportTests:body/FunctionDef:test_no_money_cell_starts_with_dollar:body/For:Name(id='row', ctx=Store()):Name(id='rows', ctx=Load()):body/For:Tuple(elts=[Name(id='key', ctx=Store()), Name(id='val', ctx=Store())], ctx=Store()):Call(func=Attribute(value=Name(id='row', ctx=Load()), attr='items', ctx=Load()), args=[], keywords=[]):body",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/tests/test_tables.py",
-      "code": "B907",
-      "message": "'location.get_absolute_url()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
-      "source": "self.assertIn(f'Location: <a href=\"{location.get_absolute_url()}\">{location.name}</a>', rendered_1)",
-      "context": "Module:body/ClassDef:CoreTablesTestCase:body/FunctionDef:test_assignee_column_render:body",
       "count": 1
     },
     {

@@ -171,7 +171,7 @@ class SeedOperationsMixin:
                 rule=rules["license_expiry"],
                 content_type=ct_lic,
                 object_id=lic.pk,
-                subject=f"License '{lic.name}' expires {lic.expiration_date:%Y-%m-%d}",
+                subject="License '%s' expires " % lic.name + f"{lic.expiration_date:%Y-%m-%d}",
                 message=f"{lic.name} ({lic.seats} seats) is due to expire on {lic.expiration_date:%Y-%m-%d}.",
                 severity="warning",
                 status=random.choice(["active", "active", "acknowledged"]),

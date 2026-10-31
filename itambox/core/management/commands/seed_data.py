@@ -254,12 +254,12 @@ class Command(
             if generated:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'  Created superuser "{username}" with a generated password: {password}\n'
-                        f"  Store it now and change it after first login."
+                        '  Created superuser "%s" with a generated password: %s\n' % (username, password)
+                        + "  Store it now and change it after first login."
                     )
                 )
             else:
-                self.stdout.write(f'  Created superuser "{username}" (password from DJANGO_SUPERUSER_PASSWORD).')
+                self.stdout.write('  Created superuser "%s" (password from DJANGO_SUPERUSER_PASSWORD).' % username)
         for name, slug, stype, color in self._status_label_defs():
             StatusLabel.objects.get_or_create(slug=slug, defaults={"name": name, "type": stype, "color": color})
         self.stdout.write("  Seeded default StatusLabels.")

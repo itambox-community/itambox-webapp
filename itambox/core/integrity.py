@@ -308,9 +308,8 @@ def check_stock_tenant_conflicts(topology=None):
                     model=label,
                     pk=row["pk"],
                     summary=(
-                        f"{label} #{row['pk']}: item tenant "
-                        f'"{topo.name(item_tenant)}" != location tenant '
-                        f'"{topo.name(loc_tenant)}"'
+                        '%s #%s: item tenant "%s" != location tenant "%s"'
+                        % (label, row["pk"], topo.name(item_tenant), topo.name(loc_tenant))
                     ),
                     classification=cls,
                     details={
@@ -612,9 +611,8 @@ def _po_line_item_findings(topo, row, line_tenant, tenant_bearing_fks):
                     model="procurement.PurchaseOrderLine",
                     pk=row["pk"],
                     summary=(
-                        f"procurement.PurchaseOrderLine #{row['pk']}: {fk} "
-                        f'#{item_id} belongs to "{topo.name(item_tenant)}", '
-                        f'line belongs to "{topo.name(line_tenant)}"'
+                        'procurement.PurchaseOrderLine #%s: %s #%s belongs to "%s", line belongs to "%s"'
+                        % (row["pk"], fk, item_id, topo.name(item_tenant), topo.name(line_tenant))
                     ),
                     classification=topo.classify(line_tenant, item_tenant),
                     details={
@@ -782,10 +780,9 @@ def _own_scope_finding(topo, grant):
         model="organization.RoleGrant",
         pk=grant.pk,
         summary=(
-            f"RoleGrant #{grant.pk} (own scope): role "
-            f'"{grant.role.name}" owned by "{topo.name(role_tenant_id)}" granted '
-            f'to a principal in "{topo.name(owner_id)}" without a valid '
-            f"shared-role relationship"
+            'RoleGrant #%s (own scope): role "%s" owned by "%s" granted '
+            'to a principal in "%s" without a valid shared-role relationship'
+            % (grant.pk, grant.role.name, topo.name(role_tenant_id), topo.name(owner_id))
         ),
         classification=topo.classify(role_tenant_id, owner_id),
         details={
@@ -808,7 +805,8 @@ def _managed_scope_finding(topo, grant, scope):
         problems.append("principal tenant is not a provider")
     if role_tenant_id != owner_id:
         problems.append(
-            f'managed-scope role must be owned by the granting provider, but is owned by "{topo.name(role_tenant_id)}"'
+            'managed-scope role must be owned by the granting provider, but is owned by "%s"'
+            % topo.name(role_tenant_id)
         )
     if scope.scope_type == "tenant_group" and not scope.tenant_group_id:
         problems.append("tenant_group scope without a scope group")
@@ -928,9 +926,8 @@ def _group_membership_findings(topo, group):
                     model="users.GroupMembership",
                     pk=link.pk,
                     summary=(
-                        f"GroupMembership #{link.pk}: membership tenant "
-                        f'"{topo.name(link.membership.tenant_id)}" differs from '
-                        f'group owner "{topo.name(group.tenant_id)}"'
+                        'GroupMembership #%s: membership tenant "%s" differs from group owner "%s"'
+                        % (link.pk, topo.name(link.membership.tenant_id), topo.name(group.tenant_id))
                     ),
                     classification=topo.classify(
                         group.tenant_id,
@@ -956,8 +953,8 @@ def _check_group_memberships(topo):
                     model="users.UserGroup",
                     pk=group.pk,
                     summary=(
-                        f'UserGroup #{group.pk} "{group.name}" has no owning tenant '
-                        f"(global groups are disallowed by the target design)"
+                        'UserGroup #%s "%s" has no owning tenant '
+                        "(global groups are disallowed by the target design)" % (group.pk, group.name)
                     ),
                     classification=CLASS_AMBIGUOUS,
                     details={},
