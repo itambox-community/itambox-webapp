@@ -1148,14 +1148,6 @@
       "count": 1
     },
     {
-      "path": "itambox/procurement/views.py",
-      "code": "C901",
-      "message": "'PurchaseOrderReceiveFormView.post' is too complex (21)",
-      "source": "    def post(self, request, *args, **kwargs):",
-      "context": "Module:body/ClassDef:PurchaseOrderReceiveFormView:body/FunctionDef:post:self",
-      "count": 1
-    },
-    {
       "path": "itambox/software/tests/test_api.py",
       "code": "B907",
       "message": "'self.software.updated_at.isoformat()' is manually surrounded by quotes, consider using the `!r` conversion flag.",
