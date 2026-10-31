@@ -81,6 +81,7 @@
     "itambox/core/tests/test_label_print_perms.py",
     "itambox/core/tests/test_label_renderer_html.py",
     "itambox/core/tests/test_labels.py",
+    "itambox/core/tests/test_management_commands.py",
     "itambox/core/tests/test_migration_baseline_preflight.py",
     "itambox/core/tests/test_models.py",
     "itambox/core/tests/test_narrowed_exception_handlers.py",

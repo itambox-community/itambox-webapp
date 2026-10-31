@@ -72,6 +72,61 @@ class ManagementCommandsTestCase(TransactionTestCase):
         call_command("run_jobs", stdout=self.stdout, stderr=self.stderr)
         self.assertIn("Job processing complete", self.stdout.getvalue())
 
+    def test_run_jobs_reports_job_failure(self):
+        job = Job.objects.create(name="Failing script", status=Job.STATUS_PENDING)
+        with patch(
+            "core.management.commands.run_jobs.Command._execute_job",
+            side_effect=RuntimeError("backend unavailable"),
+        ):
+            call_command("run_jobs", stdout=self.stdout, stderr=self.stderr)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, Job.STATUS_FAILED)
+        self.assertEqual(self.stderr.getvalue(), 'Job "Failing script" failed: backend unavailable\n')
+
+    def test_seed_data_reports_explicit_superuser_password_source(self):
+        env = {
+            "DJANGO_SUPERUSER_USERNAME": "seed-output-admin",
+            "DJANGO_SUPERUSER_EMAIL": "seed-output-admin@example.com",
+            "DJANGO_SUPERUSER_PASSWORD": "not-a-real-password",
+        }
+        with patch.dict("os.environ", env):
+            call_command("seed_data", production=True, skip_drop=True, stdout=self.stdout, stderr=self.stderr)
+
+        admin = User.objects.get(username=env["DJANGO_SUPERUSER_USERNAME"])
+        self.assertTrue(admin.is_superuser)
+        self.assertIn(
+            '  Created superuser "seed-output-admin" (password from DJANGO_SUPERUSER_PASSWORD).',
+            self.stdout.getvalue(),
+        )
+
+    def test_sync_intune_reports_enqueued_job(self):
+        tenant = Tenant.objects.create(name="Intune Enqueue Tenant", slug="intune-enqueue-tenant")
+        admin = User.objects.create_superuser(
+            username="intune-enqueue-admin",
+            email="intune-enqueue-admin@example.com",
+            password="not-a-real-password",
+        )
+        with (
+            override_settings(ITAMBOX_TENANT_INTUNE_CONFIGS={tenant.slug: {}}),
+            patch("core.management.commands.sync_intune.async_task") as enqueue,
+        ):
+            call_command("sync_intune", tenant=tenant.slug, stdout=self.stdout, stderr=self.stderr)
+
+        job = Job.objects.get(name=f"intune-sync:{tenant.slug}")
+        self.assertEqual(
+            self.stdout.getvalue(),
+            f"Created Job #{job.pk}: {job.name}\n"
+            "Intune sync for tenant '%s' enqueued (Job #%s).\n" % (tenant.slug, job.pk),
+        )
+        enqueue.assert_called_once_with(
+            "assets.tasks.intune_sync.sync_tenant_intune",
+            tenant_id=tenant.pk,
+            user_id=admin.pk,
+            job_id=job.pk,
+            dry_run=False,
+        )
+
     def test_every_mutating_management_command_uses_system_task_context(self):
         """Every project command is classified: mutating commands run on the
         SystemTaskCommand base, read-only commands stay plain."""
