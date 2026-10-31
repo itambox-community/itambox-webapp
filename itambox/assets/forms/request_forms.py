@@ -173,7 +173,7 @@ class AssetRequestForm(TenantScopedFormMixin, forms.ModelForm):
             "notes",
             HTML('<div class="mt-4"></div>'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">Cancel</a>'),
+            HTML('<a href="%s" class="btn btn-outline-secondary ms-2">Cancel</a>' % cancel_url),
         )
 
     def clean(self):

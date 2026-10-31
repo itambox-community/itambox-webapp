@@ -52,7 +52,8 @@ class StatusLabelForm(TenantScopedFormMixin, ColorFieldFormMixin, forms.ModelFor
                 Column(Submit("submit", _("Save"), css_class="btn btn-primary"), css_class="col"),
                 Column(
                     HTML(
-                        f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2" data-no-dirty-track="true">Cancel</a>'
+                        '<a href="%s" class="btn btn-outline-secondary ms-2" '
+                        'data-no-dirty-track="true">Cancel</a>' % cancel_url
                     ),
                     css_class="col text-end",
                 ),
