@@ -108,9 +108,7 @@ class ObjectEditView(
                 [
                     HTML('<div class="mt-4"></div>'),
                     Submit("submit", button_text, css_class="btn btn-primary"),
-                    HTML(
-                        '<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))
-                    ),
+                    HTML('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))),
                 ]
             )
             helper.layout = Layout(*layout_elements)
