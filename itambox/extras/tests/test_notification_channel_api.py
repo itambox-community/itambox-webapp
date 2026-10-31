@@ -1,9 +1,14 @@
+from types import SimpleNamespace
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from extras.models import NotificationChannel
+from extras.views import AlertRuleRunNowView, NotificationChannelTestView
 
 User = get_user_model()
 
@@ -98,3 +103,35 @@ class NotificationChannelConfigRedactionTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         self.slack.refresh_from_db()
         self.assertEqual(self.slack.config["webhook_url"], new_url)
+
+
+class NotificationActionFormattingTests(SimpleTestCase):
+    @patch("extras.views.async_task")
+    def test_alert_rule_run_now_message_preserves_name_text(self, async_task):
+        rule = SimpleNamespace(pk=42, name="Ops' primary")
+
+        result = AlertRuleRunNowView().perform_action(rule, None)
+
+        async_task.assert_called_once_with("extras.tasks.alerts.run_alert_rule_now", 42)
+        self.assertEqual(
+            result["message"],
+            "Evaluation queued for 'Ops' primary'. New alerts will appear shortly.",
+        )
+
+    @patch("extras.views.send_notification_to_channel", return_value=True)
+    def test_notification_channel_success_message_preserves_name_text(self, send_notification):
+        channel = SimpleNamespace(name="Ops' primary", get_channel_type_display=lambda: "Email")
+
+        result = NotificationChannelTestView().perform_action(channel, None)
+
+        self.assertEqual(result["message"], "Test notification sent successfully via 'Ops' primary'.")
+        send_notification.assert_called_once()
+
+    @patch("extras.views.send_notification_to_channel", return_value=False)
+    def test_notification_channel_failure_message_preserves_name_text(self, send_notification):
+        channel = SimpleNamespace(name="Ops' primary", get_channel_type_display=lambda: "Email")
+
+        with self.assertRaisesMessage(Exception, "Channel 'Ops' primary' returned a delivery failure."):
+            NotificationChannelTestView().perform_action(channel, None)
+
+        send_notification.assert_called_once()
