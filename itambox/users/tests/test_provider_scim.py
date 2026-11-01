@@ -713,7 +713,7 @@ class ProviderSCIMProvisioningTests(TestCase):
         # PATCH removes the member.
         patch_payload = {
             "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-            "Operations": [{"op": "remove", "path": f'members[value eq "{self.admin_user.id}"]'}],
+            "Operations": [{"op": "remove", "path": 'members[value eq "%s"]' % self.admin_user.id}],
         }
         response = self.client.patch(
             detail_url, data=patch_payload, content_type="application/json", **self.auth_headers

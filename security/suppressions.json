@@ -484,6 +484,26 @@
       ]
     },
     {
+      "id": "SEC-968-GITLEAKS-001",
+      "tool": "gitleaks",
+      "finding": "generic-api-key",
+      "reason": "Historical identity of the library definition identifier fixture (library_definition_key=\"t07-protected-definition\") in the hard-delete protection regression, introduced in commit cd31a997 under the module's former name; not a credential or authentication token. The module was later renamed to test_specification_provenance.py (covered by SEC-479-GITLEAKS-010 and -011) and the fixture no longer exists at HEAD, but a full-history scan still reports the old path. The scope is the exact file/rule/line identity and is independent of the introducing commit.",
+      "owner": "@itambox",
+      "scope": {
+        "path": "itambox/extras/tests/test_t07_provenance.py",
+        "rule": "generic-api-key",
+        "line": 239
+      },
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
+      "references": [
+        "https://github.com/itambox-community/itambox-webapp/issues/968",
+        "https://github.com/itambox-community/itambox-webapp/issues/966",
+        "https://github.com/itambox-community/itambox-webapp/issues/510",
+        "https://github.com/itambox-community/itambox-webapp/issues/479"
+      ]
+    },
+    {
       "id": "SEC-627-TRIVY-001",
       "tool": "trivy",
       "finding": "CVE-2026-93687",

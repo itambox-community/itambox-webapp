@@ -144,7 +144,7 @@ class SCIMStressTests(TestCase):
         ]
         for val in sqli_payloads:
             # The filter parameter is passed in query string: ?filter=userName eq "val"
-            query_url = f'{url}?filter=userName eq "{val}"'
+            query_url = '%s?filter=userName eq "%s"' % (url, val)
             response = self.client.get(query_url, **self.auth_headers)
             self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST])
             if response.status_code == status.HTTP_200_OK:
@@ -164,7 +164,7 @@ class SCIMStressTests(TestCase):
             'Admin" OR "1"="1',
         ]
         for val in sqli_payloads:
-            query_url = f'{url}?filter=displayName eq "{val}"'
+            query_url = '%s?filter=displayName eq "%s"' % (url, val)
             response = self.client.get(query_url, **self.auth_headers)
             self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST])
             if response.status_code == status.HTTP_200_OK:

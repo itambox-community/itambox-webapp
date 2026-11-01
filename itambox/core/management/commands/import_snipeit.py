@@ -103,8 +103,8 @@ class Command(SystemTaskCommand):
         token = os.environ.get(token_env, "").strip()
         if not token:
             raise CommandError(
-                f"Environment variable '{token_env}' is empty or not set. "
-                "Export it before running: export SNIPEIT_TOKEN=<your-token>"
+                "Environment variable '%s' is empty or not set. " % token_env
+                + "Export it before running: export SNIPEIT_TOKEN=<your-token>"
             )
 
         base_url = options["url"].rstrip("/")

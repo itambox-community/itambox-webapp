@@ -1,7 +1,7 @@
 from urllib.parse import quote
 
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, JsonResponse
 from django.middleware.csrf import CsrfViewMiddleware
 from django.shortcuts import redirect, resolve_url
@@ -291,13 +291,11 @@ class PrivateGraphQLView(GraphQLView):
                         set_current_user(user)
                     else:
                         return HttpResponse(_("Unauthorized"), status=401)
-                except ImproperlyConfigured:
-                    raise
                 except exceptions.AuthenticationFailed:
                     # Return a generic message; the specific failure reason must not
-                    # leak to the client (aligns with the broad-except branch below).
-                    return JsonResponse({"errors": [{"message": str(_("Authentication failed"))}]}, status=401)
-                except Exception:
+                    # leak to the client. Any other error (configuration, database,
+                    # programming) propagates as a server error instead of being
+                    # misreported to the client as a bad credential.
                     return JsonResponse({"errors": [{"message": str(_("Authentication failed"))}]}, status=401)
 
         if self._executes_query(request):

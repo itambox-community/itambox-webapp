@@ -84,57 +84,12 @@ def checkout_asset(
     with transaction.atomic():
         # Lock the asset row to prevent concurrent overallocation or state issues
         asset = Asset.objects.for_scope(Scope.current()).select_for_update().get(pk=asset.pk)
-
-        if not asset.is_issuable:
-            # Disposal owns the lifecycle independently of the visible status,
-            # including a soft-deleted, uncancelled disposal record.
-            _assert_no_active_disposal(asset)
-            raise ValidationError(
-                _("Cannot check out an asset that is %(status)s.") % {"status": asset.get_status_display()}
-            )
+        _assert_asset_issuable(asset)
 
         original_status = asset.status
-        resolved_status = status or StatusLabel.objects.filter(type=StatusTypeChoices.DEPLOYED).first()
-        if not resolved_status:
-            raise ValidationError(_("No 'Deployed' Status Label exists. Configure one first."))
-
-        # Reservation guard: while another holder's reservation window is open,
-        # the asset may only go to the reserved holder; location and asset
-        # targets are refused outright, so the guard applies to every target
-        # type (holder, location, asset).
-
-        today = datetime.date.today()
-        # unscoped: preserve the reservation row lock for this asset; only live rows block checkout.
-        blocking_qs = AssetReservation.all_objects.select_for_update().filter(
-            asset=asset,
-            deleted_at__isnull=True,
-            status__in=[
-                ReservationStatusChoices.ACTIVE,
-                ReservationStatusChoices.PENDING,
-            ],
-            start_date__lte=today,
-            end_date__gte=today,
-        )
-        if holder:
-            # The reserved holder is the only target allowed through the
-            # window; a reservation without a holder has no one to honour, so
-            # it blocks every target.
-            blocking_qs = blocking_qs.exclude(reserved_for=holder)
-        blocking = blocking_qs.first()
-        if blocking:
-            raise ValidationError(
-                _("Asset is reserved for %(holder)s until %(date)s and cannot be checked out to a different holder.")
-                % {"holder": blocking.reserved_for, "date": blocking.end_date}
-            )
-
-        update_fields = ["status", "location"]
-        if holder:
-            # A person assignment changes responsibility, not the base location.
-            update_fields = ["status"]
-        elif location:
-            asset.location = location
-        elif asset_target:
-            asset.location = asset_target.location
+        resolved_status = _resolve_checkout_status(status)
+        _assert_no_blocking_reservation(asset, holder)
+        update_fields = _apply_checkout_location(asset, holder, location, asset_target)
 
         assignment_kwargs = {
             "asset": asset,
@@ -146,12 +101,7 @@ def checkout_asset(
             "due_date": due_date,
             "maintenance": maintenance,
         }
-        if holder:
-            assignment_kwargs["assigned_user"] = holder
-        elif location:
-            assignment_kwargs["assigned_location"] = location
-        elif asset_target:
-            assignment_kwargs["assigned_asset"] = asset_target
+        assignment_kwargs.update(_assignment_target_kwargs(holder, location, asset_target))
 
         if checkout_date:
             assignment_kwargs["checked_out_at"] = _normalized_checkout_datetime(checkout_date)
@@ -165,64 +115,160 @@ def checkout_asset(
 
         category = asset.asset_type.category if asset.asset_type else None
         if holder and not _suppress_custody_receipt:
-            resolved_template = _resolve_custody_template(holder, category)
-
-            if resolved_template and resolved_template.require_acceptance:
-                receipt_kwargs = {
-                    "asset": asset,
-                    "holder": holder,
-                    "assignment": assignment,
-                    "custody_template": resolved_template,
-                    "signature_provider": resolved_template.signature_provider,
-                    "eula_text": resolved_template.eula_text,
-                    "disclaimer": resolved_template.disclaimer,
-                    "qms_reference": resolved_template.qms_reference,
-                }
-                receipt = CustodyReceipt.objects.create(**receipt_kwargs)
-
-                # Send email signature request link if configured. The
-                # provider hand-off and the outgoing mail are external side
-                # effects: they are scheduled for the OUTERMOST commit, so a
-                # checkout that later rolls back (any failing sibling in a kit)
-                # never sends. A mandatory holder address still rejects the
-                # checkout itself and stays inside the transaction.
-                if resolved_template.email_signature_request and request:
-                    try:
-                        email_config = EmailSettings.load()
-                        if email_config and email_config.enabled and email_config.from_address:
-                            recipient = holder.email
-                            if not recipient:
-                                raise ValidationError(_("The holder has no e-mail address."))
-
-                            if signature_providers.get(receipt.signature_provider or "local") is None:
-                                raise LookupError(f"unregistered signature provider {receipt.signature_provider!r}")
-                            transaction.on_commit(
-                                partial(
-                                    _run_scoped_custody_notification,
-                                    get_current_tenant(),
-                                    get_current_membership(),
-                                    asset,
-                                    receipt,
-                                    recipient,
-                                    email_config.from_address,
-                                    request,
-                                )
-                            )
-                    except ValidationError:
-                        raise
-                    # broad except: boundary-isolation: custody notification failure must not roll back assignment
-                    except Exception as exc:
-                        logger.error(
-                            "Custody notification failed for asset_id=%s receipt_id=%s tenant_id=%s actor_id=%s "
-                            "exception_type=%s",
-                            asset.pk,
-                            receipt.pk,
-                            asset.tenant_id,
-                            getattr(getattr(request, "user", None), "pk", None),
-                            type(exc).__name__,
-                        )
+            _issue_custody_receipt(asset, holder, assignment, category, request)
 
     return target
+
+
+def _assert_asset_issuable(asset: Asset) -> None:
+    """Reject a locked asset that cannot be checked out right now."""
+    if not asset.is_issuable:
+        # Disposal owns the lifecycle independently of the visible status,
+        # including a soft-deleted, uncancelled disposal record.
+        _assert_no_active_disposal(asset)
+        raise ValidationError(
+            _("Cannot check out an asset that is %(status)s.") % {"status": asset.get_status_display()}
+        )
+
+
+def _resolve_checkout_status(status: StatusLabel | None) -> StatusLabel:
+    """The status the asset takes on checkout: the explicit one, else the first deployed label."""
+    resolved_status = status or StatusLabel.objects.filter(type=StatusTypeChoices.DEPLOYED).first()
+    if not resolved_status:
+        raise ValidationError(_("No 'Deployed' Status Label exists. Configure one first."))
+    return resolved_status
+
+
+def _assert_no_blocking_reservation(asset: Asset, holder: AssetHolder | None) -> None:
+    """Refuse a checkout that an open reservation of another holder blocks.
+
+    While another holder's reservation window is open, the asset may only go to
+    the reserved holder; location and asset targets are refused outright, so
+    the guard applies to every target type (holder, location, asset). The
+    matching reservation rows are locked for the rest of the checkout.
+    """
+    today = datetime.date.today()
+    # unscoped: preserve the reservation row lock for this asset; only live rows block checkout.
+    blocking_qs = AssetReservation.all_objects.select_for_update().filter(
+        asset=asset,
+        deleted_at__isnull=True,
+        status__in=[
+            ReservationStatusChoices.ACTIVE,
+            ReservationStatusChoices.PENDING,
+        ],
+        start_date__lte=today,
+        end_date__gte=today,
+    )
+    if holder:
+        # The reserved holder is the only target allowed through the
+        # window; a reservation without a holder has no one to honour, so
+        # it blocks every target.
+        blocking_qs = blocking_qs.exclude(reserved_for=holder)
+    blocking = blocking_qs.first()
+    if blocking:
+        raise ValidationError(
+            _("Asset is reserved for %(holder)s until %(date)s and cannot be checked out to a different holder.")
+            % {"holder": blocking.reserved_for, "date": blocking.end_date}
+        )
+
+
+def _apply_checkout_location(
+    asset: Asset,
+    holder: AssetHolder | None,
+    location: Location | None,
+    asset_target: Asset | None,
+) -> list[str]:
+    """Move the asset to its checkout target's location; return the fields to save.
+
+    Exactly one of the targets is acted on, holder first; the caller has
+    already refused a checkout without any target.
+    """
+    if holder:
+        # A person assignment changes responsibility, not the base location.
+        return ["status"]
+    if location:
+        asset.location = location
+    else:
+        asset.location = asset_target.location
+    return ["status", "location"]
+
+
+def _assignment_target_kwargs(
+    holder: AssetHolder | None,
+    location: Location | None,
+    asset_target: Asset | None,
+) -> dict:
+    """The assignment's single target field, holder first, then location, then asset."""
+    if holder:
+        return {"assigned_user": holder}
+    if location:
+        return {"assigned_location": location}
+    return {"assigned_asset": asset_target}
+
+
+def _issue_custody_receipt(asset, holder, assignment, category, request) -> None:
+    """Create the custody receipt a holder checkout requires, and request its signature."""
+    resolved_template = _resolve_custody_template(holder, category)
+    if not (resolved_template and resolved_template.require_acceptance):
+        return
+
+    receipt_kwargs = {
+        "asset": asset,
+        "holder": holder,
+        "assignment": assignment,
+        "custody_template": resolved_template,
+        "signature_provider": resolved_template.signature_provider,
+        "eula_text": resolved_template.eula_text,
+        "disclaimer": resolved_template.disclaimer,
+        "qms_reference": resolved_template.qms_reference,
+    }
+    receipt = CustodyReceipt.objects.create(**receipt_kwargs)
+
+    if resolved_template.email_signature_request and request:
+        _schedule_custody_signature_request(asset, holder, receipt, request)
+
+
+def _schedule_custody_signature_request(asset, holder, receipt, request) -> None:
+    """Send the email signature request link if configured.
+
+    The provider hand-off and the outgoing mail are external side effects: they
+    are scheduled for the OUTERMOST commit, so a checkout that later rolls back
+    (any failing sibling in a kit) never sends. A mandatory holder address still
+    rejects the checkout itself and stays inside the transaction.
+    """
+    try:
+        email_config = EmailSettings.load()
+        if email_config and email_config.enabled and email_config.from_address:
+            recipient = holder.email
+            if not recipient:
+                raise ValidationError(_("The holder has no e-mail address."))
+
+            if signature_providers.get(receipt.signature_provider or "local") is None:
+                raise LookupError(f"unregistered signature provider {receipt.signature_provider!r}")
+            transaction.on_commit(
+                partial(
+                    _run_scoped_custody_notification,
+                    get_current_tenant(),
+                    get_current_membership(),
+                    asset,
+                    receipt,
+                    recipient,
+                    email_config.from_address,
+                    request,
+                )
+            )
+    except ValidationError:
+        raise
+    # broad except: boundary-isolation: custody notification failure must not roll back assignment
+    except Exception as exc:
+        logger.error(
+            "Custody notification failed for asset_id=%s receipt_id=%s tenant_id=%s actor_id=%s exception_type=%s",
+            asset.pk,
+            receipt.pk,
+            asset.tenant_id,
+            getattr(getattr(request, "user", None), "pk", None),
+            type(exc).__name__,
+        )
 
 
 def _normalized_checkout_datetime(value):
@@ -660,8 +706,7 @@ def _active_disposal_error(asset: Asset) -> ValidationError | None:
 def _assert_no_active_disposal(asset: Asset) -> None:
     """Reject an asset whose disposal lifecycle is owned by a record (#496).
 
-    Kept as a helper so ``checkout_asset`` does not grow another decision branch
-    (it is at the Flake8 C901 ceiling).
+    Kept as a helper so the checkout issuability check stays a single decision.
     """
     if _active_disposal_error(asset) is not None:
         raise ValidationError(_("Cannot check out an asset that has an active disposal record."))

@@ -2,30 +2,5 @@
   "schema_version": 2,
   "canonical_python": "3.12",
   "policy_sha256": "a1884d3bf44c2befd07ba001949baa321f6519a6fa5005585c94aeedc37f9b52",
-  "findings": [
-    {
-      "path": "itambox/core/crypto.py",
-      "scope": "FunctionDef:decrypt_string",
-      "handler_type": "Exception",
-      "classification": "log-and-raise",
-      "body_sha256": "cf0c7cd709477ea0be4518ca381e925bc05ceb2af33b0d730d2aa10caad31711",
-      "count": 1
-    },
-    {
-      "path": "itambox/core/views/graphql.py",
-      "scope": "ClassDef:PrivateGraphQLView/FunctionDef:dispatch",
-      "handler_type": "Exception",
-      "classification": "silent",
-      "body_sha256": "065f8c8c259ae69a25d5a88c412d1a2aa05fee04696a0632a999945462531f7f",
-      "count": 1
-    },
-    {
-      "path": "itambox/itambox/ratelimit.py",
-      "scope": "ClassDef:RateLimitMiddleware/FunctionDef:__call__",
-      "handler_type": "Exception",
-      "classification": "log-only",
-      "body_sha256": "3dea2e7df91c5a818341019d8cb2af6091e2d5218deb9d8781cd20ef3d91ee64",
-      "count": 1
-    }
-  ]
+  "findings": []
 }

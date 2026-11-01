@@ -108,7 +108,7 @@ class ObjectEditView(
                 [
                     HTML('<div class="mt-4"></div>'),
                     Submit("submit", button_text, css_class="btn btn-primary"),
-                    HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">{_("Cancel")}</a>'),
+                    HTML('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))),
                 ]
             )
             helper.layout = Layout(*layout_elements)
@@ -168,7 +168,7 @@ class ObjectEditView(
             self.object = form.save()
         msg_verb = _("Created") if is_creating else _("Modified")
         msg_link = (
-            f"<a href='{self.object.get_absolute_url()}'>{self.object}</a>"
+            "<a href='{}'>{}</a>".format(self.object.get_absolute_url(), self.object)
             if hasattr(self.object, "get_absolute_url")
             else str(self.object)
         )

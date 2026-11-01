@@ -50,7 +50,7 @@ class SoftwareApiTenantRepinTests(APITestCase):
 
     def test_patch_tenant_null_does_not_globalize(self):
         self._activate()
-        etag = f'W/"{self.software.updated_at.isoformat()}"'
+        etag = 'W/"%s"' % self.software.updated_at.isoformat()
         resp = self.client.patch(self.url, {"tenant_id": None}, format="json", HTTP_IF_MATCH=etag)
         self.assertEqual(resp.status_code, 200, resp.content)
 

@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
+from rest_framework import exceptions
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from core.tests.mixins import grant
@@ -77,3 +78,29 @@ class GraphQLThrottleTests(TestCase):
         deep = "{ " * 40 + "__typename" + " }" * 40
         response = self.client.get(self.url, {"query": deep})
         self.assertEqual(response.status_code, 400)
+
+
+class GraphQLTokenAuthBoundaryTests(TestCase):
+    """Only AuthenticationFailed becomes a 401; unexpected errors are not masked."""
+
+    def setUp(self):
+        self.url = reverse("graphql")
+
+    def _post(self):
+        return self.client.post(
+            self.url, data={"query": QUERY}, content_type="application/json", HTTP_AUTHORIZATION="Token abc"
+        )
+
+    def test_authentication_failed_returns_generic_401(self):
+        failure = exceptions.AuthenticationFailed("secret reason")
+        with mock.patch("core.views.graphql.TokenAuthentication.authenticate", side_effect=failure):
+            response = self._post()
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"errors": [{"message": "Authentication failed"}]})
+
+    def test_unexpected_error_is_not_reported_as_bad_credentials(self):
+        with mock.patch(
+            "core.views.graphql.TokenAuthentication.authenticate", side_effect=RuntimeError("database unavailable")
+        ):
+            with self.assertRaisesMessage(RuntimeError, "database unavailable"):
+                self._post()

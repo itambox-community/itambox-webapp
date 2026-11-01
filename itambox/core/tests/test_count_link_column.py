@@ -23,7 +23,7 @@ class TestCountLinkColumnRender:
     def test_links_count_to_filtered_list(self):
         html = str(self._col().render(5, _record(pk=7)))
         expected_url = f"{reverse('assets:asset_list')}?status=7"
-        assert f'href="{expected_url}"' in html
+        assert 'href="%s"' % expected_url in html
         assert ">5</a>" in html
 
     def test_zero_value_renders_plain_no_link(self):

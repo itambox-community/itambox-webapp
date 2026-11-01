@@ -71,7 +71,7 @@ class Command(SystemTaskCommand):
         # _base_manager: unscoped (every tenant) and INCLUDES soft-deleted rows, independent
         # of the (absent) request tenant/user context this management command runs in.
         rows = model._base_manager.all()
-        self.stdout.write(f"Inspecting {rows.count()} {model.__name__} row(s) for '{field_name}'.")
+        self.stdout.write("Inspecting %s %s row(s) for '%s'." % (rows.count(), model.__name__, field_name))
 
         rotated = skipped = errors = 0
         for obj in rows:

@@ -117,8 +117,9 @@ class AuditSessionForm(TenantScopedFormMixin, forms.ModelForm):
             HTML('<div class="mt-4"></div>'),
             Submit("submit", button_text, css_class="btn btn-primary"),
             HTML(
-                f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2"'
-                f' data-no-dirty-track="true">{_("Cancel")}</a>'
+                '<a href="{}" class="btn btn-outline-secondary ms-2" data-no-dirty-track="true">{}</a>'.format(
+                    cancel_url, _("Cancel")
+                )
             ),
         )
 

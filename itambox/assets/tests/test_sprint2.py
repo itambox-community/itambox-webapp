@@ -80,7 +80,7 @@ class AssetCurrencyFieldTests(TenantTestMixin, TestCase):
                 asset.full_clean()
             except ValidationError as exc:
                 if "currency" in exc.message_dict:
-                    self.fail(f"full_clean rejected valid currency code '{code}': {exc}")
+                    self.fail("full_clean rejected valid currency code '%s': %s" % (code, exc))
 
 
 # ---------------------------------------------------------------------------

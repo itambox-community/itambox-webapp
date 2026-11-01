@@ -45,7 +45,7 @@ from itambox.views.generic import (
 from itambox.views.generic.service_views import GenericTransactionView
 from licenses.models import LicenseSeatAssignment
 from licenses.tables import LicenseSeatAssignmentTable
-from organization.models import AssetHolder
+from organization.models import AssetHolder, ContactAssignment
 from software.models import InstalledSoftware
 from software.tables import InstalledSoftwareTable
 
@@ -69,7 +69,6 @@ class AssetListView(ObjectListView):
         "supplier",
     ).prefetch_related(
         "tags",
-        "maintenances",
         Prefetch(
             "assignments",
             queryset=AssetAssignment.objects.filter(is_active=True).select_related(
@@ -85,19 +84,42 @@ class AssetListView(ObjectListView):
     action_buttons = ("add",)
 
 
+def _support_contact(asset):
+    """``Manufacturer.get_support_contact`` resolved from the prefetched contacts.
+
+    Same precedence and ordering as the model property (support role, then a
+    primary contact, then any contact), without three queries per render.
+    """
+    manufacturer = asset.asset_type.manufacturer if asset.asset_type else None
+    if manufacturer is None:
+        return None
+    assignments = list(manufacturer.contacts.all())
+    assignment = (
+        next((a for a in assignments if a.role.slug in ("support", "technical-support")), None)
+        or next((a for a in assignments if a.priority == "primary"), None)
+        or next(iter(assignments), None)
+    )
+    return assignment.contact if assignment else None
+
+
 class AssetDetailView(ObjectDetailView):
     queryset = Asset.objects.select_related(
         "asset_role",
         "location",
         "asset_type",
         "asset_type__manufacturer",
+        "status",
+        "tenant",
+        "supplier",
+        "cost_center",
+        "purchase_order_line__purchase_order",
     ).prefetch_related(
         "tags",
         "maintenances",
         Prefetch(
             "assignments",
             queryset=AssetAssignment.objects.filter(is_active=True).select_related(
-                "assigned_user", "assigned_location", "assigned_asset"
+                "assigned_user", "assigned_location", "assigned_asset", "checked_out_by"
             ),
             to_attr="prefetched_active_assignments",
         ),
@@ -109,6 +131,10 @@ class AssetDetailView(ObjectDetailView):
         ),
         "component_allocations__component",
         "component_allocations__component__manufacturer",
+        Prefetch(
+            "asset_type__manufacturer__contacts",
+            queryset=ContactAssignment.objects.select_related("contact", "role"),
+        ),
     )
     related_object_exclusions = ("compliance.custodyreceipt",)
 
@@ -160,7 +186,7 @@ class AssetDetailView(ObjectDetailView):
         sw_qs = (
             InstalledSoftware.objects.for_scope(Scope.current())
             .filter(asset=asset)
-            .select_related("software", "software__manufacturer")
+            .select_related("asset", "software", "software__manufacturer")
         )
         sw_table = InstalledSoftwareTable(sw_qs)
         RequestConfig(self.request, paginate={"per_page": 10}).configure(sw_table)
@@ -239,10 +265,33 @@ class AssetDetailView(ObjectDetailView):
             LicenseSeatAssignment.objects.for_scope(Scope.current())
             .filter(asset=asset)
             .select_related("license", "asset", "assigned_holder")
+            .prefetch_related(
+                Prefetch(
+                    "asset__assignments",
+                    queryset=AssetAssignment.objects.filter(is_active=True).select_related(
+                        "assigned_user", "assigned_location", "assigned_asset"
+                    ),
+                    to_attr="prefetched_active_assignments",
+                )
+            )
         )
         license_seats_table = LicenseSeatAssignmentTable(license_qs, request=self.request)
         RequestConfig(self.request, paginate={"per_page": 10}).configure(license_seats_table)
         context["license_seats_table"] = license_seats_table
+
+        context["is_modular"] = bool(asset.component_allocations.all()) or bool(
+            asset.asset_role and asset.asset_role.allows_components
+        )
+        context["current_warranty_end"] = asset.current_warranty_end
+        context["support_contact"] = _support_contact(asset)
+        # Badge counts reuse the tab tables' paginator counts, so each badge matches
+        # the rows its tab shows and costs no extra COUNT query.
+        context["tab_counts"] = {
+            "software": sw_table.paginator.count,
+            "requests": requests_table.paginator.count,
+            "audits": audits_table.paginator.count,
+            "licenses": license_seats_table.paginator.count,
+        }
 
         context["eol_date"] = asset.eol_date
         context["eol_expired"] = asset.eol_date is not None and timezone.localdate() >= asset.eol_date
@@ -274,7 +323,7 @@ class AssetDetailView(ObjectDetailView):
         context["related_objects_list"] = [
             item for item in context.get("related_objects_list", []) if not item["url"].startswith(receipt_list_url)
         ]
-        receipt_count = receipt_qs.count()
+        receipt_count = context["receipts_table"].paginator.count if can_view_receipts else 0
         if receipt_count:
             context["related_objects_list"].append(
                 {
@@ -309,6 +358,8 @@ class AssetDetailView(ObjectDetailView):
         reservations_table = tables.AssetReservationTable(reservation_qs, request=self.request)
         RequestConfig(self.request, paginate={"per_page": 10}).configure(reservations_table)
         context["reservations_table"] = reservations_table
+        context["tab_counts"]["warranties"] = warranties_table.paginator.count
+        context["tab_counts"]["reservations"] = reservations_table.paginator.count
 
         # Local-import debt: hoisting this lands in the second import block below
         # `logger = ...`, which is pre-existing E402 debt. Hoist it with that cleanup.
@@ -327,7 +378,11 @@ class AssetDetailView(ObjectDetailView):
             .order_by("-disposal_date", "-pk")
         )
         context["disposal_history"] = disposal_history
-        context["disposal_obj"] = next((disposal for disposal in disposal_history if disposal.is_active), None)
+        disposal_obj = next((disposal for disposal in disposal_history if disposal.is_active), None)
+        context["disposal_obj"] = disposal_obj
+        # Same rows ``Asset.active_disposal`` reads (all_objects, uncancelled); the
+        # documented prefetch hook spares the panels a query per access.
+        asset.prefetched_active_disposals = [disposal_obj] if disposal_obj is not None else []
 
         # The repair timeline groups the records that belong to a repair
         # maintenance and falls back to chronological order otherwise.

@@ -30,12 +30,12 @@ class Command(SystemTaskCommand):
                 self._execute_job(job)
                 job.mark_completed({"status": "success"})
                 processed += 1
-                self.stdout.write(self.style.SUCCESS(f'Job "{job.name}" completed.'))
+                self.stdout.write(self.style.SUCCESS('Job "%s" completed.' % job.name))
             # broad except: task-isolation: one failing job is recorded as failed and must not stop the queue
             except Exception as e:
                 job.mark_failed(str(e))
                 failed += 1
-                self.stderr.write(self.style.ERROR(f'Job "{job.name}" failed: {e}'))
+                self.stderr.write(self.style.ERROR('Job "%s" failed: ' % job.name + f"{e}"))
 
         self.stdout.write(self.style.SUCCESS(f"Job processing complete: {processed} succeeded, {failed} failed."))
 

@@ -4,7 +4,7 @@ import hmac
 import logging
 import os
 
-from cryptography.fernet import Fernet, MultiFernet
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from django.conf import settings
@@ -130,6 +130,6 @@ def decrypt_string(cipher_text: str) -> str:
         encrypted_part = cipher_text[4:]
         decrypted_bytes = fernet.decrypt(encrypted_part.encode("ascii"))
         return decrypted_bytes.decode("utf-8")
-    except Exception as e:
+    except (InvalidToken, UnicodeError) as e:
         logger.error(f"Failed to decrypt string: {e}", exc_info=True)
         raise ValueError(f"Decryption failed: {str(e)}") from e

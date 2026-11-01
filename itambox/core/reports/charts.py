@@ -81,16 +81,16 @@ def generate_doughnut_chart(data, title=""):
         stroke_dashoffset = f"{-accumulated_percent * circumference:.2f}"
 
         svg_parts.append(
-            f'<circle cx="110" cy="120" r="{r}" fill="transparent" '
-            f'stroke="{color}" stroke-width="16" '
-            f'stroke-dasharray="{stroke_dasharray}" stroke-dashoffset="{stroke_dashoffset}" />'
+            '<circle cx="110" cy="120" r="{}" fill="transparent" '
+            'stroke="{}" stroke-width="16" '
+            'stroke-dasharray="{}" stroke-dashoffset="{}" />'.format(r, color, stroke_dasharray, stroke_dashoffset)
         )
         accumulated_percent += pct
 
     svg_parts.append("</g>")
 
     # Doughnut Center Cutout and Text (Total count)
-    svg_parts.append(f'<circle cx="110" cy="120" r="{r - 8}" fill="#ffffff" />')
+    svg_parts.append('<circle cx="110" cy="120" r="{}" fill="#ffffff" />'.format(r - 8))
     svg_parts.append(
         f'<text x="110" y="118" text-anchor="middle" font-size="18" font-weight="800" fill="#0f172a">{total:,}</text>'
     )
@@ -117,18 +117,24 @@ def generate_doughnut_chart(data, title=""):
         pct_str = f"{(item['value'] / total) * 100:.1f}%"
 
         # Color indicator circle
-        svg_parts.append(f'<circle cx="235" cy="{y_pos - 4}" r="5" fill="{color}" />')
+        svg_parts.append('<circle cx="235" cy="{}" r="5" fill="{}" />'.format(y_pos - 4, color))
         # Label text — escape user-controlled category/status/provider names
         svg_parts.append(
-            f'<text x="250" y="{y_pos}" font-size="11" font-weight="500" fill="#334155">{escape(item["label"])}</text>'
+            '<text x="250" y="{}" font-size="11" font-weight="500" fill="#334155">{}</text>'.format(
+                y_pos, escape(item["label"])
+            )
         )
         # Value text (right-aligned at x=390) — numeric, safe as-is
         svg_parts.append(
-            f'<text x="390" y="{y_pos}" font-size="11" font-weight="700" fill="#0f172a" text-anchor="end">{item["value"]:,}</text>'
+            '<text x="390" y="{}" font-size="11" font-weight="700" fill="#0f172a" text-anchor="end">{:,}</text>'.format(
+                y_pos, item["value"]
+            )
         )
         # Percentage text (right-aligned at x=450) — computed float string, safe as-is
         svg_parts.append(
-            f'<text x="450" y="{y_pos}" font-size="10" font-weight="600" fill="#64748b" text-anchor="end">{pct_str}</text>'
+            '<text x="450" y="{}" font-size="10" font-weight="600" fill="#64748b" text-anchor="end">{}</text>'.format(
+                y_pos, pct_str
+            )
         )
 
     svg_parts.append("</svg>")
@@ -197,10 +203,14 @@ def generate_bar_chart(data, title=""):
         )
 
         # Bar background
-        svg_parts.append(f'<rect x="140" y="{y_pos}" width="{max_bar_width}" height="16" rx="4" fill="#f1f5f9" />')
+        svg_parts.append(
+            '<rect x="140" y="{}" width="{}" height="16" rx="4" fill="#f1f5f9" />'.format(y_pos, max_bar_width)
+        )
 
         # Actual colored bar
-        svg_parts.append(f'<rect x="140" y="{y_pos}" width="{bar_width}" height="16" rx="4" fill="{color}" />')
+        svg_parts.append(
+            '<rect x="140" y="{}" width="{}" height="16" rx="4" fill="{}" />'.format(y_pos, bar_width, color)
+        )
 
         # Value label (right of bar). Prefer a caller-supplied per-currency display
         # string (the compiler formats money via the money templatetag); fall back to

@@ -240,7 +240,7 @@ class TenantOIDCSettingsMixin:
     def __getattr__(self, name):
         if name.startswith("OIDC_"):
             return self.get_settings(name)
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+        raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__, name))
 
 
 class TenantOIDCBackend(TenantOIDCSettingsMixin, OIDCAuthenticationBackend):
