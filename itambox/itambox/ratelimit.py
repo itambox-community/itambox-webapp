@@ -97,6 +97,7 @@ class RateLimitMiddleware:
                     return HttpResponse(
                         _("Too many requests. Please try again in a minute."), status=429, content_type="text/plain"
                     )
+            # broad except: availability-tradeoff: cache outage fails open, logged, rather than blocking all logins
             except Exception:
                 logger.exception(
                     "RateLimitMiddleware: cache backend error on %s; "

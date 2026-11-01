@@ -13,6 +13,7 @@ from core.html_styles import status_color_class
 from core.tables import ActionsColumn, BaseTable, CountLinkColumn, ToggleColumn
 from core.tables.constants import TABLE_EMPTY_VALUE
 from extras.tables import TagColumn
+from itambox.utils import get_status_color
 
 from .models import (
     AssetHolder,
@@ -104,8 +105,6 @@ class SiteTable(BaseTable):
 
     def render_status(self, value, record):
         if record and record.status:
-            from itambox.utils import get_status_color
-
             color = get_status_color(record.status)
             display = record.get_status_display()
             color_class, style_block = status_color_class(color)
@@ -134,8 +133,6 @@ class LocationTable(BaseTable):
 
     def render_status(self, value, record):
         if record and record.status:
-            from itambox.utils import get_status_color
-
             color = get_status_color(record.status)
             display = record.get_status_display()
             color_class, style_block = status_color_class(color)

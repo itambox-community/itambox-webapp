@@ -3,11 +3,14 @@
 import datetime
 from decimal import Decimal
 
+from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Exists, OuterRef
+from django.db.models.functions import Cast, Upper
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -261,8 +264,6 @@ class Asset(CustomFieldDataMixin, BookmarkableMixin, SubscribableMixin, Deletabl
     @property
     def eol_date(self):
         if self.purchase_date and self.asset_type and self.asset_type.eol_months:
-            from dateutil.relativedelta import relativedelta
-
             # relativedelta clamps month-end overflow (Jan 31 + 1 month = Feb 28/29).
             return self.purchase_date + relativedelta(months=self.asset_type.eol_months)
         return None
@@ -271,8 +272,6 @@ class Asset(CustomFieldDataMixin, BookmarkableMixin, SubscribableMixin, Deletabl
     def time_to_eol(self):
         eol = self.eol_date
         if eol:
-            from dateutil.relativedelta import relativedelta
-
             today = datetime.date.today()
             if today >= eol:
                 return str(_("Expired"))
@@ -403,6 +402,22 @@ class Asset(CustomFieldDataMixin, BookmarkableMixin, SubscribableMixin, Deletabl
                 condition=models.Q(deleted_at__isnull=True) & ~models.Q(serial_number=""),
                 name="uniq_active_tenant_serial",
             ),
+        ]
+        # Global search filters with ``<field>__icontains``, which PostgreSQL runs as
+        # ``UPPER(col::text) LIKE UPPER(%s)``. Trigram GIN indexes on exactly that
+        # expression turn the leading-wildcard scan into a bitmap index scan (#882).
+        indexes = [
+            GinIndex(
+                OpClass(Upper(Cast("name", models.TextField())), name="gin_trgm_ops"), name="asset_name_upper_trgm"
+            ),
+            GinIndex(
+                OpClass(Upper(Cast("asset_tag", models.TextField())), name="gin_trgm_ops"), name="asset_tag_upper_trgm"
+            ),
+            GinIndex(
+                OpClass(Upper(Cast("serial_number", models.TextField())), name="gin_trgm_ops"),
+                name="asset_serial_upper_trgm",
+            ),
+            GinIndex(OpClass(Upper("notes"), name="gin_trgm_ops"), name="asset_notes_upper_trgm"),
         ]
 
     def __str__(self):

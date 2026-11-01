@@ -97,12 +97,7 @@ class ObjectRestoreView(HtmxActionMixin, PermissionRequiredMixin, LoginRequiredM
             object=self.object,
         )
 
-        try:
-            list_url = reverse(get_model_viewname(self.model, "list")) + "?deleted=true"
-        except Exception:
-            list_url = "/"
-
-        return self._htmx_or_redirect(request, success_msg, list_url)
+        return self._htmx_or_redirect(request, success_msg, _recycle_bin_list_url(self.model))
 
 
 class ObjectPurgeView(HtmxActionMixin, PermissionRequiredMixin, LoginRequiredMixin, View):
@@ -139,12 +134,7 @@ class ObjectPurgeView(HtmxActionMixin, PermissionRequiredMixin, LoginRequiredMix
             object=obj_repr,
         )
 
-        try:
-            list_url = reverse(get_model_viewname(self.model, "list")) + "?deleted=true"
-        except Exception:
-            list_url = "/"
-
-        return self._htmx_or_redirect(request, success_msg, list_url)
+        return self._htmx_or_redirect(request, success_msg, _recycle_bin_list_url(self.model))
 
 
 class ObjectBulkRestoreView(HtmxActionMixin, PermissionRequiredMixin, LoginRequiredMixin, View):
@@ -248,12 +238,7 @@ class ObjectBulkRestoreView(HtmxActionMixin, PermissionRequiredMixin, LoginRequi
             model_plural=self.model._meta.verbose_name_plural,
         )
 
-        try:
-            list_url = reverse(get_model_viewname(self.model, "list")) + "?deleted=true"
-        except Exception:
-            list_url = "/"
-
-        return self._htmx_or_redirect(request, success_msg, list_url)
+        return self._htmx_or_redirect(request, success_msg, _recycle_bin_list_url(self.model))
 
 
 class ObjectBulkPurgeView(HtmxActionMixin, PermissionRequiredMixin, LoginRequiredMixin, View):
@@ -313,9 +298,4 @@ class ObjectBulkPurgeView(HtmxActionMixin, PermissionRequiredMixin, LoginRequire
             model_plural=self.model._meta.verbose_name_plural,
         )
 
-        try:
-            list_url = reverse(get_model_viewname(self.model, "list")) + "?deleted=true"
-        except Exception:
-            list_url = "/"
-
-        return self._htmx_or_redirect(request, success_msg, list_url)
+        return self._htmx_or_redirect(request, success_msg, _recycle_bin_list_url(self.model))

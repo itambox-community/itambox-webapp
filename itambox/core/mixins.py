@@ -1,8 +1,9 @@
 from contextlib import contextmanager
 
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import models
+from django.db import models, transaction
 from django.db.models.deletion import Collector
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from core.choices import ObjectChangeActionChoices
@@ -209,7 +210,6 @@ class SoftDeleteMixin(models.Model):
         abstract = True
 
     def soft_delete(self):
-        from django.utils import timezone
 
         self.deleted_at = timezone.now()
         self.save(update_fields=["deleted_at"])
@@ -233,8 +233,6 @@ class SoftDeleteMixin(models.Model):
         if force_hard:
             super().delete(*args, **kwargs)
         else:
-            from django.db import transaction
-
             using = self._state.db or "default"
             with transaction.atomic(using=using):
                 if hasattr(self, "snapshot") and callable(self.snapshot):

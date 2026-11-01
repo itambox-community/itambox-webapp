@@ -8,6 +8,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import Http404, HttpResponse, HttpResponseServerError, JsonResponse
@@ -19,14 +20,18 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.views.generic import View
+from django_tables2 import RequestConfig
 
+from assets.models import Asset
 from core.context import get_current_request_id
 from core.managers import Scope
 from core.reports.exporters import PDF_MIME, report_pdf_bytes
 from itambox.ratelimit import get_client_ip
+from itambox.utils import get_paginate_count
 from itambox.views.generic import ObjectCloneView, ObjectDeleteView, ObjectDetailView, ObjectEditView, ObjectListView
 from itambox.views.generic.htmx_responses import error_response, is_htmx_request, success_response
 from itambox.views.generic.service_views import SimplePostView
+from organization.models import AssetHolder
 from organization.services.identity_provisioning import login_may_act_as_holder
 
 from .filters import CustodyReceiptFilterSet, SignatureProviderConfigFilterSet
@@ -521,8 +526,6 @@ def custody_eula_sign(request, token):
 
     require_signin = settings.REQUIRE_CUSTODY_SIGNIN
     if require_signin and not request.user.is_authenticated:
-        from django.contrib.auth.views import redirect_to_login
-
         return redirect_to_login(request.get_full_path())
 
     pre_sign_response = _pre_sign_response(request, receipt, holder)
@@ -648,12 +651,6 @@ class CustodyTemplateDetailView(ObjectDetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         template = self.get_object()
-
-        from django_tables2 import RequestConfig
-
-        from itambox.utils import get_paginate_count
-
-        from .tables import CustodyReceiptTable
 
         can_view_receipts = self.request.user.has_perm(VIEW_CUSTODY_RECEIPT_PERMISSION)
         context["can_view_custody_receipts"] = can_view_receipts
@@ -1000,9 +997,6 @@ class CustodyTemplateDeleteView(ObjectDeleteView):
 @permission_required("compliance.view_custodytemplate", raise_exception=True)
 def custody_template_preview(request, pk):
     template = get_object_or_404(CustodyTemplate.objects.for_scope(Scope.current()), pk=pk)
-
-    from assets.models import Asset
-    from organization.models import AssetHolder
 
     asset = Asset.objects.for_scope(Scope.current()).first()
     if not asset:

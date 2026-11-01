@@ -28,8 +28,12 @@ from assets.choices import StatusTypeChoices
 from assets.models.choices import WarrantyTypeChoices
 from assets.services import checkout_asset
 from core.errors import IntegrationContext
+from core.importers.snipeit import SnipeITClient, SnipeITError, SnipeITImporter
+from core.models import Job
+from core.tasks.context import TaskContext
 from core.tasks.management import SystemTaskCommand
 from inventory.services import checkout_inventory_item, create_component_allocation
+from organization.models import Tenant
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -93,17 +97,14 @@ class Command(SystemTaskCommand):
         )
 
     def handle(self, *args, **options):
-        from core.importers.snipeit import SnipeITClient, SnipeITError, SnipeITImporter
-        from core.models import Job
-        from organization.models import Tenant
 
         # Resolve API token from environment
         token_env = options["token_env"]
         token = os.environ.get(token_env, "").strip()
         if not token:
             raise CommandError(
-                f"Environment variable '{token_env}' is empty or not set. "
-                "Export it before running: export SNIPEIT_TOKEN=<your-token>"
+                "Environment variable '%s' is empty or not set. " % token_env
+                + "Export it before running: export SNIPEIT_TOKEN=<your-token>"
             )
 
         base_url = options["url"].rstrip("/")
@@ -195,8 +196,6 @@ class Command(SystemTaskCommand):
             if job:
                 job.mark_failed(msg)
             raise CommandError(msg) from None
-
-        from core.tasks.context import TaskContext
 
         with TaskContext(
             tenant_id=tenant.pk if tenant else None,

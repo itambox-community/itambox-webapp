@@ -1,4 +1,6 @@
 import django_tables2 as tables
+from django.urls import reverse
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django_tables2.utils import A
 
@@ -52,8 +54,6 @@ class CustodyReceiptTable(BaseTable):
         default_columns = ("pk", "asset", "holder", "custody_template", "acceptance_status", "signed_at", "actions")
 
     def render_actions(self, record):
-        from django.urls import reverse
-        from django.utils.html import format_html
 
         url = reverse("compliance:custodyreceipt_detail", kwargs={"pk": record.pk})
         return format_html(
@@ -71,7 +71,6 @@ class CustodyReceiptTable(BaseTable):
             "superseded": "bg-secondary text-secondary-invert",
         }
         badge_class = badges.get(value, "bg-secondary")
-        from django.utils.html import format_html
 
         return format_html('<span class="badge {}">{}</span>', badge_class, value.title())
 

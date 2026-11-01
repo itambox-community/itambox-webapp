@@ -352,12 +352,12 @@ class PluginInventoryTests(SimpleTestCase):
 class PluginHealthTests(SimpleTestCase):
     def test_health_exposes_plugin_state_without_failing(self):
         database = mock.MagicMock()
-        with mock.patch("django.db.connection", database):
+        with mock.patch("itambox.views.utility.connection", database):
             response = self.client.get(reverse("health"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["checks"]["plugins"], "ok")
 
-        with mock.patch("django.db.connection", database), override_settings(PLUGINS_DISABLED=["old"]):
+        with mock.patch("itambox.views.utility.connection", database), override_settings(PLUGINS_DISABLED=["old"]):
             response = self.client.get(reverse("health"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["checks"]["plugins"], "skipped")

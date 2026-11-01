@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 import requests
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.mail import BadHeaderError, EmailMessage, get_connection
 from django.utils.translation import gettext_lazy as _
 
@@ -106,7 +107,6 @@ def _post_pinned(webhook_url, payload):
     so a DNS-rebinding answer between check and use cannot re-route the request.
     Returns the response, or None when the URL is blocked.
     """
-    from django.core.exceptions import ValidationError
 
     # inline import: heavy-import: keep event-dispatch import-light; core.http pulls requests.
     from core.http import request_pinned

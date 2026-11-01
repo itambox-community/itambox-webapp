@@ -2,6 +2,8 @@ import logging
 import uuid
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import FieldError as DjangoFieldError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch, Q
 from drf_spectacular.utils import extend_schema_view
@@ -103,8 +105,6 @@ class SCIMTenantMixin:
     permission_classes = [IsAuthenticated]
 
     def handle_exception(self, exc):
-        from django.core.exceptions import FieldError as DjangoFieldError
-        from django.core.exceptions import ValidationError as DjangoValidationError
 
         # Both SCIM mounts answer client errors with the SCIM error envelope: capture
         # the shared parser's scimType/status before converting to a DRF exception.

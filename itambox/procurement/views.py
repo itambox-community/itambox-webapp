@@ -1,27 +1,34 @@
 import json
-from decimal import Decimal
+import logging
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from django.forms import formset_factory
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 
+from assets.models import Asset, AssetRequest, AssetTagSequence
 from core.managers import Scope
 from itambox.views.generic import ObjectDeleteView, ObjectDetailView, ObjectEditView, ObjectListView
 from itambox.views.generic.service_views import SimplePostView
+from procurement.models import FulfillmentLink
 
 from .filters import ContractFilterSet, PurchaseOrderFilterSet
 from .forms import (
+    AssetProvisionForm,
+    BaseAssetProvisionFormSet,
     ContractFilterForm,
     ContractForm,
     PurchaseOrderFilterForm,
     PurchaseOrderForm,
     PurchaseOrderLineForm,
+    ReceiveLineFormSet,
 )
 from .models import Contract, PurchaseOrder, PurchaseOrderLine
 from .services import (
@@ -33,6 +40,8 @@ from .services import (
     reopen_purchase_order,
 )
 from .tables import ContractTable, PurchaseOrderTable
+
+logger = logging.getLogger(__name__)
 
 
 class PurchaseOrderListView(ObjectListView):
@@ -63,7 +72,6 @@ class PurchaseOrderDetailView(ObjectDetailView):
         context["total_value"] = total_value
 
         # Fetch linked fulfillment links
-        from procurement.models import FulfillmentLink
 
         context["fulfillment_links"] = (
             FulfillmentLink.objects.for_scope(Scope.current())
@@ -86,17 +94,14 @@ class PurchaseOrderEditView(ObjectEditView):
                 from_request_id = int(self.request.GET.get("from_request"))
             except (TypeError, ValueError) as exc:
                 raise Http404(_("Invalid Asset Request identifier.")) from exc
-            from assets.models import AssetRequest
 
-            try:
-                asset_request = AssetRequest.objects.for_scope(Scope.current()).get(pk=from_request_id)
+            asset_request = AssetRequest.objects.for_scope(Scope.current()).filter(pk=from_request_id).first()
+            if asset_request is not None:
                 if not self.request.user.has_perm("assets.fulfill_assetrequest", asset_request):
                     raise PermissionDenied(_("You do not have permission to fulfill this Asset Request."))
                 loc = asset_request.assigned_location or asset_request.source_location
                 if loc:
                     initial["destination_location"] = loc.pk
-            except AssetRequest.DoesNotExist:
-                pass
         return initial
 
     def add_success_message(self, message):
@@ -223,6 +228,24 @@ class PurchaseOrderLineDeleteView(ObjectDeleteView):
         return super().post(request, *args, **kwargs)
 
 
+def _parse_line_values(data):
+    """Return ``(qty_ordered, unit_price)`` from a line edit submission, or ``None`` when invalid.
+
+    A blank price means "no price". Decimal accepts NaN and Infinity, which no price can be.
+    """
+    try:
+        qty_ordered = int(data.get("qty_ordered", 1))
+        raw_price = (data.get("unit_price") or "").strip()
+        unit_price = Decimal(raw_price) if raw_price else None
+    except (ValueError, InvalidOperation):
+        return None
+    if qty_ordered < 1:
+        return None
+    if unit_price is not None and (not unit_price.is_finite() or unit_price < 0):
+        return None
+    return qty_ordered, unit_price
+
+
 class PurchaseOrderLineEditView(PermissionRequiredMixin, View):
     permission_required = "procurement.change_purchaseorder"
 
@@ -250,24 +273,13 @@ class PurchaseOrderLineEditView(PermissionRequiredMixin, View):
             }
             return render(request, "procurement/includes/purchaseorder_lines_container.html", context)
 
-        try:
-            qty_ordered = int(request.POST.get("qty_ordered", 1))
-            if qty_ordered < 1:
-                raise ValueError("Quantity must be at least 1.")
-
-            unit_price_raw = request.POST.get("unit_price")
-            unit_price = None
-            if unit_price_raw and unit_price_raw.strip():
-                unit_price = Decimal(unit_price_raw)
-                if unit_price < 0:
-                    raise ValueError("Price cannot be negative.")
-
-            line.qty_ordered = qty_ordered
-            line.unit_price = unit_price
+        values = _parse_line_values(request.POST)
+        if values is None:
+            messages.error(request, _("Enter a whole quantity of at least 1 and a unit price that is not negative."))
+        else:
+            line.qty_ordered, line.unit_price = values
             line.save()
             messages.success(request, _("Line item updated successfully."))
-        except Exception as e:
-            messages.error(request, _("Failed to update line item: %(error)s") % {"error": e})
 
         context = {
             "object": po,
@@ -360,8 +372,6 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
                 initial_data.append({"line_id": line.pk, "qty_to_receive": line.qty_outstanding})
                 outstanding_lines.append(line)
 
-        from .forms import ReceiveLineFormSet
-
         formset = ReceiveLineFormSet(initial=initial_data)
 
         context["formset"] = formset
@@ -372,148 +382,155 @@ class PurchaseOrderReceiveFormView(ObjectDetailView):
     def post(self, request, *args, **kwargs):
         po = self.get_object()
         self.object = po
-        step = request.POST.get("step", "1")
-        from django.forms import formset_factory
+        if request.POST.get("step", "1") == "2":
+            return self._post_provisioning_step(request, po)
+        return self._post_quantities_step(request, po)
 
-        from .forms import AssetProvisionForm, BaseAssetProvisionFormSet, ReceiveLineFormSet
+    @staticmethod
+    def _line_or_none(po, form):
+        """The order line a submitted form row points at, or None when the row names no valid line."""
+        try:
+            line_id = form["line_id"].value()
+            if line_id:
+                return po.lines.get(pk=int(line_id))
+            return None
+        except (ValueError, PurchaseOrderLine.DoesNotExist):
+            return None
 
-        if step == "2":
-            # Submitting Step 2 (Asset Provisioning)
-            line_quantities = request.session.get("receive_po_quantities", {})
-            line_quantities = {int(k): int(v) for k, v in line_quantities.items()}
-            # The snapshot travels with this form submission; the service refuses the
-            # submission if any line moved on since it was prepared (replay protection).
-            expected_received = self._parse_expected_received(request)
+    @staticmethod
+    def _provision_formset_class(extra):
+        return formset_factory(AssetProvisionForm, formset=BaseAssetProvisionFormSet, extra=extra)
 
-            # Count the total number of physical assets being received to initialize the formset correctly
-            total_assets = 0
-            for lid, qty in line_quantities.items():
+    @staticmethod
+    def _snapshot_json(expected_received):
+        return json.dumps({str(pk): qty for pk, qty in expected_received.items()})
+
+    def _post_provisioning_step(self, request, po):
+        """Step 2 (asset provisioning): book the receipt, or re-render the form with errors."""
+        line_quantities = request.session.get("receive_po_quantities", {})
+        line_quantities = {int(k): int(v) for k, v in line_quantities.items()}
+        # The snapshot travels with this form submission; the service refuses the
+        # submission if any line moved on since it was prepared (replay protection).
+        expected_received = self._parse_expected_received(request)
+
+        # Count the total number of physical assets being received to initialize the formset correctly
+        total_assets = 0
+        for lid, qty in line_quantities.items():
+            line = po.lines.get(pk=lid)
+            if line.asset_type:
+                total_assets += qty
+
+        formset = self._provision_formset_class(total_assets)(request.POST)
+        if formset.is_valid():
+            return self._receive_and_redirect(
+                request,
+                po,
+                line_quantities,
+                formset.cleaned_data,
+                expected_received,
+                _("Stock received and assets provisioned successfully."),
+                clear_session=True,
+            )
+
+        # Render step 2 again with errors
+        lines_info = [self._line_or_none(po, form) for form in formset]
+        context = self.get_context_data(object=po)
+        context["formset"] = formset
+        context["lines_info"] = list(zip(lines_info, formset, strict=False))
+        context["step"] = "2"
+        # Keep this operation's submitted snapshot: a corrected submission stays bound
+        # to the state it was prepared against and is refused if that state moved on.
+        context["expected_received_json"] = self._snapshot_json(expected_received)
+        return render(request, "procurement/purchaseorder_receive_step2.html", context)
+
+    def _post_quantities_step(self, request, po):
+        """Step 1 (quantities): receive stock directly, hand over to step 2, or show errors."""
+        formset = ReceiveLineFormSet(request.POST)
+        if not formset.is_valid():
+            # Step 1 invalid, render again with errors
+            outstanding_lines = [self._line_or_none(po, form) for form in formset]
+            context = self.get_context_data(object=po)
+            context["formset"] = formset
+            context["lines_and_forms"] = list(zip(outstanding_lines, formset, strict=False))
+            context["step"] = "1"
+            return render(request, "procurement/purchaseorder_receive.html", context)
+
+        line_quantities = {}
+        for form in formset:
+            line_quantities[form.cleaned_data["line_id"]] = form.cleaned_data["qty_to_receive"]
+
+        # The snapshot travels with this form submission; processing never regenerates
+        # it from the database, so a replayed submission is refused.
+        line_expected = self._parse_expected_received(request)
+
+        # Check if any asset lines are being received
+        step2_initial = self._asset_tag_previews(po, line_quantities)
+        if not step2_initial:
+            # Call receiving service directly (only non-asset inventory items)
+            return self._receive_and_redirect(
+                request, po, line_quantities, None, line_expected, _("Stock received successfully.")
+            )
+
+        # Save quantities for step 2; the receipt-state snapshot travels with each
+        # form submission instead of a shared session slot.
+        request.session["receive_po_quantities"] = line_quantities
+
+        step2_formset = self._provision_formset_class(len(step2_initial))(initial=step2_initial)
+        lines_info = [po.lines.get(pk=init_data["line_id"]) for init_data in step2_initial]
+
+        context = self.get_context_data(object=po)
+        context["formset"] = step2_formset
+        context["lines_info"] = list(zip(lines_info, step2_formset, strict=False))
+        context["step"] = "2"
+        # Carry this operation's snapshot into the step-2 form so its own submission
+        # stays bound to the same prepared state.
+        context["expected_received_json"] = self._snapshot_json(line_expected)
+        return render(request, "procurement/purchaseorder_receive_step2.html", context)
+
+    @staticmethod
+    def _asset_tag_previews(po, line_quantities):
+        """Initial step-2 rows (one per physical asset, with a tag preview); empty without asset lines."""
+        step2_initial = []
+        for lid, qty in line_quantities.items():
+            if qty > 0:
                 line = po.lines.get(pk=lid)
                 if line.asset_type:
-                    total_assets += qty
+                    # Generate asset tag previews
+                    dummy_asset = Asset(tenant=po.tenant, asset_type=line.asset_type)
+                    seq = AssetTagSequence.resolve_sequence_for_asset(dummy_asset)
+                    for i in range(qty):
+                        tag_preview = f"{seq.prefix}{seq.next_value + i:0{seq.zero_padding}d}"
+                        step2_initial.append(
+                            {"line_id": line.pk, "asset_tag": tag_preview, "name": str(line.asset_type)}
+                        )
+        return step2_initial
 
-            DynamicAssetProvisionFormSet = formset_factory(
-                AssetProvisionForm, formset=BaseAssetProvisionFormSet, extra=total_assets
+    def _receive_and_redirect(
+        self, request, po, line_quantities, asset_details, expected_received, success_message, *, clear_session=False
+    ):
+        """Book the receipt and report the outcome. Unexpected errors propagate and are logged by Django."""
+        try:
+            receive_purchase_order(po, line_quantities, asset_details, expected_received=expected_received)
+        except ValidationError as exc:
+            # The service's own refusals (stale snapshot, over-receipt, wrong status) are written for users.
+            messages.error(request, _("Error receiving purchase order: %(error)s") % {"error": " ".join(exc.messages)})
+        except IntegrityError:
+            # The step-2 form checks active assets only, but asset tags stay reserved by deleted
+            # ones, and a concurrent receipt can claim a tag or serial between validation and save.
+            # The database is the last line; the receipt has rolled back.
+            logger.warning("Receipt for purchase order %s refused by a database constraint", po.pk, exc_info=True)
+            messages.error(
+                request,
+                _(
+                    "Nothing was received: an asset tag or serial number is already in use. Asset tags stay "
+                    "reserved by deleted assets. Change the values and submit again."
+                ),
             )
-            formset = DynamicAssetProvisionFormSet(request.POST)
-
-            if formset.is_valid():
-                try:
-                    asset_details = formset.cleaned_data
-                    receive_purchase_order(po, line_quantities, asset_details, expected_received=expected_received)
-                    # Clear session
-                    if "receive_po_quantities" in request.session:
-                        request.session.pop("receive_po_quantities", None)
-                    messages.success(request, _("Stock received and assets provisioned successfully."))
-                    return redirect(po.get_absolute_url())
-                except Exception as e:
-                    messages.error(request, _("Error receiving purchase order: %(error)s") % {"error": e})
-                    return redirect(po.get_absolute_url())
-            else:
-                # Render step 2 again with errors
-                lines_info = []
-                for form in formset:
-                    try:
-                        line_id = form["line_id"].value()
-                        if line_id:
-                            line = po.lines.get(pk=int(line_id))
-                            lines_info.append(line)
-                        else:
-                            lines_info.append(None)
-                    except Exception:
-                        lines_info.append(None)
-
-                context = self.get_context_data(object=po)
-                context["formset"] = formset
-                context["lines_info"] = list(zip(lines_info, formset, strict=False))
-                context["step"] = "2"
-                # Keep this operation's submitted snapshot: a corrected submission stays bound
-                # to the state it was prepared against and is refused if that state moved on.
-                context["expected_received_json"] = json.dumps({str(pk): qty for pk, qty in expected_received.items()})
-                return render(request, "procurement/purchaseorder_receive_step2.html", context)
-
         else:
-            # Submitting Step 1 (Quantities)
-            formset = ReceiveLineFormSet(request.POST)
-            if formset.is_valid():
-                line_quantities = {}
-                for form in formset:
-                    line_quantities[form.cleaned_data["line_id"]] = form.cleaned_data["qty_to_receive"]
-
-                # The snapshot travels with this form submission; processing never regenerates
-                # it from the database, so a replayed submission is refused.
-                line_expected = self._parse_expected_received(request)
-
-                # Check if any asset lines are being received
-                has_assets = False
-                step2_initial = []
-                for lid, qty in line_quantities.items():
-                    if qty > 0:
-                        line = po.lines.get(pk=lid)
-                        if line.asset_type:
-                            has_assets = True
-                            # Generate asset tag previews
-                            from assets.models import Asset, AssetTagSequence
-
-                            dummy_asset = Asset(tenant=po.tenant, asset_type=line.asset_type)
-                            seq = AssetTagSequence.resolve_sequence_for_asset(dummy_asset)
-                            for i in range(qty):
-                                tag_preview = f"{seq.prefix}{seq.next_value + i:0{seq.zero_padding}d}"
-                                step2_initial.append(
-                                    {"line_id": line.pk, "asset_tag": tag_preview, "name": str(line.asset_type)}
-                                )
-
-                if has_assets:
-                    # Save quantities for step 2; the receipt-state snapshot travels with each
-                    # form submission instead of a shared session slot.
-                    request.session["receive_po_quantities"] = line_quantities
-
-                    # Initialize step 2 formset
-                    DynamicAssetProvisionFormSet = formset_factory(
-                        AssetProvisionForm, formset=BaseAssetProvisionFormSet, extra=len(step2_initial)
-                    )
-                    step2_formset = DynamicAssetProvisionFormSet(initial=step2_initial)
-
-                    lines_info = []
-                    for init_data in step2_initial:
-                        line = po.lines.get(pk=init_data["line_id"])
-                        lines_info.append(line)
-
-                    context = self.get_context_data(object=po)
-                    context["formset"] = step2_formset
-                    context["lines_info"] = list(zip(lines_info, step2_formset, strict=False))
-                    context["step"] = "2"
-                    # Carry this operation's snapshot into the step-2 form so its own submission
-                    # stays bound to the same prepared state.
-                    context["expected_received_json"] = json.dumps({str(pk): qty for pk, qty in line_expected.items()})
-                    return render(request, "procurement/purchaseorder_receive_step2.html", context)
-                else:
-                    # Call receiving service directly (only non-asset inventory items)
-                    try:
-                        receive_purchase_order(po, line_quantities, asset_details=None, expected_received=line_expected)
-                        messages.success(request, _("Stock received successfully."))
-                        return redirect(po.get_absolute_url())
-                    except Exception as e:
-                        messages.error(request, _("Error receiving purchase order: %(error)s") % {"error": e})
-                        return redirect(po.get_absolute_url())
-            else:
-                # Step 1 invalid, render again with errors
-                outstanding_lines = []
-                for form in formset:
-                    try:
-                        line_id = form["line_id"].value()
-                        if line_id:
-                            outstanding_lines.append(po.lines.get(pk=int(line_id)))
-                        else:
-                            outstanding_lines.append(None)
-                    except Exception:
-                        outstanding_lines.append(None)
-
-                context = self.get_context_data(object=po)
-                context["formset"] = formset
-                context["lines_and_forms"] = list(zip(outstanding_lines, formset, strict=False))
-                context["step"] = "1"
-                return render(request, "procurement/purchaseorder_receive.html", context)
+            if clear_session:
+                request.session.pop("receive_po_quantities", None)
+            messages.success(request, success_message)
+        return redirect(po.get_absolute_url())
 
     def _parse_expected_received(self, request):
         """The receipt-state snapshot a receipt submission itself carries.

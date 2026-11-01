@@ -4,6 +4,7 @@ import re
 import socket
 from urllib.parse import urlsplit
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
@@ -74,7 +75,6 @@ class CustomValidator:
 
     @classmethod
     def validate_object(cls, instance):
-        from django.conf import settings
 
         model_path = f"{instance._meta.app_label}.{instance._meta.model_name}"
         rules = getattr(settings, "CUSTOM_VALIDATORS", {}).get(model_path, {})
@@ -132,7 +132,8 @@ def _json_pattern_error(field_name, value, field_rules):
                 params={"field": field_name},
             )
     except re.error:
-        pass
+        # A malformed schema pattern is a definition problem, not bad user input.
+        return None
     return None
 
 
@@ -234,6 +235,8 @@ def validate_file_attachment(file):
         import magic
 
         mime_type = magic.from_buffer(chunk, mime=True).lower()
+    # broad except: availability-tradeoff: a missing libmagic or unreadable upload leaves the
+    # signature unknown; the extension blocklist above still refuses dangerous files
     except Exception:
         # libmagic unavailable: do NOT fall back to the client-supplied
         # Content-Type (attacker-controlled, defeats this check). The extension
@@ -290,6 +293,8 @@ def detect_image_mime(file):
         import magic
 
         mime_type = magic.from_buffer(chunk, mime=True).lower()
+    # broad except: boundary-isolation: python-magic fails with ImportError or its own
+    # MagicException, which cannot be named when the package is absent
     except Exception:
         # libmagic unavailable: verify the bytes are a real image with Pillow
         # rather than trusting the client-supplied Content-Type (which an
@@ -311,6 +316,8 @@ def detect_image_mime(file):
                 "bmp": "image/bmp",
                 "webp": "image/webp",
             }.get(pil_format, "")
+        # broad except: boundary-isolation: Pillow decoders raise many unrelated types on hostile
+        # input; an undecodable file gets no MIME and is refused
         except Exception:
             file.seek(initial_pos)
             mime_type = ""

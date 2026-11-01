@@ -40,8 +40,8 @@ class Command(BaseCommand):
                 tenant_name = role.tenant.name if role.tenant_id else "(no tenant)"
                 self.stdout.write(
                     self.style.WARNING(
-                        f"Role #{role.pk} '{role.name}' [{tenant_name}] has {len(stale)} "
-                        f"stale codename(s): {', '.join(stale)}"
+                        "Role #%s '%s' [%s] has %s stale codename(s): %s"
+                        % (role.pk, role.name, tenant_name, len(stale), ", ".join(stale))
                     )
                 )
 

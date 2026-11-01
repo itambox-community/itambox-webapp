@@ -522,7 +522,7 @@ class ReportDesignerIssue181CoverageTests(SimpleTestCase):
             patch("extras.views.get_current_tenant", return_value=None),
             patch("core.reports.build_report_context", return_value=build_context),
             patch("extras.views.render_report_html", return_value="<p>html</p>"),
-            patch("core.reports.exporters.report_pdf_bytes", return_value=b"pdf"),
+            patch("extras.views.report_pdf_bytes", return_value=b"pdf"),
         ):
             pdf_response = ReportTemplateDownloadView().get(SimpleNamespace(GET={"format": "pdf", "print": "true"}), 1)
         assert pdf_response["Content-Type"].startswith("application/pdf")

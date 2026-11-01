@@ -1,6 +1,8 @@
 import logging
 
 import django_tables2 as tables
+from django.apps import apps
+from django.core.exceptions import FieldDoesNotExist
 from django.utils.translation import gettext_lazy as _
 from django_tables2.data import TableQuerysetData
 
@@ -190,7 +192,7 @@ class BaseTable(tables.Table):
             for field_name in path_parts:
                 try:
                     field = model._meta.get_field(field_name)
-                except Exception:
+                except FieldDoesNotExist:
                     break
                 if hasattr(field, "remote_field") and field.remote_field:
                     prefetch_path.append(field_name)
@@ -236,7 +238,7 @@ class BaseTable(tables.Table):
                         field = current_model._meta.get_field(part)
                         if hasattr(field, "remote_field") and field.remote_field:
                             current_model = field.remote_field.model
-                    except Exception:
+                    except FieldDoesNotExist:
                         valid = False
                         break
                 if valid:
@@ -283,8 +285,6 @@ class BaseTable(tables.Table):
 
         if request.user.is_authenticated:
             try:
-                from django.apps import apps
-
                 UserPreference = apps.get_model("users", "UserPreference")
                 if not hasattr(request, "_user_preferences_cache"):
                     request._user_preferences_cache = UserPreference.objects.filter(user=request.user).first()
@@ -300,7 +300,8 @@ class BaseTable(tables.Table):
                             # to Meta.default_columns / Meta.fields below
                             if cols_from_pref:
                                 columns = cols_from_pref
-            except Exception:
+            except (AttributeError, TypeError):
+                # A stored preference of an unexpected shape falls back to the default columns.
                 logger.debug("Error reading user column preferences for table %s", self.name)
 
         if columns is None:

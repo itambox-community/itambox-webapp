@@ -101,11 +101,13 @@ class CustodyComplianceReportTests(TenantTestMixin, TestCase):
             for key, val in row.items():
                 if key == "_group_by":
                     continue
-                self.assertFalse(str(val).startswith("$"), msg=f"Cell '{key}' = '{val}' unexpectedly starts with '$'")
+                self.assertFalse(
+                    str(val).startswith("$"), msg="Cell '%s' = '%s' unexpectedly starts with '$'" % (key, val)
+                )
         for card in summary_cards:
             self.assertFalse(
                 str(card["value"]).startswith("$"),
-                msg=f"Summary card '{card['label']}' = '{card['value']}' unexpectedly starts with '$'",
+                msg="Summary card '%s' = '%s' unexpectedly starts with '$'" % (card["label"], card["value"]),
             )
 
     def test_filter_tenants_scoping(self):

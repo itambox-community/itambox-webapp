@@ -1,6 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models, router, transaction
-from django.db.models import CheckConstraint, Q
+from django.db.models import CheckConstraint, Count, Q
 from django.urls import NoReverseMatch, reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -23,7 +23,6 @@ class LicenseTypeChoices(models.TextChoices):
 
 class LicenseQuerySet(TenantScopingSoftDeleteQuerySet):
     def with_counts(self):
-        from django.db.models import Count
 
         # Only count *active* (non-soft-deleted) assignments. A bare
         # Count('assignments') joins the raw table and counts checked-in seats as

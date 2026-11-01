@@ -25,6 +25,8 @@ import logging
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import CommandError
+from django.db import transaction
+from django_q.tasks import async_task
 
 from assets.tasks.intune_sync import sync_tenant_intune
 from core.models import Job
@@ -66,8 +68,8 @@ class Command(SystemTaskCommand):
         intune_configs = getattr(settings, "ITAMBOX_TENANT_INTUNE_CONFIGS", {})
         if tenant_slug not in intune_configs:
             raise CommandError(
-                f"No ITAMBOX_TENANT_INTUNE_CONFIGS entry for tenant '{tenant_slug}'. "
-                "Set the environment variable and restart."
+                "No ITAMBOX_TENANT_INTUNE_CONFIGS entry for tenant '%s'. " % tenant_slug
+                + "Set the environment variable and restart."
             )
 
         # Resolve a system/admin user for change-log attribution.
@@ -95,8 +97,6 @@ class Command(SystemTaskCommand):
             if job.result:
                 self.stdout.write(str(job.result))
         else:
-            from django.db import transaction
-            from django_q.tasks import async_task
 
             def _enqueue():
                 async_task(
@@ -108,4 +108,6 @@ class Command(SystemTaskCommand):
                 )
 
             transaction.on_commit(_enqueue)
-            self.stdout.write(self.style.SUCCESS(f"Intune sync for tenant '{tenant_slug}' enqueued (Job #{job.pk})."))
+            self.stdout.write(
+                self.style.SUCCESS("Intune sync for tenant '%s' enqueued (Job #%s)." % (tenant_slug, job.pk))
+            )

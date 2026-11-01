@@ -1,8 +1,11 @@
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
+from django.apps import apps
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
+
+from core.forms.import_forms import is_model_importable
 
 __all__ = (
     "Menu",
@@ -111,10 +114,6 @@ def get_model_buttons(app_label, model_name, actions=("add", "import"), import_t
         )
 
     if "import" in actions:
-        from django.apps import apps
-
-        from core.forms.import_forms import is_model_importable
-
         try:
             model = apps.get_model(app_label, model_name)
         except LookupError:

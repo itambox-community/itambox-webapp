@@ -1,17 +1,19 @@
 import json
 
+from croniter import croniter
 from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, validate_email
 from django.db import models
 from django.db.models.deletion import ProtectedError
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from core.crypto import decrypt_string, encrypt_string
 from core.csv_utils import csv_safe, safe_csv_filename
 from core.managers import (
     AllObjectsManager,
@@ -812,8 +814,6 @@ class WebhookEndpoint(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):
 
     def save(self, *args, **kwargs):
         if self.secret and not self.secret.startswith("enc$"):
-            from core.crypto import encrypt_string
-
             self.secret = encrypt_string(self.secret)
         super().save(*args, **kwargs)
 
@@ -822,8 +822,6 @@ class WebhookEndpoint(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):
         if not self.secret:
             return ""
         if self.secret.startswith("enc$"):
-            from core.crypto import decrypt_string
-
             return decrypt_string(self.secret)
         return self.secret
 
@@ -1682,17 +1680,18 @@ class ScheduledReport(ChangeLoggingMixin, BaseModel):
                     {"cron_expression": _("Cron expression is required when frequency is set to Custom Cron.")}
                 )
             try:
-                from croniter import croniter
-                from django.utils import timezone
-
                 croniter(self.cron_expression, timezone.now())
-            except Exception as e:
+            except (TypeError, ValueError):
+                # croniter reports a malformed expression as CroniterError (a ValueError)
+                # or CroniterBadTypeRangeError (a TypeError); its text is library-internal.
                 raise ValidationError(
-                    {"cron_expression": _("Invalid Cron expression: %(error)s") % {"error": str(e)}}
+                    {
+                        "cron_expression": _(
+                            "Invalid Cron expression. Use five space-separated fields, e.g. 0 8 * * 1-5."
+                        )
+                    }
                 ) from None
         if self.recipients:
-            from django.core.validators import validate_email
-
             emails = [e.strip() for e in self.recipients.split(",") if e.strip()]
             if not emails:
                 raise ValidationError({"recipients": _("No recipient email addresses entered.")})
@@ -2096,7 +2095,6 @@ class AlertRule(ChangeLoggingMixin, SoftDeleteMixin, BaseModel):
         return f"{self.name} ({self.get_alert_type_display()})"
 
     def get_absolute_url(self):
-        from django.urls import reverse
 
         return reverse("extras:alertrule_detail", kwargs={"pk": self.pk})
 

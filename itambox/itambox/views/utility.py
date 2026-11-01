@@ -2,16 +2,18 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import connection
 from django.http import JsonResponse
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext as _
 from django.views.generic import View
 from django.views.generic.base import TemplateResponseMixin
 
 from core.forms import SearchForm
+from core.search import get_table_queryset
 from itambox.scanning import strip_itambox_prefix
-from itambox.utils import get_table_for_model
+from itambox.utils import get_model_viewname, get_table_for_model
 
 from .generic import BaseHTMXView
 
@@ -46,12 +48,11 @@ class SearchView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixin, View):
                 results_count += data["count"]
                 table_class = get_table_for_model(model)
                 if table_class:
-                    data["table"] = table_class(list(data["queryset"][:10]), request=request)
+                    rows = get_table_queryset(model, data["queryset"])[:10]
+                    data["table"] = table_class(list(rows), request=request)
                     try:
-                        from itambox.utils import get_model_viewname
-
                         data["list_url"] = reverse(get_model_viewname(model, "list"))
-                    except Exception:
+                    except NoReverseMatch:
                         data["list_url"] = f"/{model._meta.app_label}/{model._meta.model_name}s/"
                 else:
                     data["table"] = None
@@ -77,8 +78,6 @@ def health(request):
     balancers) don't route traffic to an instance that can't serve requests.
     Returns 200 when healthy, 503 otherwise.
     """
-    from django.db import connection
-
     checks = {}
     healthy = True
 
@@ -87,6 +86,7 @@ def health(request):
             cursor.execute("SELECT 1")
             cursor.fetchone()
         checks["database"] = "ok"
+    # broad except: boundary-isolation: any driver or connection failure must read as "not ready" (503), never as a 500
     except Exception:
         logger.exception("Health check: database connectivity failed")
         checks["database"] = "error"

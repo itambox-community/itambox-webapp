@@ -1,7 +1,11 @@
+from django.db.models import Prefetch
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from assets.models import AssetAssignment
 from core.managers import Scope
+from inventory.models import Kit
+from inventory.tables import KitTable
 from itambox.panels import Panel
 from itambox.quick_add import QuickAddMixin
 from itambox.views.generic import (
@@ -54,9 +58,6 @@ class LicenseDetailView(ObjectDetailView):
         # Query all seat assignments (to either assets or holders). Prefetch each
         # asset's active assignment + its holder so the "Asset Holder" column can
         # resolve an asset-targeted seat's effective holder without N+1 queries.
-        from django.db.models import Prefetch
-
-        from assets.models import AssetAssignment
 
         active_asset_assignments = (
             AssetAssignment.objects.for_scope(Scope.current()).filter(is_active=True).select_related("assigned_user")
@@ -69,8 +70,6 @@ class LicenseDetailView(ObjectDetailView):
         context["assignments_table"] = assignments_table
 
         # Kits
-        from inventory.models import Kit
-        from inventory.tables import KitTable
 
         kits_qs = Kit.objects.for_scope(Scope.current()).filter(items__license=license_obj).distinct()
         kits_table = KitTable(kits_qs, request=self.request)

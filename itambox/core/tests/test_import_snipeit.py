@@ -630,8 +630,8 @@ class TestSnipeITImporter(TenantTestMixin):
             importer = MagicMock()
 
         monkeypatch.setenv("SNIPEIT_TOKEN", secret)
-        monkeypatch.setattr("core.importers.snipeit.SnipeITClient", MagicMock(return_value=client))
-        monkeypatch.setattr("core.importers.snipeit.SnipeITImporter", MagicMock(return_value=importer))
+        monkeypatch.setattr("core.management.commands.import_snipeit.SnipeITClient", MagicMock(return_value=client))
+        monkeypatch.setattr("core.management.commands.import_snipeit.SnipeITImporter", MagicMock(return_value=importer))
         command = import_snipeit.Command()
         output = StringIO()
         command.stdout = OutputWrapper(output)

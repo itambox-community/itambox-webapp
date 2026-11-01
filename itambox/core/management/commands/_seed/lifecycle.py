@@ -16,6 +16,21 @@ Wire-up (in seed_data.py):
 import datetime
 import random
 
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
+
+from assets.models import (
+    AssetDisposal,
+    AssetReservation,
+    DataSanitizationMethodChoices,
+    DisposalMethodChoices,
+    ReservationStatusChoices,
+    Warranty,
+    WarrantyTypeChoices,
+)
+from assets.models import AssetDisposal as _AD
+from core.management.commands._seed.engine import ChangeLogEngine
+
 
 class SeedLifecycleMixin:
     """Mixin for Command(BaseCommand).  Reads/writes self._ registries."""
@@ -28,11 +43,16 @@ class SeedLifecycleMixin:
             return d.date()
         return d
 
+    def _tenant_currency(self, asset):
+        """The asset tenant's configured currency, EUR when unknown."""
+        tenant_meta = getattr(self, "_tenant_meta", None)
+        if not tenant_meta or not asset.tenant_id:
+            return "EUR"
+        return tenant_meta.get(asset.tenant.slug, {}).get("currency", "EUR")
+
     def _ensure_engine(self):
         """Lazily instantiate self._engine if the wiring step hasn't done it yet."""
         if not hasattr(self, "_engine") or self._engine is None:
-            from core.management.commands._seed.engine import ChangeLogEngine
-
             self._engine = ChangeLogEngine(stdout=self.stdout, style=self.style)
 
     # ------------------------------------------------------------------ main entry
@@ -40,15 +60,6 @@ class SeedLifecycleMixin:
         """Create Warranty, AssetReservation, and AssetDisposal records with
         back-dated changelog entries so history looks naturally grown over ~2 years.
         """
-        from assets.models import (
-            AssetDisposal,
-            AssetReservation,
-            DataSanitizationMethodChoices,
-            DisposalMethodChoices,
-            ReservationStatusChoices,
-            Warranty,
-            WarrantyTypeChoices,
-        )
 
         self._ensure_engine()
         eng = self._engine
@@ -116,13 +127,7 @@ class SeedLifecycleMixin:
                 if end <= start:
                     end = start + datetime.timedelta(days=365)
 
-                currency = "EUR"
-                try:
-                    tenant_slug = asset.tenant.slug if asset.tenant_id else None
-                    if tenant_slug and hasattr(self, "_tenant_meta"):
-                        currency = self._tenant_meta[tenant_slug].get("currency", "EUR")
-                except Exception:
-                    pass
+                currency = self._tenant_currency(asset)
 
                 # Rough cost range by type
                 cost_map = {
@@ -369,13 +374,8 @@ class SeedLifecycleMixin:
                 and asset.__class__.all_objects.filter(pk=asset.pk).values_list("disposal__pk", flat=True).first()
             ):
                 continue
-            try:
-                from assets.models import AssetDisposal as _AD
-
-                if _AD.all_objects.filter(asset=asset).exists():
-                    continue
-            except Exception:
-                pass
+            if _AD.all_objects.filter(asset=asset).exists():
+                continue
 
             disposed_pks.add(asset.pk)
 
@@ -395,11 +395,7 @@ class SeedLifecycleMixin:
             san_method = _weighted_choice(SANIT_MIX)
 
             # No sanitization for non-data-bearing types (monitors, etc.)
-            cat_slug = ""
-            try:
-                cat_slug = asset.asset_type.category.slug if asset.asset_type and asset.asset_type.category else ""
-            except Exception:
-                pass
+            cat_slug = asset.asset_type.category.slug if asset.asset_type and asset.asset_type.category else ""
             if cat_slug in ("display-monitors", "network-equipment", "printers-mfps"):
                 san_method = DataSanitizationMethodChoices.NONE
 
@@ -417,37 +413,34 @@ class SeedLifecycleMixin:
                 try:
                     cost = float(asset.purchase_cost or 0)
                     proceeds = round(cost * random.uniform(0.05, 0.30), 2)
-                except Exception:
+                except (TypeError, ValueError):
                     proceeds = round(random.uniform(50, 500), 2)
 
-            currency = "EUR"
-            try:
-                tenant_slug = asset.tenant.slug if asset.tenant_id else None
-                if tenant_slug and hasattr(self, "_tenant_meta"):
-                    currency = self._tenant_meta[tenant_slug].get("currency", "EUR")
-            except Exception:
-                pass
+            currency = self._tenant_currency(asset)
 
             weee = method in (DisposalMethodChoices.RECYCLE,) and random.random() < 0.75
 
             try:
-                disposal = AssetDisposal.objects.create(
-                    asset=asset,
-                    disposal_method=method,
-                    disposal_date=disposal_date,
-                    data_sanitization_method=san_method,
-                    sanitization_certificate=san_cert,
-                    sanitized_by=san_by,
-                    recipient=recipient,
-                    proceeds=proceeds,
-                    currency=currency,
-                    weee_compliant=weee,
-                    notes=f"Disposal recorded {disposal_date}. Method: {method}.",
-                )
-                eng.log_create(disposal, when=disposal_date, user=_pick_actor())
+                # Savepoint: the whole seed runs in one transaction, which a swallowed
+                # IntegrityError would otherwise leave unusable.
+                with transaction.atomic():
+                    disposal = AssetDisposal.objects.create(
+                        asset=asset,
+                        disposal_method=method,
+                        disposal_date=disposal_date,
+                        data_sanitization_method=san_method,
+                        sanitization_certificate=san_cert,
+                        sanitized_by=san_by,
+                        recipient=recipient,
+                        proceeds=proceeds,
+                        currency=currency,
+                        weee_compliant=weee,
+                        notes=f"Disposal recorded {disposal_date}. Method: {method}.",
+                    )
+                    eng.log_create(disposal, when=disposal_date, user=_pick_actor())
                 self._disposals.append(disposal)
-            except Exception:
-                # Gracefully skip if the asset already has a disposal or FK issues.
+            except (IntegrityError, ValidationError):
+                # Gracefully skip if the asset already has a disposal or violates a constraint.
                 disposed_pks.discard(asset.pk)
                 continue
 

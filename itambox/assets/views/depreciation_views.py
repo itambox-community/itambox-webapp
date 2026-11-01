@@ -1,8 +1,10 @@
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
+from django_tables2 import RequestConfig
 
 from core.managers import Scope
 from itambox.panels import Panel
+from itambox.utils import get_paginate_count
 from itambox.views.generic import (
     ObjectCloneView,
     ObjectDeleteView,
@@ -12,7 +14,7 @@ from itambox.views.generic import (
 )
 
 from .. import filters, forms, tables
-from ..models import Depreciation
+from ..models import Asset, AssetType, Depreciation
 
 
 class DepreciationListView(ObjectListView):
@@ -31,12 +33,6 @@ class DepreciationDetailView(ObjectDetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         depreciation = self.get_object()
-
-        from django_tables2 import RequestConfig
-
-        from itambox.utils import get_paginate_count
-
-        from ..models import Asset, AssetType
 
         # Affected Asset Types
         assettype_qs = (

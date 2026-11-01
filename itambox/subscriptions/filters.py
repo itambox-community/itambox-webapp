@@ -1,6 +1,7 @@
 import django_filters
 from django import forms
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Supplier
@@ -88,8 +89,6 @@ class SubscriptionFilterSet(BaseFilterSet):
 
     def filter_renewal_within(self, queryset, name, value):
         if value:
-            from django.utils import timezone
-
             cutoff = timezone.now().date() + timezone.timedelta(days=int(value))
             return queryset.filter(renewal_date__lte=cutoff, renewal_date__gte=timezone.now().date())
         return queryset

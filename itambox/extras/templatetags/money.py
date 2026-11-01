@@ -41,6 +41,8 @@ def money(value, obj=None):
             tenant_currency,
             getattr(settings, "ITAMBOX_DEFAULT_CURRENCY", "EUR"),
         )
+    # broad except: render-degrade: any failing currency accessor prices in the default currency
+    # and its message stays private (pinned by test_currency_formatting)
     except Exception:
         currency = "EUR"
     return format_money(value, currency_code=currency)

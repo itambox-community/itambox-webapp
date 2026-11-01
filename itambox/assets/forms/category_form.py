@@ -1,4 +1,7 @@
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import HTML, Column, Layout, Row, Submit
 from django import forms
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from core.forms import ColorFieldFormMixin, SlugModelForm
@@ -49,9 +52,6 @@ class CategoryForm(ColorFieldFormMixin, SlugModelForm):
             self.initial["applies_to_flags"] = [k for k, v in applies_to.items() if v]
 
         # Initialize premium FormHelper layout
-        from crispy_forms.helper import FormHelper
-        from crispy_forms.layout import HTML, Column, Layout, Row, Submit
-        from django.urls import reverse
 
         self.helper = FormHelper(self)
         self.helper.form_method = "post"
@@ -68,7 +68,7 @@ class CategoryForm(ColorFieldFormMixin, SlugModelForm):
             "audit_interval_months",
             HTML('<div class="mt-4"></div>'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">Cancel</a>'),
+            HTML('<a href="%s" class="btn btn-outline-secondary ms-2">Cancel</a>' % cancel_url),
         )
 
     def clean(self):

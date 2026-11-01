@@ -9,8 +9,11 @@ from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Submit
 from django import forms
 from django.apps import apps
+from django.db.models import ForeignKey, ManyToManyField
+from django.db.models.fields import related
 from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
+from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
 from core import search as core_search
@@ -179,9 +182,6 @@ class BulkEditForm(forms.Form):
         if model is None:
             return
 
-        from django.db.models import ForeignKey, ManyToManyField
-        from django.db.models.fields import related
-
         choices = [
             ("add_tags", "add_tags"),
             ("remove_tags", "remove_tags"),
@@ -272,9 +272,7 @@ class CrispyFormMixin:
         ``cancel_url`` is a resolved URL string. The submit label reflects
         create vs. update based on the bound instance.
         """
-        from django.utils.translation import gettext as _
-
-        label = _("Update") if getattr(self, "instance", None) and self.instance.pk else _("Create")
+        label = gettext("Update") if getattr(self, "instance", None) and self.instance.pk else gettext("Create")
         return [
             HTML('<div class="mt-4"></div>'),
             Submit("submit", label, css_class="btn btn-primary"),

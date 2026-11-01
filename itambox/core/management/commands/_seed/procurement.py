@@ -19,6 +19,9 @@ import random
 
 from django.core.management import CommandError
 
+from assets.models import Asset
+from procurement.models import PurchaseOrder, PurchaseOrderLine
+
 TODAY = datetime.date.today()
 
 
@@ -52,8 +55,6 @@ class SeedProcurementMixin:
         )
 
     def _seed_procurement(self):
-        from assets.models import Asset
-        from procurement.models import PurchaseOrder, PurchaseOrderLine
 
         self.stdout.write("--- Procurement ---")
         po_count = 0

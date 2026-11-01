@@ -12,8 +12,8 @@
         "rule": "generic-api-key",
         "line": 1489
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -30,8 +30,8 @@
         "rule": "generic-api-key",
         "line": 1504
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -48,8 +48,8 @@
         "rule": "generic-api-key",
         "line": 1509
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -66,8 +66,8 @@
         "rule": "generic-api-key",
         "line": 1549
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -84,8 +84,8 @@
         "rule": "generic-api-key",
         "line": 1553
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -102,8 +102,8 @@
         "rule": "generic-api-key",
         "line": 1560
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -120,8 +120,8 @@
         "rule": "generic-api-key",
         "line": 1485
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -138,8 +138,8 @@
         "rule": "generic-api-key",
         "line": 1500
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -156,8 +156,8 @@
         "rule": "generic-api-key",
         "line": 1505
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -174,8 +174,8 @@
         "rule": "generic-api-key",
         "line": 236
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -192,8 +192,8 @@
         "rule": "generic-api-key",
         "line": 239
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -210,8 +210,8 @@
         "rule": "generic-api-key",
         "line": 3114
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -228,8 +228,8 @@
         "rule": "generic-api-key",
         "line": 3135
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -246,8 +246,8 @@
         "rule": "generic-api-key",
         "line": 3142
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -264,8 +264,8 @@
         "rule": "generic-api-key",
         "line": 2473
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -282,8 +282,8 @@
         "rule": "generic-api-key",
         "line": 2494
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -300,8 +300,8 @@
         "rule": "generic-api-key",
         "line": 2501
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -318,8 +318,8 @@
         "rule": "generic-api-key",
         "line": 3114
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -336,8 +336,8 @@
         "rule": "generic-api-key",
         "line": 3135
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -354,8 +354,8 @@
         "rule": "generic-api-key",
         "line": 3142
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -372,8 +372,8 @@
         "rule": "slack-webhook-url",
         "line": 1624
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/510"
       ]
@@ -389,8 +389,8 @@
         "rule": "generic-api-key",
         "line": 72
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/510"
       ]
@@ -406,8 +406,8 @@
         "rule": "generic-api-key",
         "line": 31
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/510"
       ]
@@ -423,8 +423,8 @@
         "rule": "curl-auth-header",
         "line": 116
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/510"
       ]
@@ -440,8 +440,8 @@
         "rule": "generic-api-key",
         "line": 1465
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -458,8 +458,8 @@
         "rule": "generic-api-key",
         "line": 1480
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
@@ -476,11 +476,31 @@
         "rule": "generic-api-key",
         "line": 1485
       },
-      "review_on": "2026-10-28",
-      "expires_on": "2026-11-11",
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
       "references": [
         "https://github.com/itambox-community/itambox-webapp/issues/479",
         "https://github.com/itambox-community/itambox-webapp/issues/510"
+      ]
+    },
+    {
+      "id": "SEC-968-GITLEAKS-001",
+      "tool": "gitleaks",
+      "finding": "generic-api-key",
+      "reason": "Historical identity of the library definition identifier fixture (library_definition_key=\"t07-protected-definition\") in the hard-delete protection regression, introduced in commit cd31a997 under the module's former name; not a credential or authentication token. The module was later renamed to test_specification_provenance.py (covered by SEC-479-GITLEAKS-010 and -011) and the fixture no longer exists at HEAD, but a full-history scan still reports the old path. The scope is the exact file/rule/line identity and is independent of the introducing commit.",
+      "owner": "@itambox",
+      "scope": {
+        "path": "itambox/extras/tests/test_t07_provenance.py",
+        "rule": "generic-api-key",
+        "line": 239
+      },
+      "review_on": "2026-11-11",
+      "expires_on": "2026-11-25",
+      "references": [
+        "https://github.com/itambox-community/itambox-webapp/issues/968",
+        "https://github.com/itambox-community/itambox-webapp/issues/966",
+        "https://github.com/itambox-community/itambox-webapp/issues/510",
+        "https://github.com/itambox-community/itambox-webapp/issues/479"
       ]
     },
     {
@@ -500,6 +520,24 @@
         "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
         "https://github.com/micromatch/braces/issues/70",
         "https://github.com/itambox-community/itambox-webapp/issues/627"
+      ]
+    },
+    {
+      "id": "SEC-978-TRIVY-001",
+      "tool": "trivy",
+      "finding": "CVE-2026-118764",
+      "reason": "minimatch 10.2.6 is the newest release admitted by the current ESLint and typescript-eslint ranges (^10.x); the 11.0.1 fix is a major outside those ranges. The package is development-toolchain-only (npm dev flag, pulled in by @eslint/config-array and @typescript-eslint/typescript-estree) and no untrusted glob input reaches lint runs. Time-boxed until the lint chain admits 11.x.",
+      "owner": "@itambox",
+      "scope": {
+        "target": "itambox/package-lock.json",
+        "package": "minimatch",
+        "version": "10.2.6"
+      },
+      "review_on": "2026-11-30",
+      "expires_on": "2027-01-29",
+      "references": [
+        "https://avd.aquasec.com/nvd/cve-2026-118764",
+        "https://github.com/itambox-community/itambox-webapp/pull/978"
       ]
     }
   ]

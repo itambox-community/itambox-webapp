@@ -3,6 +3,8 @@ from collections.abc import Sequence
 from typing import cast
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import FieldError as DjangoFieldError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet
 from drf_spectacular.utils import extend_schema_view
@@ -59,8 +61,6 @@ class SCIMProviderMixin:
             raise exceptions.PermissionDenied(f"{permission} is required for this provider SCIM group operation.")
 
     def handle_exception(self, exc: Exception) -> Response:
-        from django.core.exceptions import FieldError as DjangoFieldError
-        from django.core.exceptions import ValidationError as DjangoValidationError
 
         scim_type = getattr(exc, "scim_type", None)
         scim_status = getattr(exc, "status_code", status.HTTP_400_BAD_REQUEST)

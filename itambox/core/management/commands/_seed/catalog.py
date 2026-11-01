@@ -21,11 +21,16 @@ after tenant and tenant-group scopes are available. It reads
 from decimal import Decimal
 
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.models import ContentType as CT
 
+from assets.models import Asset as AssetModel
+from assets.models import AssetType as AssetTypeModel
 from assets.models import AssetTypeFieldset, CategoryDefaultFieldset
 from assets.services.specifications.core_vocabulary_translations import seed_core_vocabulary_translations
 from extras.models import CustomField, CustomFieldChoice, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField, Tag
 from extras.services.custom_field_data import write_custom_field_data
+from organization.models import Contact, ContactAssignment, ContactRole
 
 
 def _get_core_choice_set(slug, label):
@@ -517,9 +522,6 @@ class SeedCatalogMixin:
             self._manufacturers[slug] = obj
 
         # Suppliers
-        from django.contrib.contenttypes.models import ContentType as CT
-
-        from organization.models import Contact, ContactAssignment, ContactRole
 
         supplier_ct = CT.objects.get_for_model(Supplier)
         primary_role, _ = ContactRole.objects.get_or_create(
@@ -604,10 +606,6 @@ class SeedCatalogMixin:
                 self._demo_depreciation_afa = obj  # first entry = tenant default showcase
 
         # Normative core vocabulary is the runtime consumer of the current release.
-        from django.contrib.contenttypes.models import ContentType
-
-        from assets.models import Asset as AssetModel
-        from assets.models import AssetType as AssetTypeModel
 
         # inline import: app-registry: load the assets-owned release after Django setup.
         from assets.services.specifications.core_vocabulary import get_core_vocabulary

@@ -155,12 +155,12 @@ class AdvancedImportExportTestCase(TestCase):
         self.assertEqual(data[0]["asset_tag"], "TAG-002")
 
     def test_yaml_import_text_preview_and_confirm(self):
-        yaml_data = f"""
+        yaml_data = """
 - name: "Asset Gamma"
   asset_tag: "TAG-003"
-  status: "{self.status.pk}"
-  asset_type: "{self.asset_type.pk}"
-"""
+  status: "{}"
+  asset_type: "{}"
+""".format(self.status.pk, self.asset_type.pk)
         import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
 
         post_data = {"active_tab": "editor", "import_format": "yaml", "import_text": yaml_data, "_preview": "1"}
@@ -201,12 +201,12 @@ Asset Delta,TAG-004,{self.status.pk},{self.asset_type.pk}"""
     def test_yaml_import_file_upload_preview_and_confirm(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
-        yaml_content = f"""
+        yaml_content = """
 - name: "Asset Epsilon"
   asset_tag: "TAG-005"
-  status: "{self.status.pk}"
-  asset_type: "{self.asset_type.pk}"
-""".encode("utf-8")
+  status: "{}"
+  asset_type: "{}"
+""".format(self.status.pk, self.asset_type.pk).encode("utf-8")
         uploaded_file = SimpleUploadedFile("data.yaml", yaml_content, content_type="text/yaml")
 
         import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})

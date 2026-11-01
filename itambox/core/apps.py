@@ -3,6 +3,8 @@ from django.contrib.admin.apps import AdminConfig
 from django.db.models.signals import post_migrate
 from django.utils.translation import gettext_lazy as _
 
+from core.schedules import register_schedule
+
 
 class SuperuserAdminConfig(AdminConfig):
     default_site = "core.admin.SuperuserAdminSite"
@@ -21,6 +23,7 @@ class CoreConfig(AppConfig):
         from django.contrib import admin
         from django_q.models import Failure, Success
 
+        # inline import: app-registry: core.signals imports models and registers receivers, which needs the loaded app registry
         import core.signals  # noqa: F401 -- registers core signal receivers
 
         # inline import: app-registry: register the production configuration checks after app loading
@@ -40,8 +43,6 @@ class CoreConfig(AppConfig):
         """Ensure the daily changelog/operational-data retention prune schedule exists."""
         # inline import: app-registry: avoid AppRegistryNotReady at app-load time
         from django_q.models import Schedule
-
-        from core.schedules import register_schedule
 
         register_schedule(
             "core.tasks.prune_changelog_task",

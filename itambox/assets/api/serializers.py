@@ -56,7 +56,7 @@ from organization.api.serializers import (
     NestedTenantGroupSerializer,
     NestedTenantSerializer,
 )
-from organization.models import Location, Tenant, TenantGroup
+from organization.models import AssetHolder, CostCenter, Location, Tenant, TenantGroup
 
 from ..services.specifications.commands import (
     create_asset_type,
@@ -518,7 +518,6 @@ class AssetSerializer(CanonicalSpecificationSerializerMixin, BaseModelSerializer
 
     def get_fields(self) -> dict[str, serializers.Field[object, object, object, object]]:
         fields = super().get_fields()
-        from organization.models import CostCenter
 
         fields["cost_center_id"] = serializers.PrimaryKeyRelatedField(
             source="cost_center",
@@ -725,6 +724,7 @@ class AssetAssignmentSerializer(BaseModelSerializer):
     def get_assigned_to_name(self, obj: AssetAssignment) -> str | None:
         try:
             return str(obj.assigned_to)
+        # broad except: render-degrade: a stale or unresolvable assignment target must not fail the list
         except Exception:
             return None
 
@@ -911,9 +911,6 @@ class AssetCheckOutAPISerializer(serializers.Serializer[object]):
             raise serializers.ValidationError(_("Either holder_id, location_id, or asset_target_id must be provided."))
         if len(filled) > 1:
             raise serializers.ValidationError(_("You can only check out an asset to ONE target."))
-
-        from assets.models import Asset
-        from organization.models import AssetHolder, Location
 
         # Resolve entity references
         if holder_id:

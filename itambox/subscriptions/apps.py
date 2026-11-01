@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
 
+from core.schedules import register_schedule
 from itambox.capabilities import (
     ALWAYS_ON,
     CAPABILITY_REGISTRY_DOC_URL,
@@ -96,8 +97,6 @@ class SubscriptionsConfig(AppConfig):
     def _register_subscription_tasks(self, sender, **kwargs):
         # inline import: app-registry: avoid AppRegistryNotReady at app-load time
         from django_q.models import Schedule
-
-        from core.schedules import register_schedule
 
         register_schedule(
             "subscriptions.tasks.check_subscription_expiries_and_reminders",

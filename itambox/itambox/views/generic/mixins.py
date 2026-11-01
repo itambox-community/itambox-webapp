@@ -5,11 +5,11 @@ from django.contrib.auth.mixins import AccessMixin
 from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured, PermissionDenied
 from django.db import router, transaction
 from django.http import Http404
-from django.urls import NoReverseMatch, reverse
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from itambox.capabilities import registry as capability_registry
-from itambox.utils import get_model_viewname
+from itambox.utils import model_view_url
 from itambox.views.generic.bulk_policy import BULK_EDIT, is_request_selectable
 
 SUPERUSER_ONLY_MUTATION_MODELS = frozenset(
@@ -104,12 +104,8 @@ class GetReturnURLMixin:
             return obj.get_absolute_url()
         if self.default_return_url is not None:
             return reverse(self.default_return_url)
-        if hasattr(self, "queryset"):
-            try:
-                return reverse(get_model_viewname(self.queryset.model, "list"))
-            except NoReverseMatch:
-                pass
-        return reverse("dashboard")
+        list_url = model_view_url(self.queryset.model, "list") if hasattr(self, "queryset") else None
+        return list_url or reverse("dashboard")
 
 
 class ActionsMixin:

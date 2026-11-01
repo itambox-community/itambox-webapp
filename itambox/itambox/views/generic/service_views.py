@@ -110,6 +110,8 @@ class GenericTransactionView(
             for msg in e.messages:
                 form.add_error(None, msg)
             return self.form_invalid(form)
+        # broad except: render-degrade: the atomic block has rolled back; the action form shows a generic
+        # error (the traceback is logged) instead of a broken modal swap
         except Exception:
             logger.exception("Unexpected error in %s.form_valid", self.__class__.__name__)
             form.add_error(None, _("An unexpected error occurred. Please try again or contact support."))

@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.choices import ObjectChangeActionChoices
 from core.forms.scoping import TenantScopedFilterSetMixin
+from core.managers import get_current_tenant
 from core.models import ObjectChange
 
 User = get_user_model()
@@ -34,7 +35,6 @@ class BaseFilterSet(TenantScopedFilterSetMixin, django_filters.FilterSet):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from core.managers import get_current_tenant
 
         current_tenant = get_current_tenant()
         if not current_tenant:

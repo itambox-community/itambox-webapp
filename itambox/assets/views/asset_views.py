@@ -3,7 +3,7 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse, reverse_lazy
@@ -19,12 +19,15 @@ from assets.customfields import (
     resolve_asset_custom_fields,
     resolve_asset_type_custom_fields,
 )
+from assets.depreciation import resolve_policy
+from assets.models import AssetDisposal
 from assets.services.request_authorization import can_asset_request_action, is_self_service_claim
 from assets.services.timeline import build_asset_timeline
 from assets.spec_display import build_spec_panel
 from compliance.audit_services import audit_asset_from_form
-from compliance.models import CustodyReceipt
+from compliance.models import AssetAudit, CustodyReceipt
 from compliance.services import scope_custody_receipts
+from compliance.tables import CustodyReceiptTable
 from core.managers import Scope
 from extras.services.vocabulary_translations import VocabularyTranslator
 from inventory.models import AccessoryAssignment, ConsumableAssignment
@@ -40,12 +43,14 @@ from itambox.views.generic import (
     ObjectListView,
 )
 from itambox.views.generic.service_views import GenericTransactionView
-from organization.models import AssetHolder
+from licenses.models import LicenseSeatAssignment
+from licenses.tables import LicenseSeatAssignmentTable
+from organization.models import AssetHolder, ContactAssignment
 from software.models import InstalledSoftware
 from software.tables import InstalledSoftwareTable
 
 from .. import filters, forms, tables
-from ..models import Asset, AssetAssignment, AssetTypeFieldset
+from ..models import Asset, AssetAssignment, AssetRequest, AssetTypeFieldset
 from ..services import checkin_asset, checkout_asset
 
 logger = logging.getLogger(__name__)
@@ -53,31 +58,30 @@ User = get_user_model()
 
 
 class AssetListView(ObjectListView):
-    queryset = Asset.objects.select_related(
-        "asset_role",
-        "asset_type",
-        "asset_type__manufacturer",
-        "asset_type__category",
-        "location",
-        "tenant",
-        "status",
-        "supplier",
-    ).prefetch_related(
-        "tags",
-        "maintenances",
-        Prefetch(
-            "assignments",
-            queryset=AssetAssignment.objects.filter(is_active=True).select_related(
-                "assigned_user", "assigned_location", "assigned_asset"
-            ),
-            to_attr="prefetched_active_assignments",
-        ),
-    )
+    queryset = tables.with_asset_table_relations(Asset.objects.all())
 
     filterset = filters.AssetFilterSet
     filterset_form = forms.AssetFilterForm
     table = tables.AssetTable
     action_buttons = ("add",)
+
+
+def _support_contact(asset):
+    """``Manufacturer.get_support_contact`` resolved from the prefetched contacts.
+
+    Same precedence and ordering as the model property (support role, then a
+    primary contact, then any contact), without three queries per render.
+    """
+    manufacturer = asset.asset_type.manufacturer if asset.asset_type else None
+    if manufacturer is None:
+        return None
+    assignments = list(manufacturer.contacts.all())
+    assignment = (
+        next((a for a in assignments if a.role.slug in ("support", "technical-support")), None)
+        or next((a for a in assignments if a.priority == "primary"), None)
+        or next(iter(assignments), None)
+    )
+    return assignment.contact if assignment else None
 
 
 class AssetDetailView(ObjectDetailView):
@@ -86,13 +90,18 @@ class AssetDetailView(ObjectDetailView):
         "location",
         "asset_type",
         "asset_type__manufacturer",
+        "status",
+        "tenant",
+        "supplier",
+        "cost_center",
+        "purchase_order_line__purchase_order",
     ).prefetch_related(
         "tags",
         "maintenances",
         Prefetch(
             "assignments",
             queryset=AssetAssignment.objects.filter(is_active=True).select_related(
-                "assigned_user", "assigned_location", "assigned_asset"
+                "assigned_user", "assigned_location", "assigned_asset", "checked_out_by"
             ),
             to_attr="prefetched_active_assignments",
         ),
@@ -104,6 +113,10 @@ class AssetDetailView(ObjectDetailView):
         ),
         "component_allocations__component",
         "component_allocations__component__manufacturer",
+        Prefetch(
+            "asset_type__manufacturer__contacts",
+            queryset=ContactAssignment.objects.select_related("contact", "role"),
+        ),
     )
     related_object_exclusions = ("compliance.custodyreceipt",)
 
@@ -155,7 +168,7 @@ class AssetDetailView(ObjectDetailView):
         sw_qs = (
             InstalledSoftware.objects.for_scope(Scope.current())
             .filter(asset=asset)
-            .select_related("software", "software__manufacturer")
+            .select_related("asset", "software", "software__manufacturer")
         )
         sw_table = InstalledSoftwareTable(sw_qs)
         RequestConfig(self.request, paginate={"per_page": 10}).configure(sw_table)
@@ -194,7 +207,6 @@ class AssetDetailView(ObjectDetailView):
         context["consumable_table"] = con_table
 
         # Requests
-        from ..models import AssetRequest
 
         req_qs = (
             AssetRequest.objects.for_scope(Scope.current())
@@ -206,7 +218,6 @@ class AssetDetailView(ObjectDetailView):
         context["requests_table"] = requests_table
 
         # Audits
-        from compliance.models import AssetAudit
 
         audit_qs = AssetAudit.objects.filter(asset=asset).select_related("session", "auditor", "location", "status")
         audits_table = tables.AssetAuditTable(audit_qs, request=self.request)
@@ -214,7 +225,6 @@ class AssetDetailView(ObjectDetailView):
         context["audits_table"] = audits_table
 
         # Custody Receipts
-        from compliance.tables import CustodyReceiptTable
 
         can_view_receipts = self.request.user.has_perm("compliance.view_custodyreceipt", obj=asset)
         context["can_view_custody_receipts"] = can_view_receipts
@@ -232,24 +242,43 @@ class AssetDetailView(ObjectDetailView):
             context["receipts_table"] = receipts_table
 
         # License Seat Assignments
-        from licenses.models import LicenseSeatAssignment
-        from licenses.tables import LicenseSeatAssignmentTable
 
         license_qs = (
             LicenseSeatAssignment.objects.for_scope(Scope.current())
             .filter(asset=asset)
             .select_related("license", "asset", "assigned_holder")
+            .prefetch_related(
+                Prefetch(
+                    "asset__assignments",
+                    queryset=AssetAssignment.objects.filter(is_active=True).select_related(
+                        "assigned_user", "assigned_location", "assigned_asset"
+                    ),
+                    to_attr="prefetched_active_assignments",
+                )
+            )
         )
         license_seats_table = LicenseSeatAssignmentTable(license_qs, request=self.request)
         RequestConfig(self.request, paginate={"per_page": 10}).configure(license_seats_table)
         context["license_seats_table"] = license_seats_table
 
+        context["is_modular"] = bool(asset.component_allocations.all()) or bool(
+            asset.asset_role and asset.asset_role.allows_components
+        )
+        context["current_warranty_end"] = asset.current_warranty_end
+        context["support_contact"] = _support_contact(asset)
+        # Badge counts reuse the tab tables' paginator counts, so each badge matches
+        # the rows its tab shows and costs no extra COUNT query.
+        context["tab_counts"] = {
+            "software": sw_table.paginator.count,
+            "requests": requests_table.paginator.count,
+            "audits": audits_table.paginator.count,
+            "licenses": license_seats_table.paginator.count,
+        }
+
         context["eol_date"] = asset.eol_date
         context["eol_expired"] = asset.eol_date is not None and timezone.localdate() >= asset.eol_date
         context["time_to_eol"] = asset.time_to_eol
         context["total_cost_of_ownership"] = asset.total_cost_of_ownership
-
-        from assets.depreciation import resolve_policy
 
         policy, rung = resolve_policy(asset)
         context["resolved_depreciation_policy"] = str(policy) if policy else None
@@ -276,7 +305,7 @@ class AssetDetailView(ObjectDetailView):
         context["related_objects_list"] = [
             item for item in context.get("related_objects_list", []) if not item["url"].startswith(receipt_list_url)
         ]
-        receipt_count = receipt_qs.count()
+        receipt_count = context["receipts_table"].paginator.count if can_view_receipts else 0
         if receipt_count:
             context["related_objects_list"].append(
                 {
@@ -290,8 +319,6 @@ class AssetDetailView(ObjectDetailView):
         # Check if current user can claim an approved request for this asset
         approved_request = None
         if self.request.user.is_authenticated:
-            from assets.models import AssetRequest
-
             approved_request_qs = AssetRequest.objects.for_scope(Scope.current()).filter(
                 asset=asset, status=RequestStatusChoices.APPROVED
             )
@@ -313,10 +340,11 @@ class AssetDetailView(ObjectDetailView):
         reservations_table = tables.AssetReservationTable(reservation_qs, request=self.request)
         RequestConfig(self.request, paginate={"per_page": 10}).configure(reservations_table)
         context["reservations_table"] = reservations_table
+        context["tab_counts"]["warranties"] = warranties_table.paginator.count
+        context["tab_counts"]["reservations"] = reservations_table.paginator.count
 
         # Local-import debt: hoisting this lands in the second import block below
         # `logger = ...`, which is pre-existing E402 debt. Hoist it with that cleanup.
-        from assets.models import AssetDisposal
 
         # Disposal is a history, not a single one-to-one record. The active
         # record owns the life cycle state; cancelled records stay visible.
@@ -332,7 +360,11 @@ class AssetDetailView(ObjectDetailView):
             .order_by("-disposal_date", "-pk")
         )
         context["disposal_history"] = disposal_history
-        context["disposal_obj"] = next((disposal for disposal in disposal_history if disposal.is_active), None)
+        disposal_obj = next((disposal for disposal in disposal_history if disposal.is_active), None)
+        context["disposal_obj"] = disposal_obj
+        # Same rows ``Asset.active_disposal`` reads (all_objects, uncancelled); the
+        # documented prefetch hook spares the panels a query per access.
+        asset.prefetched_active_disposals = [disposal_obj] if disposal_obj is not None else []
 
         # The repair timeline groups the records that belong to a repair
         # maintenance and falls back to chronological order otherwise.
@@ -417,10 +449,8 @@ class AssetCheckoutView(GenericTransactionView):
 
         request_id = self.request.GET.get("request_id")
         if request_id:
-            from ..models import AssetRequest
-
-            try:
-                asset_request = AssetRequest.objects.for_scope(Scope.current()).get(pk=request_id)
+            asset_request = AssetRequest.objects.for_scope(Scope.current()).filter(pk=request_id).first()
+            if asset_request is not None:
                 if "initial" not in kwargs:
                     kwargs["initial"] = {}
                 initial = kwargs["initial"]
@@ -433,8 +463,6 @@ class AssetCheckoutView(GenericTransactionView):
                 elif asset_request.assigned_asset:
                     initial["target_type"] = "asset"
                     initial["asset_target"] = asset_request.assigned_asset
-            except AssetRequest.DoesNotExist:
-                pass
 
         return kwargs
 
@@ -447,9 +475,6 @@ class AssetCheckoutView(GenericTransactionView):
         request_id = self.request.GET.get("request_id")
         if not request_id:
             return
-        from django.db.models import Q
-
-        from ..models import AssetRequest
 
         request_filter = Q(asset=obj)
         if obj.asset_type_id:

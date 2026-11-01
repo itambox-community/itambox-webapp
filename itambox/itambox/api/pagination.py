@@ -109,18 +109,17 @@ class ITAMBoxPagination(LimitOffsetPagination):
         if self.limit_query_param:
             try:
                 limit = int(request.query_params[self.limit_query_param])
-                if limit < 0:
-                    raise ValueError()
-
-                if limit == 0:
-                    return max_limit
-
-                if MAX_PAGE_SIZE:
-                    max_limit = min(MAX_PAGE_SIZE, limit)
-                else:
-                    max_limit = limit
             except (KeyError, ValueError):
-                pass
+                return max_limit
+
+            # A negative limit is invalid and 0 means "the maximum"; both keep the cap.
+            if limit <= 0:
+                return max_limit
+
+            if MAX_PAGE_SIZE:
+                max_limit = min(MAX_PAGE_SIZE, limit)
+            else:
+                max_limit = limit
 
         return max_limit
 

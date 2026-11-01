@@ -30,6 +30,24 @@ class CoreCryptoTestCase(TestCase):
         self.assertIn("index 1", message)
         self.assertNotIn(secret_key_material, message)
 
+    def test_decrypt_string_maps_invalid_ciphertext_to_value_error(self):
+        for cipher in ("enc$not-a-fernet-token", "enc$äö", "enc$" + "A" * 8):
+            with self.subTest(cipher=cipher):
+                with self.assertRaises(ValueError) as raised:
+                    decrypt_string(cipher)
+                self.assertTrue(str(raised.exception).startswith("Decryption failed"))
+
+    def test_decrypt_string_does_not_swallow_unexpected_errors(self):
+        class _BrokenFernet:
+            @staticmethod
+            def decrypt(_token):
+                raise RuntimeError("keyring backend exploded")
+
+        cipher = encrypt_string("x")
+        with patch("core.crypto.get_fernet", return_value=_BrokenFernet()):
+            with self.assertRaises(RuntimeError):
+                decrypt_string(cipher)
+
     def test_multi_key_encryption_consolidation(self):
         """Test encryption key rotation using MultiFernet."""
         key1 = Fernet.generate_key().decode("ascii")

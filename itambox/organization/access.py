@@ -13,6 +13,7 @@ from core import tenant_scope as _tenant_scope
 from core.authorization_cache import synchronize_authorization_cache
 from core.context import SystemAuthorizationContext, get_current_request_id
 from organization import rbac as _rbac
+from organization.models import TenantResourceGrant
 
 # Re-exported for established importers.
 _descendant_group_ids_cache = _tenant_scope._descendant_group_ids_cache
@@ -36,8 +37,6 @@ def shared_resource_ids(model: type[object], tenant: object | None) -> Iterable[
     # loadable while Django is still loading apps, and this module is imported
     # during app setup (core.auth, core.managers, itambox.middleware).
     from django.contrib.contenttypes.models import ContentType
-
-    from organization.models import TenantResourceGrant
 
     if tenant is None:
         return TenantResourceGrant.objects.none().values_list("resource_id", flat=True)

@@ -4,9 +4,9 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from assets.models import Supplier
+from assets.models import Asset, Supplier
 from core.forms import FilterForm, TenantScopedFormMixin
-from core.managers import Scope
+from core.managers import Scope, get_current_tenant
 
 from .filters import ContractFilterSet, PurchaseOrderFilterSet
 from .models import Contract, PurchaseOrder, PurchaseOrderLine
@@ -136,7 +136,6 @@ class PurchaseOrderLineForm(TenantScopedFormMixin, forms.ModelForm):
                 self.fields["item_category"].initial = "license"
 
         # Scoping querysets by tenant
-        from core.managers import get_current_tenant
 
         tenant = get_current_tenant()
         if tenant:
@@ -254,7 +253,6 @@ class ContractForm(TenantScopedFormMixin, forms.ModelForm):
         )
 
         # Scope tenant-aware querysets to the active tenant
-        from core.managers import get_current_tenant
 
         tenant = get_current_tenant()
         if tenant:
@@ -364,7 +362,6 @@ class BaseAssetProvisionFormSet(forms.BaseFormSet):
 
         tags = set()
         serials = set()
-        from assets.models import Asset
 
         for form in self.forms:
             if not form.is_valid():

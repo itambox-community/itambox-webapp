@@ -57,7 +57,7 @@
 {% endblock extra_page_actions %}
 {# --- Tabs --- #}
 {% block extra_tabs %}
-  {% if object.is_modular %}
+  {% if is_modular %}
     <li class="nav-item" role="presentation">
       <a href="?tab=components"
          data-bs-target="#components"
@@ -128,7 +128,7 @@
        title="{% translate 'Software' %}">
       <i class="mdi mdi-application-outline me-1 text-purple"
          aria-hidden="true"></i>
-      {% translate "Software" %} <span class="badge bg-purple-lt ms-2">{{ object.installed_software.count }}</span>
+      {% translate "Software" %} <span class="badge bg-purple-lt ms-2">{{ tab_counts.software }}</span>
     </a>
   </li>
   <li class="nav-item" role="presentation">
@@ -142,7 +142,7 @@
        title="{% translate 'Requests' %}">
       <i class="mdi mdi-clipboard-text-outline me-1 text-yellow"
          aria-hidden="true"></i>
-      {% translate "Requests" %} <span class="badge bg-yellow-lt ms-2">{{ object.requests.count }}</span>
+      {% translate "Requests" %} <span class="badge bg-yellow-lt ms-2">{{ tab_counts.requests }}</span>
     </a>
   </li>
   <li class="nav-item" role="presentation">
@@ -156,7 +156,7 @@
        title="{% translate 'Audits' %}">
       <i class="mdi mdi-checkbox-marked-circle-outline me-1 text-cyan"
          aria-hidden="true"></i>
-      {% translate "Audits" %} <span class="badge bg-cyan-lt ms-2">{{ object.audits.count }}</span>
+      {% translate "Audits" %} <span class="badge bg-cyan-lt ms-2">{{ tab_counts.audits }}</span>
     </a>
   </li>
   {% if can_view_custody_receipts %}
@@ -185,7 +185,7 @@
        aria-label="{% translate 'Licenses' %}"
        title="{% translate 'Licenses' %}">
       <i class="mdi mdi-key-outline me-1 text-pink" aria-hidden="true"></i>
-      {% translate "Licenses" %} <span class="badge bg-pink-lt ms-2">{{ object.license_assignments.count }}</span>
+      {% translate "Licenses" %} <span class="badge bg-pink-lt ms-2">{{ tab_counts.licenses }}</span>
     </a>
   </li>
   <li class="nav-item" role="presentation">
@@ -198,7 +198,7 @@
        aria-label="{% translate 'Warranties' %}"
        title="{% translate 'Warranties' %}">
       <i class="mdi mdi-shield-check me-1 text-success" aria-hidden="true"></i>
-      {% translate "Warranties" %} <span class="badge bg-success-lt ms-2">{{ object.warranties.count }}</span>
+      {% translate "Warranties" %} <span class="badge bg-success-lt ms-2">{{ tab_counts.warranties }}</span>
     </a>
   </li>
   <li class="nav-item" role="presentation">
@@ -211,7 +211,7 @@
        aria-label="{% translate 'Reservations' %}"
        title="{% translate 'Reservations' %}">
       <i class="mdi mdi-calendar-clock me-1 text-blue" aria-hidden="true"></i>
-      {% translate "Reservations" %} <span class="badge bg-blue-lt ms-2">{{ object.reservations.count }}</span>
+      {% translate "Reservations" %} <span class="badge bg-blue-lt ms-2">{{ tab_counts.reservations }}</span>
     </a>
   </li>
   <li class="nav-item" role="presentation">
@@ -372,7 +372,7 @@
 {% endblock details_tab %}
 {# Extra tab panes: Components, Maintenances, Software #}
 {% block extra_tab_panes %}
-  {% if object.is_modular %}
+  {% if is_modular %}
     <div class="tab-pane fade {% if request.GET.tab == 'components' %}show active{% endif %}"
          id="components"
          role="tabpanel">

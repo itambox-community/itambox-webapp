@@ -4,7 +4,10 @@ import re
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Column, Div, Fieldset, Layout, Row, Submit
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import validate_email
 from django.db import transaction
 from django.templatetags.static import static
 from django.urls import reverse
@@ -14,9 +17,11 @@ from django.utils.translation import gettext_lazy as _
 from core.data_transfer import policy_for
 from core.forms import ColorFieldFormMixin, FilterForm, TenantScopedFormMixin
 from core.managers import Scope, get_current_tenant
+from core.models import ChangeLoggingMixin
 from core.validators import validate_external_url
 from itambox.labels import label_registry
 from itambox.middleware import get_current_user
+from itambox.registry import registry
 
 from .definition_contract import custom_field_definition_contract_errors
 from .filters import TagFilter
@@ -76,7 +81,7 @@ class TagForm(TenantScopedFormMixin, ColorFieldFormMixin, forms.ModelForm):
             "description",
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">{_("Cancel")}</a>'),
+            HTML('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))),
             HTML("</div>"),
         )
 
@@ -169,7 +174,6 @@ class CustomFieldForm(TenantScopedFormMixin, forms.ModelForm):
         self.fields["namespace"].initial = self.instance.namespace or "local"
 
         # Only models that actually store custom field data are selectable.
-        from itambox.registry import registry
 
         supported = [
             ContentType.objects.get_for_model(model).pk
@@ -455,7 +459,7 @@ class SavedFilterForm(TenantScopedFormMixin, forms.ModelForm):
             Div("enabled", css_class="mb-3 form-check"),
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">{_("Cancel")}</a>'),
+            HTML('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))),
             HTML("</div>"),
         )
 
@@ -480,7 +484,6 @@ def logged_content_types():
     An EventRule pointed at any other model would never fire — constraining the dropdown
     to these keeps users out of that silent dead-end.
     """
-    from core.models import ChangeLoggingMixin
 
     ids = []
     for ct in ContentType.objects.all():
@@ -1584,7 +1587,6 @@ class NotificationChannelForm(TenantScopedFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from django.contrib.auth import get_user_model
 
         User = get_user_model()
 
@@ -1596,8 +1598,6 @@ class NotificationChannelForm(TenantScopedFormMixin, forms.ModelForm):
         if is_admin:
             self.fields["in_app_recipient_users"].queryset = User.objects.filter(is_active=True)
         else:
-            from core.managers import get_current_tenant
-
             tenant = get_current_tenant()
             if tenant:
                 self.fields["in_app_recipient_users"].queryset = User.objects.filter(
@@ -1620,8 +1620,6 @@ class NotificationChannelForm(TenantScopedFormMixin, forms.ModelForm):
                 self.initial.setdefault("in_app_recipient_users", recipient_users)
 
     def clean(self):
-        from django.core.exceptions import ValidationError as DjangoValidationError
-        from django.core.validators import validate_email
 
         cleaned = super().clean()
         channel_type = cleaned.get("channel_type")

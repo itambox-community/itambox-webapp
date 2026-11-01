@@ -7,6 +7,7 @@ from django.urls import NoReverseMatch
 from django.utils import timezone
 from django.utils.html import format_html
 
+from core.choices import ObjectChangeActionChoices
 from itambox.labels import user_label_print_url
 from itambox.views.generic.bulk_policy import bulk_action_url
 from itambox.views.generic.mixins import user_can_mutate_model
@@ -59,7 +60,6 @@ def get_action_color(action_value):
     Relies on the ChoiceSet having color defined (or uses defaults).
     """
     # We need access to ObjectChangeActionChoices here. Import locally.
-    from core.choices import ObjectChangeActionChoices
 
     # Find the choice tuple matching the action_value
     for value, _label, color in ObjectChangeActionChoices.CHOICES:

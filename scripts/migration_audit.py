@@ -15,13 +15,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 OPERATION_TYPES = (
     "RunPython",
     "RunSQL",
     "SeparateDatabaseAndState",
     "BtreeGistExtension",
+    "TrigramExtension",
 )
+# Operations that install a PostgreSQL extension. They need the CREATE privilege on
+# the database, so every migration carrying one needs a reviewed rationale.
+EXTENSION_OPERATIONS = ("BtreeGistExtension", "TrigramExtension")
 
 # Reviewed, human-maintained rationale for every migration that does more than the ORM can
 # derive from the models. A migration with such operations and no entry here fails the audit,
@@ -45,6 +49,11 @@ REVIEWED_SEMANTICS = {
     "assets.0007_asset_type_identity_guard": (
         "Installs the PostgreSQL guard that keeps Asset Type connector identity immutable and refuses hard "
         "deletion of core and library Asset Types; fully reversible."
+    ),
+    "assets.0008_asset_search_trigram_indexes": (
+        "Enables the PostgreSQL pg_trgm extension (trusted since PostgreSQL 13) and adds trigram GIN indexes "
+        "on the upper-cased asset name, tag, serial number and notes that global search filters on; the "
+        "reverse drops the indexes and keeps the extension."
     ),
     "extras.0003_definition_guards": (
         "Installs the PostgreSQL guards for permanent reusable-definition identities, immutable definition "
@@ -183,14 +192,15 @@ def _operation_summary(operations_node):
         for operation in OPERATION_TYPES[:2]
     }
     summary["SeparateDatabaseAndState"] = {"count": 0}
-    summary["BtreeGistExtension"] = {"count": 0}
+    for extension in EXTENSION_OPERATIONS:
+        summary[extension] = {"count": 0}
 
     if operations_node is None:
         return summary
 
     for call in (node for node in ast.walk(operations_node) if isinstance(node, ast.Call)):
         operation = _call_name(call.func)
-        if operation in {"SeparateDatabaseAndState", "BtreeGistExtension"}:
+        if operation == "SeparateDatabaseAndState" or operation in EXTENSION_OPERATIONS:
             summary[operation]["count"] += 1
             continue
         if operation not in {"RunPython", "RunSQL"}:
@@ -244,7 +254,7 @@ def _has_custom_operations(migration):
         sum(operations["RunPython"].values()) > 0
         or sum(operations["RunSQL"].values()) > 0
         or operations["SeparateDatabaseAndState"]["count"] > 0
-        or operations["BtreeGistExtension"]["count"] > 0
+        or any(operations[extension]["count"] > 0 for extension in EXTENSION_OPERATIONS)
     )
 
 

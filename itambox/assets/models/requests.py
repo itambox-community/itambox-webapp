@@ -1,13 +1,15 @@
 """AssetRequest — user-facing request workflow for assets and consumables."""
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from assets.choices import RequestStatusChoices
-from core.managers import ExplicitScopeAllObjectsManager, ExplicitScopeSoftDeleteManager, Scope
+from core.managers import ExplicitScopeAllObjectsManager, ExplicitScopeSoftDeleteManager, Scope, get_current_tenant
 from core.mixins import JournalingMixin, SoftDeleteMixin, TaggableMixin
 from core.models import BaseModel, ChangeLoggingMixin
 
@@ -23,6 +25,30 @@ def reject_disposed_request(asset) -> None:
     """
     if asset is not None and asset.is_disposed:
         raise ValidationError(_("The asset '%(asset)s' is disposed and cannot be requested.") % {"asset": asset})
+
+
+# Allowed status changes of a stored request; terminal states allow none.
+VALID_STATUS_TRANSITIONS = {
+    RequestStatusChoices.PENDING: {
+        RequestStatusChoices.APPROVED,
+        RequestStatusChoices.DENIED,
+        RequestStatusChoices.CANCELLED,
+        RequestStatusChoices.FULFILLED,
+    },
+    RequestStatusChoices.APPROVED: {
+        RequestStatusChoices.FULFILLED,
+        RequestStatusChoices.CANCELLED,
+        RequestStatusChoices.PROCUREMENT,
+    },
+    RequestStatusChoices.PROCUREMENT: {
+        RequestStatusChoices.FULFILLED,
+        RequestStatusChoices.CANCELLED,
+        RequestStatusChoices.APPROVED,
+    },
+    RequestStatusChoices.DENIED: set(),
+    RequestStatusChoices.FULFILLED: set(),
+    RequestStatusChoices.CANCELLED: set(),
+}
 
 
 class AssetRequest(JournalingMixin, TaggableMixin, ChangeLoggingMixin, BaseModel, SoftDeleteMixin):
@@ -204,46 +230,37 @@ class AssetRequest(JournalingMixin, TaggableMixin, ChangeLoggingMixin, BaseModel
 
         super().clean()
 
-        if self.pk:
-            try:
-                # _base_manager: state-machine checks must not depend on the active
+        self._validate_status_transition()
 
-                # tenant context (see Asset.clean).
+        self._validate_item_selection()
 
-                old_status = AssetRequest._base_manager.get(pk=self.pk).status
+        if not self.pk:
+            self._validate_new_request_item()
 
-                if old_status != self.status:
-                    VALID_TRANSITIONS = {
-                        RequestStatusChoices.PENDING: {
-                            RequestStatusChoices.APPROVED,
-                            RequestStatusChoices.DENIED,
-                            RequestStatusChoices.CANCELLED,
-                            RequestStatusChoices.FULFILLED,
-                        },
-                        RequestStatusChoices.APPROVED: {
-                            RequestStatusChoices.FULFILLED,
-                            RequestStatusChoices.CANCELLED,
-                            RequestStatusChoices.PROCUREMENT,
-                        },
-                        RequestStatusChoices.PROCUREMENT: {
-                            RequestStatusChoices.FULFILLED,
-                            RequestStatusChoices.CANCELLED,
-                            RequestStatusChoices.APPROVED,
-                        },
-                        RequestStatusChoices.DENIED: set(),
-                        RequestStatusChoices.FULFILLED: set(),
-                        RequestStatusChoices.CANCELLED: set(),
-                    }
+            self._validate_no_open_duplicate()
 
-                    if self.status not in VALID_TRANSITIONS.get(old_status, set()):
-                        raise ValidationError(
-                            _("Invalid state transition from %(old)s to %(new)s.")
-                            % {"old": old_status, "new": self.status}
-                        )
+        if self.asset and self.asset_type and self.asset.asset_type != self.asset_type:
+            raise ValidationError(_("The selected asset does not match the requested asset type."))
 
-            except AssetRequest.DoesNotExist:
-                pass
+    def _validate_status_transition(self):
+        """Refuse a status change the request state machine does not allow."""
+        if not self.pk:
+            return
 
+        # _base_manager: state-machine checks must not depend on the active
+        # tenant context (see Asset.clean). A row that no longer exists has no
+        # previous state to transition from.
+        old_status = AssetRequest._base_manager.filter(pk=self.pk).values_list("status", flat=True).first()
+        if old_status is None or old_status == self.status:
+            return
+
+        if self.status not in VALID_STATUS_TRANSITIONS.get(old_status, set()):
+            raise ValidationError(
+                _("Invalid state transition from %(old)s to %(new)s.") % {"old": old_status, "new": self.status}
+            )
+
+    def _validate_item_selection(self):
+        """Require exactly one requested item category and a positive quantity."""
         categories_filled = []
 
         if self.asset is not None or self.asset_type is not None:
@@ -269,78 +286,90 @@ class AssetRequest(JournalingMixin, TaggableMixin, ChangeLoggingMixin, BaseModel
         if self.qty <= 0:
             raise ValidationError(_("Requested quantity must be greater than zero."))
 
-        if not self.pk:
-            if self.asset and not self.asset.is_requestable:
-                raise ValidationError(_("The asset '%(asset)s' is not requestable.") % {"asset": self.asset})
+    def _validate_new_request_item(self):
+        """A new request may only name a requestable, live and issuable item."""
+        if self.asset and not self.asset.is_requestable:
+            raise ValidationError(_("The asset '%(asset)s' is not requestable.") % {"asset": self.asset})
 
-            reject_disposed_request(self.asset)
+        reject_disposed_request(self.asset)
 
-            if self.asset_type and not self.asset_type.requestable:
-                raise ValidationError(_("The asset type '%(type)s' is not requestable.") % {"type": self.asset_type})
+        if self.asset_type and not self.asset_type.requestable:
+            raise ValidationError(_("The asset type '%(type)s' is not requestable.") % {"type": self.asset_type})
 
-            if self.asset and not self.asset.is_issuable:
-                raise ValidationError(
-                    _("The asset '%(asset)s' is currently not available (Status: %(status)s).")
-                    % {"asset": self.asset, "status": self.asset.get_status_display()}
-                )
+        if self.asset and not self.asset.is_issuable:
+            raise ValidationError(
+                _("The asset '%(asset)s' is currently not available (Status: %(status)s).")
+                % {"asset": self.asset, "status": self.asset.get_status_display()}
+            )
 
-            # Check for duplicate pending, approved or procurement requests by the same requester
+    def _validate_no_open_duplicate(self):
+        """Refuse a second open request by the same requester for the same item and target."""
+        # Check for duplicate pending, approved or procurement requests by the same requester
 
-            if self.requester_id and not getattr(self, "_skip_duplicate_check", False):
-                duplicate_qs = AssetRequest.objects.for_scope(Scope.current()).filter(
-                    requester_id=self.requester_id,
-                    status__in=[
-                        RequestStatusChoices.PENDING,
-                        RequestStatusChoices.APPROVED,
-                        RequestStatusChoices.PROCUREMENT,
-                    ],
-                    assigned_user_id=self.assigned_user_id,
-                    assigned_location_id=self.assigned_location_id,
-                    assigned_asset_id=self.assigned_asset_id,
-                )
+        if not self.requester_id or getattr(self, "_skip_duplicate_check", False):
+            return
 
-                if self.asset:
-                    if duplicate_qs.filter(asset=self.asset).exists():
-                        raise ValidationError(
-                            _("You already have an open request for the asset '%(asset)s'.") % {"asset": self.asset}
-                        )
+        duplicate_qs = AssetRequest.objects.for_scope(Scope.current()).filter(
+            requester_id=self.requester_id,
+            status__in=[
+                RequestStatusChoices.PENDING,
+                RequestStatusChoices.APPROVED,
+                RequestStatusChoices.PROCUREMENT,
+            ],
+            assigned_user_id=self.assigned_user_id,
+            assigned_location_id=self.assigned_location_id,
+            assigned_asset_id=self.assigned_asset_id,
+        )
 
-                elif self.asset_type:
-                    if duplicate_qs.filter(asset_type=self.asset_type, asset__isnull=True).exists():
-                        raise ValidationError(
-                            _("You already have an open request for the asset type '%(type)s'.")
-                            % {"type": self.asset_type}
-                        )
+        item_filter, message, params = self._duplicate_item_lookup()
+        if duplicate_qs.filter(**item_filter).exists():
+            raise ValidationError(message % params)
 
-                elif self.component:
-                    if duplicate_qs.filter(component=self.component).exists():
-                        raise ValidationError(
-                            _("You already have an open request for the component '%(component)s'.")
-                            % {"component": self.component}
-                        )
+    def _duplicate_item_lookup(self):
+        """The (filter, message, params) identifying the requested item.
 
-                elif self.accessory:
-                    if duplicate_qs.filter(accessory=self.accessory).exists():
-                        raise ValidationError(
-                            _("You already have an open request for the accessory '%(accessory)s'.")
-                            % {"accessory": self.accessory}
-                        )
+        The precedence (asset, asset type, component, accessory, consumable)
+        decides which item a duplicate is matched on. ``_validate_item_selection``
+        has already guaranteed exactly one category, so the consumable is the
+        remaining case. The message is formatted only when a duplicate is found.
+        """
+        if self.asset:
+            return (
+                {"asset": self.asset},
+                _("You already have an open request for the asset '%(asset)s'."),
+                {"asset": self.asset},
+            )
 
-                elif self.consumable:
-                    if duplicate_qs.filter(consumable=self.consumable).exists():
-                        raise ValidationError(
-                            _("You already have an open request for the consumable '%(consumable)s'.")
-                            % {"consumable": self.consumable}
-                        )
+        if self.asset_type:
+            return (
+                {"asset_type": self.asset_type, "asset__isnull": True},
+                _("You already have an open request for the asset type '%(type)s'."),
+                {"type": self.asset_type},
+            )
 
-        if self.asset and self.asset_type and self.asset.asset_type != self.asset_type:
-            raise ValidationError(_("The selected asset does not match the requested asset type."))
+        if self.component:
+            return (
+                {"component": self.component},
+                _("You already have an open request for the component '%(component)s'."),
+                {"component": self.component},
+            )
+
+        if self.accessory:
+            return (
+                {"accessory": self.accessory},
+                _("You already have an open request for the accessory '%(accessory)s'."),
+                {"accessory": self.accessory},
+            )
+
+        return (
+            {"consumable": self.consumable},
+            _("You already have an open request for the consumable '%(consumable)s'."),
+            {"consumable": self.consumable},
+        )
 
     def save(self, *args, **kwargs):
 
         if not self.tenant:
-            from core.managers import get_current_tenant
-
             self.tenant = get_current_tenant()
 
         # Auto-approval check for Accessories and Consumables.
@@ -352,9 +381,6 @@ class AssetRequest(JournalingMixin, TaggableMixin, ChangeLoggingMixin, BaseModel
         # only over-approve, never over-allocate.
 
         if not self.pk and self.status == RequestStatusChoices.PENDING:
-            from django.conf import settings
-            from django.utils import timezone
-
             thresholds = getattr(settings, "ITAMBOX_REQUISITION_AUTO_APPROVAL_THRESHOLDS", None)
 
             if thresholds is None:

@@ -4,6 +4,7 @@ import django_filters
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from assets.choices import RequestStatusChoices
@@ -200,8 +201,6 @@ class AssetFilterSet(SpecificationFilterMixin, BaseFilterSet):
     def filter_audit_due(self, queryset, name, value):
         if value is None:
             return queryset
-
-        from django.utils import timezone
 
         today = timezone.localdate()
         has_cadence_q = Q(asset_type__category__audit_interval_months__isnull=False)

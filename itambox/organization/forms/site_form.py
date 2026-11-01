@@ -7,7 +7,7 @@ from core.forms import FilterForm, TenantScopedFormMixin
 from extras.models import Tag
 
 from ..filters import SiteFilterSet
-from ..models import Region, Site, SiteGroup
+from ..models import Region, Site, SiteGroup, Tenant
 from .helpers import add_standard_buttons
 
 
@@ -76,8 +76,6 @@ class SiteForm(TenantScopedFormMixin, forms.ModelForm):
         self.helper = FormHelper(self)
         self.helper.form_method = "post"
         self.helper.form_tag = True
-
-        from ..models import Tenant
 
         self.fields["tenant"].queryset = Tenant.objects.all()
 

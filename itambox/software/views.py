@@ -12,6 +12,8 @@ from itambox.views.generic import (
     ObjectEditView,
     ObjectListView,
 )
+from licenses.models import License
+from licenses.tables import LicenseTable
 
 from . import filters, forms, tables
 from .models import InstalledSoftware, Software
@@ -55,8 +57,6 @@ class SoftwareDetailView(ObjectDetailView):
         context["instances_table"] = instances_table
 
         # Software Licenses & Entitlements
-        from licenses.models import License
-        from licenses.tables import LicenseTable
 
         license_qs = License.objects.for_scope(Scope.current()).filter(software=software)
         licenses_table = LicenseTable(license_qs, request=self.request)

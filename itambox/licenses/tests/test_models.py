@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 from model_bakery import baker
@@ -123,10 +124,12 @@ class LicenseSeatAssignmentTests(TestCase):
             seats=10,
             tenant=None,
         )
+        obj = LicenseSeatAssignment(license=license_obj, asset=self.asset, assigned_holder=self.holder)
         with self.assertRaises(ValidationError):
-            obj = LicenseSeatAssignment(license=license_obj, asset=self.asset, assigned_holder=self.holder)
             obj.full_clean()
-            obj.save()
+        # save() runs full_clean(); bulk_create() skips it, so this reaches the database constraint.
+        with transaction.atomic(), self.assertRaisesRegex(IntegrityError, "chk_assignment_to_one_target"):
+            LicenseSeatAssignment.objects.bulk_create([obj])
 
     def test_available_seats(self):
         license_obj = baker.make(

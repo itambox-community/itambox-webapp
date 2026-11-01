@@ -238,7 +238,7 @@ class EventsSystemTestCase(TransactionTestCase):
 
         self.assertFalse(Notification.objects.filter(subject=rule.action_config["subject"]).exists())
 
-    @patch("django_q.tasks.async_task")
+    @patch("extras.services.events.async_task")
     def test_webhook_rule_with_conditions_does_not_enqueue_task(self, mock_async_task):
         EventRule.objects.create(
             name="Webhook condition rule",

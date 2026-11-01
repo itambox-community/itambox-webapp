@@ -2,7 +2,8 @@
 
 import time
 
-from django.db import models
+from django.db import IntegrityError, models, transaction
+from django.db.models import F
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -71,8 +72,6 @@ class AssetTagSequence(ChangeLoggingMixin, BaseModel, SoftDeleteMixin):
         return reverse("assets:assettagsequence_detail", kwargs={"pk": self.pk})
 
     def next_tag(self):
-        from django.db import transaction
-        from django.db.models import F
 
         # Lock the sequence row before reading: formatting the tag from an unlocked
         # read lets two concurrent saves claim the same value and collide on the
@@ -105,7 +104,6 @@ class AssetTagSequence(ChangeLoggingMixin, BaseModel, SoftDeleteMixin):
         custody accept), so the re-select retries briefly instead of raising a
         hard 500 (hit on #306: parallel custody accepts on a fresh instance).
         """
-        from django.db import IntegrityError
 
         try:
             seq, _ = cls._base_manager.get_or_create(

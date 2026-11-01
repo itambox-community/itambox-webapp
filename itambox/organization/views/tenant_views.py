@@ -1,18 +1,25 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
+from django.urls import NoReverseMatch, reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.decorators.http import require_POST
+from django_q.tasks import async_task
 
 from assets.tables import AccessoryTable, AssetTable, ConsumableTable, KitTable
+from compliance.models import CustodyTemplate
+from compliance.tables import CustodyTemplateTable
 from core.managers import Scope
+from core.models import Job
+from inventory.tables import ComponentTable
 from itambox.panels import Panel
 from itambox.views.generic import (
     ObjectBulkDeleteView,
@@ -72,10 +79,6 @@ class TenantDetailView(ObjectDetailView):
         context["tenant_accessory_count"] = tenant.accessories.count()
         context["tenant_consumable_count"] = tenant.consumables.count()
         context["tenant_component_count"] = tenant.components.count()
-
-        from django.conf import settings
-
-        from compliance.models import CustodyTemplate
 
         context["tenant_custody_count"] = (
             CustodyTemplate.objects.for_scope(Scope.current()).filter(tenant=tenant).count()
@@ -187,7 +190,6 @@ class TenantDetailView(ObjectDetailView):
 
     def get_tab_components(self, request):
         tenant = self.get_object()
-        from inventory.tables import ComponentTable
 
         table = ComponentTable(tenant.components.all(), request=request)
         table.configure(request)
@@ -203,8 +205,6 @@ class TenantDetailView(ObjectDetailView):
 
     def get_tab_custody_policies(self, request):
         tenant = self.get_object()
-        from compliance.models import CustodyTemplate
-        from compliance.tables import CustodyTemplateTable
 
         custody_templates_qs = CustodyTemplate.objects.for_scope(Scope.current()).filter(tenant=tenant)
         table = CustodyTemplateTable(custody_templates_qs, request=request)
@@ -410,14 +410,6 @@ class TenantBulkDeleteView(ObjectBulkDeleteView):
 @login_required
 @require_POST
 def tenant_ldap_sync(request, pk):
-    from django.conf import settings
-    from django.contrib.contenttypes.models import ContentType
-    from django.db import transaction
-    from django.urls import NoReverseMatch
-    from django_q.tasks import async_task
-
-    from core.models import Job
-
     tenant = get_object_or_404(Tenant, pk=pk)
 
     # LDAP synchronization mutates the tenant named by the URL. Under a

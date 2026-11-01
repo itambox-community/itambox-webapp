@@ -16,6 +16,7 @@ class UsersConfig(AppConfig):
     name = "users"
 
     def ready(self):
+        # inline imports: app-registry: users.search and users.signals import user models and register receivers
         import users.search  # noqa
         import users.signals  # noqa
 

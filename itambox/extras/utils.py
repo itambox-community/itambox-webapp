@@ -1,10 +1,12 @@
+from django.urls import NoReverseMatch, reverse
+
+
 def resolve_generic_items(rows, toggle_url_name=None):
     """
     Resolve a list of Bookmark or ObjectWatch rows to dicts suitable for templates.
     Rows must have .user, .model (ContentType FK), .object_id, .created, .pk.
     Objects that no longer exist under the active tenant scope are silently skipped.
     """
-    from django.urls import reverse
 
     by_ct = {}
     for row in rows:
@@ -28,8 +30,8 @@ def resolve_generic_items(rows, toggle_url_name=None):
         if hasattr(obj, "get_absolute_url"):
             try:
                 url = obj.get_absolute_url()
-            except Exception:
-                pass
+            except NoReverseMatch:
+                url = "#"
         item = {
             "id": row.pk,
             "type_name": obj._meta.verbose_name.title(),
@@ -48,7 +50,7 @@ def resolve_generic_items(rows, toggle_url_name=None):
                         "object_id": row.object_id,
                     },
                 )
-            except Exception:
+            except NoReverseMatch:
                 item["toggle_url"] = "#"
         items.append(item)
     return items

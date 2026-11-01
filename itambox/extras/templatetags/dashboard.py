@@ -1,8 +1,11 @@
+import logging
+
 from django import template
 from django.utils.safestring import mark_safe
 
 from extras.dashboard.widgets import get_widget
 
+logger = logging.getLogger(__name__)
 register = template.Library()
 
 
@@ -39,8 +42,12 @@ def render_widget(context, widget_config, index=0):
         instance = widget_cls(config=cfg)
         instance.index = index
         return mark_safe(instance.render(request))
-    except Exception as e:
-        return f"<!-- Widget error ({widget_id}): {e} -->"
+    # broad except: render-degrade: one failing widget must not take the whole dashboard down
+    except Exception:
+        # The traceback goes to the server log; the page only gets an opaque marker so
+        # exception text (queries, paths, object reprs) is never rendered to the client.
+        logger.exception("Dashboard widget %s failed to render", widget_id)
+        return f"<!-- Widget error ({widget_id}) -->"
 
 
 @register.simple_tag
@@ -86,6 +93,7 @@ def get_widget_footer_links(context, widget_config, index=0):
         instance.index = index
         if hasattr(instance, "get_footer_links"):
             return instance.get_footer_links(request)
+    # broad except: render-degrade: a widget whose footer cannot be built renders without links
     except Exception:
-        pass
+        logger.exception("Dashboard widget %s failed to build its footer links", widget_id)
     return []

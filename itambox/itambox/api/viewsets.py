@@ -304,17 +304,14 @@ class ITAMBoxModelViewSet(
             and isinstance(validated, dict)
             and not self.request.user.is_superuser
         ):
-            from django.core.exceptions import FieldDoesNotExist
-
             for scope_field in ("tenant", "tenant_group"):
                 if scope_field not in validated:
                     continue
                 try:
                     model._meta.get_field(scope_field)
                 except FieldDoesNotExist:
-                    pass
-                else:
-                    save_kwargs[scope_field] = getattr(serializer.instance, scope_field, None)
+                    continue
+                save_kwargs[scope_field] = getattr(serializer.instance, scope_field, None)
 
         try:
             with transaction.atomic(using=router.db_for_write(model)):

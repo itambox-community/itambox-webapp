@@ -1,6 +1,9 @@
 from django.conf import settings
+from django.http import Http404
+from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
+from core.managers import get_current_all_accessible, get_current_tenant, get_current_tenant_group
 from core.tenant_access import accessible_tenant_ids, shared_stock_read_allowed
 
 
@@ -42,8 +45,6 @@ class TokenPermissions(BasePermission):
         kwargs = {"app_label": model._meta.app_label, "model_name": model._meta.model_name}
 
         if method not in self.perms_map:
-            from rest_framework.exceptions import MethodNotAllowed
-
             raise MethodNotAllowed(method)
 
         return [perm % kwargs for perm in self.perms_map[method]]
@@ -62,11 +63,6 @@ class TokenPermissions(BasePermission):
         # Permission evaluation must never silently choose the user's first
         # membership: that makes an unbound request's authorization depend on
         # database ordering and can stomp an intentional tenant-group scope.
-        from core.managers import (
-            get_current_all_accessible,
-            get_current_tenant,
-            get_current_tenant_group,
-        )
 
         tenant = get_current_tenant()
         token_tenant_id = getattr(getattr(request, "auth", None), "tenant_id", None)
@@ -115,8 +111,6 @@ class TokenPermissions(BasePermission):
         # READABLE across the boundary — the view permission is then checked
         # in the ACTIVE tenant instead of the (foreign) object tenant.
         if request.method in SAFE_METHODS:
-            from core.managers import get_current_tenant
-
             tenant = get_current_tenant()
             if tenant is not None and StrictTenantPermission._shared_read_allowed(
                 obj,
@@ -146,12 +140,6 @@ class StrictTenantPermission(BasePermission):
         if request.user.is_superuser:
             return True
 
-        from core.managers import (
-            get_current_all_accessible,
-            get_current_tenant,
-            get_current_tenant_group,
-        )
-
         user_tenant = getattr(request, "active_tenant", None) or get_current_tenant()
 
         if user_tenant is None:
@@ -164,7 +152,6 @@ class StrictTenantPermission(BasePermission):
             # enumeration).
             if get_current_tenant_group() is not None or get_current_all_accessible():
                 return self._has_multi_tenant_object_permission(request, obj)
-            from django.http import Http404
 
             raise Http404()
 
@@ -175,8 +162,6 @@ class StrictTenantPermission(BasePermission):
                 # non-superusers.  Hide the mutation as a 404 to avoid leaking
                 # the object's existence.
                 if request.method not in SAFE_METHODS:
-                    from django.http import Http404
-
                     raise Http404()
                 return True
             # Enforce boundary: Object's tenant must match user's tenant
@@ -191,7 +176,6 @@ class StrictTenantPermission(BasePermission):
                     request.user,
                 ):
                     return True
-                from django.http import Http404
 
                 raise Http404()
 
@@ -211,7 +195,6 @@ class StrictTenantPermission(BasePermission):
         scopes never surface cross-tenant shared pools, so a foreign-tenant
         object fails closed here.
         """
-        from django.http import Http404
 
         if not hasattr(obj, "tenant"):
             return True

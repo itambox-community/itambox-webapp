@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
@@ -118,7 +119,6 @@ class SubscriptionAdmin(TenantScopedAdminFormMixin, admin.ModelAdmin):
 
     @admin.action(description=_("Mark selected as Cancelled"))
     def mark_cancelled(self, request, queryset):
-        from django.utils import timezone
 
         updated = 0
         for subscription in queryset:

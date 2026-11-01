@@ -21,7 +21,7 @@ import datetime
 import uuid
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
 
 from core.choices import ObjectChangeActionChoices
@@ -59,10 +59,19 @@ class ChangeLogEngine:
     # ── internals ────────────────────────────────────────────────────
     @staticmethod
     def _tenant_of(obj):
+        return getattr(obj, "tenant", None)
+
+    @staticmethod
+    def _reload(obj):
+        """Re-read ``obj`` so DB-typed values replace the seed's plain Python ones.
+
+        An object deleted since it was created simply keeps its in-memory state.
+        """
         try:
-            return getattr(obj, "tenant", None)
-        except Exception:
-            return None
+            obj.refresh_from_db()
+        except ObjectDoesNotExist:
+            return False
+        return True
 
     @staticmethod
     def _field_names(obj):
@@ -120,10 +129,7 @@ class ChangeLogEngine:
         # Re-load DB-typed values (the seed assigns plain floats for money; the DB
         # round-trips them to Decimal). Without this, model logic like
         # compute_book_value() hits ``float / Decimal`` on the stale in-memory object.
-        try:
-            obj.refresh_from_db()
-        except Exception:
-            pass
+        self._reload(obj)
         ct = ContentType.objects.get_for_model(type(obj))
         before_pk = self._latest_change_pk(ct, obj)
         tenant = self._tenant_of(obj)
@@ -153,10 +159,7 @@ class ChangeLogEngine:
                 obj._changelog_action = None
 
         if not saved:
-            try:
-                obj.refresh_from_db()
-            except Exception:
-                pass
+            self._reload(obj)
             return obj
 
         oc = (
@@ -176,10 +179,7 @@ class ChangeLogEngine:
         the object's created_at/updated_at to ``when``. Returns ``obj``.
         """
         when = as_aware_datetime(when)
-        try:
-            obj.refresh_from_db()  # DB-typed values for an accurate serialized snapshot
-        except Exception:
-            pass
+        self._reload(obj)  # DB-typed values for an accurate serialized snapshot
         ct = ContentType.objects.get_for_model(type(obj))
         excluded = getattr(obj, "_change_logging_excluded_fields", ["updated_at"])
         tenant = self._tenant_of(obj)

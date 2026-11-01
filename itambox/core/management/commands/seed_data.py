@@ -28,8 +28,10 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
+from django.core.management.base import CommandError
+from django.db import connection, transaction
 
+from assets.models import Asset, StatusLabel
 from core.management.commands._seed.access import SeedAccessMixin, check_seed_access_invariants
 from core.management.commands._seed.assets import SeedAssetsMixin
 from core.management.commands._seed.catalog import SeedCatalogMixin
@@ -47,6 +49,8 @@ from core.management.commands._seed.organizations import SeedOrganizationsMixin
 from core.management.commands._seed.procurement import SeedProcurementMixin
 from core.management.commands._seed.subscriptions import SeedSubscriptionsMixin
 from core.tasks.management import SystemTaskCommand
+from extras.models import ExportTemplate
+from licenses.models import License
 
 User = get_user_model()
 
@@ -95,7 +99,6 @@ class Command(
         )
 
     def handle(self, *args, **options):
-        from django.core.management.base import CommandError
 
         random.seed(42)  # reproducible dataset
 
@@ -211,8 +214,6 @@ class Command(
         # afterwards. A previous best-effort multi-pass delete printed dozens of
         # spurious "could not fully clear" warnings even when cascade had already
         # emptied the rows.
-        from django.db import connection
-
         existing = set(connection.introspection.table_names())
         tables = []
         for app_label, model_name in models_to_clear:
@@ -238,7 +239,6 @@ class Command(
     # ─────────────────────────────────────────────────────────────────
 
     def _seed_minimal(self):
-        from assets.models import StatusLabel
 
         if not User.objects.filter(is_superuser=True).exists():
             # Never ship a hardcoded credential. Use DJANGO_SUPERUSER_PASSWORD when
@@ -254,12 +254,12 @@ class Command(
             if generated:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'  Created superuser "{username}" with a generated password: {password}\n'
-                        f"  Store it now and change it after first login."
+                        '  Created superuser "%s" with a generated password: %s\n' % (username, password)
+                        + "  Store it now and change it after first login."
                     )
                 )
             else:
-                self.stdout.write(f'  Created superuser "{username}" (password from DJANGO_SUPERUSER_PASSWORD).')
+                self.stdout.write('  Created superuser "%s" (password from DJANGO_SUPERUSER_PASSWORD).' % username)
         for name, slug, stype, color in self._status_label_defs():
             StatusLabel.objects.get_or_create(slug=slug, defaults={"name": name, "type": stype, "color": color})
         self.stdout.write("  Seeded default StatusLabels.")
@@ -315,11 +315,6 @@ class Command(
     # ─────────────────────────────────────────────────────────────────
 
     def _seed_export_templates(self):
-        from django.contrib.contenttypes.models import ContentType
-
-        from assets.models import Asset
-        from extras.models import ExportTemplate
-        from licenses.models import License
 
         asset_csv = (
             "Asset Tag,Name,Serial Number,Status\n"

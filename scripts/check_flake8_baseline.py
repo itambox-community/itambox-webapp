@@ -100,7 +100,7 @@ def _normalise_path(raw_path, cwd):
         try:
             path = path.resolve().relative_to(cwd.resolve())
         except ValueError:
-            pass
+            return path.as_posix()
     return path.as_posix()
 
 

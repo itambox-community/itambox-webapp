@@ -192,7 +192,8 @@ class Command(SystemTaskCommand):
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"LDAP sync complete for tenant '{tenant.slug}'. Created: {created_count}, Updated: {updated_count}"
+                    "LDAP sync complete for tenant '%s'. Created: %s, Updated: %s"
+                    % (tenant.slug, created_count, updated_count)
                 )
             )
 

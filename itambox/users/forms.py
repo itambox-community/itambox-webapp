@@ -12,6 +12,7 @@ from django.conf import settings  # Import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
+from django.utils import translation
 from django.utils.translation import gettext_lazy as _
 
 from core.forms import BulkEditForm, FilterForm, TenantScopedFormMixin
@@ -244,7 +245,6 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
             self.fields["theme"].initial = UserPreference.DEFAULT_THEME
 
         # Language initial: stored preference first, else the active language
-        from django.utils import translation
 
         valid_languages = dict(settings.LANGUAGES)
         stored_language = None
@@ -252,6 +252,7 @@ class UserPreferencesForm(TenantScopedFormMixin, forms.Form):
             prefs = UserPreference.objects.filter(user=self.user).first()
             if prefs and prefs.data:
                 stored_language = prefs.data.get("language")
+        # broad except: render-degrade: an unreadable stored language falls back to the active one
         except Exception:
             stored_language = None
         if stored_language not in valid_languages:

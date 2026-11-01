@@ -2,6 +2,7 @@ import django_tables2 as tables
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
+from core.choices import ObjectChangeActionChoices
 from core.models import ObjectChange
 
 from .base import BaseTable
@@ -31,7 +32,6 @@ class ObjectChangeTable(BaseTable):
         )
 
     def render_action(self, value, record):
-        from core.choices import ObjectChangeActionChoices
 
         color = "secondary"
         for val, _label, c in ObjectChangeActionChoices.CHOICES:

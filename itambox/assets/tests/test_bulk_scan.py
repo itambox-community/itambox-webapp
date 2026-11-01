@@ -226,7 +226,7 @@ class BulkScanSubmitViewTests(TenantTestMixin, TestCase):
             tenant=self.tenant,
         )
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_bulk_checkin_enqueues(self, mock_async):
         self.client_login_to_tenant(self.tenant_admin, self.tenant)
         resp = self.client.post(
@@ -249,7 +249,7 @@ class BulkScanSubmitViewTests(TenantTestMixin, TestCase):
         self.assertEqual(args[4], self.tenant.pk)
 
     @override_settings(Q_CLUSTER={"sync": False})
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_bulk_checkin_async_enqueue_waits_for_commit(self, mock_async):
         self.client_login_to_tenant(self.tenant_admin, self.tenant)
         with self.captureOnCommitCallbacks(execute=False) as callbacks:
@@ -264,7 +264,7 @@ class BulkScanSubmitViewTests(TenantTestMixin, TestCase):
         mock_async.assert_called_once()
         self.assertEqual(mock_async.call_args.args[0], "assets.tasks.checkin.bulk_checkin_task")
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_bulk_dispose_enqueues_with_proceeds_map(self, mock_async):
         self.client_login_to_tenant(self.tenant_admin, self.tenant)
         resp = self.client.post(
@@ -292,7 +292,7 @@ class BulkScanSubmitViewTests(TenantTestMixin, TestCase):
         self.assertEqual(proceeds_map[str(self.a1.pk)], "50.00")
         self.assertIsNone(proceeds_map[str(self.a2.pk)])
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_dispose_requires_date(self, mock_async):
         self.client_login_to_tenant(self.tenant_admin, self.tenant)
         resp = self.client.post(
@@ -306,7 +306,7 @@ class BulkScanSubmitViewTests(TenantTestMixin, TestCase):
         mock_async.assert_not_called()
         self.assertFalse(Job.objects.exists())
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_no_selection_redirects(self, mock_async):
         self.client_login_to_tenant(self.tenant_admin, self.tenant)
         resp = self.client.post(reverse("assets:asset_bulk_checkin"), {})
@@ -859,7 +859,7 @@ class BulkScanPageTests(TenantTestMixin, TestCase):
 
         self.assertEqual(resp.status_code, 405)
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_all_accessible_submit_uses_selected_tenant(self, mock_async):
         self.tenant_role.permissions = ["assets.view_asset", "assets.change_asset"]
         self.tenant_role.save()
@@ -881,7 +881,7 @@ class BulkScanPageTests(TenantTestMixin, TestCase):
         mock_async.assert_called_once()
         self.assertEqual(mock_async.call_args[0][4], self.tenant.pk)
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_all_accessible_disposal_submit_uses_selected_tenant(self, mock_async):
         """Aggregate scope: a disposal submitted for the selected tenant reaches the task."""
         self.tenant_role.permissions = ["assets.view_asset", "assets.add_assetdisposal"]
@@ -903,7 +903,7 @@ class BulkScanPageTests(TenantTestMixin, TestCase):
         self.assertEqual(job.tenant_id, self.tenant.pk)
         mock_async.assert_called_once()
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_all_accessible_disposal_never_submits_a_foreign_tenant_asset(self, mock_async):
         """Aggregate scope: an asset of a tenant with read-only access is not disposed (#496)."""
         other = Tenant.objects.create(name="Other disposal", slug="dispose-other")
@@ -1022,7 +1022,7 @@ class BulkCheckoutTests(TenantTestMixin, TestCase):
         self.assertEqual(resp.status_code, 403)
 
     # ── submit view ──
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_bulk_checkout_enqueues(self, mock_async):
         self.client_login_to_tenant(self.tenant_admin, self.tenant)
         resp = self.client.post(
@@ -1044,7 +1044,7 @@ class BulkCheckoutTests(TenantTestMixin, TestCase):
         self.assertEqual(args[3], "assetholder")
         self.assertEqual(args[4], str(self.holder.pk))
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_bulk_checkout_requires_one_target(self, mock_async):
         self.client_login_to_tenant(self.tenant_admin, self.tenant)
         resp = self.client.post(reverse("assets:asset_bulk_checkout"), {"pk": [self.asset.pk]})
@@ -1052,7 +1052,7 @@ class BulkCheckoutTests(TenantTestMixin, TestCase):
         mock_async.assert_not_called()
         self.assertFalse(Job.objects.exists())
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_bulk_checkout_rejects_multiple_targets(self, mock_async):
         site = Site.objects.create(name="S", slug="s-co")
         loc = Location.objects.create(name="L", slug="l-co", site=site, tenant=self.tenant)
@@ -1291,7 +1291,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         self.assertEqual(seeded, {self.asset_a.pk: self.tenant.pk, self.asset_b.pk: self.other.pk})
 
     # ── valid batches keep today's behaviour ──
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_same_tenant_submit_still_enqueues(self, mock_async):
         self._login_all_accessible()
 
@@ -1306,7 +1306,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         mock_async.assert_called_once()
 
     # ── mixed-tenant batches ──
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_mixed_tenant_checkin_is_rejected_before_job(self, mock_async):
         self._login_all_accessible()
 
@@ -1320,7 +1320,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         mock_async.assert_not_called()
         self._assert_sanitized_rejection(resp, 1, self.asset_b)
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_mixed_tenant_dispose_is_rejected_before_job(self, mock_async):
         self._login_all_accessible()
 
@@ -1340,7 +1340,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         mock_async.assert_not_called()
         self._assert_sanitized_rejection(resp, 1, self.asset_b)
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_mixed_tenant_checkout_is_rejected_before_job(self, mock_async):
         self._login_all_accessible()
 
@@ -1359,7 +1359,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         self._assert_sanitized_rejection(resp, 1, self.asset_b)
 
     # ── unreachable, unknown, malformed and deleted PKs ──
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_inaccessible_tenant_pk_is_rejected(self, mock_async):
         self._login_all_accessible()
 
@@ -1373,7 +1373,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         mock_async.assert_not_called()
         self._assert_sanitized_rejection(resp, 1, self.asset_foreign)
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_unknown_pk_is_rejected(self, mock_async):
         self._login_all_accessible()
 
@@ -1386,7 +1386,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         self.assertFalse(Job.objects.exists())
         mock_async.assert_not_called()
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_non_numeric_pk_is_rejected(self, mock_async):
         """Garbage fails the same existence check instead of reaching the ORM."""
         self._login_all_accessible()
@@ -1400,7 +1400,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         self.assertFalse(Job.objects.exists())
         mock_async.assert_not_called()
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_soft_deleted_pk_is_rejected(self, mock_async):
         self.asset_a.delete()
         self._login_all_accessible()
@@ -1416,7 +1416,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         mock_async.assert_not_called()
 
     # ── concrete tenant scope stays server-authoritative ──
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_concrete_scope_ignores_tampered_hidden_tenant(self, mock_async):
         """A posted foreign tenant id cannot rebind the Job away from the scope tenant."""
         self.client_login_to_tenant(self.tenant_user, self.tenant)
@@ -1431,7 +1431,7 @@ class BulkSubmissionBatchTests(TenantTestMixin, TestCase):
         self.assertEqual(job.tenant_id, self.tenant.pk)
         self.assertEqual(mock_async.call_args[0][4], self.tenant.pk)
 
-    @patch("django_q.tasks.async_task")
+    @patch("assets.views.bulk_scan_views.async_task")
     def test_concrete_scope_rejects_foreign_pk(self, mock_async):
         self.client_login_to_tenant(self.tenant_user, self.tenant)
 

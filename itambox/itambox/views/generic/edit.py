@@ -11,7 +11,7 @@ from django.urls import NoReverseMatch, reverse
 from django.utils.translation import gettext as _
 from django.views.generic import UpdateView
 
-from itambox.utils import get_help_url, get_model_viewname
+from itambox.utils import get_help_url, get_model_viewname, model_view_url
 from itambox.views.generic.authorization import PermissionResolver
 from itambox.views.generic.mixins import (
     CachedObjectMixin,
@@ -92,27 +92,23 @@ class ObjectEditView(
             is_editing = self.object is not None and self.object.pk is not None
             button_text = _("Update") if is_editing else _("Create")
 
-            cancel_url = "#"
+            cancel_url = None
             if self.object and hasattr(self.object, "get_absolute_url"):
                 try:
                     cancel_url = self.object.get_absolute_url()
-                except Exception:
-                    pass
-            if cancel_url == "#":
+                except NoReverseMatch:
+                    # An unsaved object (pk None) has no detail URL yet.
+                    cancel_url = None
+            if cancel_url is None:
                 _model = self._get_model()
-                if _model:
-                    try:
-                        list_view_name = get_model_viewname(_model, "list")
-                        cancel_url = reverse(list_view_name)
-                    except Exception:
-                        cancel_url = reverse("dashboard")
+                cancel_url = (model_view_url(_model, "list") if _model else None) or reverse("dashboard")
 
             layout_elements = list(form.fields.keys())
             layout_elements.extend(
                 [
                     HTML('<div class="mt-4"></div>'),
                     Submit("submit", button_text, css_class="btn btn-primary"),
-                    HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">{_("Cancel")}</a>'),
+                    HTML('<a href="{}" class="btn btn-outline-secondary ms-2">{}</a>'.format(cancel_url, _("Cancel"))),
                 ]
             )
             helper.layout = Layout(*layout_elements)
@@ -172,7 +168,7 @@ class ObjectEditView(
             self.object = form.save()
         msg_verb = _("Created") if is_creating else _("Modified")
         msg_link = (
-            f"<a href='{self.object.get_absolute_url()}'>{self.object}</a>"
+            "<a href='{}'>{}</a>".format(self.object.get_absolute_url(), self.object)
             if hasattr(self.object, "get_absolute_url")
             else str(self.object)
         )
@@ -180,18 +176,13 @@ class ObjectEditView(
             _("%(verb)s %(model)s %(link)s") % {"verb": msg_verb, "model": _model._meta.verbose_name, "link": msg_link},
         )
 
+        next_url = None
         if self.request.POST.get("_addanother") and _model:
-            try:
-                add_view_name = get_model_viewname(_model, "add")
-                return redirect(reverse(add_view_name))
-            except NoReverseMatch:
-                pass
+            next_url = model_view_url(_model, "add")
         elif self.request.POST.get("_continue") and _model:
-            try:
-                edit_view_name = get_model_viewname(_model, "edit")
-                return redirect(reverse(edit_view_name, kwargs={"pk": self.object.pk}))
-            except NoReverseMatch:
-                pass
+            next_url = model_view_url(_model, "edit", pk=self.object.pk)
+        if next_url:
+            return redirect(next_url)
 
         return HttpResponseRedirect(self.get_success_url())
 

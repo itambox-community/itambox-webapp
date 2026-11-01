@@ -52,7 +52,7 @@ class KitForm(TenantScopedFormMixin, forms.ModelForm):
             "tags",
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">Cancel</a>'),
+            HTML('<a href="{}" class="btn btn-outline-secondary ms-2">Cancel</a>'.format(cancel_url)),
             HTML("</div>"),
         )
 
@@ -96,7 +96,7 @@ class KitItemForm(TenantScopedFormMixin, forms.ModelForm):
             "qty",
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">Cancel</a>'),
+            HTML('<a href="{}" class="btn btn-outline-secondary ms-2">Cancel</a>'.format(cancel_url)),
             HTML("</div>"),
         )
 

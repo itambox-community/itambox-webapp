@@ -15,6 +15,9 @@ Designed to be mixed into ``Command`` in seed_data.py:
 import datetime
 import random
 
+from core.management.commands._seed.engine import ChangeLogEngine
+from organization.models import CostCenter
+
 TODAY = datetime.date.today()
 
 
@@ -196,8 +199,6 @@ class SeedFinanceMixin:
     def _get_engine(self):
         """Return the shared ChangeLogEngine, creating it once if needed."""
         if not hasattr(self, "_engine") or self._engine is None:
-            from core.management.commands._seed.engine import ChangeLogEngine
-
             self._engine = ChangeLogEngine(stdout=self.stdout, style=self.style)
         return self._engine
 
@@ -206,7 +207,6 @@ class SeedFinanceMixin:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _seed_cost_centers(self):
-        from organization.models import CostCenter
 
         engine = self._get_engine()
         self.stdout.write("--- Finance: cost centres ---")

@@ -111,7 +111,7 @@ class TenantViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Tenant.objects.filter(pk=self.tenant.pk).exists())
 
-    @patch("django_q.tasks.async_task")
+    @patch("organization.views.tenant_views.async_task")
     def test_tenant_ldap_sync_view(self, mock_async):
         with override_settings(ITAMBOX_TENANT_LDAP_CONFIGS={"acme-corp": {"SERVER_URI": "ldap://localhost"}}):
             url = reverse("organization:tenant_ldap_sync", kwargs={"pk": self.tenant.pk})
@@ -198,7 +198,7 @@ class TenantLDAPSyncGroupScopeTests(TestCase):
         session.pop("active_tenant_id", None)
         session.save()
 
-    @patch("django_q.tasks.async_task")
+    @patch("organization.views.tenant_views.async_task")
     def test_group_scope_cannot_borrow_change_permission_from_sibling(self, mock_async):
         from core.models import Job
 
@@ -211,7 +211,7 @@ class TenantLDAPSyncGroupScopeTests(TestCase):
         self.assertFalse(Job.objects.filter(name=f"LDAP Sync: {self.tenant_b.name}").exists())
         mock_async.assert_not_called()
 
-    @patch("django_q.tasks.async_task")
+    @patch("organization.views.tenant_views.async_task")
     def test_group_scope_job_and_task_are_bound_to_requested_tenant(self, mock_async):
         from core.models import Job
 

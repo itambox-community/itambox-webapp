@@ -21,6 +21,7 @@ class OrganizationConfig(AppConfig):
 
     def ready(self):
         # Import search indexes to register them
+        # inline imports: app-registry: organization.search and .signals import organization models and register receivers
         import organization.search
         import organization.signals  # noqa: F401 -- side-effect import registers organization signal receivers
 

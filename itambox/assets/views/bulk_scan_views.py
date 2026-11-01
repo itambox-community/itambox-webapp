@@ -26,6 +26,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 from django.views import View
 from django.views.generic import TemplateView
+from django_q.tasks import async_task
 
 from core.managers import Scope
 from core.models import Job
@@ -229,8 +230,6 @@ def _job_redirect(request, job, message):
 
 def _enqueue(job, task_path, *task_args):
     """Dispatch via on_commit unless running inline (Q_CLUSTER sync, e.g. tests)."""
-    from django_q.tasks import async_task
-
     if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
         async_task(task_path, *task_args)
     else:

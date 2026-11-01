@@ -34,10 +34,11 @@ untouched until the 18 cluster has been verified: it is the fastest rollback.
 2. Record the current revision (`git rev-parse HEAD`), the running image
    (`docker compose images`), the exact `db.image` value, and the full
    tag-and-digest reference of the 16 image you are leaving.
-3. Confirm the `btree_gist` extension on the current cluster. It is the only
-   extension the application needs, it backs the asset reservation exclusion
-   constraint, and migration `assets.0051` creates it; the 18 image ships
-   `postgresql-contrib`, so a restore or `pg_upgrade` carries it over.
+3. Confirm the `btree_gist` and `pg_trgm` extensions on the current cluster.
+   They are the only extensions the application needs: `btree_gist` backs the
+   asset reservation exclusion constraint, `pg_trgm` the global-search trigram
+   indexes (migration `assets.0008_asset_search_trigram_indexes`). The 18 image
+   ships `postgresql-contrib`, so a restore or `pg_upgrade` carries both over.
 4. Plan the window. Path A needs it for the dump and the restore, path B needs
    the 16 and 18 binaries in one place as well as a hard stop of both clusters.
 5. Prepare a **new** named volume for the 18 cluster. Do not reuse `pgdata`
@@ -168,7 +169,7 @@ statements. Start with the server and the extension:
 
 ```sql
 SELECT version();
-SELECT extversion FROM pg_extension WHERE extname = 'btree_gist';
+SELECT extname, extversion FROM pg_extension WHERE extname IN ('btree_gist', 'pg_trgm');
 ```
 
 Then confirm the object population and the migration recorder:

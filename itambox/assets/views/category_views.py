@@ -5,8 +5,10 @@ from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
 from assets.models.catalog import scoped_related_count
+from compliance.models import CustodyTemplate
 from core.managers import Scope
-from inventory.models import Accessory
+from inventory.models import Accessory, Component, Consumable
+from inventory.tables import ComponentTable, ConsumableTable
 from itambox.panels import Panel
 from itambox.utils import get_paginate_count
 from itambox.views.generic import (
@@ -69,8 +71,6 @@ class CategoryDetailView(ObjectDetailView):
         context["accessories_table"] = accessories_table
 
         # Components
-        from inventory.models import Component
-        from inventory.tables import ComponentTable
 
         cat_components = (
             Component.objects.for_scope(Scope.current())
@@ -83,8 +83,6 @@ class CategoryDetailView(ObjectDetailView):
         context["components_table"] = components_table
 
         # Consumables
-        from inventory.models import Consumable
-        from inventory.tables import ConsumableTable
 
         cat_consumables = (
             Consumable.objects.for_scope(Scope.current())
@@ -99,7 +97,6 @@ class CategoryDetailView(ObjectDetailView):
         context["consumables_table"] = consumables_table
 
         # Query active custody templates (Policies) linked to this category
-        from compliance.models import CustodyTemplate
 
         context["custody_templates"] = (
             CustodyTemplate.objects.for_scope(Scope.current())

@@ -4,7 +4,11 @@ from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django_tables2 import RequestConfig
 
+from assets.models import AssetMaintenance
+from assets.tables import AssetMaintenanceTable
 from core.managers import Scope
+from inventory.models import Accessory
+from inventory.tables import AccessoryTable
 from itambox.panels import Panel
 from itambox.utils import get_paginate_count
 from itambox.views.generic import (
@@ -14,6 +18,8 @@ from itambox.views.generic import (
     ObjectEditView,
     ObjectListView,
 )
+from licenses.models import License
+from licenses.tables import LicenseTable
 
 from .. import filters, forms, tables
 from ..models import Asset, Supplier
@@ -69,8 +75,6 @@ class SupplierDetailView(ObjectDetailView):
         context["assets_table"] = assets_table
 
         # Accessories Supplied
-        from inventory.models import Accessory
-        from inventory.tables import AccessoryTable
 
         accessory_qs = (
             Accessory.objects.for_scope(Scope.current())
@@ -85,8 +89,6 @@ class SupplierDetailView(ObjectDetailView):
         context["accessories_table"] = accessories_table
 
         # Maintenance Expenditures
-        from assets.models import AssetMaintenance
-        from assets.tables import AssetMaintenanceTable
 
         maintenance_qs = (
             AssetMaintenance.objects.for_scope(Scope.current())
@@ -100,8 +102,6 @@ class SupplierDetailView(ObjectDetailView):
         context["maintenances_table"] = maintenances_table
 
         # Licenses Purchased
-        from licenses.models import License
-        from licenses.tables import LicenseTable
 
         license_qs = (
             License.objects.for_scope(Scope.current())

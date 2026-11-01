@@ -1,7 +1,7 @@
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Column, Div, Fieldset, Layout, Row, Submit
 from django import forms
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Manufacturer  # Import Manufacturer
@@ -134,7 +134,7 @@ class InstalledSoftwareForm(TenantScopedFormMixin, CrispyFormMixin, forms.ModelF
         button_text = _("Update") if self.instance and self.instance.pk else _("Install Software")
         try:
             cancel_url = reverse("software:software_list")
-        except Exception:
+        except NoReverseMatch:
             cancel_url = "/"
 
         self.helper.layout = Layout(

@@ -85,7 +85,7 @@ class ReportCustomHTMLRemovalTests(TestCase):
         context_data = {}
 
         with (
-            patch("core.managers.get_current_tenant", return_value=active_tenant) as get_active_tenant,
+            patch("extras.views.get_current_tenant", return_value=active_tenant) as get_active_tenant,
             patch("extras.views._specification_inputs", return_value=([], [])),
             patch.object(ReportTemplate, "full_clean"),
             patch("core.reports.build_report_context", return_value=([], [], [], [], None, context_data)) as build,

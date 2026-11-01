@@ -8,7 +8,10 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Model
+from django.db.models.fields.files import FieldFile
+from django.urls import NoReverseMatch, reverse
 from django.utils.module_loading import import_string
+from django.utils.text import slugify
 
 from itambox.constants import DEFAULT_PAGINATE_COUNT, PAGINATE_COUNT_CHOICES
 
@@ -27,6 +30,14 @@ def get_model_viewname(model, action):
         act = "add" if action == "create" else action
         return f"{model_name}_{act}"
     return f"{app_label}:{model_name}_{action}"
+
+
+def model_view_url(model, action, **kwargs):
+    """URL of ``model``'s ``action`` view, or ``None`` when the model has no such view."""
+    try:
+        return reverse(get_model_viewname(model, action), kwargs=kwargs or None)
+    except NoReverseMatch:
+        return None
 
 
 def get_paginate_count(request):
@@ -55,6 +66,7 @@ def get_paginate_count(request):
                             return user_pref
                     except (ValueError, TypeError):
                         logger.debug("Invalid user preference pagination value: '%s'", user_pref_val)
+        # broad except: render-degrade: an unreadable preference falls back to the default page size
         except Exception as e:
             logger.debug("Error reading user pagination preferences: %s", e)
 
@@ -99,6 +111,8 @@ def serialize_object(obj: Model, extra_fields=None, exclude_fields=None) -> dict
             if hasattr(field_value, "all"):
                 try:
                     data[field_name] = sorted(list(field_value.values_list("pk", flat=True)))
+                # broad except: boundary-isolation: an unreadable M2M relation is recorded as empty
+                # rather than aborting the audited save
                 except Exception:
                     data[field_name] = []
             else:
@@ -114,8 +128,6 @@ def serialize_object(obj: Model, extra_fields=None, exclude_fields=None) -> dict
             elif isinstance(field_value, (Decimal, UUID)):
                 data[field_name] = str(field_value)
             else:
-                from django.db.models.fields.files import FieldFile
-
                 if isinstance(field_value, FieldFile):
                     data[field_name] = field_value.name if field_value else None
                 else:
@@ -182,8 +194,6 @@ def generate_unique_slug(instance, slug_source=None, slug_field="slug"):
     """
     if getattr(instance, slug_field, None):
         return
-
-    from django.utils.text import slugify
 
     if slug_source is None:
         slug_source = getattr(instance, "slug_source", "name")

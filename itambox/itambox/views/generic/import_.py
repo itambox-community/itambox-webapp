@@ -23,7 +23,7 @@ from core.importers.bulk_forms import (
 )
 from core.managers import get_current_tenant
 from core.models import Job
-from itambox.utils import get_model_viewname
+from itambox.utils import model_view_url
 from itambox.views.generic.mixins import user_can_mutate_model
 from itambox.views.htmx import BaseHTMXView
 
@@ -251,13 +251,7 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
 
     def _get_cancel_url(self):
         model = self._get_model()
-        if model:
-            try:
-                list_view_name = get_model_viewname(model, "list")
-                return reverse(list_view_name)
-            except NoReverseMatch:
-                pass
-        return reverse("dashboard")
+        return (model_view_url(model, "list") if model else None) or reverse("dashboard")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs) if hasattr(super(), "get_context_data") else {}

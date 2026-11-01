@@ -46,6 +46,6 @@ class DepreciationForm(TenantScopedFormMixin, forms.ModelForm):
             Field("description"),
             HTML('<div class="mt-3">'),
             Submit("submit", button_text, css_class="btn btn-primary"),
-            HTML(f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2">Cancel</a>'),
+            HTML('<a href="%s" class="btn btn-outline-secondary ms-2">Cancel</a>' % cancel_url),
             HTML("</div>"),
         )

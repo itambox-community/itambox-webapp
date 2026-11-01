@@ -284,7 +284,7 @@ class CoreTablesTestCase(TestCase):
         # Render check for Asset 1 (checked out to location)
         col_bound = table.columns["assignee"]
         rendered_1 = column.render(asset_checked_out.pk, asset_checked_out, col_bound, table)
-        self.assertIn(f'Location: <a href="{location.get_absolute_url()}">{location.name}</a>', rendered_1)
+        self.assertIn('Location: <a href="%s">%s</a>' % (location.get_absolute_url(), location.name), rendered_1)
 
         with translation.override("de"):
             rendered_2 = column.render(asset_available.pk, asset_available, col_bound, table)

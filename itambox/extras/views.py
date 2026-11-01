@@ -13,7 +13,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
+from django.urls import NoReverseMatch, reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.html import escape
@@ -21,11 +21,15 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import View
+from django_q.tasks import async_task
 
 from assets.services.specification_consumers.contracts import FieldReference, parse_filter_document
 from assets.services.specification_consumers.exporting import machine_csv_bytes
 from assets.tables import AssetTable  # Import AssetTable
+from core.csv_utils import safe_csv_filename
+from core.events import send_notification_to_channel
 from core.managers import Scope, get_current_tenant
+from core.reports.exporters import PDF_MIME, XLSX_MIME, report_pdf_bytes, report_xlsx_bytes
 from core.reports.rendering import render_report_csv, render_report_html
 from core.schedules import (
     SCHEDULED_REPORT_FIRE_KWARG,
@@ -47,6 +51,7 @@ from itambox.views.generic import (
 from itambox.views.generic.mixins import CapabilityRequiredMixin, is_managed_definition
 from itambox.views.generic.service_views import SimplePostView
 from itambox.views.generic.utils import safe_return_url
+from organization.models import Tenant
 
 from .filters import (
     AlertLogFilterSet,
@@ -374,8 +379,8 @@ class SavedFilterSaveView(LoginRequiredMixin, PermissionRequiredMixin, View):
             if model is not None:
                 try:
                     return reverse(get_model_viewname(model, "list"))
-                except Exception:
-                    pass
+                except NoReverseMatch:
+                    return reverse("extras:savedfilter_list")
         return reverse("extras:savedfilter_list")
 
     def _respond(self, request, model_str, pk, error):
@@ -481,11 +486,9 @@ class AlertRuleRunNowView(SimplePostView):
     permission_required = ("extras.change_alertrule",)
 
     def perform_action(self, rule, request):
-        from django_q.tasks import async_task
-
         rule_id = rule.pk
         async_task("extras.tasks.alerts.run_alert_rule_now", rule_id)
-        return {"message": f"Evaluation queued for '{rule.name}'. New alerts will appear shortly."}
+        return {"message": "Evaluation queued for '%s'. New alerts will appear shortly." % rule.name}
 
     def get_success_redirect(self, obj, result):
         return redirect(
@@ -514,8 +517,6 @@ class AlertLogListView(ObjectListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["title"] = _("Alerts Center")
-
-        from core.managers import get_current_tenant
 
         current_tenant = get_current_tenant()
 
@@ -550,7 +551,7 @@ class AlertAcknowledgeView(_TenantBoundAlertActionMixin, SimplePostView):
             alert.status = AlertLog.STATUS_ACKNOWLEDGED
             alert.acknowledged_by = request.user
             alert.save(update_fields=["status", "acknowledged_by"])
-        return {"message": f"Alert '{alert.subject}' acknowledged."}
+        return {"message": "Alert '%s' acknowledged." % alert.subject}
 
     def get_success_redirect(self, obj, result):
         return redirect(
@@ -572,7 +573,7 @@ class AlertResolveView(_TenantBoundAlertActionMixin, SimplePostView):
             alert.resolved_by = request.user
             alert.resolved_at = timezone.now()
             alert.save(update_fields=["status", "resolved_by", "resolved_at"])
-        return {"message": f"Alert '{alert.subject}' marked as resolved."}
+        return {"message": "Alert '%s' marked as resolved." % alert.subject}
 
     def get_success_redirect(self, obj, result):
         return redirect(
@@ -755,7 +756,6 @@ class NotificationChannelTestView(SimplePostView):
     permission_required = ("extras.change_notificationchannel",)
 
     def perform_action(self, channel, request):
-        from core.events import send_notification_to_channel
 
         ok = send_notification_to_channel(
             channel,
@@ -767,8 +767,8 @@ class NotificationChannelTestView(SimplePostView):
             },
         )
         if ok:
-            return {"message": f"Test notification sent successfully via '{channel.name}'."}
-        raise Exception(f"Channel '{channel.name}' returned a delivery failure.")
+            return {"message": "Test notification sent successfully via '%s'." % channel.name}
+        raise Exception("Channel '%s' returned a delivery failure." % channel.name)
 
     def get_success_redirect(self, obj, result):
         return redirect(reverse("extras:notificationchannel_list"))
@@ -1433,20 +1433,14 @@ class ReportTemplatePreviewView(CapabilityRequiredMixin, PermissionRequiredMixin
         selected_tenant_id = request.POST.get("tenant")
         active_tenant = None
         if selected_tenant_id and request.user.is_superuser:
-            from organization.models import Tenant
-
             active_tenant = Tenant.objects.filter(pk=selected_tenant_id).first()
         else:
-            from core.managers import get_current_tenant
-
             active_tenant = get_current_tenant()
 
         # Resolve multi-tenant filter scoping constellation for preview
         selected_filter_tenant_ids = request.POST.getlist("filter_tenants")
         filter_tenants = []
         if selected_filter_tenant_ids and request.user.is_superuser:
-            from organization.models import Tenant
-
             filter_tenants = list(Tenant.objects.filter(pk__in=selected_filter_tenant_ids))
 
         # Create dynamic in-memory ReportTemplate object
@@ -1487,6 +1481,8 @@ class ReportTemplatePreviewView(CapabilityRequiredMixin, PermissionRequiredMixin
             return HttpResponse(
                 f"<h3>{gettext('Invalid report template configuration.')}</h3><p>{details}</p>", status=400
             )
+        # broad except: render-degrade: report rendering runs author-written templates and providers
+        # whose failures cannot be enumerated; the traceback is logged and the client gets a fixed message
         except Exception:
             # Full detail (with traceback) goes to the server log; the client gets a
             # generic message so exception text is never reflected in the response.
@@ -1532,7 +1528,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
         template = get_object_or_404(ReportTemplate.objects.for_scope(Scope.current()).all(), pk=pk)
 
         # Enforce multi-tenant thread-local active tenant binding
-        from core.managers import get_current_tenant
 
         active_tenant = get_current_tenant()
 
@@ -1551,7 +1546,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
             )
 
             format_type = request.GET.get("format", "html").lower()
-            from core.csv_utils import safe_csv_filename
 
             safe_name = safe_csv_filename(template.name).lower().replace(" ", "_")
             stamp = f"{timezone.now():%Y%m%d}"
@@ -1573,8 +1567,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
                 return _apply_report_disclosure_headers(response, context_data)
 
             if format_type == "xlsx":
-                from core.reports.exporters import XLSX_MIME, report_xlsx_bytes
-
                 machine_export = context_data.get("specification_export")
                 export_headers = machine_export.columns if machine_export is not None else headers
                 export_rows = machine_export.rows if machine_export is not None else rows
@@ -1595,8 +1587,6 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
             rendered_html = render_report_html(context_data, template)
 
             if format_type == "pdf":
-                from core.reports.exporters import PDF_MIME, report_pdf_bytes
-
                 response = HttpResponse(report_pdf_bytes(rendered_html), content_type=PDF_MIME)
                 disposition = "inline" if request.GET.get("print") == "true" else "attachment"
                 response["Content-Disposition"] = f'{disposition}; filename="{safe_name}_{stamp}.pdf"'
@@ -1608,6 +1598,8 @@ class ReportTemplateDownloadView(CapabilityRequiredMixin, PermissionRequiredMixi
             return _apply_report_disclosure_headers(response, context_data)
         except PermissionError:
             return HttpResponse(gettext("You may not view this report's data."), status=403)
+        # broad except: render-degrade: report rendering runs author-written templates and providers
+        # whose failures cannot be enumerated; the traceback is logged and the client gets a fixed message
         except Exception:
             # Full detail (with traceback) goes to the server log; the client gets a
             # generic message so exception text is never reflected in the response.

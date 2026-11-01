@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from assets.models import StatusLabel
 from compliance.models import AssetAudit, AuditSession
 from core.forms import TenantScopedFormMixin, apply_tenant_scoped_choices
-from organization.models import Location, Tenant
+from organization.models import Location, Membership, Tenant
 
 
 class AssetAuditForm(TenantScopedFormMixin, forms.ModelForm):
@@ -67,8 +67,6 @@ class AuditSessionForm(TenantScopedFormMixin, forms.ModelForm):
 
         # Restrict tenant choices to the current user's memberships.
         if request and request.user.is_authenticated and not request.user.is_superuser:
-            from organization.models import Membership
-
             member_tenant_ids = Membership.objects.filter(user=request.user, is_active=True).values_list(
                 "tenant_id", flat=True
             )
@@ -119,8 +117,9 @@ class AuditSessionForm(TenantScopedFormMixin, forms.ModelForm):
             HTML('<div class="mt-4"></div>'),
             Submit("submit", button_text, css_class="btn btn-primary"),
             HTML(
-                f'<a href="{cancel_url}" class="btn btn-outline-secondary ms-2"'
-                f' data-no-dirty-track="true">{_("Cancel")}</a>'
+                '<a href="{}" class="btn btn-outline-secondary ms-2" data-no-dirty-track="true">{}</a>'.format(
+                    cancel_url, _("Cancel")
+                )
             ),
         )
 

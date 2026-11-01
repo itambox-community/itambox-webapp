@@ -7,10 +7,8 @@ from django.utils.translation import gettext_lazy as _
 from core.forms import TenantScopedAdminFormMixin
 from users.models import GroupMembership
 
-try:
+if admin.site.is_registered(Group):
     admin.site.unregister(Group)
-except admin.sites.NotRegistered:
-    pass
 
 # Membership now lives in organization.models — registered there.
 

@@ -18,6 +18,9 @@ import random
 
 from django.contrib.contenttypes.models import ContentType
 
+from assets.models import Asset
+from subscriptions.models import Subscription, SubscriptionAssignment
+
 TODAY = datetime.date.today()
 
 
@@ -33,8 +36,6 @@ class SeedSubscriptionsMixin:
     """Mixin for Command(BaseCommand).  Reads/writes self._ registries."""
 
     def _seed_subscriptions(self):
-        from assets.models import Asset
-        from subscriptions.models import Subscription, SubscriptionAssignment
 
         self.stdout.write("--- Subscriptions ---")
         self._subscriptions = []

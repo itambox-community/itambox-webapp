@@ -65,6 +65,7 @@ class CurrentUserMiddleware:
         tokens = self.process_request(request)
         try:
             response = self.get_response(request)
+        # broad except: cleanup-reraise: restores the user and request-id context vars, then re-raises
         except Exception as e:
             self.process_response(request, None, tokens)
             raise e
@@ -193,6 +194,7 @@ class TenantMiddleware:
         prev = self.process_request(request)
         try:
             response = self.get_response(request)
+        # broad except: cleanup-reraise: restores the tenant and membership context vars, then re-raises
         except Exception as e:
             self.process_response(request, None, prev)
             raise e

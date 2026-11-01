@@ -28,6 +28,7 @@ from django.utils.translation import gettext as _
 from assets.models import Asset, AssetType
 from core.managers import Scope
 from core.tenant_scope import accessible_tenant_ids
+from inventory.models import Accessory, Component, Consumable
 from itambox.labels import parse_label_reference
 from itambox.scanning import strip_itambox_prefix
 
@@ -245,7 +246,6 @@ def resolve_scanned_target(code, user):
     # Deferred at call time: inventory reaches back into assets, so a module-top
     # import here would couple the two apps' load order. Not a module-level cycle
     # today -- tracked as local-import debt rather than a policy justification.
-    from inventory.models import Accessory, Component, Consumable
 
     for model, perm in (
         (Component, "inventory.view_component"),

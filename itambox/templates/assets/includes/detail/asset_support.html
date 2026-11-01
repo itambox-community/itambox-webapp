@@ -1,5 +1,5 @@
 {% load i18n %}
-{% with support_contact=object.asset_type.manufacturer.get_support_contact %}
+{% with support_contact=support_contact %}
   {% if support_contact %}
     <dl class="row mb-3">
       <dt class="col-sm-4">{% translate "Manufacturer:" %}</dt>

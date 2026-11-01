@@ -6,8 +6,13 @@ from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
+from assets.models import AssetAssignment
 from assets.tables import AssetTable
+from compliance.models import AuditSession
+from compliance.views_audit import AuditSessionTable
 from core.managers import Scope
+from inventory.models import AccessoryStock, ComponentStock, ConsumableStock
+from inventory.tables import AccessoryStockTable, ComponentStockTable, ConsumableStockTable
 from itambox.panels import Panel
 from itambox.quick_add import QuickAddMixin
 from itambox.views.generic import (
@@ -20,6 +25,7 @@ from itambox.views.generic import (
     ObjectListView,
 )
 from organization.services.location_archive import ArchiveBlocked, archive_location
+from organization.tables import AssetAssignmentTable
 
 from ..filters import LocationFilterSet
 from ..forms import LocationFilterForm, LocationForm
@@ -57,8 +63,6 @@ class LocationDetailView(ObjectDetailView):
         context["assets_table"] = assets_table
 
         # Accessory Stocks
-        from inventory.models import AccessoryStock
-        from inventory.tables import AccessoryStockTable
 
         acc_stock_qs = AccessoryStock.objects.for_scope(Scope.current()).filter(location=location)
         accessory_stocks_table = AccessoryStockTable(acc_stock_qs, request=self.request)
@@ -66,8 +70,6 @@ class LocationDetailView(ObjectDetailView):
         context["accessory_stocks_table"] = accessory_stocks_table
 
         # Consumable Stocks
-        from inventory.models import ConsumableStock
-        from inventory.tables import ConsumableStockTable
 
         con_stock_qs = ConsumableStock.objects.for_scope(Scope.current()).filter(location=location)
         consumable_stocks_table = ConsumableStockTable(con_stock_qs, request=self.request)
@@ -75,8 +77,6 @@ class LocationDetailView(ObjectDetailView):
         context["consumable_stocks_table"] = consumable_stocks_table
 
         # Component Stocks
-        from inventory.models import ComponentStock
-        from inventory.tables import ComponentStockTable
 
         comp_stock_qs = ComponentStock.objects.for_scope(Scope.current()).filter(location=location)
         component_stocks_table = ComponentStockTable(comp_stock_qs, request=self.request)
@@ -84,8 +84,6 @@ class LocationDetailView(ObjectDetailView):
         context["component_stocks_table"] = component_stocks_table
 
         # Historical Checkout Log
-        from assets.models import AssetAssignment
-        from organization.tables import AssetAssignmentTable
 
         asset_assignments_qs = AssetAssignment.objects.for_scope(Scope.current()).filter(assigned_location=location)
         asset_assignments_table = AssetAssignmentTable(asset_assignments_qs, request=self.request)
@@ -93,8 +91,6 @@ class LocationDetailView(ObjectDetailView):
         context["asset_assignments_table"] = asset_assignments_table
 
         # Audit Campaigns
-        from compliance.models import AuditSession
-        from compliance.views_audit import AuditSessionTable
 
         audits_qs = AuditSession.objects.for_scope(Scope.current()).filter(location=location)
         audits_table = AuditSessionTable(audits_qs, request=self.request)

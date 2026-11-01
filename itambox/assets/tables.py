@@ -1,5 +1,7 @@
 # itambox/assets/tables.py
 import django_tables2 as tables
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Prefetch
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -22,9 +24,11 @@ from core.tables import (
     ToggleColumn,
 )
 from core.tables.constants import TABLE_EMPTY_VALUE
+from extras.templatetags.money import money
 
 from .models import (
     Asset,
+    AssetAssignment,
     AssetDisposal,
     AssetMaintenance,
     AssetRequest,
@@ -49,6 +53,34 @@ AccessoryTable = _inventory_tables.AccessoryTable
 ComponentAllocationTable = _inventory_tables.ComponentAllocationTable
 ConsumableTable = _inventory_tables.ConsumableTable
 KitTable = _inventory_tables.KitTable
+
+
+def with_asset_table_relations(queryset):
+    """Load every relation an ``AssetTable`` row renders, in bulk.
+
+    Shared by the asset list and the global search result table. The active
+    assignments are prefetched only for the assets already in ``queryset``, so
+    the caller's tenant scope bounds them.
+    """
+    return queryset.select_related(
+        "asset_role",
+        "asset_type",
+        "asset_type__manufacturer",
+        "asset_type__category",
+        "location",
+        "tenant",
+        "status",
+        "supplier",
+    ).prefetch_related(
+        "tags",
+        Prefetch(
+            "assignments",
+            queryset=AssetAssignment.objects.filter(is_active=True).select_related(
+                "assigned_user", "assigned_location", "assigned_asset"
+            ),
+            to_attr="prefetched_active_assignments",
+        ),
+    )
 
 
 class AssetTable(BaseTable):  # Inherit from BaseTable
@@ -210,8 +242,6 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
 
     def render_actions(self, record):
         if getattr(record, "deleted_at", None) is not None:
-            from django.contrib.contenttypes.models import ContentType
-
             ct = ContentType.objects.get_for_model(record)
 
             restore_url = reverse("object_restore", kwargs={"content_type_id": ct.pk, "object_id": record.pk})
@@ -570,7 +600,6 @@ class AssetDisposalTable(BaseTable):
     def render_proceeds(self, value, record):
         if value is None:
             return TABLE_EMPTY_VALUE
-        from extras.templatetags.money import money
 
         return money(value, record)
 
@@ -852,12 +881,7 @@ class WarrantyTable(BaseTable):
     def render_cost(self, value, record):
         if value is None:
             return TABLE_EMPTY_VALUE
-        try:
-            from extras.templatetags.money import money
-
-            return money(value, record)
-        except Exception:
-            return f"{value}"
+        return money(value, record)
 
     def render_is_active(self, record):
         return record.is_active

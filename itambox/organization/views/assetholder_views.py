@@ -6,8 +6,12 @@ from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
+from compliance.models import CustodyReceipt
 from compliance.services import scope_custody_receipts
+from compliance.tables import CustodyReceiptTable
 from core.managers import Scope
+from inventory.models import AccessoryAssignment, ConsumableAssignment
+from inventory.tables import AccessoryAssignmentTable, ConsumableAssignmentTable
 from itambox.panels import Panel
 from itambox.views.generic import (
     ObjectBulkDeleteView,
@@ -17,6 +21,8 @@ from itambox.views.generic import (
     ObjectEditView,
     ObjectListView,
 )
+from licenses.models import LicenseSeatAssignment
+from licenses.tables import LicenseSeatAssignmentTable
 from organization.services.archive import ArchiveBlocked, archive_holder
 from organization.services.offboarding import get_offboarding_report
 
@@ -60,8 +66,6 @@ class AssetHolderDetailView(ObjectDetailView):
         context["assignments_table"] = assignments_table
 
         # Accessory Assignments
-        from inventory.models import AccessoryAssignment
-        from inventory.tables import AccessoryAssignmentTable
 
         acc_assign_qs = AccessoryAssignment.objects.for_scope(Scope.current()).filter(assigned_holder=assetholder)
         accessory_assignments_table = AccessoryAssignmentTable(acc_assign_qs, request=self.request)
@@ -69,8 +73,6 @@ class AssetHolderDetailView(ObjectDetailView):
         context["accessory_assignments_table"] = accessory_assignments_table
 
         # Consumable Dispatches
-        from inventory.models import ConsumableAssignment
-        from inventory.tables import ConsumableAssignmentTable
 
         con_assign_qs = ConsumableAssignment.objects.for_scope(Scope.current()).filter(assigned_holder=assetholder)
         consumable_dispatches_table = ConsumableAssignmentTable(con_assign_qs, request=self.request)
@@ -78,8 +80,6 @@ class AssetHolderDetailView(ObjectDetailView):
         context["consumable_dispatches_table"] = consumable_dispatches_table
 
         # Software License Seats
-        from licenses.models import LicenseSeatAssignment
-        from licenses.tables import LicenseSeatAssignmentTable
 
         lic_assign_qs = LicenseSeatAssignment.objects.for_scope(Scope.current()).filter(assigned_holder=assetholder)
         license_assignments_table = LicenseSeatAssignmentTable(lic_assign_qs, request=self.request)
@@ -87,8 +87,6 @@ class AssetHolderDetailView(ObjectDetailView):
         context["license_assignments_table"] = license_assignments_table
 
         # Custody receipts
-        from compliance.models import CustodyReceipt
-        from compliance.tables import CustodyReceiptTable
 
         can_view_receipts = self.request.user.has_perm("compliance.view_custodyreceipt", obj=assetholder)
         context["can_view_custody_receipts"] = can_view_receipts

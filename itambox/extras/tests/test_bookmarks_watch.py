@@ -13,7 +13,7 @@ import uuid
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db import connection, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import RequestFactory, TestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -62,7 +62,7 @@ class ObjectWatchModelTests(TenantTestMixin, TestCase):
 
     def test_watch_uniqueness(self):
         ObjectWatch.objects.create(user=self.user, model=self.ct, object_id=self.user.pk)
-        with self.assertRaises(Exception):
+        with self.assertRaisesRegex(IntegrityError, "extras_objectwatch_unique_user_model_object"):
             ObjectWatch.objects.create(user=self.user, model=self.ct, object_id=self.user.pk)
 
     def test_bookmark_and_watch_are_independent(self):

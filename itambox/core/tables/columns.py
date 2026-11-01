@@ -1,4 +1,6 @@
 import django_tables2 as tables
+from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -101,6 +103,7 @@ class IDColumn(tables.Column):
             return None
         try:
             return get_url()
+        # broad except: render-degrade: a record whose detail URL cannot be built shows its id without a link
         except Exception:
             return None
 
@@ -168,8 +171,6 @@ class ActionsColumn(tables.Column):
 
         is_deleted = getattr(record, "deleted_at", None) is not None
         if is_deleted:
-            from django.contrib.contenttypes.models import ContentType
-
             ct = ContentType.objects.get_for_model(record)
 
             restore_url = reverse("object_restore", kwargs={"content_type_id": ct.pk, "object_id": record.pk})
@@ -351,7 +352,6 @@ class AssigneeColumn(tables.Column):
         super().__init__(*args, **kwargs)
 
     def _get_assignment_model(self):
-        from django.apps import apps
 
         return apps.get_model(self._assignment_model_path)
 
@@ -378,6 +378,7 @@ class AssigneeColumn(tables.Column):
                 if getattr(holder, "_meta", None) is not None and holder._meta.label_lower == "organization.location":
                     return format_html('{}: <a href="{}">{}</a>', _("Location"), url, holder)
                 return format_html('<a href="{}">{}</a>', url, holder)
+            # broad except: render-degrade: an assignee link may fail without breaking the table
             except Exception:
                 return str(holder)
 
@@ -398,7 +399,6 @@ class AssigneeColumn(tables.Column):
         return format_html('<span class="text-muted">{}</span>', TABLE_EMPTY_VALUE)
 
     def _build_cache(self, table, model_class, cache_attr):
-        from django.contrib.contenttypes.models import ContentType
 
         AssignmentModel = self._get_assignment_model()
         page = getattr(table, "page", None)

@@ -1,7 +1,7 @@
 {
   "graph": {
     "app_leaves": [
-      "assets.0007_asset_type_identity_guard",
+      "assets.0008_asset_search_trigram_indexes",
       "compliance.0004_signature_provider_configs",
       "core.0003_cross_app_relations_late",
       "extras.0005_label_template_object_types",
@@ -77,6 +77,10 @@
       [
         "assets.0006_core_vocabulary_german_translations",
         "assets.0007_asset_type_identity_guard"
+      ],
+      [
+        "assets.0007_asset_type_identity_guard",
+        "assets.0008_asset_search_trigram_indexes"
       ],
       [
         "compliance.0001_baseline",
@@ -320,7 +324,7 @@
       ]
     ],
     "leaves": [
-      "assets.0007_asset_type_identity_guard",
+      "assets.0008_asset_search_trigram_indexes",
       "compliance.0004_signature_provider_configs",
       "extras.0005_label_template_object_types",
       "procurement.0002_cross_app_relations",
@@ -335,6 +339,7 @@
       "assets.0005_core_vocabulary",
       "assets.0006_core_vocabulary_german_translations",
       "assets.0007_asset_type_identity_guard",
+      "assets.0008_asset_search_trigram_indexes",
       "compliance.0001_baseline",
       "compliance.0002_cross_app_relations",
       "compliance.0003_custody_receipt_evidence_seal",
@@ -389,6 +394,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/assets/migrations/0001_baseline.py",
@@ -417,6 +425,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -450,6 +461,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/assets/migrations/0003_cross_app_relations_late.py",
@@ -477,6 +491,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -508,6 +525,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/assets/migrations/0005_core_vocabulary.py",
@@ -537,6 +557,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/assets/migrations/0006_core_vocabulary_german_translations.py",
@@ -565,11 +588,45 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/assets/migrations/0007_asset_type_identity_guard.py",
       "replaces_count": 11,
       "reviewed_semantics": "Installs the PostgreSQL guard that keeps Asset Type connector identity immutable and refuses hard deletion of core and library Asset Types; fully reversible.",
+      "run_before": []
+    },
+    {
+      "dependencies": [
+        "assets.0007_asset_type_identity_guard"
+      ],
+      "id": "assets.0008_asset_search_trigram_indexes",
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
+          "count": 1
+        }
+      },
+      "path": "itambox/assets/migrations/0008_asset_search_trigram_indexes.py",
+      "replaces_count": 0,
+      "reviewed_semantics": "Enables the PostgreSQL pg_trgm extension (trusted since PostgreSQL 13) and adds trigram GIN indexes on the upper-cased asset name, tag, serial number and notes that global search filters on; the reverse drops the indexes and keeps the extension.",
       "run_before": []
     },
     {
@@ -592,6 +649,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -624,6 +684,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/compliance/migrations/0002_cross_app_relations.py",
@@ -651,6 +714,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -681,6 +747,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/compliance/migrations/0004_signature_provider_configs.py",
@@ -708,6 +777,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -737,6 +809,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -768,6 +843,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/core/migrations/0003_cross_app_relations_late.py",
@@ -793,6 +871,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -825,6 +906,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/extras/migrations/0002_cross_app_relations.py",
@@ -853,6 +937,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/extras/migrations/0003_definition_guards.py",
@@ -880,6 +967,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -910,6 +1000,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/extras/migrations/0005_label_template_object_types.py",
@@ -938,6 +1031,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -971,6 +1067,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/inventory/migrations/0002_cross_app_relations.py",
@@ -996,6 +1095,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -1026,6 +1128,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -1060,6 +1165,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/licenses/migrations/0003_cross_app_relations_late.py",
@@ -1087,6 +1195,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -1121,6 +1232,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/organization/migrations/0002_cross_app_relations.py",
@@ -1149,6 +1263,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -1182,6 +1299,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/procurement/migrations/0002_cross_app_relations.py",
@@ -1212,6 +1332,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/software/migrations/0001_baseline.py",
@@ -1240,6 +1363,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -1273,6 +1399,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/subscriptions/migrations/0002_cross_app_relations.py",
@@ -1302,6 +1431,9 @@
         },
         "SeparateDatabaseAndState": {
           "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
         }
       },
       "path": "itambox/users/migrations/0001_baseline.py",
@@ -1329,6 +1461,9 @@
           "without_reverse": 0
         },
         "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
           "count": 0
         }
       },
@@ -1737,12 +1872,12 @@
     "users.0103_oidcidentity",
     "users.0104_tenant_archive_leaf_markers"
   ],
-  "schema_version": 4,
+  "schema_version": 5,
   "summary": {
     "apps": 11,
-    "migrations": 33,
+    "migrations": 34,
     "replaced_identities": 397,
     "replacing_migrations": 28,
-    "reviewed_custom_migrations": 9
+    "reviewed_custom_migrations": 10
   }
 }

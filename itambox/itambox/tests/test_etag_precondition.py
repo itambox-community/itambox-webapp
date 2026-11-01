@@ -71,7 +71,7 @@ class ETagPreconditionTests(APITestCase):
 
     def _current_etag(self):
         self.software.refresh_from_db()
-        return f'W/"{self.software.updated_at.isoformat()}"'
+        return 'W/"%s"' % self.software.updated_at.isoformat()
 
     # --- missing If-Match -> 428, no write -------------------------------
 
