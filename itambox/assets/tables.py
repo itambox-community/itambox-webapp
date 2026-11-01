@@ -1,6 +1,7 @@
 # itambox/assets/tables.py
 import django_tables2 as tables
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Prefetch
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -27,6 +28,7 @@ from extras.templatetags.money import money
 
 from .models import (
     Asset,
+    AssetAssignment,
     AssetDisposal,
     AssetMaintenance,
     AssetRequest,
@@ -51,6 +53,34 @@ AccessoryTable = _inventory_tables.AccessoryTable
 ComponentAllocationTable = _inventory_tables.ComponentAllocationTable
 ConsumableTable = _inventory_tables.ConsumableTable
 KitTable = _inventory_tables.KitTable
+
+
+def with_asset_table_relations(queryset):
+    """Load every relation an ``AssetTable`` row renders, in bulk.
+
+    Shared by the asset list and the global search result table. The active
+    assignments are prefetched only for the assets already in ``queryset``, so
+    the caller's tenant scope bounds them.
+    """
+    return queryset.select_related(
+        "asset_role",
+        "asset_type",
+        "asset_type__manufacturer",
+        "asset_type__category",
+        "location",
+        "tenant",
+        "status",
+        "supplier",
+    ).prefetch_related(
+        "tags",
+        Prefetch(
+            "assignments",
+            queryset=AssetAssignment.objects.filter(is_active=True).select_related(
+                "assigned_user", "assigned_location", "assigned_asset"
+            ),
+            to_attr="prefetched_active_assignments",
+        ),
+    )
 
 
 class AssetTable(BaseTable):  # Inherit from BaseTable

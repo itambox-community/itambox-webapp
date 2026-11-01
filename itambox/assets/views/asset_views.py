@@ -58,25 +58,7 @@ User = get_user_model()
 
 
 class AssetListView(ObjectListView):
-    queryset = Asset.objects.select_related(
-        "asset_role",
-        "asset_type",
-        "asset_type__manufacturer",
-        "asset_type__category",
-        "location",
-        "tenant",
-        "status",
-        "supplier",
-    ).prefetch_related(
-        "tags",
-        Prefetch(
-            "assignments",
-            queryset=AssetAssignment.objects.filter(is_active=True).select_related(
-                "assigned_user", "assigned_location", "assigned_asset"
-            ),
-            to_attr="prefetched_active_assignments",
-        ),
-    )
+    queryset = tables.with_asset_table_relations(Asset.objects.all())
 
     filterset = filters.AssetFilterSet
     filterset_form = forms.AssetFilterForm

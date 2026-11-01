@@ -46,6 +46,18 @@ def search(
     return indexes[0].get_results(term, queryset)
 
 
+def get_table_queryset(model, queryset):
+    """Prepare ``queryset`` for rendering the model's search result table.
+
+    Each registered index may load the relations its table renders in bulk.
+    The hook receives the already scoped queryset and may only add loading
+    hints; it must never widen or replace the rows the caller selected.
+    """
+    for index in get_search_indexes(model):
+        queryset = index.get_table_queryset(queryset)
+    return queryset
+
+
 def register_search():
     """
     Decorator to register a SearchIndex class.
@@ -100,6 +112,15 @@ class SearchIndex:
     def search_specifications(self, filters, queryset=None, *, tenant_ids=None, definitions=None):
         """Optional domain hook for source-qualified specification search."""
         raise NotImplementedError
+
+    def get_table_queryset(self, queryset):
+        """Optional hook: add ``select_related``/``prefetch_related`` for the result table.
+
+        The global search renders matches through the model's list table from a
+        materialized list, so the table cannot add its own loading hints. The
+        default leaves the queryset unchanged.
+        """
+        return queryset
 
     def get_results(
         self, term, queryset=None, *, specification_filters=_SEARCH_FILTERS_UNSET, tenant_ids=None, definitions=None

@@ -167,8 +167,8 @@ These are only applied when `ITAMBOX_ENV=prod` (or `ITAMBOX_DEBUG=False`). Leave
 PostgreSQL 16 or 18 is required. The bundled Compose stack and the primary test
 lanes run PostgreSQL 18; a PostgreSQL 16 compatibility lane keeps the major
 version existing installations run under test. Older major versions (15 and
-below) are not tested. The `btree_gist` extension must be available (see
-[section 3](#3-build-and-initialize)).
+below) are not tested. The `btree_gist` and `pg_trgm` extensions must be
+available (see [section 3](#3-build-and-initialize)).
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
@@ -324,11 +324,12 @@ password assigned to seeded demo users. Set any local value outside version
 control and never reuse it in production. `--skip-drop` avoids the data-clear
 path but does not make demo seed credentials suitable for production.
 
-!!! warning "PostgreSQL `btree_gist` extension required"
-    Migration `assets.0051` creates the `btree_gist` extension for reservation overlap constraints. The bundled PostgreSQL role can create it. For a managed or least-privilege external database, create the extension as an administrator before running migrations:
+!!! warning "PostgreSQL `btree_gist` and `pg_trgm` extensions required"
+    Migrations create the `btree_gist` extension for reservation overlap constraints and the `pg_trgm` extension for the trigram indexes behind global search (`assets.0008_asset_search_trigram_indexes`). The bundled PostgreSQL role can create both; `pg_trgm` is a trusted extension, so any role with `CREATE` on the database can install it. For a managed or least-privilege external database, create the extensions as an administrator before running migrations:
 
     ```sql
     CREATE EXTENSION IF NOT EXISTS btree_gist;
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
     ```
 
 ## 4. Terminate TLS at a reverse proxy

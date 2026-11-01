@@ -5,9 +5,15 @@ custom field, contract, license seat, installed software, maintenance,
 warranty, journal entry), so a per-row relation that is not loaded in bulk
 shows up as a growing query count. Each budget is asserted with 3 and with 30
 assets: the counts must not depend on the number of assets.
+
+The global search renders the first ten hits of every matching model through
+the model's list table; its budget is asserted with 1 and with 10 matching
+assets.
 """
 
 import datetime
+import re
+from collections import Counter
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
@@ -39,9 +45,14 @@ PERMISSIONS = [
 # member. Before #882 the same pages cost 33 (list) and 93 (detail) queries.
 LIST_QUERY_BUDGET = 32
 DETAIL_QUERY_BUDGET = 73
+# Global search for one asset term, rendered by the same role-granted member.
+# Before #882 it cost 56 queries with one matching asset and 156 with ten.
+SEARCH_QUERY_BUDGET = 48
 
 
-class AssetPageQueryCountTests(TenantTestMixin, TestCase):
+class _LinkedAssetFixture(TenantTestMixin, TestCase):
+    """Assets linked the way production data is, plus a request-level counter."""
+
     def setUp(self):
         self.setup_tenant_context(name="Query Budget", slug="query-budget", permissions=PERMISSIONS)
         self.set_active_tenant(self.tenant, self.tenant_membership)
@@ -129,6 +140,8 @@ class AssetPageQueryCountTests(TenantTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         return len(ctx.captured_queries)
 
+
+class AssetPageQueryCountTests(_LinkedAssetFixture):
     def _measure(self):
         return {
             "list": self._count(reverse("assets:asset_list")),
@@ -232,3 +245,50 @@ class AssetDetailPreloadedContextTests(TenantTestMixin, TestCase):
         self.role.save()
         self.assertFalse(self.client.get(self.url).context["is_modular"])
         self.assertFalse(Asset.objects.get(pk=self.asset.pk).is_modular)
+
+
+class GlobalSearchQueryCountTests(_LinkedAssetFixture):
+    """The search result table loads its rows' relations in bulk (#882)."""
+
+    def _search_queries(self):
+        url = reverse("search") + "?q=QB+Asset"
+        self.assertEqual(self.client.get(url).status_code, 200)
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        return [query["sql"] for query in ctx.captured_queries]
+
+    @staticmethod
+    def _shape(sql):
+        # Collapse literal values so per-row repeats of one statement count together.
+        return re.sub(r"IN \([^)]*\)|\b\d+\b|'[^']*'", "?", sql)
+
+    def test_search_query_count_does_not_grow_with_matching_assets(self):
+        self._add_assets(1)
+        one = self._search_queries()
+        self._add_assets(10)
+        ten = self._search_queries()
+
+        repeated = Counter(map(self._shape, ten)) - Counter(map(self._shape, one))
+        self.assertEqual(
+            len(one),
+            len(ten),
+            f"search queries grew with the hits ({len(one)} -> {len(ten)}): {repeated.most_common(3)}",
+        )
+        self.assertLessEqual(len(ten), SEARCH_QUERY_BUDGET)
+
+    def test_search_table_keeps_the_rendered_row_values(self):
+        self._add_assets(2)
+        response = self.client.get(reverse("search") + "?q=QB+Asset")
+
+        self.assertEqual(response.status_code, 200)
+        table = response.context["results"][Asset]["table"]
+        rows = {row.record.asset_tag: row for row in table.rows}
+        self.assertEqual(set(rows), {"QB-00", "QB-01"})
+        # QB-00 is checked out (even index), QB-01 is not: the prefetched active
+        # assignment must keep that difference in the actions cell.
+        self.assertIn("Check in", rows["QB-00"].get_cell("actions"))
+        self.assertIn("Check out", rows["QB-01"].get_cell("actions"))
+        self.assertIn("QB Tag 0", rows["QB-00"].get_cell("tags"))
+        self.assertIn("QB Holder 0", rows["QB-00"].get_cell("assignee"))
+        self.assertIn("QB Mfr", str(rows["QB-01"].get_cell("manufacturer")))

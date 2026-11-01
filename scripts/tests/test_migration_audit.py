@@ -63,6 +63,7 @@ class MigrationAuditTests(unittest.TestCase):
                     operations = [
                         migrations.SeparateDatabaseAndState(database_operations=[], state_operations=[]),
                         migrations.BtreeGistExtension(),
+                        migrations.TrigramExtension(),
                     ]
                 """,
             )
@@ -79,6 +80,8 @@ class MigrationAuditTests(unittest.TestCase):
         beta_operations = by_id["beta.0001_baseline"]["operations"]
         self.assertEqual(beta_operations["SeparateDatabaseAndState"]["count"], 1)
         self.assertEqual(beta_operations["BtreeGistExtension"]["count"], 1)
+        self.assertEqual(beta_operations["TrigramExtension"]["count"], 1)
+        self.assertEqual(users_operations["TrigramExtension"]["count"], 0)
         # The swappable user dependency orders every other app after the first users migration.
         self.assertIn(["users.0001_baseline", "beta.0001_baseline"], inventory["graph"]["edges"])
         self.assertEqual(inventory["graph"]["app_leaves"], ["beta.0001_baseline", "users.0001_baseline"])
@@ -120,6 +123,27 @@ class MigrationAuditTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "without a reviewed rationale"):
                 build_inventory(root, reviewed_semantics={})
+
+    def test_an_extension_operation_requires_a_reviewed_rationale(self):
+        # Installing an extension needs the CREATE privilege on the database, so it is reviewed.
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self._write(
+                root,
+                "alpha",
+                "0001_baseline",
+                """
+                from django.contrib.postgres.operations import TrigramExtension
+                from django.db import migrations
+                class Migration(migrations.Migration):
+                    dependencies = []
+                    operations = [TrigramExtension()]
+                """,
+            )
+            with self.assertRaisesRegex(ValueError, "without a reviewed rationale"):
+                build_inventory(root, reviewed_semantics={})
+            inventory = build_inventory(root, reviewed_semantics={"alpha.0001_baseline": "pg_trgm"})
+        self.assertEqual(inventory["migrations"][0]["operations"]["TrigramExtension"]["count"], 1)
 
     def test_a_rationale_for_a_plain_migration_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
