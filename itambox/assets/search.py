@@ -3,6 +3,7 @@ from core.search import SearchIndex, register_search
 
 from .models import Asset, AssetMaintenance, AssetRequest, AssetRole, Category, Manufacturer, Supplier
 from .services.specification_consumers.query import apply_specification_filters
+from .tables import with_asset_table_relations
 
 
 def search_assets_by_specification(
@@ -39,6 +40,10 @@ class AssetIndex(SearchIndex):
         "notes",
     )
     order_by = ("name",)
+
+    def get_table_queryset(self, queryset):
+        """Load the asset list's relations for the search result table (#882)."""
+        return with_asset_table_relations(queryset)
 
     def search_specifications(self, filters, queryset=None, *, tenant_ids=None, definitions=None):
         """Use the same source-qualified query path as list filters and reports."""
@@ -108,3 +113,7 @@ class AssetMaintenanceIndex(SearchIndex):
     model = AssetMaintenance
     fields = ("notes", "supplier__name", "asset__name")
     order_by = ("-start_date",)
+
+    def get_table_queryset(self, queryset):
+        """Load the asset and supplier columns with the rows, as the maintenance list does."""
+        return queryset.select_related("asset", "supplier")
