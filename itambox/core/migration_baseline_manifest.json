@@ -64,7 +64,7 @@
     "users.0100_issue88_shard_62_users_relations"
   ],
   "current_leaf_ids": [
-    "assets.0007_asset_type_identity_guard",
+    "assets.0008_asset_search_trigram_indexes",
     "compliance.0004_signature_provider_configs",
     "core.0003_cross_app_relations_late",
     "extras.0005_label_template_object_types",
@@ -362,6 +362,7 @@
     "assets.0005_core_vocabulary",
     "assets.0006_core_vocabulary_german_translations",
     "assets.0007_asset_type_identity_guard",
+    "assets.0008_asset_search_trigram_indexes",
     "assets.0101_seed_canonical_missing_status",
     "assets.0102_asset_type_composition_schema",
     "assets.0103_asset_type_specification_conversion",
@@ -463,7 +464,7 @@
     "users.0104_tenant_archive_leaf_markers"
   ],
   "post_transition_leaf_ids": [
-    "assets.0007_asset_type_identity_guard",
+    "assets.0008_asset_search_trigram_indexes",
     "compliance.0004_signature_provider_configs",
     "core.0003_cross_app_relations_late",
     "extras.0005_label_template_object_types",

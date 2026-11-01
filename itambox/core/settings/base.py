@@ -80,6 +80,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",
+    # PostgreSQL index expressions: registers OpClass for the trigram search indexes.
+    "django.contrib.postgres",
     # MFA (TOTP) for local password login — must follow django.contrib.auth.
     "django_otp",
     "django_otp.plugins.otp_totp",
