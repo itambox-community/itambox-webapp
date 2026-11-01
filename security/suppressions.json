@@ -521,24 +521,6 @@
         "https://github.com/micromatch/braces/issues/70",
         "https://github.com/itambox-community/itambox-webapp/issues/627"
       ]
-    },
-    {
-      "id": "SEC-978-TRIVY-001",
-      "tool": "trivy",
-      "finding": "CVE-2026-118764",
-      "reason": "minimatch 10.2.6 is the newest release admitted by the current ESLint and typescript-eslint ranges (^10.x); the 11.0.1 fix is a major outside those ranges. The package is development-toolchain-only (npm dev flag, pulled in by @eslint/config-array and @typescript-eslint/typescript-estree) and no untrusted glob input reaches lint runs. Time-boxed until the lint chain admits 11.x.",
-      "owner": "@itambox",
-      "scope": {
-        "target": "itambox/package-lock.json",
-        "package": "minimatch",
-        "version": "10.2.6"
-      },
-      "review_on": "2026-11-30",
-      "expires_on": "2027-01-29",
-      "references": [
-        "https://avd.aquasec.com/nvd/cve-2026-118764",
-        "https://github.com/itambox-community/itambox-webapp/pull/978"
-      ]
     }
   ]
 }
