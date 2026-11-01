@@ -134,6 +134,12 @@ RUN ITAMBOX_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe
     ITAMBOX_DB_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
     python manage.py collectstatic --noinput
 
+# Ship bytecode for the application code. PYTHONDONTWRITEBYTECODE stays set, so
+# nothing is written at runtime (and the unprivileged user could not anyway);
+# without this a fresh worker compiles every module on first import. The venv is
+# already compiled by uv (UV_COMPILE_BYTECODE) and is skipped here.
+RUN python -m compileall -q -x '/(\.venv|node_modules|static)/' /app
+
 # Drop privileges.
 RUN useradd --system --uid 1001 --create-home appuser \
     && chown -R appuser:appuser /app
