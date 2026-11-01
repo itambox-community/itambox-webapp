@@ -26,12 +26,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@typescript-eslint/eslint-plugin": "^8.71.2",
-    "@typescript-eslint/parser": "^8.71.2",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "autoprefixer": "^10.6.1",
     "cssnano": "^9.0.5",
     "esbuild": "^0.28.1",
-    "eslint": "^10.12.0",
+    "eslint": "^10.14.0",
     "globals": "^17.13.0",
     "graphiql": "^5.4.0",
     "openapi-fetch": "0.17.0",
@@ -44,7 +44,7 @@
     "stylelint": "17.14.1",
     "stylelint-config-standard-scss": "17.0.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.72.1"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
