@@ -102,7 +102,7 @@ services:
   # Valkey — the Linux Foundation's BSD-3 fork of Redis (Redis relicensed to
   # SSPL/RSALv2 in 2024). Drop-in: same wire protocol, same django-redis client.
   valkey:
-    image: valkey/valkey:9-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    image: valkey/valkey:9-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
