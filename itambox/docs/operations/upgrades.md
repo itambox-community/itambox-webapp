@@ -442,10 +442,12 @@ recognized shapes:
   migration of the named baseline and every current app leaf is recorded; no
   migration action is required. A fresh install and a finished upgrade of the
   declared origin end in this same recorder state.
-- A supported predecessor state declared in the checked manifest — currently
-  only the declared upgrade origin `v1.0.0-beta.5`
-  (`supported-predecessor-beta5`): the recorder is exactly at that predecessor
-  state. The database is recognized and safe to upgrade with the ordinary
+- A supported predecessor state declared in the checked manifest: the named
+  `supported-predecessor-beta5` state, the recorder of a database that has not
+  yet applied the post-transition migrations. The declared upgrade origin for
+  this release is `v1.0.0-beta.6`; a beta.6 database already records those
+  migrations and reports `current-normalized-baseline`. A database at the named
+  predecessor state is recognized and safe to upgrade with the ordinary
   migration executor; the migration itself is still required.
 
 A non-zero result is a stop condition. It distinguishes a partial normalized
@@ -468,9 +470,11 @@ starting points for a release are the previously tagged release — the supporte
 upgrade-origin chain begins at `v1.0.0-beta.2`, and each release's changelog
 states its declared origin — and, in addition, the predecessor revision
 recorded in the checked manifest (`recognized_states`): the declared upgrade
-origin (currently `v1.0.0-beta.5`). The stable baseline replaces the whole
-prerelease migration history, so a database from `v1.0.0-beta.4` or earlier must
-first be upgraded to `v1.0.0-beta.5`; the preflight rejects it. Databases
+origin is currently `v1.0.0-beta.6`, and the named `supported-predecessor-beta5`
+state remains recognized for a database that has not yet applied the
+post-transition migrations. The stable baseline replaces the whole prerelease
+migration history, so a database from `v1.0.0-beta.4` or earlier must first be
+upgraded to `v1.0.0-beta.5`; the preflight rejects it. Databases
 created by transitional development states are explicitly not supported; the
 executor fails closed with a clear recorder inconsistency instead of rewriting
 their history.

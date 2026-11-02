@@ -1,6 +1,6 @@
 # Security Policy
 
-ITAMbox is an open-source, self-hosted IT asset management application and is currently in **public beta**. This policy explains which code is covered by security reports, how to report a vulnerability privately, and how coordinated disclosure works. It describes real commitments only and does not establish a service-level agreement.
+ITAMbox is an open-source, self-hosted IT asset management application and is currently in the **1.0 release-candidate phase**. This policy explains which code is covered by security reports, how to report a vulnerability privately, and how coordinated disclosure works. It describes real commitments only and does not establish a service-level agreement.
 
 ---
 

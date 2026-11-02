@@ -74,6 +74,7 @@ https://your-itambox-instance.com/api/
 |                   | `/api/compliance/asset-maintenances/`               | Asset maintenance records                               |
 |                   | `/api/compliance/audit-sessions/`                   | Audit sessions                                          |
 |                   | `/api/compliance/asset-audits/`                     | Per-asset audit records                                 |
+|                   | `/api/compliance/signature-provider-configs/`       | Signature provider configurations                       |
 | **Extras**        | `/api/extras/tags/`                                 | Manage tags                                             |
 |                   | `/api/extras/dashboards/`                           | Manage dashboards                                       |
 |                   | `/api/extras/custom-fields/`                        | Manage custom fields                                    |

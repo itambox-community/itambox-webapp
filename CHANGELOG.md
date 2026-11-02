@@ -6,6 +6,11 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-11-02
+
+### Upgrade requirements
+- The supported upgrade origin for this release is `v1.0.0-beta.6`; version skipping remains unsupported. The named `supported-predecessor-beta5` state is still recognized by `migration_baseline_preflight` for a database that has not yet applied the post-transition migrations.
+
 ### Added
 - Labels print for accessories, components, consumables and locations as well as assets, through one print page (`/labels/<app>/<model>/`) reached from every labelled object's detail page and from the list and detail-tab selection toolbars. Up to 25 labels return as an inline PDF; larger selections (up to 1,000) run as a background job with the same engine. A built-in QR label is always available, so printing works without any saved template.
 - Label templates declare the object types they print for and are offered only for those types; the template detail page now shows its settings.
@@ -37,6 +42,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Signing a custody receipt applies the same exact-identity rule as SCIM linking. A holder linked to a login can be signed for only by that login. An unlinked holder matches only the login whose username equals the holder's UPN, and by e-mail only when the holder has no UPN. A login already linked to another holder of the same tenant is refused. Before, a matching e-mail address alone was enough even when the UPNs differed, so a shared or recycled mailbox could accept custody for someone else.
 - Custody receipts carry a keyed evidence seal. When the holder accepts or declines, the receipt stores a snapshot of what was attested: the asset tag, serial number and holder UPN as they were at the time, hashes of the EULA, disclaimer and signature, the client address and browser, and the decision time. The seal is an HMAC-SHA256 over that snapshot. Its key is derived with HKDF from `ITAMBOX_FIELD_ENCRYPTION_KEYS`, so the seal follows that keyring's rotation, and falls back to `SECRET_KEY` the same way field encryption does when the keyring is unset. The receipt detail page, the JSON and PDF exports and the receipt API report whether the seal verifies. The new `manage.py verify_custody_receipts` command checks every decided receipt. Before, `verification_hash` was a plain SHA-256 that anyone with database access could recompute after rewriting a receipt. Receipts decided before this change are reported as legacy. Keep a rotated-out key in the keyring for as long as receipts sealed with it must verify.
 - Export and label templates stay superuser-only through the batch endpoints. Serving the shared catalogue would otherwise have opened a generic write path that only their dedicated edit and delete views keep closed, so both models now belong to the model-wide mutation policy that every generic write path consults.
+- Creating a contact assignment requires `organization.add_contactassignment` on the target object and resolves the target through its tenant-scoped manager. Before, any authenticated member could attach a contact to another tenant's object, and the form disclosed the foreign target's name and URL.
+- Creating a subscription assignment resolves the target through its tenant-scoped manager and checks `subscriptions.add_subscriptionassignment` against the target object. Before, a user holding the permission in one tenant could bind a global subscription to another tenant's object.
+- Rendered Report Designer HTML is sanitized before preview, print download, PDF and scheduled e-mail, using the same element, attribute and URL allowlist as label templates, and the report sandbox now matches the export-template sandbox. Before, literal HTML in a stored template survived rendering, protected on the web path only by CSP and not protected at all in e-mail.
 
 ## [1.0.0-beta.6] - 2026-10-21
 
@@ -465,7 +473,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-beta.6...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.1
 [1.0.0-beta.6]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.4
