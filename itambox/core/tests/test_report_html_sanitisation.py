@@ -144,3 +144,112 @@ class SinkTests(SimpleTestCase):
         with patch("extras.views.report_pdf_bytes", return_value=b"pdf") as pdf:
             self._download(format="pdf")
         assert_inert(pdf.call_args.args[0])
+
+
+PNG = "data:image/png;base64,iVBORw0KGgo="
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '<a href="https://example.com/x">l</a>',
+        '<a href="http://example.com/x">l</a>',
+        '<a href="mailto:a@example.com">l</a>',
+        '<a href="tel:+491234">l</a>',
+        '<a href="/relative/path">l</a>',
+        '<a href="#anchor">l</a>',
+        '<img src="https://example.com/i.png" alt="i" width="3" height="4">',
+        '<img src="/static/i.png">',
+        '<img src="%s">' % PNG,
+        '<td colspan="2">c</td>',
+        '<p class="x" title="t" lang="de" dir="ltr" aria-label="a">p</p>',
+    ],
+)
+def test_allowed_markup_survives(source):
+    out = sanitize_report_html(source)
+    for token in ("href=", "src=", "colspan=", "class="):
+        if token in source:
+            assert token in out, (source, out)
+
+
+@pytest.mark.parametrize(
+    ("source", "attr"),
+    [
+        ('<a href="javascript:alert(1)">x</a>', "href"),
+        ('<a href="JaVaScRiPt:alert(1)">x</a>', "href"),
+        ('<a href="vbscript:msgbox(1)">x</a>', "href"),
+        ('<a href="data:text/html;base64,PHNjcmlwdD4=">x</a>', "href"),
+        ('<a href="java&#10;script:alert(1)">x</a>', "href"),
+        ('<a href="java&#9;script:alert(1)">x</a>', "href"),
+        ('<a href="">x</a>', "href"),
+        ('<a href="http://[::1">x</a>', "href"),
+        ('<img src="data:text/html;base64,PHNjcmlwdD4=">', "src"),
+        ('<img src="data:image/svg+xml;base64,PHN2Zz4=">', "src"),
+        ('<img src="javascript:alert(1)">', "src"),
+        ('<img src="mailto:a@example.com">', "src"),
+        ('<img src="">', "src"),
+        ('<p onclick="alert(1)">x</p>', "onclick"),
+        ('<a href="https://example.com" onmouseover="alert(1)">x</a>', "onmouseover"),
+        ('<p style="display:none">x</p>', "style"),
+        ('<td data-x="1" colspan="2">x</td>', "data-x"),
+        ('<p colspan="2">x</p>', "colspan"),
+    ],
+)
+def test_unsafe_attributes_are_removed(source, attr):
+    out = sanitize_report_html(source)
+    assert attr + "=" not in out.lower(), (source, out)
+    assert "x</" in out or "<img" in out
+
+
+def test_event_handler_removed_but_allowed_attribute_kept():
+    out = sanitize_report_html('<a href="https://example.com/ok" onclick="alert(1)">ok</a>')
+    assert 'href="https://example.com/ok"' in out
+    assert "onclick" not in out
+
+
+@pytest.mark.parametrize("tag", ["script", "style", "iframe", "svg", "form", "object", "template"])
+def test_drop_elements_removed_with_text_and_tail_kept(tag):
+    out = sanitize_report_html("<p>before</p>lead<%s>SECRET<b>deep</b></%s>tail<p>after</p>" % (tag, tag))
+    assert "SECRET" not in out and "deep" not in out and "<" + tag not in out
+    assert out.index("before") < out.index("lead") < out.index("tail") < out.index("after")
+
+
+def test_drop_element_first_child_and_only_child_keeps_tail():
+    out = sanitize_report_html("<div><script>x</script>tail</div>")
+    assert "<div>tail</div>" in out
+    out = sanitize_report_html("<div><b>a</b><script>x</script>tail</div>")
+    assert "<b>a</b>tail" in out
+    assert sanitize_report_html("<script>x</script>top").endswith("top")
+
+
+def test_unknown_element_is_unwrapped_keeping_content():
+    out = sanitize_report_html("<p>a</p><blink>lead<b>bold</b>mid<i>it</i>end</blink>z")
+    assert "blink" not in out
+    for text in ("lead", "bold", "mid", "it", "end", "z"):
+        assert text in out
+    assert out.index("lead") < out.index("bold") < out.index("mid") < out.index("end") < out.index("z")
+
+
+def test_unknown_element_leading_text_after_sibling_and_at_start():
+    out = sanitize_report_html("<b>x</b><center>lead<em>e</em></center>")
+    assert "center" not in out and out.index("x") < out.index("lead") < out.index("e</")
+    out = sanitize_report_html("<center>only</center>")
+    assert out == "only"
+    out = sanitize_report_html("<center><script>s</script>t</center>")
+    assert "s</" not in out and "t" in out
+
+
+def test_comments_and_empty_templates_roundtrip():
+    assert sanitize_report_html(None) == ""
+    assert sanitize_report_html("<!-- only a comment -->") == ""
+    out = sanitize_report_html("a<!-- c -->b<p>c</p><!-- d -->tail")
+    assert "<!--" not in out
+    assert out.replace("<p>", "").replace("</p>", "").replace(" ", "") != ""
+    for text in ("a", "b", "c", "tail"):
+        assert text in out
+
+
+def test_nested_elements_and_tails_keep_benign_text_in_order():
+    out = sanitize_report_html("<div>1<p>2<b>3</b>4</p>5<ul><li>6</li>7</ul>8</div>9")
+    positions = [out.index(str(n)) for n in range(1, 10)]
+    assert positions == sorted(positions)
