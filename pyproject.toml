@@ -88,7 +88,7 @@ dev = [
     # stubs and the checker resolvable as one set rather than three independent
     # pins that drift apart. See the private design-docs typing-policy.md.
     "mypy==2.3.0",
-    "django-stubs[compatible-mypy]==6.0.7",
+    "django-stubs[compatible-mypy]==6.1.2",
     "djangorestframework-stubs[compatible-mypy]==3.17.1",
 ]
 docs = [
