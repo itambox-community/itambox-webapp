@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.contenttypes.models import ContentType
-from django.http import HttpResponseBadRequest
+from django.core.exceptions import PermissionDenied
+from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
@@ -21,6 +22,7 @@ from itambox.views.generic.utils import safe_return_url
 
 from ..filters import ContactRoleFilterSet
 from ..forms import ContactAssignmentForm, ContactRoleFilterForm, ContactRoleForm
+from ..forms.contactrole_form import resolve_assignment_target
 from ..models import ContactAssignment, ContactRole
 from ..tables import ContactAssignmentTable, ContactRoleTable
 
@@ -90,6 +92,30 @@ class ContactRoleDeleteView(ObjectDeleteView):
 
 class ContactAssignmentCreateView(LoginRequiredMixin, View):
     template_name = "organization/contactassignments/contactassignment_form.html"
+    permission_required = "organization.add_contactassignment"
+
+    def dispatch(self, request, *args, **kwargs):
+        # Anonymous callers are redirected to login by LoginRequiredMixin first.
+        if request.user.is_authenticated and not request.user.has_perm(self.permission_required):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def _resolve_target(self, request, content_type_id, object_id):
+        """Resolve the target through its scoped manager; out of scope is 404.
+
+        The object-level permission is checked against the target (and thus its
+        own tenant), not only against the ambient membership.
+        """
+        try:
+            content_type = get_object_or_404(ContentType, id=content_type_id)
+        except (TypeError, ValueError):
+            raise Http404 from None
+        target_obj = resolve_assignment_target(content_type, object_id)
+        if target_obj is None:
+            raise Http404
+        if not request.user.has_perm(self.permission_required, obj=target_obj):
+            raise PermissionDenied
+        return content_type, target_obj
 
     def get(self, request, *args, **kwargs):
         content_type_id = request.GET.get("content_type")
@@ -98,8 +124,7 @@ class ContactAssignmentCreateView(LoginRequiredMixin, View):
         if not content_type_id or not object_id:
             return HttpResponseBadRequest(_("Missing content_type or object_id"))
 
-        content_type = get_object_or_404(ContentType, id=content_type_id)
-        target_obj = get_object_or_404(content_type.model_class(), id=object_id)
+        content_type, target_obj = self._resolve_target(request, content_type_id, object_id)
 
         form = ContactAssignmentForm(content_type=content_type, object_id=object_id)
         context = {
@@ -117,8 +142,7 @@ class ContactAssignmentCreateView(LoginRequiredMixin, View):
         if not content_type_id or not object_id:
             return HttpResponseBadRequest(_("Missing content_type or object_id"))
 
-        content_type = get_object_or_404(ContentType, id=content_type_id)
-        target_obj = get_object_or_404(content_type.model_class(), id=object_id)
+        content_type, target_obj = self._resolve_target(request, content_type_id, object_id)
 
         form = ContactAssignmentForm(request.POST, content_type=content_type, object_id=object_id)
         if form.is_valid():

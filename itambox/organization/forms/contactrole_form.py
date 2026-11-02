@@ -1,6 +1,7 @@
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import HTML, Layout, Submit
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from core.forms import FilterForm, TenantScopedFormMixin
@@ -28,6 +29,25 @@ class ContactRoleForm(TenantScopedFormMixin, forms.ModelForm):
         self.helper.layout = Layout("name", "slug", "description")
 
         add_standard_buttons(self.helper, self.instance, "organization:contactrole_list")
+
+
+def resolve_assignment_target(content_type, object_id):
+    """Return the assignment target visible in the active scope, or ``None``.
+
+    The target is looked up through the target model's default manager narrowed
+    with ``filter_by_tenant()``, so an object outside the active tenant scope
+    resolves exactly like a missing one and its existence is never disclosed.
+    """
+    model_class = content_type.model_class() if content_type is not None else None
+    if model_class is None:
+        return None
+    queryset = model_class._default_manager.all()
+    if hasattr(queryset, "filter_by_tenant"):
+        queryset = queryset.filter_by_tenant()
+    try:
+        return queryset.filter(pk=object_id).first()
+    except (TypeError, ValueError):
+        return None
 
 
 class ContactAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
@@ -75,7 +95,19 @@ class ContactAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
             HTML('<button type="button" class="btn btn-outline-secondary ms-2" data-bs-dismiss="modal">Cancel</button>')
         )
 
+    def _validate_target(self):
+        if resolve_assignment_target(self.content_type, self.object_id) is None:
+            raise ValidationError(_("Referenced object was not found in the current tenant."))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        self._validate_target()
+        return cleaned_data
+
     def save(self, commit=True):
+        # Re-validate at save time so a form bound to a tampered pair can never
+        # persist a target outside the active scope.
+        self._validate_target()
         instance = super().save(commit=False)
         if self.content_type and self.object_id:
             instance.content_type = self.content_type
