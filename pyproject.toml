@@ -76,7 +76,7 @@ dev = [
     "pycodestyle==2.14.0",
     "pyflakes==3.4.0",
     "pre-commit>=4.0,<5.0",
-    "djlint==1.43.2",
+    "djlint==1.47.1",
     "PyYAML>=6.0,<7.0",
     # Exact version: formatting/import-sort output must be reproducible across
     # contributors, pre-commit, and CI (see pyproject.toml [tool.ruff]).
