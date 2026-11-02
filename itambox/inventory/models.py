@@ -62,11 +62,33 @@ class AssignmentBaseQuerySet(AssignmentWriteProtectionMixin, models.QuerySet):
     """Unscoped assignment reads with the fail-closed write boundary."""
 
 
-class AssignmentTenantSoftDeleteQuerySet(AssignmentWriteProtectionMixin, TenantScopingSoftDeleteQuerySet):
+class AssignmentScopeMixin:
+    """Owner-side assignment visibility.
+
+    An assignment belongs to its ``source_tenant`` (``tenant_lookup``, with
+    ``deny_global_tenant``), never to the catalogue item's tenant: a global
+    catalogue item must not make every tenant's assignments visible to every
+    other tenant. A source-less row (a target-only checkout of a global item)
+    has no owner but its destination, so it stays visible to the scope that
+    contains its ``target_tenant`` and fails closed otherwise. Inbound
+    cross-tenant rows are added for the recipient by
+    ``inventory.services.recipient_assignment_union``.
+    """
+
+    @staticmethod
+    def _scope_by_lookup(qs, declaration, allowed_tenant_ids):
+        owned = Q(**{f"{declaration.lookup}_id__in": allowed_tenant_ids})
+        source_less = Q(**{f"{declaration.lookup}__isnull": True}, target_tenant_id__in=allowed_tenant_ids)
+        return qs.filter(owned | source_less)
+
+
+class AssignmentTenantSoftDeleteQuerySet(
+    AssignmentScopeMixin, AssignmentWriteProtectionMixin, TenantScopingSoftDeleteQuerySet
+):
     """Live tenant-scoped assignment reads with protected writes."""
 
 
-class AssignmentTenantAllObjectsQuerySet(AssignmentWriteProtectionMixin, TenantScopingQuerySet):
+class AssignmentTenantAllObjectsQuerySet(AssignmentScopeMixin, AssignmentWriteProtectionMixin, TenantScopingQuerySet):
     """All-row tenant-scoped assignment reads with protected writes."""
 
 
@@ -515,7 +537,8 @@ class ConsumableStock(AbstractStock):
 
 
 class ComponentAllocation(AbstractAssignment):
-    tenant_lookup = "component__tenant"
+    tenant_lookup = "source_tenant"
+    deny_global_tenant = True
     _item_attr = "component"
     _stock_model_label = "inventory.ComponentStock"
     objects = AssignmentSoftDeleteManager()
@@ -590,7 +613,8 @@ class ComponentAllocation(AbstractAssignment):
 
 
 class AccessoryAssignment(AbstractAssignment):
-    tenant_lookup = "accessory__tenant"
+    tenant_lookup = "source_tenant"
+    deny_global_tenant = True
     _item_attr = "accessory"
     _stock_model_label = "inventory.AccessoryStock"
     objects = AssignmentSoftDeleteManager()
@@ -639,7 +663,8 @@ class AccessoryAssignment(AbstractAssignment):
 
 
 class ConsumableAssignment(AbstractAssignment):
-    tenant_lookup = "consumable__tenant"
+    tenant_lookup = "source_tenant"
+    deny_global_tenant = True
     _item_attr = "consumable"
     _stock_model_label = "inventory.ConsumableStock"
     objects = AssignmentSoftDeleteManager()

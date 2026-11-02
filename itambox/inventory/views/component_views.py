@@ -9,6 +9,7 @@ from inventory.services import (
     checkin_component,
     checkout_inventory_item,
     create_component_allocation,
+    item_assignments_for_scope,
     recipient_assignment_union,
     shared_stock_union,
     update_component_allocation,
@@ -73,7 +74,10 @@ class ComponentDetailView(ObjectDetailView):
         context["stocks_table"] = stocks_table
 
         allocations_table = tables.ComponentAllocationTable(
-            component.allocations.filter(deleted_at__isnull=True), request=self.request
+            item_assignments_for_scope(ComponentAllocation, "component", component).select_related(
+                "assigned_holder", "assigned_location", "assigned_asset"
+            ),
+            request=self.request,
         )
         allocations_table.configure(self.request)
         context["allocations_table"] = allocations_table

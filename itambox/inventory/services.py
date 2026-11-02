@@ -390,6 +390,20 @@ def recipient_assignment_union(queryset, assignment_model):
     )
 
 
+def item_assignments_for_scope(assignment_model, item_field, item):
+    """Assignments of one catalogue item the active scope may see.
+
+    The owner-scoped rows plus the inbound rows targeting the active tenant,
+    narrowed to ``item`` AFTER the union: the recipient side adds every row
+    targeting the tenant, whatever its item. Reverse relations on the item
+    (``accessory.assignments``) are unscoped and must not feed a table.
+    """
+    return recipient_assignment_union(
+        assignment_model.objects.for_scope(Scope.current()),
+        assignment_model,
+    ).filter(**{item_field: item, "deleted_at__isnull": True})
+
+
 def resolve_grant_for_checkout(
     item,
     item_field,

@@ -8,6 +8,7 @@ from core.managers import Scope, get_current_tenant
 from inventory.services import (
     checkin_accessory,
     checkout_inventory_item,
+    item_assignments_for_scope,
     recipient_assignment_union,
     shared_stock_union,
 )
@@ -72,7 +73,12 @@ class AccessoryDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         accessory = self.get_object()
 
-        assignments_table = tables.AccessoryAssignmentTable(accessory.assignments.all(), request=self.request)
+        assignments_table = tables.AccessoryAssignmentTable(
+            item_assignments_for_scope(AccessoryAssignment, "accessory", accessory).select_related(
+                "assigned_holder", "assigned_location", "assigned_asset"
+            ),
+            request=self.request,
+        )
         assignments_table.configure(self.request)
         context["assignments_table"] = assignments_table
 
