@@ -194,6 +194,26 @@ def test_allowed_markup_survives(source):
         ('<table><tr><td data-x="1" colspan="2">x</td></tr></table>', "data-x"),
         ('<p colspan="2">x</p>', "colspan"),
     ],
+    ids=[
+        "javascript",
+        "javascript-mixed-case",
+        "vbscript",
+        "data-html",
+        "javascript-newline",
+        "javascript-tab",
+        "empty-href",
+        "ipv6-literal",
+        "img-data-html",
+        "img-data-svg",
+        "img-javascript",
+        "img-mailto",
+        "img-empty",
+        "onclick",
+        "onmouseover",
+        "style",
+        "data-attribute",
+        "stray-colspan",
+    ],
 )
 def test_unsafe_attributes_are_removed(source, attr):
     out = sanitize_report_html(source)
