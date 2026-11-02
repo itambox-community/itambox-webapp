@@ -7,6 +7,7 @@ from assets.models import Asset
 from core.managers import Scope, get_current_tenant
 from inventory.services import (
     checkout_inventory_item,
+    item_assignments_for_scope,
     recipient_assignment_union,
     shared_stock_union,
 )
@@ -71,7 +72,12 @@ class ConsumableDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         consumable = self.get_object()
 
-        consumptions_table = tables.ConsumableAssignmentTable(consumable.consumptions.all(), request=self.request)
+        consumptions_table = tables.ConsumableAssignmentTable(
+            item_assignments_for_scope(ConsumableAssignment, "consumable", consumable).select_related(
+                "assigned_holder", "assigned_location", "assigned_asset"
+            ),
+            request=self.request,
+        )
         consumptions_table.configure(self.request)
         context["consumptions_table"] = consumptions_table
 
