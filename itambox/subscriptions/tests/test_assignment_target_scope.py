@@ -150,4 +150,3 @@ class SubscriptionAssignmentTargetScopeTests(TestCase):
             response = self.client.post(self.url + self._query(self.asset_b), {"subscription": self.sub_global.pk})
         self.assertEqual(response.status_code, 403)
         self.assertFalse(SubscriptionAssignment.objects.filter(object_id=self.asset_b.pk).exists())
-
