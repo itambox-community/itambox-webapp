@@ -4,8 +4,8 @@ from crispy_forms.helper import FormHelper
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -440,6 +440,21 @@ class SubscriptionAssignmentCreateView(LoginRequiredMixin, PermissionRequiredMix
             },
         )
 
+    def _resolve_target(self, request, content_type_id, object_id):
+        """Resolve the target through its scoped manager and authorize against its tenant.
+
+        A target outside the active scope answers 404, like a missing one. The add
+        permission is then checked against the target's own tenant, not only the
+        ambient membership.
+        """
+        content_type = get_object_or_404(ContentType, id=content_type_id)
+        target_obj = forms.resolve_assignment_target(content_type, object_id)
+        if target_obj is None:
+            raise Http404
+        if not request.user.has_perm(self.permission_required, obj=target_obj):
+            raise PermissionDenied
+        return content_type, target_obj
+
     def get(self, request, *args, **kwargs):
         content_type_id = request.GET.get("content_type")
         object_id = request.GET.get("object_id")
@@ -447,8 +462,7 @@ class SubscriptionAssignmentCreateView(LoginRequiredMixin, PermissionRequiredMix
         if not content_type_id or not object_id:
             return HttpResponseBadRequest(_("Missing content_type or object_id"))
 
-        content_type = get_object_or_404(ContentType, id=content_type_id)
-        target_obj = get_object_or_404(content_type.model_class().objects.all(), id=object_id)
+        content_type, target_obj = self._resolve_target(request, content_type_id, object_id)
 
         form = forms.SubscriptionAssignmentForm(
             content_type=content_type,
@@ -474,8 +488,7 @@ class SubscriptionAssignmentCreateView(LoginRequiredMixin, PermissionRequiredMix
         if not content_type_id or not object_id:
             return HttpResponseBadRequest(_("Missing content_type or object_id"))
 
-        content_type = get_object_or_404(ContentType, id=content_type_id)
-        target_obj = get_object_or_404(content_type.model_class().objects.all(), id=object_id)
+        content_type, target_obj = self._resolve_target(request, content_type_id, object_id)
 
         form = forms.SubscriptionAssignmentForm(
             request.POST,

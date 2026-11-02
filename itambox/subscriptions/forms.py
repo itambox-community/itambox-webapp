@@ -252,6 +252,26 @@ class SubscriptionFilterForm(FilterForm):
     filterset_class = SubscriptionFilterSet
 
 
+ASSIGNMENT_TARGET_MODELS = ("asset", "assetholder", "location", "consumable", "accessory")
+
+
+def resolve_assignment_target(content_type, object_id):
+    """Return the assignment target visible in the active scope, else ``None``.
+
+    The lookup goes through the target model's scoped manager, so a foreign-tenant
+    object resolves exactly like a missing one. Only the content types the
+    ``SubscriptionAssignment.content_type`` field admits are resolvable.
+    """
+    model = content_type.model_class() if content_type is not None else None
+    if model is None or content_type.model not in ASSIGNMENT_TARGET_MODELS:
+        return None
+    try:
+        pk = int(object_id)
+    except (TypeError, ValueError):
+        return None
+    return model.objects.for_scope(Scope.current()).filter(pk=pk).first()
+
+
 class SubscriptionAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
     subscription = forms.ModelChoiceField(
         queryset=Subscription.objects.all(),
@@ -269,6 +289,10 @@ class SubscriptionAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         subscription = cleaned_data.get("subscription")
+        if self.content_type and self.object_id and self.target_obj is None:
+            raise forms.ValidationError(
+                self.fields["subscription"].error_messages["invalid_choice"], code="invalid_choice"
+            )
         if subscription and self.content_type and self.object_id:
             if (
                 SubscriptionAssignment.objects.for_scope(Scope.current())
@@ -287,16 +311,22 @@ class SubscriptionAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
         self.content_type = content_type
         self.object_id = object_id
 
+        self.target_obj = None
         if content_type and object_id:
-            # A content type whose model is gone, or a target that no longer exists,
-            # simply leaves the subscription choices unfiltered.
-            target_model = content_type.model_class()
-            target_obj = target_model.objects.filter(id=object_id).first() if target_model is not None else None
-            if target_obj is not None and hasattr(target_obj, "tenant") and target_obj.tenant:
-                # Filter subscriptions to active ones that belong to the same tenant or are global
-                self.fields["subscription"].queryset = Subscription.objects.for_scope(Scope.current()).filter(
-                    db_models.Q(tenant=target_obj.tenant) | db_models.Q(tenant__isnull=True), status="active"
+            # The target is resolved through its scoped manager; a target outside
+            # the active scope (or an unsupported content type) leaves the form
+            # without any selectable subscription and fails validation.
+            self.target_obj = resolve_assignment_target(content_type, object_id)
+            subscriptions = Subscription.objects.for_scope(Scope.current())
+            if self.target_obj is None:
+                subscriptions = subscriptions.none()
+            elif getattr(self.target_obj, "tenant_id", None):
+                # Active subscriptions of the target's tenant, or global ones.
+                subscriptions = subscriptions.filter(
+                    db_models.Q(tenant_id=self.target_obj.tenant_id) | db_models.Q(tenant__isnull=True),
+                    status="active",
                 )
+            self.fields["subscription"].queryset = subscriptions
 
         self.helper = FormHelper(self)
         self.helper.form_method = "post"
@@ -314,6 +344,14 @@ class SubscriptionAssignmentForm(TenantScopedFormMixin, forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
         if self.content_type and self.object_id:
+            # Re-validate at save time: the target must still resolve in the
+            # active scope and the subscription must belong to its tenant or be global.
+            target = resolve_assignment_target(self.content_type, self.object_id)
+            target_tenant_id = getattr(target, "tenant_id", None)
+            if target is None or (target_tenant_id and instance.subscription.tenant_id not in (None, target_tenant_id)):
+                raise forms.ValidationError(
+                    self.fields["subscription"].error_messages["invalid_choice"], code="invalid_choice"
+                )
             instance.content_type = self.content_type
             instance.object_id = self.object_id
         if commit:
