@@ -27,6 +27,7 @@ from core.managers import (
 from core.mixins import BookmarkableMixin, SoftDeleteMixin
 from core.models import BaseModel, ChangeLoggingMixin
 from core.report_keys import unknown_column_keys
+from core.sandbox import hardened_sandbox_environment
 from core.validators import validate_external_url, validate_file_attachment, validate_image_attachment
 
 from .definition_contract import validate_custom_field_definition_contract
@@ -1233,15 +1234,7 @@ class ExportTemplate(ChangeLoggingMixin, BaseModel):
         ``undefined``, …) to stored template data — that is the CVE-2026-29514 RCE
         vector in NetBox's analogous ExportTemplate.
         """
-        # inline import: heavy-import: jinja2 is a render-only dependency; keep it off the
-        # import-time path of extras.models.
-        from jinja2.sandbox import ImmutableSandboxedEnvironment
-
-        env = ImmutableSandboxedEnvironment(autoescape=autoescape)
-        for unsafe_filter in ("attr", "format", "format_map", "map", "pprint", "xmlattr"):
-            env.filters.pop(unsafe_filter, None)
-        for unsafe_global in ("cycler", "joiner", "namespace", "lipsum"):
-            env.globals.pop(unsafe_global, None)
+        env = hardened_sandbox_environment(autoescape=autoescape)
         # Useful, safe export helper: neutralise spreadsheet formula injection.
         env.filters["csv_safe"] = csv_safe
         return env

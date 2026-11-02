@@ -191,7 +191,12 @@ the provider's default grouping.
 CSV exports always contain the selected columns and compiled rows, followed
 by a disclosure row when the output is sample-only or truncated. Optional
 custom HTML/Jinja templates remain supported through the restricted rendering
-sandbox.
+sandbox. The sandbox is immutable and removes the `attr`, `format`, `format_map`,
+`map`, `pprint` and `xmlattr` filters and the `cycler`, `joiner`, `namespace` and
+`lipsum` globals, matching export templates. The rendered HTML is then reduced to
+an allowlist of presentational markup before it is shown, downloaded or emailed:
+`script`, `style`, frame, form and SVG elements, `on*` handlers, inline styles and
+`javascript:` URLs are removed whatever the Content-Security-Policy says.
 
 ### Tenant scope authorization
 
