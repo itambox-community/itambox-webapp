@@ -5,6 +5,8 @@ The view used to require only a session, resolved the client-supplied
 form bound the pair verbatim.
 """
 
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -13,8 +15,9 @@ from django.urls import reverse
 from assets.models import Asset, AssetRole, AssetType, Manufacturer, StatusLabel
 from core.managers import set_current_tenant
 from core.tests.mixins import grant
-from organization.forms.contactrole_form import ContactAssignmentForm
+from organization.forms.contactrole_form import ContactAssignmentForm, resolve_assignment_target
 from organization.models import Contact, ContactAssignment, ContactRole, Role, Tenant
+from organization.views import contactrole_views
 
 User = get_user_model()
 
@@ -144,3 +147,41 @@ class ContactAssignmentCreateViewScopeTests(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertFalse(self._assignments(self.asset_b).exists())
+
+    def test_non_integer_content_type_is_404(self):
+        self._login(self.privileged, self.tenant_a)
+        response = self.client.get(self.url, {"content_type": "abc", "object_id": self.asset_a.pk})
+        self.assertEqual(response.status_code, 404)
+
+    def test_content_type_without_model_class_is_404(self):
+        stale = ContentType.objects.create(app_label="organization", model="ca995gone")
+        self.assertIsNone(stale.model_class())
+        self._login(self.privileged, self.tenant_a)
+        response = self.client.get(self.url, {"content_type": stale.pk, "object_id": 1})
+        self.assertEqual(response.status_code, 404)
+
+    def test_non_integer_object_id_is_404(self):
+        self._login(self.privileged, self.tenant_a)
+        response = self.client.get(self.url, {"content_type": self.asset_ct.pk, "object_id": "abc"})
+        self.assertEqual(response.status_code, 404)
+        response = self.client.post(self.url, {**self._post_data(self.asset_a), "object_id": "abc"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_object_level_permission_denial_is_403_and_writes_nothing(self):
+        """Model permission without permission on the target's own tenant is refused."""
+        self._login(self.privileged, self.tenant_a)
+        with patch.object(contactrole_views, "resolve_assignment_target", return_value=self.asset_b):
+            get_response = self.client.get(self.url, self._query(self.asset_b))
+            post_response = self.client.post(self.url, self._post_data(self.asset_b))
+        self.assertEqual(get_response.status_code, 403)
+        self.assertEqual(post_response.status_code, 403)
+        self.assertFalse(self._assignments(self.asset_b).exists())
+
+    def test_resolver_handles_models_without_tenant_scoping_manager(self):
+        """A target model whose queryset lacks filter_by_tenant resolves by pk alone."""
+        content_type = ContentType.objects.get_for_model(ContentType)
+        self.assertFalse(hasattr(ContentType._default_manager.all(), "filter_by_tenant"))
+        self.assertEqual(resolve_assignment_target(content_type, self.asset_ct.pk), self.asset_ct)
+
+    def test_resolver_returns_none_without_content_type(self):
+        self.assertIsNone(resolve_assignment_target(None, 1))
