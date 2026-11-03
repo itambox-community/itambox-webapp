@@ -8,6 +8,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import View
 
+from core.managers import Scope
 from itambox.panels import Panel
 from itambox.views.generic import (
     ObjectBulkDeleteView,
@@ -36,7 +37,7 @@ class ContactRoleListView(ObjectListView):
 
 
 class ContactRoleDetailView(ObjectDetailView):
-    queryset = ContactRole.objects.prefetch_related("assignments")
+    queryset = ContactRole.objects.all()
 
     layout = (((Panel("info", _("Contact Role Details")),),),)
 
@@ -44,7 +45,8 @@ class ContactRoleDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         role = self.get_object()
 
-        assignments_table = ContactAssignmentTable(role.assignments.all(), request=self.request)
+        assignments = role.assignments.visible_in(Scope.current())
+        assignments_table = ContactAssignmentTable(assignments, request=self.request)
         assignments_table.configure(self.request)
 
         context["assignments_table"] = assignments_table
@@ -73,18 +75,25 @@ class ContactRoleDeleteView(ObjectDeleteView):
 
     def post(self, request, *args, **kwargs):
         role = self.get_object()
+        # PROTECT: every assignment blocks deletion, but only the ones visible in
+        # the active scope may be counted in the message.
         assignment_count = role.assignments.count()
 
         if assignment_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete role '%(role)s': It is associated with %(count)d contact assignment%(plural)s.")
-                % {
+            visible_count = role.assignments.visible_in(Scope.current()).count()
+            if visible_count == assignment_count:
+                message = _(
+                    "Cannot delete role '%(role)s': It is associated with %(count)d contact assignment%(plural)s."
+                ) % {
                     "role": role,
                     "count": assignment_count,
                     "plural": "s" if assignment_count != 1 else "",
-                },
-            )
+                }
+            else:
+                message = _(
+                    "Cannot delete role '%(role)s': It is associated with contact assignments outside your scope."
+                ) % {"role": role}
+            messages.error(request, message)
             return redirect(role.get_absolute_url())
 
         return super().post(request, *args, **kwargs)
@@ -163,6 +172,12 @@ class ContactAssignmentDeleteView(ObjectDeleteView):
     queryset = ContactAssignment.objects.all()
     model = ContactAssignment
     template_name = "generic/object_confirm_delete.html"
+
+    def get_queryset(self):
+        # The plain manager has no tenant scope of its own: resolve the object
+        # through the scoped helper so an assignment whose contact or target is
+        # outside the active scope is a 404, not a deletable row.
+        return super().get_queryset().visible_in(Scope.current())
 
     def get_success_url(self):
         obj = self.object

@@ -6020,6 +6020,19 @@ msgstr ""
 "Kontakt '%(contact)s' kann nicht gelöscht werden: Er hat %(count)d "
 "Zuweisung%(plural)s."
 
+msgid ""
+"Cannot delete contact '%(contact)s': It has assignments outside your scope."
+msgstr ""
+"Kontakt '%(contact)s' kann nicht gelöscht werden: Er hat Zuweisungen "
+"außerhalb Ihres Bereichs."
+
+msgid ""
+"Cannot delete role '%(role)s': It is associated with contact assignments "
+"outside your scope."
+msgstr ""
+"Rolle '%(role)s' kann nicht gelöscht werden: Sie ist mit Kontaktzuweisungen "
+"außerhalb Ihres Bereichs verknüpft."
+
 msgid "Contact Role Details"
 msgstr "Kontaktrollen-Details"
 

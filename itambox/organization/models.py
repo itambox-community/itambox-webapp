@@ -16,8 +16,11 @@ from core.managers import (
     ExplicitScopeAllObjectsManager,
     ExplicitScopeManager,
     ExplicitScopeSoftDeleteManager,
+    Scope,
     SoftDeleteManager,
+    TenantScopeDeclaration,
     TenantScopingQuerySet,
+    tenant_scope_declaration,
 )
 from core.mfa import role_is_privileged
 from core.mixins import (
@@ -571,7 +574,63 @@ class Contact(CustomFieldDataMixin, StandardModel, SoftDeleteMixin):
         return reverse("organization:contact_detail", kwargs={"pk": self.pk})
 
 
+def _visible_assignment_targets(model, scope):
+    """Rows of ``model`` an assignment may point at in ``scope``, or ``None``.
+
+    A model whose default manager scopes (``for_scope``) answers for itself. A
+    tenantless global catalogue (no scoping declaration, no ``tenant``
+    attribute, e.g. Manufacturer) is visible as a whole. Everything else (an
+    unknown content type, a tenant-bearing model without a scoping manager, a
+    non-integer primary key that ``object_id`` cannot hold) returns ``None`` so
+    the caller leaves it out: an unscopable target never widens the result.
+    """
+    if model is None:
+        return None
+    pk = model._meta.pk
+    if not isinstance(getattr(pk, "target_field", pk), models.IntegerField):
+        return None
+    queryset = model._default_manager.all()
+    if hasattr(queryset, "for_scope"):
+        return queryset.for_scope(scope)
+    if tenant_scope_declaration(model).strategy == TenantScopeDeclaration.NONE and not hasattr(model, "tenant"):
+        return queryset
+    return None
+
+
+class ContactAssignmentQuerySet(models.QuerySet):
+    def visible_in(self, scope, content_type=None):
+        """Assignments readable in ``scope``.
+
+        ContactAssignment has no tenant column: it is visible only when BOTH
+        its generic-FK target and its contact are visible in ``scope``. The
+        target is resolved per referenced content type through that model's
+        scoped default manager (a subquery, nothing is materialised); the
+        contact through ``Contact.objects.for_scope``. The default manager stays
+        unfiltered; every reader passes the scope explicitly.
+
+        ``content_type`` pins the target type when the caller already knows it
+        (for example the manufacturer-contacts prefetch). That avoids an extra
+        ContentType lookup without widening the scope.
+        """
+        if scope.kind == Scope.SYSTEM:
+            return self
+        if scope.kind == Scope.DENIED:
+            return self.none()
+        allowed = models.Q(pk__in=[])
+        if content_type is None:
+            content_types = ContentType.objects.filter(pk__in=self.order_by().values("content_type"))
+        else:
+            content_types = [content_type]
+        for content_type in content_types:
+            targets = _visible_assignment_targets(content_type.model_class(), scope)
+            if targets is not None:
+                allowed |= models.Q(content_type=content_type, object_id__in=targets.values("pk"))
+        return self.filter(allowed, contact__in=Contact.objects.for_scope(scope).values("pk"))
+
+
 class ContactAssignment(ChangeLoggingMixin, BaseModel):
+    objects = models.Manager.from_queryset(ContactAssignmentQuerySet)()
+
     contact = models.ForeignKey(
         Contact, on_delete=models.CASCADE, related_name="assignments", verbose_name=_("Contact")
     )

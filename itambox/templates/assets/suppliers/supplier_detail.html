@@ -20,7 +20,7 @@
        role="tab"
        aria-selected="{% if request.GET.tab == 'contacts' %}true{% else %}false{% endif %}">
       <i class="mdi mdi-account-circle-outline me-1 text-purple"></i>
-      {% translate "Contacts" %} <span class="badge bg-purple-lt ms-2">{{ object.contacts.count }}</span>
+      {% translate "Contacts" %} <span class="badge bg-purple-lt ms-2">{{ contact_assignments|length }}</span>
     </a>
   </li>
   <li class="nav-item" role="presentation">
@@ -92,7 +92,7 @@
           </a>
         {% endwith %}
       </div>
-      {% if object.contacts.exists %}
+      {% if contact_assignments %}
         <div class="table-responsive">
           <table class="table table-vcenter card-table">
             <thead>
@@ -106,7 +106,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for assignment in object.contacts.all %}
+              {% for assignment in contact_assignments %}
                 <tr>
                   <td>
                     <a href="{{ assignment.contact.get_absolute_url }}"><strong>{{ assignment.contact.name }}</strong></a>
