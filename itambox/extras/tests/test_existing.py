@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from assets.models import Asset
+from core.tests.mixins import TenantTestMixin
 from extras.models import (
     CustomField,
     CustomFieldChoice,
@@ -472,3 +473,49 @@ class BulkEditFormTests(TestCase):
         # 'description' (Textarea widget) should have 'form-control' class
         desc_class = form.fields["description"].widget.attrs.get("class", "")
         self.assertIn("form-control", desc_class)
+
+
+class TagDetailTenantScopeTests(TenantTestMixin, TestCase):
+    """F7: a global tag must list only assets visible in the active scope."""
+
+    def setUp(self):
+        from assets.models import AssetType, Manufacturer, StatusLabel
+        from organization.models import Tenant
+
+        self.setup_tenant_context(
+            name="Tag Scope A", slug="tag-scope-a", permissions=["extras.view_tag", "assets.view_asset"]
+        )
+        self.tenant_a = self.tenant
+        self.tenant_b = Tenant.objects.create(name="Tag Scope B", slug="tag-scope-b")
+        manufacturer = Manufacturer.objects.create(name="Tag Scope Mfr", slug="tag-scope-mfr")
+        asset_type = AssetType.objects.create(model="Tag Scope Type", slug="tag-scope-type", manufacturer=manufacturer)
+        status, _ = StatusLabel.objects.get_or_create(
+            slug="available", defaults={"name": "Available", "type": "deployable", "color": "28a745"}
+        )
+        self.tag = Tag.objects.create(name="Scope Global Tag", slug="scope-global-tag", color="00ff00")
+        self.asset_a = Asset.objects.create(
+            name="SCOPE-A-ASSET", asset_tag="SCOPE-A-TAG", tenant=self.tenant_a, status=status, asset_type=asset_type
+        )
+        self.asset_b = Asset.objects.create(
+            name="SECRET-B-ASSET", asset_tag="SECRET-B-TAG", tenant=self.tenant_b, status=status, asset_type=asset_type
+        )
+        self.asset_a.tags.add(self.tag)
+        self.asset_b.tags.add(self.tag)
+        self.url = reverse("extras:tag_detail", kwargs={"pk": self.tag.pk})
+
+    def test_tenant_sees_only_own_tagged_assets(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "SCOPE-A-ASSET")
+        self.assertNotContains(response, "SECRET-B-ASSET")
+        self.assertNotContains(response, "SECRET-B-TAG")
+        self.assertEqual(len(response.context["assets_table"].rows), 1)
+
+    def test_foreign_only_tag_renders_empty_table(self):
+        self.asset_a.tags.remove(self.tag)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "SECRET-B-ASSET")
+        self.assertEqual(len(response.context["assets_table"].rows), 0)

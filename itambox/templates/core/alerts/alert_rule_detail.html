@@ -201,7 +201,7 @@
                 </tr>
               </thead>
               <tbody>
-                {% for log in object.logs.all %}
+                {% for log in logs %}
                   <tr>
                     <td>{{ log.created_at|date:"Y-m-d H:i:s" }}</td>
                     <td>
