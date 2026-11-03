@@ -435,6 +435,7 @@ class AlertRuleDetailView(ObjectDetailView):
         obj = self.get_object()
         context["title"] = _("Alert Rule: %(name)s") % {"name": obj.name}
         logs = AlertLog.objects.for_scope(Scope.current()).filter(rule=obj)
+        context["channels"] = NotificationChannel.objects.for_scope(Scope.current()).filter(alert_rules=obj)
         context["logs"] = logs
         context["logs_count"] = logs.count()
         context["active_logs_count"] = logs.filter(status=AlertLog.STATUS_ACTIVE).count()

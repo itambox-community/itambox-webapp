@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from core.tests.mixins import TenantTestMixin, grant
+from organization.models import Role, Tenant
 from users.forms import UserPreferencesForm
 from users.models import Token, UserPreference
 
@@ -453,3 +455,34 @@ class UserPreferencesLanguageTests(TestCase):
         language_forms = [form for form in inspector.forms if "language" in form["fields"]]
         self.assertEqual(len(language_forms), 1, inspector.forms)
         self.assertEqual(language_forms[0]["attrs"].get("hx-boost"), "false")
+
+
+class UserDetailMembershipScopeTests(TenantTestMixin, TestCase):
+    """R-4: a shared user shows only memberships in tenants the requester can see."""
+
+    def setUp(self):
+        self.setup_tenant_context(name="Member Scope A", slug="member-scope-a", permissions=["users.view_user"])
+        self.tenant_a = self.tenant
+        self.tenant_b = Tenant.objects.create(name="ZQ Foreign Tenant ZQ", slug="member-scope-b")
+        self.shared = User.objects.create_user(username="member_scope_shared", password="x")
+        role_a = Role.objects.create(tenant=self.tenant_a, name="Member Scope Role A", permissions=[])
+        role_b = Role.objects.create(tenant=self.tenant_b, name="Member Scope Role B", permissions=[])
+        self.membership_a = grant(self.shared, self.tenant_a, role_a).membership
+        self.membership_b = grant(self.shared, self.tenant_b, role_b).membership
+        self.url = reverse("users:user_detail", kwargs={"pk": self.shared.pk})
+
+    def test_shared_user_hides_foreign_membership(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([m.pk for m in response.context["visible_memberships"]], [self.membership_a.pk])
+        self.assertContains(response, "Member Scope A")
+        self.assertNotContains(response, "ZQ Foreign Tenant ZQ")
+
+    def test_superuser_sees_all_memberships_in_all_scope(self):
+        admin = User.objects.create_superuser(username="member_scope_admin", password="x")
+        self.client.force_login(admin)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        shown = {m.pk for m in response.context["visible_memberships"]}
+        self.assertEqual(shown, {self.membership_a.pk, self.membership_b.pk})

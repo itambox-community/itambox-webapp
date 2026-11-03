@@ -139,7 +139,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for chan in object.channels.all %}
+              {% for chan in channels %}
                 <tr>
                   <td>{{ chan.name }}</td>
                   <td>{{ chan.get_channel_type_display }}</td>
