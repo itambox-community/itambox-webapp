@@ -31,6 +31,8 @@ class AssetMaintenance(
     BaseModel,
 ):
     tenant_lookup = "asset__tenant"
+    # Children of a tenant-less asset must not be wider than the asset (hidden when global).
+    deny_global_tenant = True
     objects = ExplicitScopeSoftDeleteManager()
     all_objects = ExplicitScopeAllObjectsManager()
 
