@@ -552,7 +552,9 @@ class AssetSerializer(CanonicalSpecificationSerializerMixin, BaseModelSerializer
 
 class SupplierSerializer(BaseModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
-    contacts = ContactAssignmentSerializer(many=True, read_only=True)
+    # A supplier can be global or group-shared while its contacts are private to
+    # one tenant: nest only the assignments visible in the request's scope.
+    contacts = serializers.SerializerMethodField()
     tenant = NestedTenantSerializer(read_only=True)
     tenant_id: serializers.PrimaryKeyRelatedField[Tenant] = serializers.PrimaryKeyRelatedField(
         queryset=Tenant.objects, source="tenant", write_only=True, required=False, allow_null=True
@@ -561,6 +563,17 @@ class SupplierSerializer(BaseModelSerializer):
     tenant_group_id: serializers.PrimaryKeyRelatedField[TenantGroup] = serializers.PrimaryKeyRelatedField(
         queryset=TenantGroup.objects, source="tenant_group", write_only=True, required=False, allow_null=True
     )
+
+    @extend_schema_field(ContactAssignmentSerializer(many=True, read_only=True))
+    def get_contacts(self, obj: Supplier) -> list[dict[str, object]]:
+        assignments = getattr(obj, "scoped_contacts", None)
+        if assignments is None:
+            assignments = (
+                obj.contacts.visible_in(Scope.current())
+                .select_related("contact", "role", "content_type")
+                .prefetch_related("contact__tags", "assigned_object")
+            )
+        return ContactAssignmentSerializer(assignments, many=True, context=self.context).data
 
     def validate(self, attrs):
         # The database enforces tenant XOR tenant_group; surface a rejected

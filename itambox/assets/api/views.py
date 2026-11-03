@@ -73,6 +73,7 @@ from assets.specification_adapters import actor_context_for_user
 from core.managers import Scope
 from itambox.api.permissions import StrictTenantPermission, TokenPermissions
 from itambox.api.viewsets import ITAMBoxModelViewSet
+from organization.models import ContactAssignment
 
 from .serializers import (
     AssetAssignmentSerializer,
@@ -727,6 +728,18 @@ class SupplierViewSet(ITAMBoxModelViewSet):
     serializer_class = SupplierSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = SupplierFilterSet
+
+    def get_queryset(self):
+        # Nested contacts are read from this request-scoped prefetch (see
+        # SupplierSerializer.get_contacts), never from the unscoped relation.
+        contacts = (
+            ContactAssignment.objects.visible_in(Scope.current())
+            .select_related("contact", "role", "content_type")
+            .prefetch_related("contact__tags", "assigned_object")
+        )
+        return (
+            super().get_queryset().prefetch_related(Prefetch("contacts", queryset=contacts, to_attr="scoped_contacts"))
+        )
 
 
 class CategoryViewSet(SpecificationContractMixin, ITAMBoxModelViewSet):

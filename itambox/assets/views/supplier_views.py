@@ -73,6 +73,9 @@ class SupplierDetailView(ObjectDetailView):
         assets_table = tables.AssetTable(supplier_assets, request=self.request)
         RequestConfig(self.request, paginate={"per_page": get_paginate_count(self.request)}).configure(assets_table)
         context["assets_table"] = assets_table
+        context["contact_assignments"] = list(
+            supplier.contacts.visible_in(Scope.current()).select_related("contact", "role")
+        )
 
         # Accessories Supplied
 

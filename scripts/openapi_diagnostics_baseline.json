@@ -43,6 +43,12 @@
     {
       "severity": "warning",
       "location": "itambox/itambox/api/serializers/__init__.py",
+      "breadcrumb": "ContactAssignmentViewSet > ContactAssignmentSerializer > GenericObjectSerializer",
+      "message": "could not resolve serializer field \"GFKSerializerField(read_only=True)\". Defaulting to \"string\""
+    },
+    {
+      "severity": "warning",
+      "location": "itambox/itambox/api/serializers/__init__.py",
       "breadcrumb": "ObjectChangeViewSet > ObjectChangeSerializer",
       "message": "could not resolve serializer field \"ChoiceField(choices=<core.choices.ObjectChangeActionChoices object>, read_only=True)\". Defaulting to \"string\""
     },

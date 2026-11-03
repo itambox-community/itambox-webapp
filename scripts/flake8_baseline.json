@@ -484,14 +484,6 @@
       "count": 1
     },
     {
-      "path": "itambox/organization/api/views.py",
-      "code": "C901",
-      "message": "'ContactAssignmentViewSet.get_queryset' is too complex (11)",
-      "source": "    def get_queryset(self):",
-      "context": "Module:body/ClassDef:ContactAssignmentViewSet:body/FunctionDef:get_queryset:self",
-      "count": 1
-    },
-    {
       "path": "itambox/organization/forms/membership_form.py",
       "code": "C901",
       "message": "'MembershipForm.__init__' is too complex (13)",

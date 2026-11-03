@@ -3,6 +3,7 @@ from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
+from core.managers import Scope
 from itambox.panels import Panel
 from itambox.views.generic import (
     ObjectBulkDeleteView,
@@ -29,7 +30,7 @@ class ContactListView(ObjectListView):
 
 
 class ContactDetailView(ObjectDetailView):
-    queryset = Contact.objects.prefetch_related("tags", "assignments")
+    queryset = Contact.objects.prefetch_related("tags")
 
     layout = (((Panel("info", _("Contact Details")),),),)
 
@@ -37,7 +38,8 @@ class ContactDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         contact = self.get_object()
 
-        assignments_table = ContactAssignmentTable(contact.assignments.all(), request=self.request)
+        assignments = contact.assignments.visible_in(Scope.current())
+        assignments_table = ContactAssignmentTable(assignments, request=self.request)
         assignments_table.configure(self.request)
 
         context["assignments_table"] = assignments_table
@@ -66,18 +68,23 @@ class ContactDeleteView(ObjectDeleteView):
 
     def post(self, request, *args, **kwargs):
         contact = self.get_object()
+        # Every assignment blocks deletion (they cascade with the contact); only
+        # the ones visible in the active scope may be counted in the message.
         assignment_count = contact.assignments.count()
 
         if assignment_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete contact '%(contact)s': It has %(count)d assignment%(plural)s.")
-                % {
+            visible_count = contact.assignments.visible_in(Scope.current()).count()
+            if visible_count == assignment_count:
+                message = _("Cannot delete contact '%(contact)s': It has %(count)d assignment%(plural)s.") % {
                     "contact": contact,
                     "count": assignment_count,
                     "plural": "s" if assignment_count != 1 else "",
-                },
-            )
+                }
+            else:
+                message = _("Cannot delete contact '%(contact)s': It has assignments outside your scope.") % {
+                    "contact": contact
+                }
+            messages.error(request, message)
             return redirect(contact.get_absolute_url())
 
         return super().post(request, *args, **kwargs)

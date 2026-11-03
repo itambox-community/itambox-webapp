@@ -174,6 +174,7 @@
     "itambox/licenses/tests/test_h2_create_boundary.py",
     "itambox/licenses/tests/test_models.py",
     "itambox/licenses/tests/test_seat_reduction_lock.py",
+    "itambox/organization/tests/test_contact_assignment_tenant_isolation.py",
     "itambox/organization/tests/test_contact_assignment_view_scope.py",
     "itambox/organization/tests/test_cost_centers.py",
     "itambox/organization/tests/test_login_may_act_as_holder.py",

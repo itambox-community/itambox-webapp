@@ -15,6 +15,7 @@ from core.managers import (
     AllObjectsManager,
     ExplicitScopeAllObjectsManager,
     ExplicitScopeSoftDeleteManager,
+    Scope,
     SoftDeleteManager,
 )
 from core.mixins import AutoSlugMixin, CustomFieldDataMixin, SoftDeleteMixin
@@ -156,15 +157,20 @@ class Manufacturer(StandardModel, SoftDeleteMixin):
 
     @property
     def get_support_contact(self):
-        """Resolves the active support contact assignment dynamically."""
+        """Resolves the active support contact assignment dynamically.
+
+        Only assignments visible in the current scope count: another tenant's
+        private contact on this shared manufacturer is never offered.
+        """
+        contacts = self.contacts.visible_in(Scope.current())
         # 1. Search for a Contact assignment with role slug 'support' or 'technical-support'
-        assignment = self.contacts.filter(role__slug__in=["support", "technical-support"]).first()
+        assignment = contacts.filter(role__slug__in=["support", "technical-support"]).first()
         if not assignment:
             # 2. Fallback to any assignment with 'primary' priority
-            assignment = self.contacts.filter(priority="primary").first()
+            assignment = contacts.filter(priority="primary").first()
         if not assignment:
             # 3. Fallback to any contact assignment
-            assignment = self.contacts.first()
+            assignment = contacts.first()
 
         return assignment.contact if assignment else None
 
@@ -422,7 +428,10 @@ class Supplier(CustomFieldDataMixin, AutoSlugMixin, StandardModel, SoftDeleteMix
 
     @property
     def primary_contact(self):
-        assignment = self.contacts.filter(priority="primary").first() or self.contacts.first()
+        # Scoped like the contacts tab: a shared supplier never surfaces another
+        # tenant's private contact.
+        contacts = self.contacts.visible_in(Scope.current())
+        assignment = contacts.filter(priority="primary").first() or contacts.first()
         return assignment.contact if assignment else None
 
     class Meta:
