@@ -18,6 +18,8 @@ class AssetAssignment(SoftDeleteMixin, JournalingMixin, TaggableMixin, ChangeLog
     # Tenant is derived from the parent asset; scope through it so assignments
     # cannot be listed or mutated across tenant boundaries.
     tenant_lookup = "asset__tenant"
+    # Children of a tenant-less asset must not be wider than the asset (hidden when global).
+    deny_global_tenant = True
     objects = ExplicitScopeSoftDeleteManager()
     all_objects = ExplicitScopeAllObjectsManager()
 

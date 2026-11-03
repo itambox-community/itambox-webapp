@@ -63,6 +63,8 @@ class AssetDisposal(FileAttachmentMixin, JournalingMixin, SoftDeleteMixin, Chang
     """
 
     tenant_lookup = "asset__tenant"
+    # Children of a tenant-less asset must not be wider than the asset (hidden when global).
+    deny_global_tenant = True
     objects = ExplicitScopeSoftDeleteManager()
     all_objects = ExplicitScopeAllObjectsManager()
 
@@ -260,6 +262,8 @@ class Warranty(JournalingMixin, SoftDeleteMixin, ChangeLoggingMixin, BaseModel):
     """
 
     tenant_lookup = "asset__tenant"
+    # Children of a tenant-less asset must not be wider than the asset (hidden when global).
+    deny_global_tenant = True
     objects = ExplicitScopeSoftDeleteManager()
     all_objects = ExplicitScopeAllObjectsManager()
 
@@ -342,6 +346,8 @@ class AssetReservation(JournalingMixin, SoftDeleteMixin, ChangeLoggingMixin, Bas
     """Reservation of an asset for a specific holder within a date window."""
 
     tenant_lookup = "asset__tenant"
+    # Children of a tenant-less asset must not be wider than the asset (hidden when global).
+    deny_global_tenant = True
     objects = ExplicitScopeSoftDeleteManager()
     all_objects = ExplicitScopeAllObjectsManager()
 
