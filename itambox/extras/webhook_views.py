@@ -21,7 +21,7 @@ from core.managers import Scope
 from core.validators import validate_external_url
 from core.worker_status import get_worker_status
 from extras.forms import WebhookEndpointForm
-from extras.models import WebhookDelivery, WebhookEndpoint
+from extras.models import EventRule, WebhookDelivery, WebhookEndpoint
 from extras.tables import WebhookDeliveryTable, WebhookEndpointTable
 from extras.tasks.webhooks import redeliver_webhook_delivery, send_webhook_test
 from itambox.panels import Panel
@@ -79,6 +79,7 @@ class WebhookEndpointDetailView(WorkerStatusContextMixin, ObjectDetailView):
             can_redeliver=can_change,
         )
         RequestConfig(self.request, paginate=False).configure(delivery_table)
+        context["event_rules"] = EventRule.objects.for_scope(Scope.current()).filter(webhook=endpoint)
         context["webhook_delivery_table"] = delivery_table
         context["can_change_webhook"] = can_change
         context["title"] = str(endpoint)
