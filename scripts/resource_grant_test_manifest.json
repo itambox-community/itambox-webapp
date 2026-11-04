@@ -92,6 +92,7 @@
     "itambox/core/tests/test_models.py",
     "itambox/core/tests/test_narrowed_exception_handlers.py",
     "itambox/core/tests/test_navigation_tenancy.py",
+    "itambox/core/tests/test_objectchange_explicit_scope.py",
     "itambox/core/tests/test_oidc.py",
     "itambox/core/tests/test_operational_health.py",
     "itambox/core/tests/test_pdf_renderer.py",
