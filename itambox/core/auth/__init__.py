@@ -16,8 +16,6 @@ from core.context import (
     get_current_scope_conflict,
     get_current_tenant,
     get_current_tenant_group,
-    set_current_membership,
-    set_current_tenant,
 )
 from core.tenant_scope import (
     accessible_tenant_ids_with_expiry,
@@ -168,7 +166,10 @@ class MembershipBackend:
 
     def _ambient_tenant(self, user_obj):
         """Single-tenant ambient context: bound membership → current tenant →
-        first active membership's tenant → first scoped managed tenant."""
+        first active membership's tenant → first scoped managed tenant.
+
+        Read-only: the result is a local; a permission check never binds scope.
+        Fallbacks are ordered deterministically (tenant name, pk)."""
         Membership = apps.get_model("organization", "Membership")
         Tenant = apps.get_model("organization", "Tenant")
 
@@ -184,11 +185,10 @@ class MembershipBackend:
                 is_active=True,
             )
             .select_related("tenant")
+            .order_by("tenant__name", "pk")
             .first()
         )
         if first is not None:
-            set_current_tenant(first.tenant)
-            set_current_membership(first)
             return first.tenant
         # Defensive fallback: a user whose only access is managed reach (should not
         # happen — reach rides on a membership — but fail towards a valid context).
@@ -196,7 +196,6 @@ class MembershipBackend:
         if reachable:
             tenant = Tenant._base_manager.filter(pk__in=reachable).order_by("name").first()
             if tenant is not None:
-                set_current_tenant(tenant)
                 return tenant
         return None
 

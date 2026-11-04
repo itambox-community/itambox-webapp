@@ -943,3 +943,69 @@ class SuperuserBypassTestCase(TestCase):
             tenant=other_tenant,
         )
         self.assertTrue(self.superuser.has_perm("assets.change_asset", obj=asset))
+
+
+class AmbientScopeLifecycleTestCase(TestCase):
+    """Permission reads never bind scope; the descendant cache has one owner."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="ambient_user", password="pass")
+        self.tenant = Tenant.objects.create(name="Ambient Tenant", slug="ambient-tenant")
+        self.role = Role.objects.create(tenant=self.tenant, name="Viewer", permissions=["assets.view_asset"])
+        self.membership = grant(self.user, self.tenant, self.role).membership
+
+    def tearDown(self):
+        set_current_tenant(None)
+        set_current_membership(None)
+
+    def _scope(self):
+        from core.managers import (
+            get_current_all_accessible,
+            get_current_membership,
+            get_current_tenant,
+            get_current_tenant_group,
+        )
+
+        return (
+            get_current_tenant(),
+            get_current_tenant_group(),
+            get_current_membership(),
+            get_current_all_accessible(),
+        )
+
+    def test_has_perm_without_bound_scope_does_not_write_scope(self):
+        before = self._scope()
+        self.assertEqual(before, (None, None, None, False))
+        self.assertTrue(self.user.has_perm("assets.view_asset"))
+        self.assertFalse(self.user.has_perm("assets.delete_asset"))
+        self.assertEqual(self._scope(), before)
+
+    def test_has_module_perms_without_bound_scope_does_not_write_scope(self):
+        before = self._scope()
+        self.assertTrue(self.user.has_module_perms("assets"))
+        self.assertEqual(self._scope(), before)
+
+    def test_ambient_fallback_membership_is_deterministic(self):
+        from core.auth import MembershipBackend
+
+        other = Tenant.objects.create(name="Aaa First", slug="aaa-first")
+        Membership.objects.create(user=self.user, tenant=other, is_active=True)
+        backend = MembershipBackend()
+        for _ in range(3):
+            self.assertEqual(backend._ambient_tenant(self.user), other)
+
+    def test_descendant_cache_is_single_variable(self):
+        from core import context, tenant_scope
+
+        self.assertIs(tenant_scope._descendant_group_ids_cache, context._descendant_group_ids_cache)
+
+    def test_scope_reset_clears_provider_descendant_cache(self):
+        from core.tenant_scope import get_descendant_tenant_group_ids
+
+        parent = TenantGroup.objects.create(name="C7 Parent", slug="c7-parent")
+        child = TenantGroup.objects.create(name="C7 Child", slug="c7-child", parent=parent)
+        self.assertEqual(get_descendant_tenant_group_ids(parent.pk, live_only=True), {parent.pk, child.pk})
+        child.delete()  # soft delete
+        # Still warm until a scope reset.
+        set_current_tenant(None)
+        self.assertEqual(get_descendant_tenant_group_ids(parent.pk, live_only=True), {parent.pk})
