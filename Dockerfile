@@ -67,13 +67,13 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Runtime tools and libraries for PostgreSQL, LDAP, SAML/xmlsec, and libmagic.
-# openssl, libssl3, tzdata, and libpcre2-8-0 are named explicitly so this
+# openssl, libssl3, tzdata, libpcre2-8-0 and apt are named explicitly so this
 # install upgrades them to the current bookworm-security builds; the slim base
 # image ships the builds from its own build time, and a plain install would
 # leave them in place.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates openssl libssl3 postgresql-client libldap-2.5-0 libsasl2-2 xmlsec1 tzdata libmagic1 libpcre2-8-0 \
+        apt ca-certificates openssl libssl3 postgresql-client libldap-2.5-0 libsasl2-2 xmlsec1 tzdata libmagic1 libpcre2-8-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # collectstatic, gunicorn, qcluster, and the health check all run from the locked
