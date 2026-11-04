@@ -1226,16 +1226,19 @@ class ReportTriggerImmediateView(CapabilityRequiredMixin, PermissionRequiredMixi
     capability_key = REPORTING_SCHEDULED_CAPABILITY
     permission_required = ("extras.view_scheduledreport",)
 
+    def get_queryset(self):
+        return ScheduledReport.objects.for_scope(Scope.current())
+
     def has_permission(self):
         perms = self.get_permission_required()
         try:
-            obj = get_object_or_404(ScheduledReport, pk=self.kwargs.get("pk"))
+            obj = get_object_or_404(self.get_queryset(), pk=self.kwargs.get("pk"))
         except Http404:
             return False
         return self.request.user.has_perms(perms, obj=obj)
 
     def post(self, request, pk):
-        sched = get_object_or_404(ScheduledReport, pk=pk)
+        sched = get_object_or_404(self.get_queryset(), pk=pk)
 
         # Trigger report generation synchronously for immediate visual feedback in the UI
         success = generate_scheduled_report_task(sched.pk, invoked_by_user_id=request.user.pk)
@@ -1309,16 +1312,19 @@ class ScheduledReportRetryDeliveryView(CapabilityRequiredMixin, PermissionRequir
     capability_key = REPORTING_SCHEDULED_CAPABILITY
     permission_required = ("extras.change_scheduledreport",)
 
+    def get_queryset(self):
+        return ScheduledReport.objects.for_scope(Scope.current())
+
     def has_permission(self):
         perms = self.get_permission_required()
         try:
-            obj = get_object_or_404(ScheduledReport, pk=self.kwargs.get("pk"))
+            obj = get_object_or_404(self.get_queryset(), pk=self.kwargs.get("pk"))
         except Http404:
             return False
         return self.request.user.has_perms(perms, obj=obj)
 
     def post(self, request, pk):
-        sched = get_object_or_404(ScheduledReport, pk=pk)
+        sched = get_object_or_404(self.get_queryset(), pk=pk)
         outcome = retry_failed_deliveries(sched)
         if outcome.code == "retry.no_archive":
             messages.warning(
