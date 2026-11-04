@@ -191,14 +191,14 @@ class TenantMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        prev = self.process_request(request)
+        prev = self._snapshot_scope()
         try:
-            response = self.get_response(request)
-        # broad except: cleanup-reraise: restores the tenant and membership context vars, then re-raises
-        except Exception as e:
+            self.process_request(request)
+            return self.get_response(request)
+        finally:
+            # BaseException-safe (CancelledError, KeyboardInterrupt, ...): the
+            # previous scope is always restored, never left bound.
             self.process_response(request, None, prev)
-            raise e
-        return self.process_response(request, response, prev)
 
     @staticmethod
     def _apply_default_workspace(request):
@@ -495,14 +495,18 @@ class TenantMiddleware:
 
         return active_tenant, active_tenant_group, active_membership, active_all_accessible
 
-    def process_request(self, request: HttpRequest):
-        _descendant_group_ids_cache.set(None)
-        prev = (
+    @staticmethod
+    def _snapshot_scope():
+        return (
             get_current_tenant(),
             get_current_tenant_group(),
             get_current_membership(),
             get_current_all_accessible(),
         )
+
+    def process_request(self, request: HttpRequest):
+        _descendant_group_ids_cache.set(None)
+        prev = self._snapshot_scope()
         if not hasattr(request, "user") or not request.user.is_authenticated:
             self._clear_request_scope(request)
             return prev

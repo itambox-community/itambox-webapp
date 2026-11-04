@@ -5,20 +5,15 @@ registers the concrete tenant/RBAC functions from ``AppConfig.ready`` after the
 Django model registry is ready; this module never imports a domain module.
 """
 
-import contextvars
 import sys
 from collections.abc import Callable
 
 from django.apps import apps
 
+from core.context import _descendant_group_ids_cache
 from core.tenant_access import accessible_tenant_ids as _typed_accessible_tenant_ids
 
 _provider_modules: dict[str, str] = {}
-
-_descendant_group_ids_cache = contextvars.ContextVar(
-    "descendant_tenant_group_ids_cache",
-    default=None,
-)
 
 
 def register_tenant_scope_provider(**functions: Callable[..., object]) -> None:
