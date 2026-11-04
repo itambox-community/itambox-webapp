@@ -17113,3 +17113,21 @@ msgstr "US-Letter-Bogen (Raster 3 x 8)"
 
 msgid "and %(counter)s more"
 msgstr "und %(counter)s weitere"
+
+msgid "The rendered report is too large."
+msgstr "Der gerenderte Bericht ist zu groß."
+
+msgid "The report HTML is nested too deeply."
+msgstr "Der Bericht-HTML-Code ist zu tief verschachtelt."
+
+msgid "The report HTML is too large."
+msgstr "Der Bericht-HTML-Code ist zu groß."
+
+msgid "The report template exceeds the rendering size budget."
+msgstr "Die Berichtsvorlage überschreitet das Größenbudget für die Darstellung."
+
+msgid "The report template is too large."
+msgstr "Die Berichtsvorlage ist zu groß."
+
+msgid "The report template took too long to render."
+msgstr "Die Darstellung der Berichtsvorlage hat zu lange gedauert."
