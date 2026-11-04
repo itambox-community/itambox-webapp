@@ -197,6 +197,14 @@ sandbox. The sandbox is immutable and removes the `attr`, `format`, `format_map`
 an allowlist of presentational markup before it is shown, downloaded or emailed:
 `script`, `style`, frame, form and SVG elements, `on*` handlers, inline styles and
 `javascript:` URLs are removed whatever the Content-Security-Policy says.
+Images must not load from other hosts: an `<img src>` is kept only for an embedded
+`data:image/png|jpeg|gif;base64,...` URI, a relative path such as `/static/logo.png`
+or `/media/logo.png`, or (when `ITAMBOX_BASE_URL` is set) an absolute URL on that
+origin under the static or media path. `http(s)` images on other hosts, `//host`
+and UNC paths are removed, because mail clients and downloaded HTML copies would
+otherwise send the rendered report data and the reader's IP address to a third
+party. Use a data URI or a tenant-hosted static/media asset for logos. Links
+(`<a href>`) are unaffected.
 
 ### Tenant scope authorization
 

@@ -5,8 +5,10 @@ import io
 import re
 from datetime import date, datetime
 from decimal import Decimal
+from posixpath import normpath
 from urllib.parse import urlsplit
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.template import Context, Template
 from django.utils.html import escape
@@ -135,12 +137,11 @@ class ReportRenderLimitError(ValidationError):
 
 
 _LINK_SCHEMES = frozenset({"http", "https", "mailto", "tel"})
-_IMAGE_SCHEMES = frozenset({"http", "https"})
 _SAFE_DATA_IMAGE = re.compile(r"^data:image/(?:gif|jpe?g|png);base64,[A-Za-z0-9+/=]+$", re.IGNORECASE)
 _URL_NOISE = re.compile(r"[\x00-\x20\x7f-\xa0]+")
 
 
-def _safe_url(value, schemes, allow_data_image=False, allow_network_path=True):
+def _safe_url(value, schemes, allow_network_path=True):
     """Accept relative, fragment and allowlisted-scheme URLs; reject everything else.
 
     Links pass ``allow_network_path=False``: a backslash (UNC share) or a
@@ -151,13 +152,50 @@ def _safe_url(value, schemes, allow_data_image=False, allow_network_path=True):
         return False
     if not allow_network_path and ("\\" in cleaned or cleaned.startswith("//")):
         return False
-    if allow_data_image and _SAFE_DATA_IMAGE.fullmatch(cleaned):
-        return True
     try:
         scheme = urlsplit(cleaned).scheme.lower()
     except ValueError:
         return False
     return not scheme or scheme in schemes
+
+
+def _is_own_asset_url(cleaned):
+    """True for an absolute URL on the configured ``ITAMBOX_BASE_URL`` origin under static/media."""
+    base = urlsplit(getattr(settings, "ITAMBOX_BASE_URL", "") or "")
+    if base.scheme not in {"http", "https"} or not base.netloc:
+        return False
+    try:
+        parts = urlsplit(cleaned)
+    except ValueError:
+        return False
+    if (parts.scheme.lower(), parts.netloc.lower()) != (base.scheme.lower(), base.netloc.lower()):
+        return False
+    path = parts.path
+    if ".." in path.split("/"):
+        return False
+    path = normpath(path)
+    prefixes = [p for p in (settings.STATIC_URL, settings.MEDIA_URL) if p and p.startswith("/")]
+    return any(path.startswith(prefix) and len(path) > len(prefix) for prefix in prefixes)
+
+
+def _safe_image_src(value):
+    """Allow only raster data URIs, relative paths and own-origin static/media URLs.
+
+    Remote images would let mail clients and offline HTML copies leak rendered
+    report data (and recipient IP/open events) to a third party.
+    """
+    cleaned = _URL_NOISE.sub("", value or "")
+    if not cleaned or "\\" in cleaned or cleaned.startswith("//"):
+        return False
+    if _SAFE_DATA_IMAGE.fullmatch(cleaned):
+        return True
+    try:
+        parts = urlsplit(cleaned)
+    except ValueError:
+        return False
+    if not parts.scheme and not parts.netloc:
+        return True
+    return _is_own_asset_url(cleaned)
 
 
 def _clamp_span(value, maximum):
@@ -177,7 +215,7 @@ def _sanitize_attributes(element, tag):
         if keep and name == "href":
             keep = _safe_url(value, _LINK_SCHEMES, allow_network_path=False)
         elif keep and name == "src":
-            keep = _safe_url(value, _IMAGE_SCHEMES, allow_data_image=True)
+            keep = _safe_image_src(value)
         if keep and (tag, name) in _SPAN_LIMITS:
             clamped = _clamp_span(value, _SPAN_LIMITS[(tag, name)])
             keep = clamped is not None
