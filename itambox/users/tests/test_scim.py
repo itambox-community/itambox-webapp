@@ -214,6 +214,45 @@ class SCIMProvisioningTests(TestCase):
         self.assertEqual(unlinked_holder.last_name, "Holder")
         self.assertEqual(unlinked_holder.email, "contact@acme.com")
 
+    def test_scim_does_not_link_existing_global_user_by_username(self):
+        existing = User.objects.create_user(username="global-existing", email="global-existing@example.com")
+        url = reverse("api:scim:user-list", kwargs={"tenant_slug": self.tenant.slug})
+        payload = {
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": existing.username,
+            "emails": [{"value": existing.email, "primary": True}],
+            "active": True,
+        }
+
+        response = self.client.post(url, data=payload, content_type="application/json", **self.auth_headers)
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.json()["scimType"], "uniqueness")
+        self.assertFalse(Membership.objects.filter(user=existing, tenant=self.tenant).exists())
+
+    def test_scim_does_not_link_existing_foreign_user_by_username_or_external_id(self):
+        foreign_role = Role.objects.create(tenant=self.other_tenant, name="Foreign Member", permissions=[])
+        url = reverse("api:scim:user-list", kwargs={"tenant_slug": self.tenant.slug})
+        for external_id in (None, "attacker-chosen-external-id"):
+            with self.subTest(external_id=external_id):
+                existing = User.objects.create_user(username=f"foreign-existing-{external_id or 'none'}")
+                grant(existing, self.other_tenant, foreign_role)
+                payload = {
+                    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                    "userName": existing.username,
+                    "emails": [{"value": f"{existing.username}@example.com", "primary": True}],
+                    "active": True,
+                }
+                if external_id:
+                    payload["externalId"] = external_id
+
+                response = self.client.post(url, data=payload, content_type="application/json", **self.auth_headers)
+
+                self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+                self.assertEqual(response.json()["scimType"], "uniqueness")
+                self.assertFalse(Membership.objects.filter(user=existing, tenant=self.tenant).exists())
+                self.assertTrue(Membership.objects.filter(user=existing, tenant=self.other_tenant).exists())
+
     def test_user_detail_put_patch_delete(self):
         # Create user with a role via the standard grant helper.
         user = User.objects.create_user(username="testuser", email="test@acme.com")

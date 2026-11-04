@@ -22,7 +22,7 @@ from django.utils import timezone
 from rest_framework import status
 
 from core.tests.mixins import grant
-from organization.models import Membership, Role, Tenant
+from organization.models import AssetHolder, Membership, Role, Tenant
 from users.models import GroupMembership, Token, UserGroup
 
 User = get_user_model()
@@ -294,7 +294,6 @@ class SCIMEntraLifecycleDrillTests(TestCase):
         self.assertEqual(renamed.status_code, status.HTTP_200_OK)
         user.refresh_from_db()
         self.assertEqual(user.username, "jamie.fox-smith@contoso.onmicrosoft.com")
-
         deactivated = self.client.patch(
             detail_url, data=active_patch(False), content_type="application/json", **headers
         )
@@ -330,6 +329,8 @@ class SCIMEntraLifecycleDrillTests(TestCase):
         self.assertEqual(deleted.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Membership.objects.filter(user=user, tenant=self.tenant).exists())
         self.assertFalse(User.objects.get(pk=user.pk).is_active)
+        holder = AssetHolder.objects.get(tenant=self.tenant, upn="jamie.fox-smith@contoso.onmicrosoft.com")
+        self.assertIsNone(holder.user_id)
 
         reprovision_payload = {
             **ENTRA_USER,

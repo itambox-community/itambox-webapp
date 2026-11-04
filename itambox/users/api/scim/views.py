@@ -300,30 +300,7 @@ class SCIMUserListView(SCIMTenantMixin, APIView):
                         status=status.HTTP_409_CONFLICT,
                     )
             else:
-                try:
-                    with transaction.atomic():
-                        # Serialize with concurrent lifecycle calls on the same identity
-                        # (same user-row lock as PUT/PATCH).
-                        user = _lock_tenant_scim_user(user, self.tenant, require_membership=False)
-                        # SCIM provisions identity only: a bare membership with NO RoleGrant
-                        # rows — permissions are granted in-app.
-                        create_scim_membership(
-                            user=user,
-                            tenant_id=self.tenant.pk,
-                            is_active=active,
-                            external_id=external_id,
-                        )
-                        _link_scim_holder(user, self.tenant)
-                        # Reprovisioning reconciles the global account flag: an active
-                        # re-provision restores the login a full de-provision correctly
-                        # cleared, with no manual intervention.
-                        sync_user_global_active(user)
-                except IntegrityError:
-                    user = _retry_tenant_correlated_user(self.tenant, username, external_id)
-                    with transaction.atomic():
-                        user = _lock_tenant_scim_user(user, self.tenant, require_membership=False)
-                        sync_user_global_active(user)
-                    response_status = status.HTTP_200_OK
+                return self._reprovision_existing_user(request, user, username, active, external_id)
         else:
             try:
                 with transaction.atomic():
@@ -353,6 +330,57 @@ class SCIMUserListView(SCIMTenantMixin, APIView):
             user, context={"request": request, "tenant_slug": self.tenant.slug, "tenant": self.tenant}
         )
         return Response(serializer.data, status=response_status)
+
+    def _reprovision_existing_user(self, request, user, username, active, external_id):
+        # A local holder with the same UPN is the durable identity anchor left by
+        # SCIM deprovisioning. A bare username match must not claim a global or
+        # foreign user; the API has no such implicit link.
+        holder_exists = (
+            AssetHolder.objects.filter(tenant=self.tenant, upn=username)
+            .filter(Q(user__isnull=True) | Q(user=user))
+            .exists()
+        )
+        correlated_exists = (
+            bool(external_id)
+            and Membership.objects.filter(tenant=self.tenant, external_id=external_id, user__username=username).exists()
+        )
+        if not (holder_exists or correlated_exists):
+            return Response(
+                {
+                    "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+                    "status": "409",
+                    "scimType": "uniqueness",
+                    "detail": "User already exists in this tenant",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            with transaction.atomic():
+                # Serialize with concurrent lifecycle calls on the same identity
+                # (same user-row lock as PUT/PATCH).
+                user = _lock_tenant_scim_user(user, self.tenant, require_membership=False)
+                # SCIM provisions identity only: a bare membership with NO RoleGrant
+                # rows — permissions are granted in-app.
+                create_scim_membership(
+                    user=user,
+                    tenant_id=self.tenant.pk,
+                    is_active=active,
+                    external_id=external_id,
+                )
+                _link_scim_holder(user, self.tenant)
+                # Reprovisioning reconciles the global account flag: an active
+                # re-provision restores the login a full de-provision correctly
+                # cleared, with no manual intervention.
+                sync_user_global_active(user)
+        except IntegrityError:
+            user = _retry_tenant_correlated_user(self.tenant, username, external_id)
+            with transaction.atomic():
+                user = _lock_tenant_scim_user(user, self.tenant, require_membership=False)
+                sync_user_global_active(user)
+        serializer = SCIMUserSerializer(
+            user, context={"request": request, "tenant_slug": self.tenant.slug, "tenant": self.tenant}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(
@@ -462,16 +490,29 @@ class SCIMUserDetailView(SCIMTenantMixin, APIView):
             # Same serialization as PUT/PATCH: lock the user row before touching the
             # membership so a racing reactivation cannot interleave with this removal.
             user = _lock_tenant_scim_user(user, self.tenant, require_membership=False)
+            # Identify SCIM-provisioned membership before removing it: the
+            # externalId is the durable evidence that this delete is an IdP
+            # lifecycle event, not a local member removal.
+            memberships = list(Membership.objects.filter(user=user, tenant=self.tenant))
+            scim_provisioned = any(membership.external_id for membership in memberships)
             # Remove only the membership for the current tenant. Delete per-instance
             # so each removal is change-logged (QuerySet.delete() bypasses
             # ChangeLoggingMixin / SoftDeleteMixin entirely).
-            for membership in Membership.objects.filter(user=user, tenant=self.tenant):
+            for membership in memberships:
                 membership.delete()
             # Revoke the login association but retain the holder as the durable
             # owner of every outstanding assignment and offboarding obligation.
             for holder in AssetHolder.objects.select_for_update().filter(user=user, tenant=self.tenant).order_by("pk"):
                 holder.user = None
-                holder.save(update_fields=["user", "updated_at"])
+                update_fields = ["user", "updated_at"]
+                # A SCIM rename changes the login before this delete. Record the
+                # current UPN only for an IdP-managed membership so a later
+                # re-provision can match the retained holder again; local
+                # holder profiles must stay untouched.
+                if scim_provisioned and holder.upn != user.username:
+                    holder.upn = user.username
+                    update_fields.append("upn")
+                holder.save(update_fields=update_fields)
             # If user has no remaining memberships, deactivate instead of hard-deleting
             if not Membership.objects.filter(user=user).exists():
                 user.is_active = False
