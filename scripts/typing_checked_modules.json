@@ -2,14 +2,14 @@
   "schema_version": 2,
   "canonical_python": "3.12",
   "next_sequence": 80,
-  "policy_sha256": "6b110a6c1beed080dc42d9d65145dd717acf6d936cef8a601b7f9f1e72564692",
+  "policy_sha256": "2e4c0427eb5eaea0bda97414f9204a4bd558762aeb94c81610237d6fc0d985e3",
   "config": {
     "config_file": "pyproject.toml",
     "working_directory": "itambox",
     "settings_module": "core.settings.dev",
     "platform_authority": "linux",
     "checker": {
-      "django-stubs": "6.0.7",
+      "django-stubs": "6.1.2",
       "djangorestframework-stubs": "3.17.1",
       "mypy": "2.3.0"
     },
@@ -35,7 +35,15 @@
         "possibly-undefined"
       ]
     },
-    "overrides": []
+    "overrides": [
+      {
+        "module": [
+          "django_otp.*",
+          "django_q.*"
+        ],
+        "ignore_missing_imports": true
+      }
+    ]
   },
   "checked": [
     {

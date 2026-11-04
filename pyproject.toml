@@ -88,7 +88,7 @@ dev = [
     # stubs and the checker resolvable as one set rather than three independent
     # pins that drift apart. See the private design-docs typing-policy.md.
     "mypy==2.3.0",
-    "django-stubs[compatible-mypy]==6.0.7",
+    "django-stubs[compatible-mypy]==6.1.2",
     "djangorestframework-stubs[compatible-mypy]==3.17.1",
 ]
 docs = [
@@ -262,6 +262,13 @@ disallow_untyped_decorators = false
 # defensive validation of external input to make the gate green. `ignore-without-code`
 # and `possibly-undefined` have no such failure mode.
 enable_error_code = ["ignore-without-code", "possibly-undefined"]
+
+# django-otp and django-q ship no typing metadata. django-stubs 6.1.2 surfaces
+# the missing imports while resolving the installed app registry; these are
+# third-party distributions with no typed surface, not first-party gaps.
+[[tool.mypy.overrides]]
+module = ["django_otp.*", "django_q.*"]
+ignore_missing_imports = true
 
 # The django-stubs mypy plugin needs a settings module to resolve model, manager,
 # and `settings.*` types. `core.settings.dev` is the checked-in development
