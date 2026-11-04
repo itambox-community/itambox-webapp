@@ -207,6 +207,8 @@
     "itambox/subscriptions/tests/test_views.py",
     "itambox/users/tests/test_bulk_edit.py",
     "itambox/users/tests/test_provider_scim.py",
+    "itambox/users/tests/test_scim.py",
+    "itambox/users/tests/test_scim_entra_lifecycle_drill.py",
     "itambox/users/tests/test_scim_stress.py",
     "itambox/users/tests/test_theme_preference.py",
     "itambox/users/tests/test_user_config_api.py",
