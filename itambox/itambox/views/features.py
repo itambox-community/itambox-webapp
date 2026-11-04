@@ -4,6 +4,7 @@ import difflib
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist, ValidationError
@@ -15,9 +16,12 @@ from django.views.generic import DetailView
 
 from core.filters import ObjectChangeFilterSet
 from core.forms import FilterForm
+from core.managers import Scope
 from core.models import ObjectChange
 from core.tables import ObjectChangeTable
 from itambox.views.generic import BaseHTMXView, ObjectListView
+from itambox.views.generic.authorization import PermissionResolver
+from itambox.views.generic.mixins import CachedObjectMixin
 
 
 class ObjectChangeFilterForm(FilterForm):
@@ -96,10 +100,18 @@ def resolve_serialized_data(model_class, data):
     return resolved_data
 
 
-@method_decorator(login_required, name="dispatch")
-class ObjectChangeView(BaseHTMXView, DetailView):
+class ObjectChangeView(LoginRequiredMixin, PermissionRequiredMixin, BaseHTMXView, CachedObjectMixin, DetailView):
     model = ObjectChange
     template_name = "core/objectchange/objectchange.html"
+
+    def get_permission_required(self):
+        # Same gate as the list view: ``core.view_objectchange``.
+        return PermissionResolver.model_permissions(ObjectChange, "view")
+
+    def get_queryset(self):
+        # ObjectChange uses an explicit-scope manager: scope the lookup so a pk from
+        # another tenant answers 404 instead of leaking its snapshots.
+        return ObjectChange.objects.for_scope(Scope.current())
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
