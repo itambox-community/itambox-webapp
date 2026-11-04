@@ -128,6 +128,15 @@ def require_global_permission(info: object, permission: str) -> object:
     return user
 
 
+def _token_tenant_id(info: object) -> int | None:
+    """Tenant a token-authenticated request is bound to, or None for session requests."""
+    context = getattr(info, "context", None)
+    request = context.get("request") if isinstance(context, Mapping) else getattr(context, "request", context)
+    token = getattr(request, "auth", None)
+    tenant_id = getattr(token, "tenant_id", None)
+    return None if tenant_id is None else int(tenant_id)
+
+
 def resolve_read_scope(info: object, requested_scope: Mapping[str, object] | object) -> ScopeReadView | None:
     user = authenticated_user(info)
     mode = _enum_value(_input_value(requested_scope, "mode"))
@@ -161,8 +170,13 @@ def resolve_read_scope(info: object, requested_scope: Mapping[str, object] | obj
         return None
     if not isinstance(resolved, AccessScopeResolvedDTO):
         return None
+    tenant_ids = frozenset(int(value) for value in resolved.access_scope.authorized_tenant_ids)
+    token_tenant_id = _token_tenant_id(info)
+    if token_tenant_id is not None and tenant_ids != frozenset({token_tenant_id}):
+        # A token is bound to exactly one tenant: an explicit selector must never widen beyond it.
+        return None
     return ScopeReadView(
-        tenant_ids=frozenset(int(value) for value in resolved.access_scope.authorized_tenant_ids),
+        tenant_ids=tenant_ids,
         fingerprint=str(resolved.access_scope.access_scope_fingerprint),
     )
 
