@@ -1,5 +1,6 @@
 """Stored report templates must not emit executable markup (#997)."""
 
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -8,7 +9,14 @@ from django.core.mail import EmailMessage
 from django.test import RequestFactory, SimpleTestCase
 from jinja2.exceptions import SecurityError, TemplateError
 
-from core.reports.rendering import render_report_html, sanitize_report_html
+from core.reports.rendering import (
+    MAX_RENDERED_CHARS,
+    MAX_TEMPLATE_CHARS,
+    RENDER_DEADLINE_SECONDS,
+    ReportRenderLimitError,
+    render_report_html,
+    sanitize_report_html,
+)
 from core.sandbox import UNSAFE_FILTERS, UNSAFE_GLOBALS, hardened_sandbox_environment
 from extras.models import ExportTemplate
 from extras.tasks.reports import _render_report_html
@@ -273,3 +281,97 @@ def test_nested_elements_and_tails_keep_benign_text_in_order():
     out = sanitize_report_html("<div>1<p>2<b>3</b>4</p>5<ul><li>6</li>7</ul>8</div>9")
     positions = [out.index(str(n)) for n in range(1, 10)]
     assert positions == sorted(positions)
+
+
+# --- RS-1..RS-3, RS-5: render budgets, depth, span clamping, link targets --------------------------------------------
+
+
+def render_source(source, context=None):
+    return render_report_html(context or {}, SimpleNamespace(template_content=source))
+
+
+def test_deeply_nested_html_is_rejected_quickly_without_recursion_error():
+    started = time.monotonic()
+    with pytest.raises(ReportRenderLimitError):
+        sanitize_report_html("<div>" * 1200)
+    with pytest.raises(ReportRenderLimitError):
+        render_source("{% for i in range(2000) %}<div>{% endfor %}")
+    assert time.monotonic() - started < 10
+
+
+def test_reasonably_nested_html_still_sanitises():
+    out = sanitize_report_html("<div>" * 900 + "deep" + "</div>" * 900)
+    assert "deep" in out and out.count("<div>") == 900
+
+
+def test_oversized_html_is_rejected_before_parsing():
+    with pytest.raises(ReportRenderLimitError):
+        sanitize_report_html("a" * (MAX_RENDERED_CHARS + 1))
+
+
+def test_span_attributes_are_clamped_and_invalid_values_dropped():
+    out = sanitize_report_html(
+        '<table><colgroup span="99999"></colgroup><col span="0"><tr>'
+        '<td colspan="2000000" rowspan="9999999">a</td><td colspan="x" rowspan="-3">b</td>'
+        '<th colspan="3" rowspan="2">c</th><td colspan="0">d</td></tr></table>'
+    )
+    assert 'colspan="1000"' in out and 'rowspan="65534"' in out
+    assert 'span="99999"' not in out and 'colspan="x"' not in out and 'rowspan="-3"' not in out
+    assert 'colspan="3"' in out and 'rowspan="2"' in out
+    assert 'colspan="0"' not in out and 'span="0"' not in out
+    assert 'span="1000"' in out
+
+
+@pytest.mark.parametrize("href", [r"\evil.example\share", "//evil.example/x", r"/\evil", r"\evil"])
+def test_network_path_links_are_removed(href):
+    out = sanitize_report_html('<a href="' + href + '">x</a>')
+    assert "href" not in out and "evil" not in out
+
+
+def test_safe_link_targets_are_preserved():
+    out = sanitize_report_html(
+        '<a href="/path">a</a><a href="#frag">b</a><a href="https://ok.example/">c</a>'
+        '<a href="mailto:a@b.example">d</a><a href="tel:+491">e</a>'
+    )
+    for target in ("/path", "#frag", "https://ok.example/", "mailto:a@b.example", "tel:+491"):
+        assert 'href="' + target + '"' in out
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "{% for a in range(100000) %}{% for b in range(1000) %}x{% endfor %}{% endfor %}",
+        "{{ ([0] * 100000000)|length }}",
+        "{{ 'a' * 100000000 }}",
+        "{{ (10 ** 10) ** 100000 }}",
+        "{% set y = 1000000000 %}{{ 9 ** y }}",
+        "{{ 'a'.ljust(100000000) }}",
+        "{{ 'a'|center(100000000) }}",
+        "{{ '%0100000d' % 1 }}",
+    ],
+)
+def test_resource_exhaustion_payloads_fail_fast(source):
+    started = time.monotonic()
+    with pytest.raises(ReportRenderLimitError):
+        render_source(source)
+    assert time.monotonic() - started < RENDER_DEADLINE_SECONDS + 10
+
+
+def test_deadline_interrupts_pure_python_loop_and_leaves_thread_usable():
+    with patch("core.reports.rendering.RENDER_DEADLINE_SECONDS", 0.5):
+        with pytest.raises(ReportRenderLimitError):
+            render_source("{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}")
+    assert render_source("<p>{{ 1 + 1 }}</p>") == "<p>2</p>"
+
+
+def test_oversized_template_source_is_rejected():
+    with pytest.raises(ReportRenderLimitError):
+        render_source("x" * (MAX_TEMPLATE_CHARS + 1))
+
+
+def test_normal_loop_table_with_small_repetition_renders():
+    out = render_source(
+        "<table>{% for h in headers %}<tr><td>{{ h }}</td></tr>{% endfor %}</table><p>{{ '-' * 20 }}{{ 2 ** 10 }}</p>",
+        {"headers": ["A", "B"]},
+    )
+    assert "<td>A</td>" in out and "<td>B</td>" in out and "-" * 20 + "1024" in out
