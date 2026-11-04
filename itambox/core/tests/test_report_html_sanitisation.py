@@ -322,7 +322,7 @@ def test_span_attributes_are_clamped_and_invalid_values_dropped():
     assert 'span="1000"' in out
 
 
-@pytest.mark.parametrize("href", ["\\evil.example\share", "//evil.example/x", "/\evil", "\evil"])
+@pytest.mark.parametrize("href", [r"\evil.example\share", "//evil.example/x", r"/\evil", r"\evil"])
 def test_network_path_links_are_removed(href):
     out = sanitize_report_html('<a href="' + href + '">x</a>')
     assert "href" not in out and "evil" not in out
