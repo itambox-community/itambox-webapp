@@ -1491,7 +1491,7 @@ class CommittedRecordTests(unittest.TestCase):
     def test_the_committed_record_pins_the_resolved_checker_triple(self):
         self.assertEqual(
             self.record["config"]["checker"],
-            {"mypy": "2.3.0", "django-stubs": "6.0.7", "djangorestframework-stubs": "3.17.1"},
+            {"mypy": "2.3.0", "django-stubs": "6.1.2", "djangorestframework-stubs": "3.17.1"},
         )
 
 
