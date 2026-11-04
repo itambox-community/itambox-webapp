@@ -2185,7 +2185,7 @@ msgid "Campaign '%(name)s' is now active."
 msgstr "Kampagne '%(name)s' ist jetzt aktiv."
 
 msgid "Core"
-msgstr "Kern"
+msgstr "Core"
 
 msgid "Created"
 msgstr "Erstellt"
