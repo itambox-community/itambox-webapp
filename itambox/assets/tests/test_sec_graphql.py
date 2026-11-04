@@ -273,3 +273,71 @@ class GraphQLSecurityTestCase(TestCase):
         response = self._post("mutation { __typename }")
         self.assertEqual(response.status_code, 400)
         self.assertIn("mutation", response.content.decode().lower())
+
+    # --- RQ-1: a tenant-bound token never reads beyond its tenant ----------
+
+    def _make_second_tenant(self):
+        tenant_b = Tenant.objects.create(name="SecGQL Tenant B", slug="secgql-tenant-b", group=self.tenant_group)
+        role_b = Role.objects.create(tenant=tenant_b, name="SecGQL Role B", permissions=["assets.view_asset"])
+        grant(self.staff, tenant_b, role_b)
+        location_b = Location.objects.create(
+            name="SecGQL Office B", slug="secgql-office-b", tenant=tenant_b, site=self.site
+        )
+        Asset.objects.create(
+            name="SecGQL Laptop B",
+            asset_tag="TAG-SECGQL-B",
+            asset_type=self.asset_type,
+            status=self.status,
+            tenant=tenant_b,
+            location=location_b,
+        )
+        return tenant_b
+
+    def _names(self, response):
+        self.assertEqual(response.status_code, 200, response.content)
+        return [a["name"] for a in (response.json().get("data") or {}).get("assets") or []]
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_token_cannot_request_other_tenant_scope(self):
+        tenant_b = self._make_second_tenant()
+        query = "{ assets(requestedScope: {mode: TENANT, tenantId: %s}) { name } }" % json.dumps(str(tenant_b.pk))
+        response = self._post(query)
+        self.assertNotIn("SecGQL Laptop B", response.content.decode())
+        self.assertEqual(self._names(response), [])
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_token_cannot_widen_to_all_accessible(self):
+        self._make_second_tenant()
+        response = self._post("{ assets(requestedScope: {mode: ALL_ACCESSIBLE}) { name } }")
+        self.assertNotIn("SecGQL Laptop B", response.content.decode())
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_token_own_tenant_selector_and_default_scope_work(self):
+        self._make_second_tenant()
+        own = "{ assets(requestedScope: {mode: TENANT, tenantId: %s}) { name } }" % json.dumps(str(self.tenant.pk))
+        self.assertEqual(self._names(self._post(own)), ["SecGQL Laptop"])
+        self.assertEqual(self._names(self._post("{ assets { name } }")), ["SecGQL Laptop"])
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_token_bound_to_second_tenant_reads_it(self):
+        tenant_b = self._make_second_tenant()
+        token_b = Token.objects.create(user=self.staff, tenant=tenant_b)
+        query = "{ assets(requestedScope: {mode: TENANT, tenantId: %s}) { name } }" % json.dumps(str(tenant_b.pk))
+        response = self.client.post(
+            self.graphql_url,
+            data=json.dumps({"query": query}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Token {token_b.key}",
+        )
+        self.assertEqual(self._names(response), ["SecGQL Laptop B"])
+
+    @override_settings(DEBUG=False, MIDDLEWARE=_MIDDLEWARE_NO_TOOLBAR)
+    def test_session_user_keeps_all_accessible_scope(self):
+        self._make_second_tenant()
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            self.graphql_url,
+            data=json.dumps({"query": "{ assets(requestedScope: {mode: ALL_ACCESSIBLE}) { name } }"}),
+            content_type="application/json",
+        )
+        self.assertEqual(sorted(self._names(response)), ["SecGQL Laptop", "SecGQL Laptop B"])
