@@ -6,6 +6,32 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-11-05
+
+### Security
+
+- Tenant isolation now follows the row's source and target tenant for inventory assignments and consumptions, so stock movements can no longer appear in another tenant's lists.
+- Reverse tables on global catalogues and shared detail pages now resolve their child rows through the active scope. This covers tags, alert rules, report templates, contacts and contact assignments, asset lifecycle children, webhook event rules, alert-rule channels, user memberships and asset-request sub-requests.
+- The ObjectChange detail view requires the same view permission as its list and resolves the object through the active scope; a foreign change PK now answers 404 instead of rendering another tenant's snapshot.
+- A GraphQL token bound to one tenant can no longer widen its read scope through `requestedScope` or `all_accessible`; the token tenant remains a hard boundary.
+- The ambient tenant scope is read-only and exception-safe, so a failed request cannot leak a tenant binding into later work.
+- Tenant users can read shared/global rows but can no longer edit, delete, bulk-edit, bulk-delete, restore, purge, or attach files to them through the generic UI. Foreign tenant rows remain blocked.
+- SCIM: a tenant token no longer attaches an existing global or foreign user by username alone. Existing users are linked only through a tenant-owned holder with the same UPN or a matching tenant membership `externalId`; other requests return 409 `uniqueness`.
+- Scheduled-report Run now and Retry delivery resolve the schedule through the active scope, so a foreign schedule PK cannot trigger generation or delivery.
+- Custom reports now have bounded template size, output size and render time; recursive templates and deeply nested table spans are rejected or clamped instead of blocking the worker.
+- Remote images are removed from report output, while embedded `data:` images and same-origin relative/static media stay available. This prevents report data from being fetched by mail clients or a downloaded HTML file.
+- Chart labels, titles and display strings are escaped before the chart is rendered through the template's `|safe` path; a regression test now guards the invariant.
+- The release image upgrades `apt` and `libapt-pkg6.0` to the current `bookworm-security` build, clearing the fixed `CVE-2026-109518` finding from the image scan.
+- Item detail pages for accessories, consumables and components resolve stock pools through the active scope, and location/site/region/site-group detail tables resolve their assets, child locations and sites the same way. A global catalogue item no longer exposes another tenant's stock pool through its detail page.
+- Inventory availability is calculated per request scope. `total_stock`, checked-out/consumed/allocated quantities and `available` no longer sum raw reverse relations across tenants; the item list, detail, REST list/detail and checkout/allocation locks use the scoped annotations. The hardware inventory report uses the report's authorized tenant set.
+- Delete guards keep blocking on the complete reference set but only show the visible count. A deletion blocked solely by references outside the operator's scope now returns a neutral message instead of naming or counting foreign rows.
+- Organization list counts for regions, site groups, sites and locations are scoped to the active tenant, so the shared list pages no longer disclose aggregate counts from other tenants.
+
+### Fixed
+
+- The German UI keeps the application label **Core** instead of translating it to “Kern”.
+- Report chart output remains readable when category labels contain HTML-significant characters.
+
 ## [1.0.0-rc.1] - 2026-11-02
 
 ### Upgrade requirements
@@ -473,7 +499,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.1
 [1.0.0-beta.6]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.5
