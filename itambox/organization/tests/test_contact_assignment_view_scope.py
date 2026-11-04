@@ -361,9 +361,9 @@ class ContactAssignmentReadScopeTests(TestCase):
     def test_contact_delete_blocker_hides_the_count_of_foreign_assignments(self):
         url = reverse("organization:contact_delete", kwargs={"pk": self.global_contact.pk})
 
-        messages = self._delete_messages(url)
-
-        self.assertEqual(messages, ["Cannot delete contact 'CAS Global Desk': It has assignments outside your scope."])
+        # A global contact is read-only for tenant users, so the delete is refused
+        # before the blocker (and any count) can be computed.
+        self.assertEqual(self.client.post(url, {"confirm": "true"}).status_code, 403)
         self.assertTrue(Contact.objects.filter(pk=self.global_contact.pk).exists())
 
     def test_contact_delete_blocker_keeps_the_count_when_everything_is_visible(self):

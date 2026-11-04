@@ -19,6 +19,7 @@ from itambox.views.generic.htmx_responses import is_htmx_request, success_respon
 from itambox.views.generic.mixins import (
     filter_permitted_rows,
     user_can_mutate_model,
+    user_may_mutate_row,
 )
 from itambox.views.generic.utils import safe_return_url
 
@@ -62,6 +63,9 @@ class ObjectRestoreView(HtmxActionMixin, PermissionRequiredMixin, LoginRequiredM
         self.object = get_object_or_404(manager, pk=self.kwargs["object_id"])
 
         if not user_can_mutate_model(self.request.user, self.model):
+            return False
+
+        if not user_may_mutate_row(self.request.user, self.object):
             return False
 
         if not self.request.user.is_superuser and not self.request.user.has_perm("core.change_recyclebin"):
@@ -112,6 +116,9 @@ class ObjectPurgeView(HtmxActionMixin, PermissionRequiredMixin, LoginRequiredMix
         self.object = get_object_or_404(manager, pk=self.kwargs["object_id"])
 
         if not user_can_mutate_model(self.request.user, self.model):
+            return False
+
+        if not user_may_mutate_row(self.request.user, self.object):
             return False
 
         if not self.request.user.is_superuser and not self.request.user.has_perm("core.delete_recyclebin"):

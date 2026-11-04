@@ -28,6 +28,7 @@ from extras.forms import JournalEntryFilterForm
 from extras.models import FileAttachment, ImageAttachment, JournalEntry
 from extras.tables import JournalEntryTable
 from itambox.views.generic import ObjectListView
+from itambox.views.generic.mixins import user_may_mutate_row
 from itambox.views.generic.utils import safe_return_url
 
 
@@ -68,6 +69,9 @@ def _attachment_parent_for_change(request, content_type, object_id):
     app_label = model_class._meta.app_label
     model_name = model_class._meta.model_name
     if not request.user.has_perm(f"{app_label}.change_{model_name}", obj=parent):
+        raise Http404
+    # A shared/global parent (no tenant) is read-only for tenant users.
+    if not user_may_mutate_row(request.user, parent):
         raise Http404
     return parent
 
