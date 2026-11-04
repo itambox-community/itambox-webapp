@@ -32,6 +32,31 @@ def user_can_mutate_model(user, model):
     return model._meta.label_lower not in SUPERUSER_ONLY_MUTATION_MODELS or bool(user and user.is_superuser)
 
 
+def user_may_mutate_row(user, obj):
+    """Shared global-row gate for the UI write paths.
+
+    A persisted row of a tenant-owned model whose ``tenant`` is empty (and that
+    belongs to no tenant group either) is a shared/global row: tenant users may
+    read it but only superusers may mutate it, mirroring ``StrictTenantPermission``
+    on the API. Unsaved objects (add forms, clones) and models without a tenant
+    are not affected.
+    """
+    if obj is None or getattr(obj, "pk", None) is None:
+        return True
+    if user is not None and user.is_superuser:
+        return True
+    # Only a stored ``tenant`` column makes a row "global" when empty. Derived
+    # tenants (e.g. ContactAssignment inherits it from its target) are link
+    # rows, not shared rows, and stay governed by their existing checks.
+    try:
+        obj._meta.get_field("tenant")
+    except FieldDoesNotExist:
+        return True
+    if obj.tenant_id is not None:
+        return True
+    return getattr(obj, "tenant_group_id", None) is not None
+
+
 def is_managed_definition(obj):
     return getattr(obj, "management_kind", None) in {"core", "library"}
 
@@ -183,15 +208,15 @@ def filter_permitted_rows(user, rows, model, action):
     reach alone (not permission content) decides queryset membership. Re-check
     ``<action>_<model>`` per row (anchored at the row's own tenant) so a member
     cannot mutate rows of a sibling tenant where their role conveys no such
-    permission. Rows without a resolvable tenant (global/shared) fall back to
-    the ambient gate that already passed. Cheap: the backend caches effective
+    permission. Global/shared rows (no tenant) are skipped for non-superusers
+    (``user_may_mutate_row``). Cheap: the backend caches effective
     permissions per (user, tenant), so the cost is one resolution per distinct
     tenant, not per row.
     """
     perm = f"{model._meta.app_label}.{action}_{model._meta.model_name}"
     permitted, skipped = [], 0
     for obj in rows:
-        if user.has_perm(perm, obj=obj):
+        if user_may_mutate_row(user, obj) and user.has_perm(perm, obj=obj):
             permitted.append(obj)
         else:
             skipped += 1

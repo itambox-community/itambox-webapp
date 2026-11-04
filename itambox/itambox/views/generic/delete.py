@@ -20,6 +20,7 @@ from itambox.views.generic.mixins import (
     is_managed_definition,
     lock_unmanaged_definition,
     user_can_mutate_model,
+    user_may_mutate_row,
 )
 from itambox.views.generic.utils import resolve_view_model, safe_return_url
 from itambox.views.htmx import BaseHTMXView
@@ -83,10 +84,11 @@ class ObjectDeleteView(
             return False
         if self.kwargs.get("pk") or self.kwargs.get("slug"):
             try:
-                if is_managed_definition(self.get_object()):
-                    return False
+                obj = self.get_object()
             except Http404:
                 raise
+            if is_managed_definition(obj) or not user_may_mutate_row(self.request.user, obj):
+                return False
         perms = self.get_permission_required()
         return self.request.user.has_perms(perms, obj=PermissionResolver.object_under_check(self))
 
