@@ -4,6 +4,7 @@ from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
+from core.managers import Scope
 from itambox.panels import Panel
 from itambox.views.generic import (
     ObjectBulkDeleteView,
@@ -17,7 +18,7 @@ from itambox.views.generic import (
 
 from ..filters import RegionFilterSet
 from ..forms import RegionFilterForm, RegionForm
-from ..models import Region
+from ..models import Region, Site
 from ..tables import RegionTable, SiteTable
 
 
@@ -32,7 +33,7 @@ class RegionListView(ObjectListView):
 
 
 class RegionDetailView(ObjectDetailView):
-    queryset = Region.objects.prefetch_related("children", "tags", "sites__tenant", "sites__group")
+    queryset = Region.objects.prefetch_related("children", "tags")
 
     layout = (((Panel("info", _("Region Details")),),),)
 
@@ -40,11 +41,12 @@ class RegionDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         region = self.get_object()
 
-        sites_table = SiteTable(region.sites.all(), request=self.request)
+        sites_qs = Site.objects.for_scope(Scope.current()).filter(region=region).select_related("tenant", "group")
+        sites_table = SiteTable(sites_qs, request=self.request)
         sites_table.configure(self.request)
 
         related_objects_list = []
-        site_count = region.sites.count()
+        site_count = sites_qs.count()
         if site_count:
             related_objects_list.append(
                 {
