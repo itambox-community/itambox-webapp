@@ -1,9 +1,9 @@
 from django.contrib import messages
-from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
+from assets.models.catalog import scoped_related_count
 from core.managers import Scope
 from itambox.panels import Panel
 from itambox.views.generic import (
@@ -21,13 +21,17 @@ from ..tables import SiteGroupTable, SiteTable
 
 
 class SiteGroupListView(ObjectListView):
-    queryset = SiteGroup.objects.annotate(
-        site_count=Count("sites", filter=Q(sites__deleted_at__isnull=True))
-    ).prefetch_related("tags")
+    queryset = SiteGroup.objects.prefetch_related("tags")
     filterset = SiteGroupFilterSet
     filterset_form = SiteGroupFilterForm
     table = SiteGroupTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        scope = Scope.current()
+        return (
+            super().get_queryset().annotate(site_count=scoped_related_count(Site.objects.for_scope(scope), "group_id"))
+        )
 
 
 class SiteGroupDetailView(ObjectDetailView):
