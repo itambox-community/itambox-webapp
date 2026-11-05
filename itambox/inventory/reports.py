@@ -125,7 +125,9 @@ class HardwareInventoryReportProvider(ReportDefinition):
             .filter(deleted_at__isnull=True)
             .select_related("manufacturer", "category")
         )
-        return self.scope_to_tenants(queryset, request)
+        queryset = self.scope_to_tenants(queryset, request)
+        tenant_ids = tuple(tenant.pk for tenant in request.filter_tenants if getattr(tenant, "pk", None) is not None)
+        return queryset.with_counts(tenant_ids=tenant_ids or None)
 
     def build(self, request: ReportRequest) -> ReportResult:
         catalogues = self.get_queryset(request)

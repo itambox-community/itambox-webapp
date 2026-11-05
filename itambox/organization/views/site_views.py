@@ -1,10 +1,10 @@
 from django.contrib import messages
-from django.db.models import Count
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
 from assets.models import Asset
+from assets.models.catalog import scoped_related_count
 from assets.tables import AssetTable
 from core.managers import Scope
 from itambox.panels import Panel
@@ -25,18 +25,22 @@ from ..tables import LocationTable, SiteTable
 
 
 class SiteListView(ObjectListView):
-    queryset = (
-        Site.objects.select_related("region", "group", "tenant")
-        .prefetch_related("tags")
-        .annotate(
-            location_count=Count("locations", distinct=True),
-            asset_count=Count("locations__assets", distinct=True),
-        )
-    )
+    queryset = Site.objects.select_related("region", "group", "tenant").prefetch_related("tags")
     filterset = SiteFilterSet
     filterset_form = SiteFilterForm
     table = SiteTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        scope = Scope.current()
+        return (
+            super()
+            .get_queryset()
+            .annotate(
+                location_count=scoped_related_count(Location.objects.for_scope(scope), "site_id"),
+                asset_count=scoped_related_count(Asset.objects.for_scope(scope), "location__site_id"),
+            )
+        )
 
 
 class SiteDetailView(ObjectDetailView):

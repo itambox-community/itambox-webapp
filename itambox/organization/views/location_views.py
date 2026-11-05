@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.db.models import Count, Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
@@ -7,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
 from assets.models import Asset, AssetAssignment
+from assets.models.catalog import scoped_related_count
 from assets.tables import AssetTable
 from compliance.models import AuditSession
 from compliance.views_audit import AuditSessionTable
@@ -34,17 +34,19 @@ from ..tables import LocationTable
 
 
 class LocationListView(ObjectListView):
-    queryset = (
-        Location.objects.select_related("site", "site__region", "tenant")
-        .prefetch_related("tags")
-        .annotate(
-            asset_count=Count("assets", filter=Q(assets__deleted_at__isnull=True)),
-        )
-    )
+    queryset = Location.objects.select_related("site", "site__region", "tenant").prefetch_related("tags")
     filterset = LocationFilterSet
     filterset_form = LocationFilterForm
     table = LocationTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        scope = Scope.current()
+        return (
+            super()
+            .get_queryset()
+            .annotate(asset_count=scoped_related_count(Asset.objects.for_scope(scope), "location_id"))
+        )
 
 
 class LocationDetailView(ObjectDetailView):
