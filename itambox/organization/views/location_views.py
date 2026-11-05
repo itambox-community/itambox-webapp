@@ -184,8 +184,20 @@ class LocationCloneView(ObjectCloneView):
 class LocationDeleteView(ObjectDeleteView):
     queryset = Location.objects.all()
     model = Location
-    template_name = "generic/object_confirm_delete.html"
+    template_name = "organization/locations/location_confirm_delete.html"
     success_url = reverse_lazy("organization:location_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        location = self.object
+        context["location"] = location
+        total = Asset.all_objects.filter(
+            location=location
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
+        visible = Asset.objects.for_scope(Scope.current()).filter(location=location).count()
+        context["related_asset_count"] = visible
+        context["related_assets_outside_scope"] = total > visible
+        return context
 
     def form_valid(self, form):
         """Archive the location through the per-aggregate service.

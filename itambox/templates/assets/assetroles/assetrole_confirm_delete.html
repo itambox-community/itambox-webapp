@@ -19,6 +19,8 @@
         {% endblocktranslate %}
       </div>
     </div>
+  {% elif related_objects_outside_scope %}
+    <p class="text-warning">{% translate "This asset role is referenced outside your scope." %}</p>
   {% else %}
     <p class="text-muted">{% translate "This asset role is not currently assigned to any assets." %}</p>
   {% endif %}

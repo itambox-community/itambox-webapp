@@ -235,7 +235,8 @@
     "scripts/tests/test_typing_policy.py",
     "itambox/inventory/tests/test_item_stock_pool_visibility.py",
     "itambox/organization/tests/test_location_site_reverse_scope.py",
-    "itambox/organization/tests/test_global_reference_site_scope.py"
+    "itambox/organization/tests/test_global_reference_site_scope.py",
+    "itambox/organization/tests/test_delete_guard_scope.py"
   ],
   "baseline_tests": [
     "itambox/assets/api/tests/test_specification_api_adapters.py",
@@ -1071,7 +1072,8 @@
     "scripts/tests/test_typing_policy.py",
     "itambox/inventory/tests/test_item_stock_pool_visibility.py",
     "itambox/organization/tests/test_location_site_reverse_scope.py",
-    "itambox/organization/tests/test_global_reference_site_scope.py"
+    "itambox/organization/tests/test_global_reference_site_scope.py",
+    "itambox/organization/tests/test_delete_guard_scope.py"
   ],
   "supporting_files": [
     "itambox/assets/tests/data/graphql_schema_text.graphql",

@@ -17134,3 +17134,18 @@ msgstr "Die Berichtsvorlage ist zu groß."
 
 msgid "The report template took too long to render."
 msgstr "Die Darstellung der Berichtsvorlage hat zu lange gedauert."
+
+msgid "Cannot delete %(object)s: It is referenced outside your scope."
+msgstr "Kann %(object)s nicht löschen: Es wird außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "This asset type is referenced outside your scope."
+msgstr "Dieser Asset-Typ wird außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "This asset role is referenced outside your scope."
+msgstr "Diese Asset-Rolle wird außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "Some sites are referenced outside your scope."
+msgstr "Einige Standorte werden außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "Some assets are referenced outside your scope."
+msgstr "Einige Assets werden außerhalb Ihres Geltungsbereichs referenziert."

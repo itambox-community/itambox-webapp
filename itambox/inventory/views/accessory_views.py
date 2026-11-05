@@ -122,13 +122,19 @@ class AccessoryDeleteView(ObjectDeleteView):
 
     def post(self, request, *args, **kwargs):
         accessory = self.get_object()
-        assignment_count = accessory.assignments.count()
+        assignment_count = AccessoryAssignment.all_objects.filter(
+            accessory=accessory
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
         if assignment_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete accessory '%(accessory)s': It has %(count)s active assignments.")
-                % {"accessory": accessory, "count": assignment_count},
-            )
+            visible_count = item_assignments_for_scope(AccessoryAssignment, "accessory", accessory).count()
+            if visible_count == assignment_count:
+                message = _("Cannot delete accessory '%(accessory)s': It has %(count)s active assignments.") % {
+                    "accessory": accessory,
+                    "count": assignment_count,
+                }
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": accessory}
+            messages.error(request, message)
             return redirect(accessory.get_absolute_url())
         return super().post(request, *args, **kwargs)
 

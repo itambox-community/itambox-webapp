@@ -93,18 +93,23 @@ class StatusLabelDeleteView(ObjectDeleteView):
 
     def post(self, request, *args, **kwargs):
         statuslabel = self.get_object()
-        asset_count = statuslabel.assets.count()
+        asset_count = Asset.all_objects.filter(
+            status=statuslabel
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
 
         if asset_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete status label '%(name)s': It is associated with %(count)s asset%(suffix)s.")
-                % {
+            visible_count = Asset.objects.for_scope(Scope.current()).filter(status=statuslabel).count()
+            if visible_count == asset_count:
+                message = _(
+                    "Cannot delete status label '%(name)s': It is associated with %(count)s asset%(suffix)s."
+                ) % {
                     "name": statuslabel.name,
                     "count": asset_count,
                     "suffix": "s" if asset_count != 1 else "",
-                },
-            )
+                }
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": statuslabel}
+            messages.error(request, message)
             return redirect(statuslabel.get_absolute_url())
 
         return super().post(request, *args, **kwargs)
