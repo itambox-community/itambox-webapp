@@ -121,13 +121,18 @@ class ConsumableDeleteView(ObjectDeleteView):
 
     def post(self, request, *args, **kwargs):
         consumable = self.get_object()
-        consumption_count = consumable.consumptions.count()
+        consumption_count = ConsumableAssignment.all_objects.filter(
+            consumable=consumable
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
         if consumption_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete consumable '%(consumable)s': It has %(count)s historical consumption records.")
-                % {"consumable": consumable, "count": consumption_count},
-            )
+            visible_count = item_assignments_for_scope(ConsumableAssignment, "consumable", consumable).count()
+            if visible_count == consumption_count:
+                message = _(
+                    "Cannot delete consumable '%(consumable)s': It has %(count)s historical consumption records."
+                ) % {"consumable": consumable, "count": consumption_count}
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": consumable}
+            messages.error(request, message)
             return redirect(consumable.get_absolute_url())
         return super().post(request, *args, **kwargs)
 

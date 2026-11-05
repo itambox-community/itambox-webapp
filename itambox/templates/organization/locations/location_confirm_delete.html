@@ -14,12 +14,14 @@
       <div class="card-body">
         <p>{% translate "Are you sure you want to delete the location:" %} <strong>{{ location.name }} ({{ location.slug }})</strong> {% translate "at site" %} <strong>{{ location.site.name }}</strong>?</p>
         {# Add warning about related objects #}
-        {% if location.assets.count > 0 or location.children.count > 0 %}
+        {% if related_asset_count > 0 or location.children.count > 0 %}
           <p class="text-warning">
-            {% translate "Warning: This location has" %} {{ location.assets.count }} {% translate "assigned asset" %}{{ location.assets.count|pluralize }}
+            {% translate "Warning: This location has" %} {{ related_asset_count }} {% translate "assigned asset" %}{{ related_asset_count|pluralize }}
             {% translate "and" %} {{ location.children.count }} {% translate "child location" %}{{ location.children.count|pluralize }}.
             {% translate "Deleting it may affect related objects depending on your setup." %}
           </p>
+        {% elif related_assets_outside_scope %}
+          <p class="text-warning">{% translate "Some assets are referenced outside your scope." %}</p>
         {% endif %}
         <p class="text-danger">{% translate "This action cannot be undone." %}</p>
         <form method="post">

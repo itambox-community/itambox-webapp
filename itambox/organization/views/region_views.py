@@ -92,23 +92,38 @@ class RegionCloneView(ObjectCloneView):
 class RegionDeleteView(ObjectDeleteView):
     queryset = Region.objects.all()
     model = Region
-    template_name = "generic/object_confirm_delete.html"
+    template_name = "organization/regions/region_confirm_delete.html"
     success_url = reverse_lazy("organization:region_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        region = self.object
+        context["region"] = region
+        total = Site.all_objects.filter(
+            region=region
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
+        visible = Site.objects.for_scope(Scope.current()).filter(region=region).count()
+        context["related_site_count"] = visible
+        context["related_sites_outside_scope"] = total > visible
+        return context
 
     def post(self, request, *args, **kwargs):
         region = self.get_object()
-        site_count = region.sites.count()
+        site_count = Site.all_objects.filter(
+            region=region
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
 
         if site_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete region '%(name)s': It is associated with %(count)d site%(plural)s.")
-                % {
+            visible_count = Site.objects.for_scope(Scope.current()).filter(region=region).count()
+            if visible_count == site_count:
+                message = _("Cannot delete region '%(name)s': It is associated with %(count)d site%(plural)s.") % {
                     "name": region.name,
                     "count": site_count,
                     "plural": "s" if site_count != 1 else "",
-                },
-            )
+                }
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": region}
+            messages.error(request, message)
             return redirect(region.get_absolute_url())
 
         return super().post(request, *args, **kwargs)
