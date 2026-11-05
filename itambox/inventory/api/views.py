@@ -79,10 +79,13 @@ class RecipientAssignmentVisibilityMixin:
 
 class AccessoryViewSet(ITAMBoxModelViewSet):
     permission_classes = [TokenPermissions, StrictTenantPermission]
-    queryset = Accessory.objects.with_counts().select_related("manufacturer", "tenant").prefetch_related("tags")
+    queryset = Accessory.objects.select_related("manufacturer", "tenant").prefetch_related("tags")
     serializer_class = AccessorySerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = AccessoryFilterSet
+
+    def get_queryset(self):
+        return super().get_queryset().with_counts()
 
 
 class AccessoryStockViewSet(SharedStockVisibilityMixin, ITAMBoxModelViewSet):
@@ -154,10 +157,13 @@ class AccessoryAssignmentViewSet(
 
 class ConsumableViewSet(ITAMBoxModelViewSet):
     permission_classes = [TokenPermissions, StrictTenantPermission]
-    queryset = Consumable.objects.with_counts().select_related("manufacturer", "tenant").prefetch_related("tags")
+    queryset = Consumable.objects.select_related("manufacturer", "tenant").prefetch_related("tags")
     serializer_class = ConsumableSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = ConsumableFilterSet
+
+    def get_queryset(self):
+        return super().get_queryset().with_counts()
 
 
 class ConsumableStockViewSet(SharedStockVisibilityMixin, ITAMBoxModelViewSet):
@@ -203,12 +209,13 @@ class KitItemViewSet(ITAMBoxModelViewSet):
 
 class ComponentViewSet(ITAMBoxModelViewSet):
     permission_classes = [TokenPermissions, StrictTenantPermission]
-    queryset = (
-        Component.objects.with_counts().select_related("manufacturer", "tenant", "category").prefetch_related("tags")
-    )
+    queryset = Component.objects.select_related("manufacturer", "tenant", "category").prefetch_related("tags")
     serializer_class = ComponentSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = ComponentFilterSet
+
+    def get_queryset(self):
+        return super().get_queryset().with_counts()
 
 
 class ComponentStockViewSet(SharedStockVisibilityMixin, ITAMBoxModelViewSet):

@@ -50,7 +50,7 @@ class _AssignmentAvailabilityMixin:
             qty = 1  # mirrors AbstractAssignment.qty default=1
         if item is not None:
             with transaction.atomic():
-                locked = type(item).objects.select_for_update().get(pk=item.pk)
+                locked = type(item).objects.select_for_update().with_counts().get(pk=item.pk)
                 if not locked.allow_overallocate and locked.available < qty:
                     raise serializers.ValidationError(
                         {
@@ -79,7 +79,7 @@ class _AssignmentAvailabilityMixin:
 
         if target_item is not None:
             with transaction.atomic():
-                locked = type(target_item).objects.select_for_update().get(pk=target_item.pk)
+                locked = type(target_item).objects.select_for_update().with_counts().get(pk=target_item.pk)
                 # Credit back what this row already holds against `locked.available`,
                 # but only when the item is unchanged AND the instance's current demand
                 # is actually counted in `available` — i.e. it has no `from_location`.

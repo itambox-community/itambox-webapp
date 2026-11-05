@@ -33,16 +33,16 @@ from .stock_actions import StockAdjustView, StockCreateModalView
 
 
 class AccessoryListView(ObjectListView):
-    queryset = (
-        Accessory.objects.for_scope(Scope.current())
-        .with_counts()
-        .select_related("tenant", "manufacturer", "category")
-        .prefetch_related("tags")
-    )
+    queryset = Accessory.objects.select_related("tenant", "manufacturer", "category").prefetch_related("tags")
     filterset = filters.AccessoryFilterSet
     filterset_form = forms.AccessoryFilterForm
     table = tables.AccessoryTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        # Scope-aware annotations must be built per request; a class-level
+        # with_counts() would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -72,9 +72,9 @@ class AccessoryDetailView(ObjectDetailView):
 
     def get_queryset(self):
         # Stock pools belong to their location's tenant, not to the catalogue
-        # item.  Build the scoped prefetch per request; a class-level scope
-        # would freeze SYSTEM at import time.
-        return super().get_queryset().prefetch_related(item_stock_prefetch(AccessoryStock))
+        # item.  Build the scoped annotations and prefetch per request; a
+        # class-level scope would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts().prefetch_related(item_stock_prefetch(AccessoryStock))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
