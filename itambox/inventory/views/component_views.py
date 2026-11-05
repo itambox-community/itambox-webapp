@@ -34,11 +34,16 @@ from .stock_actions import StockAdjustView, StockCreateModalView
 
 
 class ComponentListView(ObjectListView):
-    queryset = Component.objects.with_counts().select_related("manufacturer", "category").prefetch_related("tags")
+    queryset = Component.objects.select_related("manufacturer", "category").prefetch_related("tags")
     filterset = filters.ComponentFilterSet
     filterset_form = forms.ComponentFilterForm
     table = tables.ComponentTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        # Scope-aware annotations must be built per request; a class-level
+        # with_counts() would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -66,9 +71,9 @@ class ComponentDetailView(ObjectDetailView):
 
     def get_queryset(self):
         # Stock pools belong to their location's tenant, not to the catalogue
-        # item.  Build the scoped prefetch per request; a class-level scope
-        # would freeze SYSTEM at import time.
-        return super().get_queryset().prefetch_related(item_stock_prefetch(ComponentStock))
+        # item.  Build the scoped annotations and prefetch per request; a
+        # class-level scope would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts().prefetch_related(item_stock_prefetch(ComponentStock))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

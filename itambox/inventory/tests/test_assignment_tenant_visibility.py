@@ -46,6 +46,11 @@ class _AssignmentVisibilityCases:
     detail_route = ""
     api_list_route = ""
     api_detail_route = ""
+    item_list_route = ""
+    api_item_list_route = ""
+    api_item_detail_route = ""
+    quantity_field = ""
+    available_field = ""
     checkin_route = None
 
     @classmethod
@@ -103,6 +108,7 @@ class _AssignmentVisibilityCases:
             name=f"{cls.prefix} Global Item", slug=f"{cls.prefix}-global", manufacturer=manufacturer, tenant=None
         )
         cls.stock_model.objects.create(**{cls.item_field: cls.global_item}, location=cls.location_a, qty=10)
+        cls.stock_model.objects.create(**{cls.item_field: cls.global_item}, location=cls.location_b, qty=20)
         # Tenant A draws from its own pool (source A); tenant B checks out
         # target-only (no source pool: source_tenant stays NULL, target B).
         cls.global_row_a = cls._checkout(
@@ -210,6 +216,53 @@ class _AssignmentVisibilityCases:
                 self._login(tenant, f"api-{key}")
                 self.assertEqual(self._api_ids(), expected)
 
+    def test_active_assignments_are_scoped_on_a_global_item(self):
+        with self._tenant_scope(self.tenant_a):
+            scoped_item = self.item_model.objects.get(pk=self.global_item.pk)
+            self.assertEqual(
+                set(scoped_item.active_assignments.values_list("pk", flat=True)),
+                {self.global_row_a.pk},
+            )
+
+    def test_global_item_aggregates_are_scoped_in_list_detail_and_api(self):
+        cases = (
+            ("agg-alpha", self.tenant_a, 9, 1, 9),
+            ("agg-beta", self.tenant_b, 20, 1, 19),
+            ("agg-gamma", self.tenant_c, 0, 0, 0),
+        )
+        detail_url = reverse(self.detail_route, kwargs={"pk": self.global_item.pk})
+        api_detail_url = reverse(self.api_item_detail_route, kwargs={"pk": self.global_item.pk})
+        for key, tenant, total, quantity, available in cases:
+            with self.subTest(tenant=key):
+                self._login(tenant, key)
+                detail = self.client.get(detail_url)
+                self.assertEqual(detail.status_code, 200)
+                obj = detail.context["object"]
+                self.assertEqual(obj.total_stock, total)
+                self.assertEqual(getattr(obj, self.quantity_field), quantity)
+                self.assertEqual(getattr(obj, self.available_field), available)
+
+                list_response = self.client.get(reverse(self.item_list_route))
+                self.assertEqual(list_response.status_code, 200)
+                row = next(item for item in list_response.context["table"].data if item.pk == self.global_item.pk)
+                self.assertEqual(row.total_stock, total)
+                self.assertEqual(getattr(row, self.quantity_field), quantity)
+                self.assertEqual(getattr(row, self.available_field), available)
+
+                api_detail = self.client.get(api_detail_url)
+                self.assertEqual(api_detail.status_code, 200)
+                payload = api_detail.json()
+                self.assertEqual(payload["total_stock"], total)
+                self.assertEqual(payload[self.quantity_field], quantity)
+                self.assertEqual(payload[self.available_field], available)
+
+                api_list = self.client.get(reverse(self.api_item_list_route), {"limit": 100})
+                self.assertEqual(api_list.status_code, 200)
+                api_row = next(item for item in api_list.json()["results"] if item["id"] == self.global_item.pk)
+                self.assertEqual(api_row["total_stock"], total)
+                self.assertEqual(api_row[self.quantity_field], quantity)
+                self.assertEqual(api_row[self.available_field], available)
+
     # ------------------------------------------ inbound cross-tenant row
     def test_inbound_row_visible_to_owner_and_recipient_only(self):
         detail = reverse(self.api_detail_route, kwargs={"pk": self.inbound_row.pk})
@@ -253,6 +306,11 @@ class AccessoryAssignmentVisibilityTests(_AssignmentVisibilityCases, TenantTestM
     detail_route = "inventory:accessory_detail"
     api_list_route = "api:inventory_api:accessoryassignment-list"
     api_detail_route = "api:inventory_api:accessoryassignment-detail"
+    item_list_route = "inventory:accessory_list"
+    api_item_list_route = "api:inventory_api:accessory-list"
+    api_item_detail_route = "api:inventory_api:accessory-detail"
+    quantity_field = "checked_out_qty"
+    available_field = "available"
     checkin_route = "inventory:accessory_checkin"
 
 
@@ -266,6 +324,11 @@ class ConsumableAssignmentVisibilityTests(_AssignmentVisibilityCases, TenantTest
     detail_route = "inventory:consumable_detail"
     api_list_route = "api:inventory_api:consumableassignment-list"
     api_detail_route = "api:inventory_api:consumableassignment-detail"
+    item_list_route = "inventory:consumable_list"
+    api_item_list_route = "api:inventory_api:consumable-list"
+    api_item_detail_route = "api:inventory_api:consumable-detail"
+    quantity_field = "consumed_qty"
+    available_field = "available"
 
 
 class ComponentAllocationVisibilityTests(_AssignmentVisibilityCases, TenantTestMixin, TestCase):
@@ -278,4 +341,9 @@ class ComponentAllocationVisibilityTests(_AssignmentVisibilityCases, TenantTestM
     detail_route = "inventory:component_detail"
     api_list_route = "api:inventory_api:componentallocation-list"
     api_detail_route = "api:inventory_api:componentallocation-detail"
+    item_list_route = "inventory:component_list"
+    api_item_list_route = "api:inventory_api:component-list"
+    api_item_detail_route = "api:inventory_api:component-detail"
+    quantity_field = "total_allocated"
+    available_field = "available_stock"
     checkin_route = "inventory:component_checkin"

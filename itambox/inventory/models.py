@@ -105,14 +105,21 @@ class AssignmentAllObjectsManager(ExplicitScopeAllObjectsManager.from_queryset(A
 
 
 class AccessoryQuerySet(TenantScopingSoftDeleteQuerySet):
-    def with_counts(self):
+    def with_counts(self, scope=None):
+        """Annotate the per-scope stock and checked-out totals.
+
+        ``scope`` must be resolved per request (or passed explicitly); a
+        class-level call evaluates ``Scope.current()`` at import time and
+        freezes ``SYSTEM``.
+        """
+        scope = Scope.current() if scope is None else scope
 
         # One independent correlated Subquery per multi-valued reverse relation.
         # Annotating two Sum() over different relations in a single .annotate()
         # produces a |stocks|x|assignments| cartesian JOIN that inflates BOTH
         # sums; Subqueries keep each aggregate independent and un-inflated.
         total_stock_subquery = (
-            AccessoryStock.objects.for_scope(Scope.current())
+            AccessoryStock.objects.for_scope(scope)
             .filter(accessory=OuterRef("pk"))
             .order_by()
             .values("accessory")
@@ -121,8 +128,17 @@ class AccessoryQuerySet(TenantScopingSoftDeleteQuerySet):
         )
 
         checked_out_subquery = (
-            AccessoryAssignment.objects.for_scope(Scope.current())
+            AccessoryAssignment.objects.for_scope(scope)
             .filter(accessory=OuterRef("pk"), deleted_at__isnull=True)
+            .order_by()
+            .values("accessory")
+            .annotate(total=Sum("qty"))
+            .values("total")
+        )
+
+        target_only_subquery = (
+            AccessoryAssignment.objects.for_scope(scope)
+            .filter(accessory=OuterRef("pk"), deleted_at__isnull=True, from_location__isnull=True)
             .order_by()
             .values("accessory")
             .annotate(total=Sum("qty"))
@@ -132,6 +148,7 @@ class AccessoryQuerySet(TenantScopingSoftDeleteQuerySet):
         return self.annotate(
             _total_stock=Coalesce(Subquery(total_stock_subquery, output_field=IntegerField()), 0),
             _checked_out=Coalesce(Subquery(checked_out_subquery, output_field=IntegerField()), 0),
+            _target_only=Coalesce(Subquery(target_only_subquery, output_field=IntegerField()), 0),
         )
 
 
@@ -151,12 +168,19 @@ class AllObjectsAccessoryManager(models.Manager.from_queryset(AccessoryQuerySet)
 
 
 class ConsumableQuerySet(TenantScopingSoftDeleteQuerySet):
-    def with_counts(self):
+    def with_counts(self, scope=None):
+        """Annotate the per-scope stock and consumed totals.
+
+        ``scope`` must be resolved per request (or passed explicitly); a
+        class-level call evaluates ``Scope.current()`` at import time and
+        freezes ``SYSTEM``.
+        """
+        scope = Scope.current() if scope is None else scope
 
         # See AccessoryQuerySet.with_counts: independent Subqueries avoid the
         # stocks x consumptions cartesian-product double-count.
         total_stock_subquery = (
-            ConsumableStock.objects.for_scope(Scope.current())
+            ConsumableStock.objects.for_scope(scope)
             .filter(consumable=OuterRef("pk"))
             .order_by()
             .values("consumable")
@@ -165,8 +189,17 @@ class ConsumableQuerySet(TenantScopingSoftDeleteQuerySet):
         )
 
         consumed_subquery = (
-            ConsumableAssignment.objects.for_scope(Scope.current())
+            ConsumableAssignment.objects.for_scope(scope)
             .filter(consumable=OuterRef("pk"), deleted_at__isnull=True)
+            .order_by()
+            .values("consumable")
+            .annotate(total=Sum("qty"))
+            .values("total")
+        )
+
+        target_only_subquery = (
+            ConsumableAssignment.objects.for_scope(scope)
+            .filter(consumable=OuterRef("pk"), deleted_at__isnull=True, from_location__isnull=True)
             .order_by()
             .values("consumable")
             .annotate(total=Sum("qty"))
@@ -176,6 +209,7 @@ class ConsumableQuerySet(TenantScopingSoftDeleteQuerySet):
         return self.annotate(
             _total_stock=Coalesce(Subquery(total_stock_subquery, output_field=IntegerField()), 0),
             _consumed=Coalesce(Subquery(consumed_subquery, output_field=IntegerField()), 0),
+            _target_only=Coalesce(Subquery(target_only_subquery, output_field=IntegerField()), 0),
         )
 
 
@@ -195,11 +229,18 @@ class AllObjectsConsumableManager(models.Manager.from_queryset(ConsumableQuerySe
 
 
 class ComponentQuerySet(SoftDeleteQuerySet, TenantScopingQuerySet):
-    def with_counts(self):
+    def with_counts(self, scope=None):
+        """Annotate the per-scope stock and allocation totals.
+
+        ``scope`` must be resolved per request (or passed explicitly); a
+        class-level call evaluates ``Scope.current()`` at import time and
+        freezes ``SYSTEM``.
+        """
+        scope = Scope.current() if scope is None else scope
 
         # Subquery to sum the quantities in ComponentStock for this component
         total_stock_subquery = (
-            ComponentStock.objects.for_scope(Scope.current())
+            ComponentStock.objects.for_scope(scope)
             .filter(component=OuterRef("pk"))
             .order_by()
             .values("component")
@@ -209,7 +250,7 @@ class ComponentQuerySet(SoftDeleteQuerySet, TenantScopingQuerySet):
 
         # Subquery to sum active qty in ComponentAllocation for this component
         allocated_stock_subquery = (
-            ComponentAllocation.objects.for_scope(Scope.current())
+            ComponentAllocation.objects.for_scope(scope)
             .filter(component=OuterRef("pk"), deleted_at__isnull=True)
             .order_by()
             .values("component")
@@ -217,7 +258,7 @@ class ComponentQuerySet(SoftDeleteQuerySet, TenantScopingQuerySet):
             .values("total")
         )
         target_only_allocated_subquery = (
-            ComponentAllocation.objects.for_scope(Scope.current())
+            ComponentAllocation.objects.for_scope(scope)
             .filter(
                 component=OuterRef("pk"),
                 deleted_at__isnull=True,
@@ -396,6 +437,9 @@ class Accessory(AbstractInventoryItem):
 
     @property
     def available(self):
+        target_only = getattr(self, "_target_only", None)
+        if target_only is not None:
+            return max(0, self.total_stock - target_only)
         undeducted_qty = sum(a.qty for a in self.assignments.filter(from_location__isnull=True))
         return max(0, self.total_stock - undeducted_qty)
 
@@ -442,6 +486,9 @@ class Consumable(AbstractInventoryItem):
 
     @property
     def available(self):
+        target_only = getattr(self, "_target_only", None)
+        if target_only is not None:
+            return max(0, self.total_stock - target_only)
         undeducted_qty = sum(a.qty for a in self.consumptions.filter(from_location__isnull=True))
         return max(0, self.total_stock - undeducted_qty)
 
