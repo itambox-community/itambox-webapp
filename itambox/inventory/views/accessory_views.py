@@ -9,6 +9,7 @@ from inventory.services import (
     checkin_accessory,
     checkout_inventory_item,
     item_assignments_for_scope,
+    item_stock_prefetch,
     recipient_assignment_union,
     shared_stock_union,
 )
@@ -60,7 +61,7 @@ class AccessoryListView(ObjectListView):
 
 class AccessoryDetailView(ObjectDetailView):
     queryset = Accessory.objects.select_related("manufacturer").prefetch_related(
-        "tags", "assignments__assigned_holder", "assignments__assigned_location", "stocks__location"
+        "tags", "assignments__assigned_holder", "assignments__assigned_location"
     )
     template_name = "assets/accessories/accessory_detail.html"
 
@@ -68,6 +69,12 @@ class AccessoryDetailView(ObjectDetailView):
         ((Panel("metrics", _("Metrics Overview")),),),
         ((Panel("info", _("Accessory Details")),),),
     )
+
+    def get_queryset(self):
+        # Stock pools belong to their location's tenant, not to the catalogue
+        # item.  Build the scoped prefetch per request; a class-level scope
+        # would freeze SYSTEM at import time.
+        return super().get_queryset().prefetch_related(item_stock_prefetch(AccessoryStock))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
