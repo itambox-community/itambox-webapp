@@ -4,6 +4,7 @@ from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
+from core.managers import Scope
 from itambox.panels import Panel
 from itambox.views.generic import (
     ObjectCloneView,
@@ -15,7 +16,7 @@ from itambox.views.generic import (
 
 from ..filters import SiteGroupFilterSet
 from ..forms import SiteGroupFilterForm, SiteGroupForm
-from ..models import SiteGroup
+from ..models import Site, SiteGroup
 from ..tables import SiteGroupTable, SiteTable
 
 
@@ -30,7 +31,7 @@ class SiteGroupListView(ObjectListView):
 
 
 class SiteGroupDetailView(ObjectDetailView):
-    queryset = SiteGroup.objects.prefetch_related("children", "tags", "sites__tenant", "sites__region")
+    queryset = SiteGroup.objects.prefetch_related("children", "tags")
 
     layout = (((Panel("info", _("Site Group Details")),),),)
 
@@ -38,11 +39,12 @@ class SiteGroupDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         sitegroup = self.get_object()
 
-        sites_table = SiteTable(sitegroup.sites.all(), request=self.request)
+        sites_qs = Site.objects.for_scope(Scope.current()).filter(group=sitegroup).select_related("tenant", "region")
+        sites_table = SiteTable(sites_qs, request=self.request)
         sites_table.configure(self.request)
 
         related_objects_list = []
-        site_count = sitegroup.sites.count()
+        site_count = sites_qs.count()
         if site_count:
             related_objects_list.append(
                 {
