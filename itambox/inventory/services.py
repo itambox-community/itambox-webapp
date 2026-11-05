@@ -3,7 +3,7 @@ from typing import Any, Optional, Tuple
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 
@@ -371,6 +371,23 @@ def shared_stock_union(queryset, stock_model):
                 perm,
             ),
         ).distinct()
+    )
+
+
+def item_stock_prefetch(stock_model):
+    """Scoped prefetch for the stock pools of one catalogue item.
+
+    Stock rows are owned by their location's tenant, never by the catalogue
+    item.  The item detail pages read the reverse manager, so the prefetch is
+    built per request with the active scope and keeps pools shared TO that
+    tenant visible (ADR-0001 phase 4b).
+    """
+    return Prefetch(
+        "stocks",
+        queryset=shared_stock_union(
+            stock_model.objects.for_scope(Scope.current()),
+            stock_model,
+        ).select_related("location"),
     )
 
 

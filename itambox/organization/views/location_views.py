@@ -6,7 +6,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
-from assets.models import AssetAssignment
+from assets.models import Asset, AssetAssignment
 from assets.tables import AssetTable
 from compliance.models import AuditSession
 from compliance.views_audit import AuditSessionTable
@@ -48,9 +48,7 @@ class LocationListView(ObjectListView):
 
 
 class LocationDetailView(ObjectDetailView):
-    queryset = Location.objects.select_related("site", "parent", "tenant").prefetch_related(
-        "children", "tags", "assets"
-    )
+    queryset = Location.objects.select_related("site", "parent", "tenant").prefetch_related("tags")
 
     layout = (((Panel("info", _("Location Details")),),),)
 
@@ -58,7 +56,8 @@ class LocationDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         location = self.get_object()
 
-        assets_table = AssetTable(location.assets.all(), request=self.request)
+        location_assets = Asset.objects.for_scope(Scope.current()).filter(location=location)
+        assets_table = AssetTable(location_assets, request=self.request)
         assets_table.configure(self.request)
         context["assets_table"] = assets_table
 
@@ -98,7 +97,7 @@ class LocationDetailView(ObjectDetailView):
         context["audits_table"] = audits_table
 
         related_objects_list = []
-        asset_count = location.assets.count()
+        asset_count = location_assets.count()
         if asset_count:
             related_objects_list.append(
                 {
@@ -107,7 +106,8 @@ class LocationDetailView(ObjectDetailView):
                     "url": f"{reverse('assets:asset_list')}?location={location.slug}",
                 }
             )
-        child_count = location.children.count()
+        child_locations = Location.objects.for_scope(Scope.current()).filter(parent=location)
+        child_count = child_locations.count()
         if child_count:
             related_objects_list.append(
                 {

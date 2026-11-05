@@ -8,6 +8,7 @@ from core.managers import Scope, get_current_tenant
 from inventory.services import (
     checkout_inventory_item,
     item_assignments_for_scope,
+    item_stock_prefetch,
     recipient_assignment_union,
     shared_stock_union,
 )
@@ -59,7 +60,7 @@ class ConsumableListView(ObjectListView):
 
 class ConsumableDetailView(ObjectDetailView):
     queryset = Consumable.objects.select_related("manufacturer").prefetch_related(
-        "tags", "consumptions__assigned_holder", "consumptions__assigned_location", "stocks__location"
+        "tags", "consumptions__assigned_holder", "consumptions__assigned_location"
     )
     template_name = "assets/consumables/consumable_detail.html"
 
@@ -67,6 +68,12 @@ class ConsumableDetailView(ObjectDetailView):
         ((Panel("metrics", _("Metrics Overview")),),),
         ((Panel("info", _("Consumable Details")),),),
     )
+
+    def get_queryset(self):
+        # Stock pools belong to their location's tenant, not to the catalogue
+        # item.  Build the scoped prefetch per request; a class-level scope
+        # would freeze SYSTEM at import time.
+        return super().get_queryset().prefetch_related(item_stock_prefetch(ConsumableStock))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

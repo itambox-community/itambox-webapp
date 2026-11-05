@@ -10,6 +10,7 @@ from inventory.services import (
     checkout_inventory_item,
     create_component_allocation,
     item_assignments_for_scope,
+    item_stock_prefetch,
     recipient_assignment_union,
     shared_stock_union,
     update_component_allocation,
@@ -55,15 +56,19 @@ class ComponentListView(ObjectListView):
 
 
 class ComponentDetailView(ObjectDetailView):
-    queryset = Component.objects.select_related("manufacturer", "category").prefetch_related(
-        "tags", "stocks", "allocations"
-    )
+    queryset = Component.objects.select_related("manufacturer", "category").prefetch_related("tags", "allocations")
     template_name = "inventory/components/component_detail.html"
 
     layout = (
         ((Panel("metrics", _("Metrics Overview")),),),
         ((Panel("info", _("Component Details")),),),
     )
+
+    def get_queryset(self):
+        # Stock pools belong to their location's tenant, not to the catalogue
+        # item.  Build the scoped prefetch per request; a class-level scope
+        # would freeze SYSTEM at import time.
+        return super().get_queryset().prefetch_related(item_stock_prefetch(ComponentStock))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -6094,6 +6094,9 @@ msgstr "%(count)d Lagerort%(plural)s"
 msgid "%(count)d asset%(plural)s"
 msgstr "%(count)d Asset%(plural)s"
 
+msgid "additional locations outside your scope"
+msgstr "zusätzliche Standorte außerhalb Ihres Geltungsbereichs"
+
 #, python-format
 msgid "Cannot delete site '%(name)s': It is associated with %(details)s."
 msgstr ""
