@@ -7,11 +7,20 @@ deployment setting exists that turns it off, so the page never hides it.
 """
 
 from django.contrib.auth import views as auth_views
+from django.contrib.auth.views import RedirectURLMixin
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+from django.urls import reverse
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_protect
 from djangosaml2 import views as djangosaml2_views
 
+from core.auth.discovery import LoginRoute, login_domains_configured, resolve_login_route
 from core.auth.providers import get_login_providers
 from core.auth.saml import SAML_TENANT_SESSION_KEY, bind_saml_tenant, restore_saml_tenant
-from core.forms.auth import LoginForm
+from core.forms.auth import LoginForm, LoginIdentifierForm
 from core.managers import get_current_tenant
 
 
@@ -25,8 +34,50 @@ class ITAMboxLoginView(auth_views.LoginView):
         context = super().get_context_data(**kwargs)
         # ``get_redirect_url()`` returns '' for a missing or unsafe ``next``, so
         # only a validated same-origin destination is ever handed to a provider.
-        context["sso_providers"] = get_login_providers(self.get_redirect_url())
+        discovery_enabled = login_domains_configured()
+        context["login_discovery_enabled"] = discovery_enabled
+        context["identifier_form"] = LoginIdentifierForm()
+        context["sso_providers"] = [] if discovery_enabled else get_login_providers(self.get_redirect_url())
         return context
+
+
+@method_decorator(csrf_protect, name="dispatch")
+@method_decorator(never_cache, name="dispatch")
+class LoginDiscoveryView(RedirectURLMixin, View):
+    """Resolve an identifier without persisting it or revealing account state."""
+
+    http_method_names = ["get", "post"]
+    template_name = "registration/login.html"
+
+    def get(self, request, *args, **kwargs):
+        return HttpResponseRedirect(reverse("login"))
+
+    def post(self, request, *args, **kwargs):
+        if not login_domains_configured():
+            return HttpResponseRedirect(reverse("login"))
+        identifier_form = LoginIdentifierForm(request.POST)
+        if not identifier_form.is_valid():
+            return self._render_login(request, identifier_form, LoginRoute("password", reverse("login"), ()))
+
+        route = resolve_login_route(identifier_form.cleaned_data["identifier"], self.get_redirect_url())
+        if route.mode == "redirect" and route.url:
+            return HttpResponseRedirect(route.url)
+        return self._render_login(request, LoginIdentifierForm(), route)
+
+    def _render_login(self, request, identifier_form, route):
+        return render(
+            request,
+            self.template_name,
+            {
+                "form": LoginForm(request),
+                "identifier_form": identifier_form,
+                "login_discovery_enabled": True,
+                "login_discovery_mode": route.mode,
+                "login_discovery_actions": route.actions,
+                "next": self.get_redirect_url(),
+                "sso_providers": [],
+            },
+        )
 
 
 class TenantSamlLoginView(djangosaml2_views.LoginView):

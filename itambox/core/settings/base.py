@@ -10,13 +10,15 @@ import warnings as py_warnings
 from datetime import timedelta
 from pathlib import Path
 
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.validators import validate_slug
 from django.utils.translation import gettext_lazy as _
 
 from core.config_contract import (
     parse_api_token_peppers,
     parse_field_encryption_keys,
 )
+from core.email_domains import PUBLIC_EMAIL_DOMAINS, normalize_domain
 from itambox.plugins.utils import load_plugins
 from itambox.release import VERSION
 
@@ -447,10 +449,82 @@ def _load_requisition_auto_approval_thresholds():
     return value
 
 
+def _load_tenant_login_domains():
+    canonical_name = "ITAMBOX_TENANT_LOGIN_DOMAINS"
+    raw = os.environ.get(canonical_name)
+    if raw is None or not raw.strip():
+        return {}
+    value = _parse_tenant_login_domains(raw, canonical_name)
+    domain_owners = {}
+    return {
+        slug: _normalize_tenant_login_domain_entry(slug, entry, domain_owners, canonical_name)
+        for slug, entry in value.items()
+    }
+
+
+def _parse_tenant_login_domains(raw, canonical_name):
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ImproperlyConfigured(
+            f"{canonical_name} contains invalid JSON at line {exc.lineno}, column {exc.colno}."
+        ) from exc
+    if not isinstance(value, dict):
+        raise ImproperlyConfigured(f"{canonical_name} must contain a JSON object keyed by tenant slug.")
+    return value
+
+
+def _normalize_tenant_login_domain_entry(slug, entry, domain_owners, canonical_name):
+    label = f"{canonical_name} entry for tenant slug {slug!r}"
+    if not isinstance(slug, str) or not slug:
+        raise ImproperlyConfigured(f"{label} has an invalid slug.")
+    try:
+        validate_slug(slug)
+    except ValidationError as exc:
+        raise ImproperlyConfigured(f"{label} has an invalid slug: {exc}.") from exc
+    if not isinstance(entry, dict):
+        raise ImproperlyConfigured(f"{label} must be an object with a domains list.")
+    extra_keys = set(entry) - {"domains", "method"}
+    if extra_keys:
+        raise ImproperlyConfigured(f"{label} has unsupported keys: {sorted(extra_keys)!r}.")
+    domains = entry.get("domains")
+    if not isinstance(domains, list) or not domains:
+        raise ImproperlyConfigured(f"{label} must define a non-empty domains list.")
+
+    normalized_domains = [_normalize_tenant_login_domain(domain, label, slug, domain_owners) for domain in domains]
+    result: dict[str, object] = {"domains": normalized_domains}
+    if "method" in entry:
+        result["method"] = _normalize_tenant_login_method(entry["method"], label)
+    return result
+
+
+def _normalize_tenant_login_domain(domain, label, slug, domain_owners):
+    try:
+        normalized_domain = normalize_domain(domain)
+    except ValueError as exc:
+        raise ImproperlyConfigured(f"{label} contains a malformed domain: {exc}.") from exc
+    if normalized_domain in PUBLIC_EMAIL_DOMAINS:
+        raise ImproperlyConfigured(f"{label} cannot claim public email domain {normalized_domain!r}.")
+    if normalized_domain in domain_owners:
+        previous = domain_owners[normalized_domain]
+        raise ImproperlyConfigured(
+            f"{label} duplicates domain {normalized_domain!r} already mapped to tenant slug {previous!r}."
+        )
+    domain_owners[normalized_domain] = slug
+    return normalized_domain
+
+
+def _normalize_tenant_login_method(method, label):
+    if not isinstance(method, str) or method.strip().lower() not in {"oidc", "saml"}:
+        raise ImproperlyConfigured(f"{label} has an invalid method; use 'oidc' or 'saml'.")
+    return method.strip().lower()
+
+
 ITAMBOX_TENANT_LDAP_CONFIGS = _load_tenant_json_config("ITAMBOX_TENANT_LDAP_CONFIGS")
 ITAMBOX_TENANT_SAML_CONFIGS = _load_tenant_json_config("ITAMBOX_TENANT_SAML_CONFIGS")
 ITAMBOX_TENANT_OIDC_CONFIGS = _load_tenant_json_config("ITAMBOX_TENANT_OIDC_CONFIGS")
 ITAMBOX_REQUISITION_AUTO_APPROVAL_THRESHOLDS = _load_requisition_auto_approval_thresholds()
+ITAMBOX_TENANT_LOGIN_DOMAINS = _load_tenant_login_domains()
 
 # Intune discovery connector — per-tenant config.
 # Keys per tenant slug: azure_tenant_id, client_id, client_secret,

@@ -7,6 +7,7 @@ for one failed attempt, and the ``inactive`` variant discloses that the account
 exists. One generic message is used for every failed local login instead.
 """
 
+from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.utils.translation import gettext_lazy as _
 
@@ -36,3 +37,20 @@ class LoginForm(AuthenticationForm):
                 if field is not None:
                     field.widget.attrs["aria-invalid"] = "true"
                     field.widget.attrs["aria-describedby"] = "login-form-errors"
+
+
+class LoginIdentifierForm(forms.Form):
+    """Collect an identifier without checking whether it belongs to an account."""
+
+    identifier = forms.CharField(
+        label=_("Email address or username"),
+        max_length=254,
+        strip=True,
+        widget=forms.TextInput(
+            attrs={
+                "autocomplete": "username",
+                "autofocus": True,
+                "inputmode": "email",
+            }
+        ),
+    )

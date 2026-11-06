@@ -9423,6 +9423,12 @@ msgstr "Anmelden"
 msgid "Log In to Your Account"
 msgstr "Bei Ihrem Konto anmelden"
 
+msgid "Email address or username"
+msgstr "E-Mail-Adresse oder Benutzername"
+
+msgid "Sign in with a password"
+msgstr "Mit Passwort anmelden"
+
 msgid "Your username and password didn't match. Please try again."
 msgstr ""
 "Benutzername und Passwort stimmen nicht überein. Bitte versuchen Sie es "
