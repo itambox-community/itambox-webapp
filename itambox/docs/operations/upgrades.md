@@ -216,6 +216,22 @@ Keep the 16 volume until the 18 deployment has served normal traffic for a
 release cycle; deleting it is the point at which the upgrade stops being
 reversible.
 
+## SAML account binding (#1034)
+
+SAML logins no longer resolve an existing account by NameID alone. An assertion
+that names an existing account is accepted only when that account has an active
+membership in the tenant the login was started for, and superuser and staff
+accounts are never signed in through SAML. This is a deliberate behaviour
+change: users who previously signed in through a tenant's identity provider
+without a membership in that tenant, and superusers or staff who used SAML,
+are now refused. Add the missing membership, or use local password login for
+administrative accounts, before upgrading. Single-identity-provider deployments
+whose users are already members are unaffected.
+
+A tenant can additionally set `SAML_CREATE_UNKNOWN_USER` to `false` in its
+`ITAMBOX_TENANT_SAML_CONFIGS` entry to disable just-in-time account creation;
+when the key is absent, creation stays enabled. No schema migration is involved.
+
 ## OIDC identity binding migration (#454)
 
 The OIDC `(issuer, subject)` binding migration creates schema only. It performs no automatic backfill and never guesses a binding from email, username, UPN, tenant,

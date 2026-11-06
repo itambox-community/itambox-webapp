@@ -1,4 +1,7 @@
+import logging
+
 import saml2
+from django.apps import apps
 from django.conf import settings
 from django.http import Http404
 from djangosaml2.backends import Saml2Backend
@@ -6,6 +9,8 @@ from saml2.config import SPConfig
 
 from core import identity_provisioning, tenant_scope
 from core.managers import get_current_tenant, set_current_tenant
+
+logger = logging.getLogger(__name__)
 
 #: Session key pinning the tenant a SAML flow was started for. The IdP posts the
 #: assertion back to an anonymous, cross-site endpoint (``/saml2/acs/``), so
@@ -230,6 +235,13 @@ def _saml_role_name(tenant, groups):
     return "Member"
 
 
+def _has_active_membership(user, tenant):
+    if tenant is None:
+        return False
+    membership_model = apps.get_model("organization", "Membership")
+    return membership_model._base_manager.filter(user=user, tenant=tenant, is_active=True).exists()
+
+
 class TenantSaml2Backend(Saml2Backend):
     """SAML authentication with tenant-aware configuration and JIT handoff."""
 
@@ -242,6 +254,45 @@ class TenantSaml2Backend(Saml2Backend):
         if user and session_info:
             self.sync_saml_user_profile_and_memberships(user, session_info)
         return user
+
+    def get_or_create_user(
+        self,
+        user_lookup_key,
+        user_lookup_value,
+        create_unknown_user,
+        idp_entityid,
+        attributes,
+        attribute_mapping,
+        request,
+    ):
+        """Resolve the account for an assertion, bound to the tenant the flow started for.
+
+        The NameID lookup upstream is global. An existing account is therefore only
+        accepted when it holds an active membership in the asserting tenant and is
+        neither a superuser nor staff; anything else is refused with ``(None, False)``
+        (never raised into the ACS view). Unknown identities are provisioned only
+        while both the global setting and the tenant's ``SAML_CREATE_UNKNOWN_USER``
+        key (default ``True``) allow it.
+        """
+        tenant = get_current_tenant()
+        tenant_allows_create = True
+        if tenant is not None:
+            tenant_allows_create = _tenant_saml_config(tenant.slug).get("SAML_CREATE_UNKNOWN_USER", True) is not False
+        user, created = super().get_or_create_user(
+            user_lookup_key,
+            user_lookup_value,
+            bool(create_unknown_user) and tenant_allows_create,
+            idp_entityid,
+            attributes,
+            attribute_mapping,
+            request,
+        )
+        if user is None or created:
+            return user, created
+        if user.is_superuser or user.is_staff or not _has_active_membership(user, tenant):
+            logger.warning("Refused SAML assertion for an account outside the asserting tenant.")
+            return None, False
+        return user, created
 
     def sync_saml_user_profile_and_memberships(self, user, session_info):
         tenant = get_current_tenant()

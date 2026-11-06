@@ -243,6 +243,7 @@ shown on the login page because the callback could not be scoped safely.
 | `want_assertions_signed` | Require signed assertions. Default: `true`. |
 | `want_response_signed` | Require signed responses. Default: `true`. |
 | `SAML_GROUP_ROLE_MAPPING` | Map SAML group attribute values to ITAMbox role names. |
+| `SAML_CREATE_UNKNOWN_USER` | Set to `false` to stop this tenant's assertions from provisioning accounts that do not exist yet. It is combined with the global `SAML_CREATE_UNKNOWN_USER` setting (both must allow it). Default: `true`. |
 | `enabled` | Set to `false` to disable the provider and hide its login action without deleting the configuration. Default: `true`. |
 | `display_name` | Optional label used on the login page. The tenant name is used when omitted. |
 
@@ -259,6 +260,22 @@ are tried in order:
 | Last Name | `sn`, `last_name`, `User.LastName` |
 | UPN | `upn`, `userPrincipalName`, `uid`, `nameidentifier` |
 | Groups | `groups`, `memberOf`, `User.Groups` |
+
+### Account Binding
+
+A SAML NameID is matched against the account username. To stop one tenant's
+identity provider from authenticating as another tenant's user, an assertion
+that names an **existing** account is accepted only when:
+
+- the account holds an **active membership** in the tenant the SAML login was
+  started for, and
+- the account is **neither a superuser nor staff**. These accounts can never be
+  signed in through a SAML NameID; use local password login (with MFA) for them.
+
+A refused assertion fails the login without changing anything: no membership,
+asset holder, profile update or audit entry is written. Unknown identities are
+still provisioned just in time, unless `SAML_CREATE_UNKNOWN_USER` is `false`
+for the tenant (see above).
 
 ### Security Defaults
 

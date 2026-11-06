@@ -1,14 +1,19 @@
 """Identity journeys: SCIM deprovisioning keeps obligations visible and never guesses identity links."""
 
+from types import SimpleNamespace
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 
 from assets.models import StatusLabel
 from assets.services import checkout_asset
-from organization.models import AssetHolder
+from core.auth.saml import TenantSaml2Backend
+from core.managers import set_current_tenant
+from core.models import ObjectChange
+from organization.models import AssetHolder, Membership
 from organization.services.offboarding import get_offboarding_report
 from users.models import Token
 
@@ -123,3 +128,75 @@ class ScimJourneyTests(JourneyMixin, TestCase):
         self.assertEqual(holder.email, "shared@example.test")
         self.assertEqual(holder.first_name, "Chief")
         self.assertEqual(holder.last_name, "Executive")
+
+
+SAML_ATTRIBUTE_MAPPING = {"email": ("email",), "first_name": ("first_name",), "last_name": ("last_name",)}
+
+
+class SamlNameIdBindingJourneyTests(JourneyMixin, TestCase):
+    """A SAML NameID resolves an existing account only inside the asserting tenant."""
+
+    def setUp(self):
+        self.make_tenant("journey-saml-a")
+        self.other = self.make_provider_tenant("journey-saml-b")
+        set_current_tenant(self.tenant)
+        self.addCleanup(set_current_tenant, None)
+
+    def _assert(self, name_id, **ava):
+        session_info = {
+            "issuer": "https://idp.example.test/",
+            "name_id": SimpleNamespace(text=name_id),
+            "ava": {"email": [f"{name_id}@asserted.test"], "first_name": ["Asserted"], "last_name": ["Name"], **ava},
+        }
+        return TenantSaml2Backend().authenticate(
+            None, session_info=session_info, attribute_mapping=SAML_ATTRIBUTE_MAPPING, create_unknown_user=True
+        )
+
+    def _snapshot(self):
+        return (Membership.objects.count(), AssetHolder.objects.count(), ObjectChange.objects.count())
+
+    def test_assertion_for_a_foreign_tenants_user_is_refused_without_side_effects(self):
+        victim = self.make_member("saml-foreign-user", set(), tenant=self.other)
+        before = self._snapshot()
+
+        self.assertIsNone(self._assert(victim.username))
+
+        victim.refresh_from_db()
+        self.assertEqual(victim.email, "saml-foreign-user@example.test")
+        self.assertEqual(self._snapshot(), before)
+        self.assertFalse(Membership.objects.filter(user=victim, tenant=self.tenant).exists())
+
+    def test_assertion_for_a_superuser_is_refused_even_with_membership(self):
+        root = User.objects.create_superuser(username="saml-root", email="root@example.test", password="x")
+        Membership.objects.create(user=root, tenant=self.tenant)
+        staff = User.objects.create_user(username="saml-staff", email="staff@example.test", is_staff=True)
+        Membership.objects.create(user=staff, tenant=self.tenant)
+        before = self._snapshot()
+
+        self.assertIsNone(self._assert("saml-root"))
+        self.assertIsNone(self._assert("saml-staff"))
+
+        root.refresh_from_db()
+        self.assertEqual(root.email, "root@example.test")
+        self.assertEqual(self._snapshot(), before)
+
+    def test_tenant_opt_out_of_unknown_user_provisioning_is_honoured(self):
+        configs = {self.tenant.slug: {"SAML_CREATE_UNKNOWN_USER": False}}
+        before = self._snapshot()
+        with override_settings(ITAMBOX_TENANT_SAML_CONFIGS=configs):
+            self.assertIsNone(self._assert("saml-brand-new"))
+
+        self.assertFalse(User.objects.filter(username="saml-brand-new").exists())
+        self.assertEqual(self._snapshot(), before)
+
+    def test_unknown_user_is_still_provisioned_when_the_key_is_absent(self):
+        with override_settings(ITAMBOX_TENANT_SAML_CONFIGS={self.tenant.slug: {}}):
+            user = self._assert("saml-brand-new")
+
+        self.assertIsNotNone(user)
+        self.assertTrue(Membership.objects.filter(user=user, tenant=self.tenant, is_active=True).exists())
+
+    def test_member_of_the_asserting_tenant_still_logs_in(self):
+        member = self.make_member("saml-member", set())
+
+        self.assertEqual(self._assert("saml-member"), member)
