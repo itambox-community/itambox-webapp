@@ -172,6 +172,47 @@ class ProviderTenantBindingTests(SimpleTestCase):
 
         self.assertEqual(actions, [])
 
+    def test_saml_provider_for_a_different_tenant_is_filtered(self):
+        other_tenant = SimpleNamespace(name="Other Corp", slug="other")
+        with (
+            override_settings(ITAMBOX_TENANT_SAML_CONFIGS={"other": SAML_CONFIG}, ITAMBOX_TENANT_OIDC_CONFIGS={}),
+            patch.object(providers, "_tenants_by_slug", return_value={"other": other_tenant}),
+        ):
+            actions = providers.get_login_providers(tenant_slug="acme")
+
+        self.assertEqual(actions, [])
+
+    def test_oidc_provider_for_missing_tenant_is_filtered(self):
+        with (
+            override_settings(ITAMBOX_TENANT_SAML_CONFIGS={}, ITAMBOX_TENANT_OIDC_CONFIGS={"missing": OIDC_CONFIG}),
+            patch.object(providers, "_tenants_by_slug", return_value={}),
+        ):
+            actions = providers.get_login_providers(tenant_slug="missing")
+
+        self.assertEqual(actions, [])
+
+    def test_unbound_provider_scan_uses_global_oidc_validation_for_tenant_entries(self):
+        tenant = SimpleNamespace(name="Acme Corp", slug="acme")
+        with (
+            override_settings(
+                ITAMBOX_TENANT_SAML_CONFIGS={},
+                ITAMBOX_TENANT_OIDC_CONFIGS={"acme": OIDC_CONFIG},
+                **OIDC_CONFIG,
+            ),
+            patch.object(providers, "_tenants_by_slug", return_value={"acme": tenant}),
+        ):
+            actions = providers.get_login_providers()
+
+        self.assertEqual([action["key"] for action in actions], ["acme"])
+        self.assertTrue(actions[0]["tenant_bound"])
+
+    def test_tenant_oidc_accepts_non_rsa_algorithm_and_ignores_non_mapping_settings(self):
+        config = {**OIDC_CONFIG, "OIDC_RP_SIGN_ALGO": "HS256"}
+
+        self.assertTrue(providers.is_usable_tenant_oidc_config(config))
+        self.assertFalse(providers.is_usable_tenant_oidc_config(None))
+        self.assertIsNone(providers._tenant_oidc_setting(None, "OIDC_RP_CLIENT_ID"))
+
 
 class EmailDomainNormalizationTests(SimpleTestCase):
     def test_domain_is_normalized_to_a_lowercase_idna_alabel(self):
@@ -188,6 +229,32 @@ class EmailDomainNormalizationTests(SimpleTestCase):
         self.assertIsNone(domains.email_domain("person@127.0.0.1"))
         self.assertIsNone(domains.email_domain("person@bad..example"))
         self.assertIn("outlook.com", domains.PUBLIC_EMAIL_DOMAINS)
+
+    def test_domain_validation_rejects_non_strings_and_invalid_dns_forms(self):
+        domains = importlib.import_module("core.email_domains")
+        oversized_domain = ".".join(["a" * 63] * 4) + ".com"
+
+        for value in (
+            None,
+            123,
+            "",
+            ".",
+            "example.com..",
+            "bad domain.example",
+            "https://bad.example",
+            "bad_.example",
+            oversized_domain,
+        ):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    domains.normalize_domain(value)
+
+    def test_email_domain_rejects_non_string_identifiers_and_empty_local_parts(self):
+        domains = importlib.import_module("core.email_domains")
+
+        for identifier in (None, 123, "@acme.example", "   @acme.example"):
+            with self.subTest(identifier=identifier):
+                self.assertIsNone(domains.email_domain(identifier))
 
 
 class TenantLoginDomainSettingsTests(SimpleTestCase):
@@ -242,6 +309,39 @@ class TenantLoginDomainSettingsTests(SimpleTestCase):
 
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(loader(), {})
+
+    def test_loader_rejects_invalid_json_and_non_object_values(self):
+        loader = getattr(base, "_load_tenant_login_domains", None)
+        self.assertTrue(callable(loader), "tenant login-domain settings loader is missing")
+
+        for raw, expected in (("{invalid", "invalid json"), ("[]", "json object")):
+            with self.subTest(raw=raw):
+                with patch.dict(os.environ, {self.setting_name: raw}, clear=True):
+                    with self.assertRaises(ImproperlyConfigured) as raised:
+                        loader()
+                self.assertIn(expected, str(raised.exception).lower())
+
+    def test_loader_rejects_invalid_entry_shapes_and_allows_omitted_method(self):
+        loader = getattr(base, "_load_tenant_login_domains", None)
+        self.assertTrue(callable(loader), "tenant login-domain settings loader is missing")
+        invalid = (
+            ({"": {"domains": ["acme.example"]}}, "invalid slug"),
+            ({"acme": "not-an-object"}, "object with a domains list"),
+            ({"acme": {"domains": ["acme.example"], "unexpected": True}}, "unsupported keys"),
+        )
+        for value, reason in invalid:
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {self.setting_name: json.dumps(value)}, clear=True):
+                    with self.assertRaises(ImproperlyConfigured) as raised:
+                        loader()
+                self.assertIn(reason, str(raised.exception).lower())
+
+        with patch.dict(
+            os.environ,
+            {self.setting_name: json.dumps({"acme": {"domains": ["acme.example"]}})},
+            clear=True,
+        ):
+            self.assertEqual(loader(), {"acme": {"domains": ["acme.example"]}})
 
 
 class LoginDiscoveryResolutionTests(SimpleTestCase):
@@ -372,6 +472,28 @@ class LoginDiscoveryResolutionTests(SimpleTestCase):
 
         tenant_filter.assert_called_once_with(slug="acme", deleted_at__isnull=True)
         get_model.assert_called_once_with("organization", "Tenant")
+
+    def test_malformed_domain_and_mapping_values_fail_closed(self):
+        discovery = self._module()
+        self.assertIsNone(discovery._claimable_login_domain("bad..example"))
+
+        cases = (
+            (["not-a-mapping"], "acme.example"),
+            ({None: {"domains": ["acme.example"]}, "bad": "not-a-config"}, "acme.example"),
+            ({"bad": {"domains": ["bad_.example"]}}, "acme.example"),
+        )
+        for mapping, domain in cases:
+            with self.subTest(mapping=mapping):
+                with override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS=mapping):
+                    self.assertIsNone(discovery._tenant_slug_for_domain(domain))
+
+    def test_unavailable_tenant_model_fails_closed(self):
+        discovery = self._module()
+        with (
+            override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS=self.config),
+            patch.object(discovery.apps, "get_model", side_effect=LookupError),
+        ):
+            self.assertIsNone(discovery._tenant_slug_for_domain("acme.example"))
 
     def test_route_is_independent_of_authenticated_ambient_tenant(self):
         discovery = self._module()
@@ -563,6 +685,34 @@ class LoginDiscoveryViewTests(SimpleTestCase):
         self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
         self.assertEqual(put_response.status_code, 405)
 
+    def test_legacy_login_page_keeps_password_form_when_discovery_is_disabled(self):
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={},
+            ITAMBOX_TENANT_SAML_CONFIGS={},
+            ITAMBOX_TENANT_OIDC_CONFIGS={},
+        ):
+            response = self.client.get(self.login_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="username"')
+        self.assertContains(response, 'name="password"')
+
+    def test_post_redirects_to_password_login_when_discovery_is_disabled(self):
+        with override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS={}):
+            response = self.client.post(self.url, {"identifier": "person@acme.example"})
+
+        self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
+
+    def test_invalid_identifier_form_renders_password_login_without_resolving(self):
+        with (
+            override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}}),
+            patch("core.views.auth.resolve_login_route") as resolver,
+        ):
+            response = self.client.post(self.url, {"identifier": ""})
+
+        self.assertEqual(response.status_code, 200)
+        resolver.assert_not_called()
+
     def test_post_ignores_tenant_and_url_fields_and_is_never_cached(self):
         with (
             override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}}),
@@ -726,3 +876,51 @@ class TenantLoginDiscoveryChecksTests(SimpleTestCase):
             warnings = checks.check_tenant_login_discovery(None)
 
         self.assertIn("core.W007", {warning.id for warning in warnings})
+
+    def test_saml_method_mapping_reports_unclaimed_sso_and_duplicate_identity(self):
+        saml_configs = {
+            "acme": SAML_CONFIG,
+            "north": SAML_CONFIG,
+            "broken": {"entityid": "https://broken.example/sp", "metadata": {}},
+        }
+        oidc_configs = {"default": OIDC_CONFIG, "disabled": {**OIDC_CONFIG, "enabled": False}}
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"], "method": "oidc"}},
+            ITAMBOX_TENANT_SAML_CONFIGS=saml_configs,
+            ITAMBOX_TENANT_OIDC_CONFIGS=oidc_configs,
+        ):
+            warnings = checks.check_tenant_login_discovery(None)
+
+        warning_ids = {warning.id for warning in warnings}
+        self.assertIn("core.W005", warning_ids)
+        self.assertIn("core.W006", warning_ids)
+        self.assertIn("core.W007", warning_ids)
+
+    def test_saml_identity_helpers_handle_config_shapes_and_invalid_xml(self):
+        explicit = checks._saml_identities({"idp_entity_id": " https://idp.example/explicit "})
+        self.assertEqual(explicit, {"https://idp.example/explicit"})
+        self.assertEqual(checks._saml_identities({"metadata": "invalid"}), set())
+        self.assertEqual(
+            checks._saml_identities({"metadata": {"remote": {"url": " https://idp.example/remote "}}}),
+            {"https://idp.example/remote"},
+        )
+        self.assertEqual(checks._saml_identities({"metadata": {"remote": "invalid"}}), set())
+
+        nested = (
+            '<EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata">'
+            '<EntityDescriptor entityID="https://idp.example/nested" />'
+            "</EntitiesDescriptor>"
+        )
+        self.assertEqual(checks._inline_saml_identities(nested), {"https://idp.example/nested"})
+        self.assertEqual(checks._inline_saml_identities(42), set())
+        self.assertEqual(checks._inline_saml_identities(("<broken", 42, nested)), {"https://idp.example/nested"})
+
+    def test_duplicate_oidc_identity_without_resolved_issuer_is_ignored(self):
+        with (
+            override_settings(ITAMBOX_TENANT_OIDC_CONFIGS={"north": OIDC_CONFIG}, ITAMBOX_TENANT_SAML_CONFIGS={}),
+            patch.object(providers, "is_usable_oidc_config", return_value=True),
+            patch.object(providers, "_resolve_oidc_setting", return_value=""),
+        ):
+            warnings = checks._duplicate_idp_warnings()
+
+        self.assertEqual(warnings, [])
