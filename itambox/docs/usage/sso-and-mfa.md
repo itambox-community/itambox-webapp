@@ -321,6 +321,15 @@ for the tenant (see above).
 > rejected (`allow_unsolicited: false`). Only relax these if your IdP does
 > not support signed assertions — and only after a security review.
 
+### Authentik SAML provider
+
+ITAMbox requires a signed SAML response by default (`want_response_signed` is
+`true`, see [Security Defaults](#security-defaults)). On the Authentik SAML
+provider, set both `sign_assertion=True` and `sign_response=True`. The provider's
+`sign_response` option is `False` unless you set it, so a provider that signs
+only the assertion fails ITAMbox's check. ITAMbox shows no error in this case:
+the SAML round trip ends without a logged-in session.
+
 ---
 
 ## OIDC Configuration
@@ -673,6 +682,17 @@ logged in.
 **Fix:** Set `can_login = True` on the user's profile. This flag is checked
 by all SSO backends (LDAP, SAML, OIDC) after successful authentication and
 before returning the user object. It is a separate axis from `is_active`.
+
+### SAML Round Trip Ends Without a Session (Authentik)
+
+**Symptom:** The SAML login returns to ITAMbox but you are not signed in, and
+ITAMbox shows no error.
+
+**Cause:** The Authentik SAML provider signs the assertion but not the response,
+while ITAMbox requires a signed response (`want_response_signed: true`).
+
+**Fix:** Set both `sign_assertion=True` and `sign_response=True` on the
+Authentik SAML provider. See [Authentik SAML provider](#authentik-saml-provider).
 
 ### SAML Assertion Not Signed
 
