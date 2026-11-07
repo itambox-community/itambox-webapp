@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import json
 import os
@@ -32,6 +33,8 @@ OIDC_CONFIG = {
     "OIDC_OP_ISSUER": "https://idp.example.com/",
     "OIDC_OP_JWKS_ENDPOINT": "https://idp.example.com/jwks",
 }
+
+LEGACY_LOGIN_FINGERPRINT = "01e60be0a0566f68c34cf24146ae84a1ddc9d40ac2821818356538eb80c64832"
 
 
 def _record_query(queries):
@@ -672,6 +675,23 @@ class LoginDiscoveryDatabaseTests(TestCase):
         self.assertEqual(route.mode, "password")
         self.assertEqual(route.actions, ())
 
+    def test_choice_mode_through_real_resolver_exposes_protocol_only(self):
+        tenant = self.tenant
+        domains = {tenant.slug: {"domains": ["acme.example"]}}
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS=domains,
+            ITAMBOX_TENANT_SAML_CONFIGS={tenant.slug: SAML_CONFIG},
+            ITAMBOX_TENANT_OIDC_CONFIGS={tenant.slug: OIDC_CONFIG},
+        ):
+            response = self.client.post(reverse("login_discover"), {"identifier": "person@acme.example"})
+
+        html = response.content.decode()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Sign in with OIDC", html)
+        self.assertIn("Sign in with SAML", html)
+        self.assertNotIn("Acme", html)
+        self.assertIn(reverse("saml2_login_tenant", kwargs={"tenant_slug": tenant.slug}), html)
+
 
 class LoginIdentifierFormTests(SimpleTestCase):
     def test_identifier_form_accepts_email_and_bare_username(self):
@@ -811,6 +831,61 @@ class LoginDiscoveryViewTests(SimpleTestCase):
         self.assertIn("Sign in with SAML", html)
         self.assertNotIn("Acme", html)
 
+    def test_choose_mode_focuses_first_provider_and_announces_politely(self):
+        with (
+            override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}}),
+            patch(
+                "core.views.auth.resolve_login_route",
+                return_value=SimpleNamespace(
+                    mode="choose",
+                    url=self.login_url,
+                    actions=({"protocol": "OIDC", "url": "/oidc/"}, {"protocol": "SAML", "url": "/saml/"}),
+                ),
+            ),
+        ):
+            response = self.client.post(self.url, {"identifier": "person@acme.example"})
+
+        html = response.content.decode()
+        self.assertEqual(self._autofocus_names(response), [])
+        self.assertEqual(html.count("autofocus"), 1)
+        self.assertRegex(html, r'<a href="/oidc/"[^>]*autofocus')
+        self.assertNotRegex(html, r'<a href="/saml/"[^>]*autofocus')
+        self.assertRegex(html, r'role="status"\s+aria-live="polite"')
+        self.assertIn("Several sign-in methods are available", html)
+
+    def test_live_region_is_empty_outside_choose_mode(self):
+        with override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}}):
+            response = self.client.post(self.url, {"identifier": "bare-user"})
+
+        self.assertNotIn("Several sign-in methods are available", response.content.decode())
+
+    def test_legacy_login_page_is_pinned_when_discovery_is_disabled(self):
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={}, ITAMBOX_TENANT_SAML_CONFIGS={}, ITAMBOX_TENANT_OIDC_CONFIGS={}
+        ):
+            html = self.client.get(self.login_url).content.decode()
+
+        self.assertNotIn('name="identifier"', html)
+        self.assertNotIn("login_discover", html)
+        self.assertNotIn(reverse("login_discover"), html)
+        self.assertNotIn("<details", html)
+        self.assertNotIn('role="status"', html)
+        self.assertEqual(html.count('action="%s"' % self.login_url), 1)
+        self.assertEqual([a or b for a, b in self._autofocus_pairs(html)], ["username"])
+        self.assertEqual(self._legacy_fingerprint(html), LEGACY_LOGIN_FINGERPRINT)
+
+    def _autofocus_pairs(self, html):
+        return re.findall(r'<input[^>]*name="(\w+)"[^>]*autofocus|<input[^>]*autofocus[^>]*name="(\w+)"', html)
+
+    def _legacy_fingerprint(self, html):
+        card = re.search(r"<form.*</form>", html, re.DOTALL)
+        self.assertIsNotNone(card)
+        body = re.sub(
+            r'name="csrfmiddlewaretoken" value="[^"]+"', 'name="csrfmiddlewaretoken" value="<t>"', card.group(0)
+        )
+        body = re.sub(r'nonce="[^"]+"', 'nonce="<n>"', body)
+        return hashlib.sha256(re.sub(r"\s+", " ", body).encode()).hexdigest()
+
     def test_unknown_bare_and_public_domain_answers_are_indistinguishable(self):
         answers = []
         mapping = {"acme": {"domains": ["acme.example"]}}
@@ -846,6 +921,26 @@ class TenantLoginDiscoveryChecksTests(SimpleTestCase):
             OIDC_OP_USER_ENDPOINT="https://global.example/userinfo",
             OIDC_OP_ISSUER="https://global.example/",
             OIDC_OP_JWKS_ENDPOINT="https://global.example/jwks",
+        ):
+            warnings = checks.check_tenant_login_discovery(None)
+
+        self.assertIn("core.W005", {warning.id for warning in warnings})
+
+    def test_default_saml_only_deployment_has_no_w005(self):
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}},
+            ITAMBOX_TENANT_SAML_CONFIGS={"default": SAML_CONFIG},
+            ITAMBOX_TENANT_OIDC_CONFIGS={},
+        ):
+            warnings = checks.check_tenant_login_discovery(None)
+
+        self.assertNotIn("core.W005", {warning.id for warning in warnings})
+
+    def test_default_saml_does_not_satisfy_an_oidc_only_mapping(self):
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"], "method": "oidc"}},
+            ITAMBOX_TENANT_SAML_CONFIGS={"default": SAML_CONFIG},
+            ITAMBOX_TENANT_OIDC_CONFIGS={},
         ):
             warnings = checks.check_tenant_login_discovery(None)
 
