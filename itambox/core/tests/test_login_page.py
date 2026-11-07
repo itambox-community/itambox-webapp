@@ -251,6 +251,18 @@ class LoginErrorPresentationTests(TestCase):
             msg="Django's default invalid_login message must not be rendered alongside the generic one.",
         )
 
+    def test_failed_local_login_with_discovery_opens_password_details(self):
+        with override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}}):
+            response = self.client.post(self.url, {"username": "alice", "password": "wrong"})
+
+        html = response.content.decode()
+        details = re.search(r"<details[^>]*>(.*?)</details>", html, re.DOTALL)
+        self.assertIsNotNone(details)
+        details_markup = details.group(0) if details else ""
+        self.assertRegex(details_markup, r"<details[^>]* open>")
+        self.assertRegex(details_markup, r'<input[^>]*name="username"')
+        self.assertRegex(details_markup, r'<input[^>]*name="password"')
+
     def test_unknown_username_and_wrong_password_are_indistinguishable(self):
         wrong_password = self.client.post(self.url, {"username": "alice", "password": "wrong"})
         unknown_user = self.client.post(self.url, {"username": "nobody", "password": "wrong"})
@@ -327,6 +339,30 @@ class LoginProviderEntryPointTests(TestCase):
         self.addCleanup(caches["default"].clear)
         self.url = reverse("login")
         self.tenant = Tenant.objects.create(name="Acme Corp", slug="acme")
+
+    def test_discovery_login_get_hides_tenant_provider_and_keeps_native_forms(self):
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}},
+            ITAMBOX_TENANT_SAML_CONFIGS={"acme": SAML_CONFIG},
+            ITAMBOX_TENANT_OIDC_CONFIGS={"acme": OIDC_CONFIG},
+        ):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertNotIn("Acme Corp", html)
+        self.assertNotIn("Sign in with Acme Corp", html)
+        self.assertEqual(response.context["sso_providers"], [])
+
+        details = re.search(r"<details[^>]*>(.*?)</details>", html, re.DOTALL)
+        self.assertIsNotNone(details)
+        details_markup = details.group(1) if details else ""
+        self.assertIn("Sign in with a password", details_markup)
+        self.assertRegex(details_markup, r'<input[^>]*name="username"')
+        self.assertRegex(details_markup, r'<input[^>]*name="password"')
+
+        discovery_action = reverse("login_discover")
+        self.assertIn('<form method="post" action="' + discovery_action + '">', html)
 
     def test_no_actions_when_no_provider_is_configured(self):
         response = self.client.get(self.url)

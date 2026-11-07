@@ -591,8 +591,15 @@ class LoginDiscoveryDatabaseTests(TestCase):
         self.assertEqual(answers[0][0], 302)
 
     def test_password_domain_matches_unknown_and_bare_answers_without_identity_queries(self):
-        identifiers = ("person@unknown.example", "bare-user", "person@acme.example")
+        get_user_model().objects.create_user(username="known", email="known@acme.example")
+        identifiers = (
+            "person@unknown.example",
+            "bare-user",
+            "known@acme.example",
+            "missing@acme.example",
+        )
         answers = []
+        query_counts = []
         route_settings = {
             "ITAMBOX_TENANT_LOGIN_DOMAINS": {"acme": {"domains": ["acme.example"]}},
             "ITAMBOX_TENANT_SAML_CONFIGS": {},
@@ -608,11 +615,15 @@ class LoginDiscoveryDatabaseTests(TestCase):
                     r'name="csrfmiddlewaretoken" value="[^"]+"', 'name="csrfmiddlewaretoken" value="<token>"', body
                 )
                 body = re.sub(r'nonce="[^"]+"', 'nonce="<nonce>"', body)
+                self.assertRegex(body, r"<details[^>]* open>")
                 answers.append((response.status_code, response.get("Location"), body))
+                query_counts.append(len(queries))
                 _assert_no_user_or_membership_queries(self, queries)
 
         self.assertEqual(answers[0], answers[1])
         self.assertEqual(answers[1], answers[2])
+        self.assertEqual(answers[2], answers[3])
+        self.assertEqual(query_counts[2], query_counts[3])
 
     def test_deleted_mapping_fails_closed_without_global_or_other_tenant_fallback(self):
         self.tenant.delete()
@@ -799,6 +810,7 @@ class LoginDiscoveryViewTests(SimpleTestCase):
             answers.append((response.status_code, response.get("Location"), body, len(queries)))
             _assert_no_user_or_membership_queries(self, queries)
             self.assertNotIn(identifier, body)
+            self.assertRegex(body, r"<details[^>]* open>")
 
         self.assertEqual(answers[0], answers[1])
         self.assertEqual(answers[1], answers[2])
