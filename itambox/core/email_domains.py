@@ -85,6 +85,13 @@ def normalize_domain(value):
         raise ValueError("must contain non-empty domain labels")
     if any(character.isspace() for character in domain) or any(character in domain for character in "@/:\\?#"):
         raise ValueError("must be a domain name, not an address or URL")
+    # The standard-library codec implements IDNA 2003, so nameprep folds ``ß``
+    # to ``ss`` (``straße.de`` and ``strasse.de`` normalise to the same label).
+    # This is intended: normalisation only routes the login page to a tenant's
+    # SSO action and never feeds credentials or account matching, and folding
+    # makes the visitor's spelling and the mapped spelling meet. Moving to
+    # IDNA 2008 would split those two spellings and needs its own
+    # compatibility note; do not switch codecs silently.
     try:
         domain = domain.encode("idna").decode("ascii").lower()
     except UnicodeError as exc:
