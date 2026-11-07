@@ -877,14 +877,14 @@ class LoginDiscoveryViewTests(SimpleTestCase):
         self.assertEqual(self._legacy_fingerprint(html), LEGACY_LOGIN_FINGERPRINT)
 
     def _autofocus_pairs(self, html):
-        return re.findall(
-            r'<input[^>]*name="(\w+)"[^>]*autofocus|<input[^>]*autofocus[^>]*name="(\w+)"', html
-        )
+        return re.findall(r'<input[^>]*name="(\w+)"[^>]*autofocus|<input[^>]*autofocus[^>]*name="(\w+)"', html)
 
     def _legacy_fingerprint(self, html):
         card = re.search(r"<form.*</form>", html, re.DOTALL)
         self.assertIsNotNone(card)
-        body = re.sub(r'name="csrfmiddlewaretoken" value="[^"]+"', 'name="csrfmiddlewaretoken" value="<t>"', card.group(0))
+        body = re.sub(
+            r'name="csrfmiddlewaretoken" value="[^"]+"', 'name="csrfmiddlewaretoken" value="<t>"', card.group(0)
+        )
         body = re.sub(r'nonce="[^"]+"', 'nonce="<n>"', body)
         return hashlib.sha256(re.sub(r"\s+", " ", body).encode()).hexdigest()
 
