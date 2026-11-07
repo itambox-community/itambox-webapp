@@ -55,7 +55,9 @@
                 <input type="hidden" name="next" value="{{ next }}">
               </form>
               <p class="visually-hidden" role="status" aria-live="polite">
-                {% if login_discovery_mode == "choose" and login_discovery_actions %}{% translate "Several sign-in methods are available. Choose one below." %}{% endif %}
+                {% if login_discovery_mode == "choose" and login_discovery_actions %}
+                  {% translate "Several sign-in methods are available. Choose one below." %}
+                {% endif %}
               </p>
               {% if login_discovery_mode == "choose" and login_discovery_actions %}
                 <div class="hr-text">{% translate "or" %}</div>
