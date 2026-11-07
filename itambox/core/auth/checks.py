@@ -62,7 +62,12 @@ def _configured_sso_slugs():
 
 def _configured_provider_types(slug):
     provider_types = set()
-    saml_config = _setting_mapping("ITAMBOX_TENANT_SAML_CONFIGS").get(slug)
+    saml_configs = _setting_mapping("ITAMBOX_TENANT_SAML_CONFIGS")
+    # The resolver lets a tenant without its own SAML entry inherit ``default``
+    # (it additionally requires a sole live tenant, which a startup check must
+    # not query the database for). Counting the inheritance here avoids a false
+    # W005 on a healthy single-tenant default-SAML install.
+    saml_config = saml_configs.get(slug, saml_configs.get(providers.DEFAULT_KEY))
     if saml_config is not None and providers._is_usable_saml_config(saml_config):
         provider_types.add(providers.SAML)
     oidc_config = _setting_mapping("ITAMBOX_TENANT_OIDC_CONFIGS").get(slug)

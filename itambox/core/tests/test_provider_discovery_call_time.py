@@ -851,6 +851,26 @@ class TenantLoginDiscoveryChecksTests(SimpleTestCase):
 
         self.assertIn("core.W005", {warning.id for warning in warnings})
 
+    def test_default_saml_only_deployment_has_no_w005(self):
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}},
+            ITAMBOX_TENANT_SAML_CONFIGS={"default": SAML_CONFIG},
+            ITAMBOX_TENANT_OIDC_CONFIGS={},
+        ):
+            warnings = checks.check_tenant_login_discovery(None)
+
+        self.assertNotIn("core.W005", {warning.id for warning in warnings})
+
+    def test_default_saml_does_not_satisfy_an_oidc_only_mapping(self):
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"], "method": "oidc"}},
+            ITAMBOX_TENANT_SAML_CONFIGS={"default": SAML_CONFIG},
+            ITAMBOX_TENANT_OIDC_CONFIGS={},
+        ):
+            warnings = checks.check_tenant_login_discovery(None)
+
+        self.assertIn("core.W005", {warning.id for warning in warnings})
+
     def test_mapped_tenant_provider_is_accepted_and_has_no_gate_warning(self):
         with override_settings(
             ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}},
