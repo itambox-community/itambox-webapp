@@ -675,6 +675,23 @@ class LoginDiscoveryDatabaseTests(TestCase):
         self.assertEqual(route.mode, "password")
         self.assertEqual(route.actions, ())
 
+    def test_choice_mode_through_real_resolver_exposes_protocol_only(self):
+        tenant = self.tenant
+        domains = {tenant.slug: {"domains": ["acme.example"]}}
+        with override_settings(
+            ITAMBOX_TENANT_LOGIN_DOMAINS=domains,
+            ITAMBOX_TENANT_SAML_CONFIGS={tenant.slug: SAML_CONFIG},
+            ITAMBOX_TENANT_OIDC_CONFIGS={tenant.slug: OIDC_CONFIG},
+        ):
+            response = self.client.post(reverse("login_discover"), {"identifier": "person@acme.example"})
+
+        html = response.content.decode()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Sign in with OIDC", html)
+        self.assertIn("Sign in with SAML", html)
+        self.assertNotIn("Acme", html)
+        self.assertIn(reverse("saml2_login_tenant", kwargs={"tenant_slug": tenant.slug}), html)
+
 
 class LoginIdentifierFormTests(SimpleTestCase):
     def test_identifier_form_accepts_email_and_bare_username(self):
@@ -688,8 +705,6 @@ class LoginIdentifierFormTests(SimpleTestCase):
 
 
 class LoginDiscoveryViewTests(SimpleTestCase):
-    databases = {"default"}
-
     def setUp(self):
         self.url = reverse("login_discover")
         self.login_url = reverse("login")
@@ -843,23 +858,6 @@ class LoginDiscoveryViewTests(SimpleTestCase):
             response = self.client.post(self.url, {"identifier": "bare-user"})
 
         self.assertNotIn("Several sign-in methods are available", response.content.decode())
-
-    def test_choice_mode_through_real_resolver_exposes_protocol_only(self):
-        tenant = Tenant.objects.create(name="Acme Corp", slug="acme")
-        domains = {tenant.slug: {"domains": ["acme.example"]}}
-        with override_settings(
-            ITAMBOX_TENANT_LOGIN_DOMAINS=domains,
-            ITAMBOX_TENANT_SAML_CONFIGS={tenant.slug: SAML_CONFIG},
-            ITAMBOX_TENANT_OIDC_CONFIGS={tenant.slug: OIDC_CONFIG},
-        ):
-            response = self.client.post(self.url, {"identifier": "person@acme.example"})
-
-        html = response.content.decode()
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Sign in with OIDC", html)
-        self.assertIn("Sign in with SAML", html)
-        self.assertNotIn("Acme", html)
-        self.assertIn(reverse("saml2_login_tenant", kwargs={"tenant_slug": tenant.slug}), html)
 
     def test_legacy_login_page_is_pinned_when_discovery_is_disabled(self):
         with override_settings(
