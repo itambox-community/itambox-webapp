@@ -45,6 +45,44 @@
                   <div>{% translate "You are already logged in." %}</div>
                 </div>
               </div>
+            {% elif login_discovery_enabled %}
+              <form method="post" action="{% url 'login_discover' %}">
+                {% csrf_token %}
+                {{ identifier_form.identifier|as_crispy_field }}
+                <div class="form-footer">
+                  <button type="submit" class="btn btn-primary w-100">{% translate "Continue" %}</button>
+                </div>
+                <input type="hidden" name="next" value="{{ next }}">
+              </form>
+              {% if login_discovery_mode == "choose" and login_discovery_actions %}
+                <div class="hr-text">{% translate "or" %}</div>
+                <nav class="d-grid gap-2"
+                     aria-label="{% translate 'Single sign-on providers' %}">
+                  {% for action in login_discovery_actions %}
+                    <a href="{{ action.url }}"
+                       class="btn btn-outline-primary w-100"
+                       rel="nofollow">
+                      <i class="mdi mdi-shield-key-outline me-1" aria-hidden="true"></i>
+                      {% blocktranslate with provider_name=action.protocol %}Sign in with {{ provider_name }}{% endblocktranslate %}
+                    </a>
+                  {% endfor %}
+                </nav>
+              {% endif %}
+              <details class="mt-3"
+                       {% if login_discovery_mode == "password" or form.is_bound or form.errors %} open{% endif %}>
+                <summary>{% translate "Sign in with a password" %}</summary>
+                <form method="post"
+                      action="{% url 'login' %}"
+                      {% if form.non_field_errors %} aria-describedby="login-form-errors"{% endif %}>
+                  {% csrf_token %}
+                  {{ form.username|as_crispy_field }}
+                  {{ form.password|as_crispy_field }}
+                  <div class="form-footer">
+                    <button type="submit" class="btn btn-primary w-100">{% translate "Sign in" %}</button>
+                  </div>
+                  <input type="hidden" name="next" value="{{ next }}">
+                </form>
+              </details>
             {% else %}
               <form method="post"
                     action="{% url 'login' %}"

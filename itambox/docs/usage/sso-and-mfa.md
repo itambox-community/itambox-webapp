@@ -24,6 +24,42 @@ Each tenant can use a **different identity provider type**:
 | `gamma-inc` | OIDC | `ITAMBOX_TENANT_OIDC_CONFIGS` |
 | `delta-co` | Local only | (no SSO config — falls back to password login) |
 
+### Login-page discovery from email domains
+
+The optional `ITAMBOX_TENANT_LOGIN_DOMAINS` setting maps exact email domains to
+tenant slugs. It is only a login-page resolver; it does not change the SAML or
+OIDC entry points or authentication backends.
+
+```json
+{
+  "alpha-corp": {
+    "domains": ["alpha-corp.com", "alpha.example.com"],
+    "method": "oidc"
+  }
+}
+```
+
+Each `domains` value is normalized to lowercase IDNA form and must be unique
+across tenants. Public email domains, malformed domains, duplicate domains,
+unsupported entry keys, and methods other than `oidc` or `saml` are rejected at startup.
+`method` is optional; when set, only that protocol may be selected. Discovery
+is enabled when the mapping is non-empty. An unset or empty mapping preserves
+the current login page.
+
+With discovery enabled, a visitor enters an email address or username. A live
+mapped tenant with one usable tenant-bound provider redirects to that provider;
+multiple usable providers are offered with neutral protocol labels. Unknown or
+public domains, usernames without an email domain, deleted tenants, and missing
+or unusable providers use the local password form instead. The identifier is
+not looked up against users or memberships, and is not sent as an OIDC
+`login_hint`. The password form remains available without JavaScript.
+
+The configuration check warns when a mapped slug has no usable tenant SSO
+provider, when a tenant SSO provider has no mapped domain while discovery is
+enabled, or when multiple tenants share the same configured OIDC issuer or SAML
+metadata identity. The resolver reads the tenant by slug from the live tenant
+table on each request and fails closed for missing or soft-deleted tenants.
+
 > [!IMPORTANT]
 > SSO backends are **additive**: they participate in the authentication chain
 > alongside the password backend. A tenant with no SSO configuration simply
