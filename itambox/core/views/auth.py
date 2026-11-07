@@ -57,8 +57,9 @@ def _login_page_context(
         "login_discovery_enabled": discovery_enabled,
         "sso_providers": sso_providers,
     }
+    provider_focus = route is not None and route.mode == "choose" and bool(route.actions)
     if discovery_enabled:
-        _move_focus(login_form, identifier_form, credentials=credentials_focus)
+        _move_focus(login_form, identifier_form, credentials=credentials_focus, provider=provider_focus)
     if route is not None:
         context["login_discovery_mode"] = route.mode
         context["login_discovery_actions"] = route.actions
@@ -67,11 +68,18 @@ def _login_page_context(
     return context
 
 
-def _move_focus(login_form, identifier_form, *, credentials):
-    """Keep exactly one autofocus target on the discovery login page."""
+def _move_focus(login_form, identifier_form, *, credentials, provider=False):
+    """Keep exactly one autofocus target on the discovery login page.
+
+    With ``provider`` the target is the first provider action, which the
+    template marks itself; both inputs then carry no autofocus.
+    """
     username = login_form.fields["username"].widget.attrs
     identifier = identifier_form.fields["identifier"].widget.attrs
-    if credentials:
+    if provider:
+        username.pop("autofocus", None)
+        identifier.pop("autofocus", None)
+    elif credentials:
         identifier.pop("autofocus", None)
         username["autofocus"] = True
     else:
