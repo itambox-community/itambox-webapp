@@ -35,12 +35,36 @@ class ITAMboxLoginView(auth_views.LoginView):
         # ``get_redirect_url()`` returns '' for a missing or unsafe ``next``, so
         # only a validated same-origin destination is ever handed to a provider.
         discovery_enabled = login_domains_configured()
-        context["login_discovery_enabled"] = discovery_enabled
-        context["identifier_form"] = LoginIdentifierForm()
-        if discovery_enabled:
-            _move_focus(context["form"], context["identifier_form"], credentials=context["form"].is_bound)
-        context["sso_providers"] = [] if discovery_enabled else get_login_providers(self.get_redirect_url())
+        context.update(
+            _login_page_context(
+                context["form"],
+                LoginIdentifierForm(),
+                discovery_enabled=discovery_enabled,
+                credentials_focus=context["form"].is_bound,
+                sso_providers=[] if discovery_enabled else get_login_providers(self.get_redirect_url()),
+            )
+        )
         return context
+
+
+def _login_page_context(
+    login_form, identifier_form, *, discovery_enabled, credentials_focus, sso_providers, route=None, next_url=None
+):
+    """Build the login page context shared by the login and discovery views."""
+    context = {
+        "form": login_form,
+        "identifier_form": identifier_form,
+        "login_discovery_enabled": discovery_enabled,
+        "sso_providers": sso_providers,
+    }
+    if discovery_enabled:
+        _move_focus(login_form, identifier_form, credentials=credentials_focus)
+    if route is not None:
+        context["login_discovery_mode"] = route.mode
+        context["login_discovery_actions"] = route.actions
+    if next_url is not None:
+        context["next"] = next_url
+    return context
 
 
 def _move_focus(login_form, identifier_form, *, credentials):
@@ -79,21 +103,16 @@ class LoginDiscoveryView(RedirectURLMixin, View):
         return self._render_login(request, LoginIdentifierForm(), route, credentials_focus=route.mode == "password")
 
     def _render_login(self, request, identifier_form, route, credentials_focus=False):
-        login_form = LoginForm(request)
-        _move_focus(login_form, identifier_form, credentials=credentials_focus)
-        return render(
-            request,
-            self.template_name,
-            {
-                "form": login_form,
-                "identifier_form": identifier_form,
-                "login_discovery_enabled": True,
-                "login_discovery_mode": route.mode,
-                "login_discovery_actions": route.actions,
-                "next": self.get_redirect_url(),
-                "sso_providers": [],
-            },
+        context = _login_page_context(
+            LoginForm(request),
+            identifier_form,
+            discovery_enabled=True,
+            credentials_focus=credentials_focus,
+            sso_providers=[],
+            route=route,
+            next_url=self.get_redirect_url(),
         )
+        return render(request, self.template_name, context)
 
 
 class TenantSamlLoginView(djangosaml2_views.LoginView):
