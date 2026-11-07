@@ -714,6 +714,23 @@ class LoginDiscoveryViewTests(SimpleTestCase):
 
         self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
 
+    def _autofocus_names(self, response):
+        return re.findall(
+            r'<input[^>]*name="(\w+)"[^>]*autofocus|<input[^>]*autofocus[^>]*name="(\w+)"', response.content.decode()
+        )
+
+    def test_exactly_one_autofocus_target_per_discovery_state(self):
+        domains = {"acme": {"domains": ["acme.example"]}}
+        with override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS=domains):
+            initial = self.client.get(self.login_url)
+            with patch("django.contrib.auth.forms.authenticate", return_value=None):
+                failed = self.client.post(self.login_url, {"username": "x", "password": "y"})
+            password_mode = self.client.post(self.url, {"identifier": "bare-user"})
+        for response, expected in ((initial, "identifier"), (failed, "username"), (password_mode, "username")):
+            with self.subTest(expected=expected):
+                found = [a or b for a, b in self._autofocus_names(response)]
+                self.assertEqual(found, [expected])
+
     def test_invalid_identifier_form_renders_password_login_without_resolving(self):
         with (
             override_settings(ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}}),
@@ -881,13 +898,25 @@ class TenantLoginDiscoveryChecksTests(SimpleTestCase):
             "west": {"entityid": "https://west.example/sp", "metadata": metadata},
         }
         with override_settings(
-            ITAMBOX_TENANT_LOGIN_DOMAINS={},
+            ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}},
             ITAMBOX_TENANT_SAML_CONFIGS=saml_configs,
             ITAMBOX_TENANT_OIDC_CONFIGS={},
         ):
             warnings = checks.check_tenant_login_discovery(None)
 
         self.assertIn("core.W007", {warning.id for warning in warnings})
+
+    def test_duplicate_idp_check_is_silent_when_discovery_is_not_configured(self):
+        for domains in ({}, None):
+            with self.subTest(domains=domains):
+                with override_settings(
+                    ITAMBOX_TENANT_LOGIN_DOMAINS=domains,
+                    ITAMBOX_TENANT_SAML_CONFIGS={},
+                    ITAMBOX_TENANT_OIDC_CONFIGS={"north": OIDC_CONFIG, "west": OIDC_CONFIG},
+                ):
+                    warnings = checks.check_tenant_login_discovery(None)
+
+                self.assertNotIn("core.W007", {warning.id for warning in warnings})
 
     def test_saml_method_mapping_reports_unclaimed_sso_and_duplicate_identity(self):
         saml_configs = {
@@ -929,7 +958,11 @@ class TenantLoginDiscoveryChecksTests(SimpleTestCase):
 
     def test_duplicate_oidc_identity_without_resolved_issuer_is_ignored(self):
         with (
-            override_settings(ITAMBOX_TENANT_OIDC_CONFIGS={"north": OIDC_CONFIG}, ITAMBOX_TENANT_SAML_CONFIGS={}),
+            override_settings(
+                ITAMBOX_TENANT_LOGIN_DOMAINS={"acme": {"domains": ["acme.example"]}},
+                ITAMBOX_TENANT_OIDC_CONFIGS={"north": OIDC_CONFIG},
+                ITAMBOX_TENANT_SAML_CONFIGS={},
+            ),
             patch.object(providers, "is_usable_oidc_config", return_value=True),
             patch.object(providers, "_resolve_oidc_setting", return_value=""),
         ):

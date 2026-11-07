@@ -37,8 +37,22 @@ class ITAMboxLoginView(auth_views.LoginView):
         discovery_enabled = login_domains_configured()
         context["login_discovery_enabled"] = discovery_enabled
         context["identifier_form"] = LoginIdentifierForm()
+        if discovery_enabled:
+            _move_focus(context["form"], context["identifier_form"], credentials=context["form"].is_bound)
         context["sso_providers"] = [] if discovery_enabled else get_login_providers(self.get_redirect_url())
         return context
+
+
+def _move_focus(login_form, identifier_form, *, credentials):
+    """Keep exactly one autofocus target on the discovery login page."""
+    username = login_form.fields["username"].widget.attrs
+    identifier = identifier_form.fields["identifier"].widget.attrs
+    if credentials:
+        identifier.pop("autofocus", None)
+        username["autofocus"] = True
+    else:
+        username.pop("autofocus", None)
+        identifier["autofocus"] = True
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -62,14 +76,16 @@ class LoginDiscoveryView(RedirectURLMixin, View):
         route = resolve_login_route(identifier_form.cleaned_data["identifier"], self.get_redirect_url())
         if route.mode == "redirect" and route.url:
             return HttpResponseRedirect(route.url)
-        return self._render_login(request, LoginIdentifierForm(), route)
+        return self._render_login(request, LoginIdentifierForm(), route, credentials_focus=route.mode == "password")
 
-    def _render_login(self, request, identifier_form, route):
+    def _render_login(self, request, identifier_form, route, credentials_focus=False):
+        login_form = LoginForm(request)
+        _move_focus(login_form, identifier_form, credentials=credentials_focus)
         return render(
             request,
             self.template_name,
             {
-                "form": LoginForm(request),
+                "form": login_form,
                 "identifier_form": identifier_form,
                 "login_discovery_enabled": True,
                 "login_discovery_mode": route.mode,

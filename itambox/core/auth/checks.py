@@ -72,6 +72,8 @@ def _configured_provider_types(slug):
 
 
 def _duplicate_idp_warnings():
+    if not login_domains_configured():
+        return []
     identities = {}
     for slug, config in _setting_mapping("ITAMBOX_TENANT_OIDC_CONFIGS").items():
         if slug == providers.DEFAULT_KEY or not providers.is_usable_oidc_config(config):
