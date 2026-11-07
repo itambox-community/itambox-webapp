@@ -394,6 +394,19 @@ configuration. The authorization URL is:
 https://<your-instance>/oidc/authenticate/<tenant_slug>/
 ```
 
+### Authentik OIDC provider
+
+When you create the OAuth2/OpenID provider in Authentik through its API (or any
+automation), set `grant_types` explicitly to `["authorization_code", "refresh_token"]`.
+A provider created without it stores an empty list. Authentik then rejects the
+authorize request with `invalid_request` ("The request is otherwise malformed")
+and redirects straight back to the callback, so the login page reloads and the SSO
+button appears to do nothing. ITAMbox logs no error because it never receives a
+valid response.
+
+Register the shared callback URL from [Callback URLs](#callback-urls) as the
+redirect URI of the provider.
+
 ### Token Validation
 
 The backend enforces additional checks beyond what `mozilla-django-oidc`
@@ -571,6 +584,20 @@ ITAMbox constructs.
   the IdP sends assertions to.
 - Verify `ITAMBOX_BASE_URL` is set correctly in `.env` — it is used to
   construct absolute URLs when `base_url` is not explicitly configured.
+
+### SSO Button Does Nothing (Authentik OIDC)
+
+**Symptom:** Pressing the OIDC sign-in button returns you to the login page
+without an error, and ITAMbox logs nothing.
+
+**Cause:** The Authentik OAuth2/OpenID provider has an empty `grant_types` list,
+which happens when the provider is created through the API without that field.
+Authentik rejects the authorize request with `invalid_request` and redirects to
+the callback without a usable authorization code.
+
+**Fix:** Set the provider's `grant_types` to
+`["authorization_code", "refresh_token"]` and try again. See
+[Authentik OIDC provider](#authentik-oidc-provider).
 
 ### Certificate Expiry
 
