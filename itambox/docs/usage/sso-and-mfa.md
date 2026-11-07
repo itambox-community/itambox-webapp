@@ -60,6 +60,16 @@ enabled, or when multiple tenants share the same configured OIDC issuer or SAML
 metadata identity. The resolver reads the tenant by slug from the live tenant
 table on each request and fails closed for missing or soft-deleted tenants.
 
+> [!WARNING]
+> Discovery redirects every identifier at a mapped domain to the tenant's
+> identity provider **before** any password check. A local account whose email
+> address is at a mapped domain, such as a break-glass superuser
+> `admin@alpha-corp.com`, can no longer sign in with that address: the
+> identifier goes to the IdP, which does not know the local account. Sign in
+> with the bare username instead (`admin`, without the domain). A bare
+> username, a public domain, or an unmapped domain opens the password form. Keep
+> at least one local superuser reachable this way before you enable discovery.
+
 > [!IMPORTANT]
 > SSO backends are **additive**: they participate in the authentication chain
 > alongside the password backend. A tenant with no SSO configuration simply
