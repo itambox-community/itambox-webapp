@@ -1,6 +1,7 @@
 """#1052 regression: a TaskContext setup failure must not leave the import Job pending."""
 
 import pytest
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.utils import timezone
 
 from core.models import Job, Notification
@@ -12,14 +13,16 @@ from core.tests.mixins import TenantTestMixin
 class TestImportSetupFailure(TenantTestMixin):
     def _run(self):
         job = Job.objects.create(name="Bulk Import", tenant=self.tenant, status=Job.STATUS_PENDING)
-        import_csv_task(
-            job_id=job.pk,
-            rows_data=[{"name": "Acme", "slug": "acme"}],
-            app_label="assets",
-            model_name="manufacturer",
-            user_id=self.tenant_user.pk,
-            tenant_id=self.tenant.pk,
-        )
+        # The setup failure still propagates so the worker records it.
+        with pytest.raises((ObjectDoesNotExist, PermissionDenied)):
+            import_csv_task(
+                job_id=job.pk,
+                rows_data=[{"name": "Acme", "slug": "acme"}],
+                app_label="assets",
+                model_name="manufacturer",
+                user_id=self.tenant_user.pk,
+                tenant_id=self.tenant.pk,
+            )
         job.refresh_from_db()
         return job
 
