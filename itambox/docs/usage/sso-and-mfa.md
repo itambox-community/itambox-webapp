@@ -79,6 +79,16 @@ enabled, or when multiple tenants share the same configured OIDC issuer or SAML
 metadata identity. The resolver reads the tenant by slug from the live tenant
 table on each request and fails closed for missing or soft-deleted tenants.
 
+> [!WARNING]
+> Discovery redirects every identifier at a mapped domain to the tenant's
+> identity provider **before** any password check. A local account whose email
+> address is at a mapped domain, such as a break-glass superuser
+> `admin@alpha-corp.com`, can no longer sign in with that address: the
+> identifier goes to the IdP, which does not know the local account. Sign in
+> with the bare username instead (`admin`, without the domain). A bare
+> username, a public domain, or an unmapped domain opens the password form. Keep
+> at least one local superuser reachable this way before you enable discovery.
+
 > [!IMPORTANT]
 > SSO backends are **additive**: they participate in the authentication chain
 > alongside the password backend. A tenant with no SSO configuration simply
@@ -340,6 +350,15 @@ for the tenant (see above).
 > rejected (`allow_unsolicited: false`). Only relax these if your IdP does
 > not support signed assertions — and only after a security review.
 
+### Authentik SAML provider
+
+ITAMbox requires a signed SAML response by default (`want_response_signed` is
+`true`, see [Security Defaults](#security-defaults)). On the Authentik SAML
+provider, set both `sign_assertion=True` and `sign_response=True`. The provider's
+`sign_response` option is `False` unless you set it, so a provider that signs
+only the assertion fails ITAMbox's check. ITAMbox shows no error in this case:
+the SAML round trip ends without a logged-in session.
+
 ---
 
 ## OIDC Configuration
@@ -412,6 +431,19 @@ configuration. The authorization URL is:
 ```
 https://<your-instance>/oidc/authenticate/<tenant_slug>/
 ```
+
+### Authentik OIDC provider
+
+When you create the OAuth2/OpenID provider in Authentik through its API (or any
+automation), set `grant_types` explicitly to `["authorization_code", "refresh_token"]`.
+A provider created without it stores an empty list. Authentik then rejects the
+authorize request with `invalid_request` ("The request is otherwise malformed")
+and redirects straight back to the callback, so the login page reloads and the SSO
+button appears to do nothing. ITAMbox logs no error because it never receives a
+valid response.
+
+Register the shared callback URL from [Callback URLs](#callback-urls) as the
+redirect URI of the provider.
 
 ### Token Validation
 
@@ -607,6 +639,20 @@ ITAMbox constructs.
 - Verify `ITAMBOX_BASE_URL` is set correctly in `.env` — it is used to
   construct absolute URLs when `base_url` is not explicitly configured.
 
+### SSO Button Does Nothing (Authentik OIDC)
+
+**Symptom:** Pressing the OIDC sign-in button returns you to the login page
+without an error, and ITAMbox logs nothing.
+
+**Cause:** The Authentik OAuth2/OpenID provider has an empty `grant_types` list,
+which happens when the provider is created through the API without that field.
+Authentik rejects the authorize request with `invalid_request` and redirects to
+the callback without a usable authorization code.
+
+**Fix:** Set the provider's `grant_types` to
+`["authorization_code", "refresh_token"]` and try again. See
+[Authentik OIDC provider](#authentik-oidc-provider).
+
 ### Certificate Expiry
 
 **Symptom:** SAML or OIDC authentication suddenly fails with signature
@@ -681,6 +727,17 @@ logged in.
 **Fix:** Set `can_login = True` on the user's profile. This flag is checked
 by all SSO backends (LDAP, SAML, OIDC) after successful authentication and
 before returning the user object. It is a separate axis from `is_active`.
+
+### SAML Round Trip Ends Without a Session (Authentik)
+
+**Symptom:** The SAML login returns to ITAMbox but you are not signed in, and
+ITAMbox shows no error.
+
+**Cause:** The Authentik SAML provider signs the assertion but not the response,
+while ITAMbox requires a signed response (`want_response_signed: true`).
+
+**Fix:** Set both `sign_assertion=True` and `sign_response=True` on the
+Authentik SAML provider. See [Authentik SAML provider](#authentik-saml-provider).
 
 ### SAML Assertion Not Signed
 

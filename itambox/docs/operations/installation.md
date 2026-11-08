@@ -350,4 +350,7 @@ curl -I https://itam.example.com/health/
 
 Replace the example host with the configured external URL, then sign in with the superuser created during initialization.
 
+!!! warning "Break-glass superuser and login discovery"
+    If you enable `ITAMBOX_TENANT_LOGIN_DOMAINS`, an identifier at a mapped domain is redirected to the tenant's identity provider before any password check. Do not sign in as a local superuser with an email address at a mapped domain (for example `admin@alpha-corp.com`); enter the bare username (`admin`) instead. See [SSO and MFA](../usage/sso-and-mfa.md#login-page-discovery-from-email-domains).
+
 Next, establish a tested [backup and restore](backup-restore.md) process before loading production data. Follow the [upgrade guide](upgrades.md) for later source revisions.
