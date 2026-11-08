@@ -3,6 +3,7 @@ from collections.abc import Mapping, Sequence
 from typing import cast
 
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
@@ -67,6 +68,51 @@ def _log_updated(job, form):
     return updated
 
 
+def _fail_job_after_setup_error(job_id, user_id, tenant_id, exc):
+    """Fail the pending job and notify the actor when TaskContext setup was refused."""
+    extra = _task_log_extra(
+        operation="task.setup",
+        tenant_id=tenant_id,
+        actor_id=user_id,
+        exception_type=type(exc).__name__,
+    )
+    logger.error("Asynchronous import setup failed import_context=%s", extra["import_context"], extra=extra)
+    # unscoped: the context that would scope this lookup is the one that failed to set up
+    job = Job._base_manager.filter(pk=job_id).first()
+    if job is None or job.status != Job.STATUS_PENDING:
+        return
+    job.mark_failed(IMPORT_ABORT_MESSAGE)
+    if user_id is None:
+        return
+    # unscoped: the actor may be inactive or its access revoked, which is why setup failed
+    actor = get_user_model()._base_manager.filter(pk=user_id, is_active=True).first()
+    if actor is None:
+        return
+    Notification.objects.create(
+        user=actor,
+        subject=_("Bulk Import Error"),
+        message=_("A system error occurred during the import. View job logs for details."),
+        level=Notification.LEVEL_DANGER,
+        target_url=reverse_job_detail(job.pk),
+    )
+
+
+class _ImportTaskContext(TaskContext):
+    """TaskContext that fails the import Job when setup is refused, so it never stays pending."""
+
+    def __init__(self, *, job_id, **kwargs):
+        super().__init__(**kwargs)
+        self._job_id = job_id
+
+    def __enter__(self):
+        try:
+            return super().__enter__()
+        except Exception as exc:
+            # broad except: cleanup-reraise: record the failure on the Job before worker-level propagation
+            _fail_job_after_setup_error(self._job_id, self.user_id, self.tenant_id, exc)
+            raise
+
+
 def import_csv_task(
     job_id: int,
     rows_data: Sequence[Mapping[str, object]],
@@ -79,7 +125,7 @@ def import_csv_task(
     Asynchronously imports parsed CSV/YAML rows into a target model
     using the dynamic BulkImportForm schema inside database transactions.
     """
-    with TaskContext(tenant_id=tenant_id, user_id=user_id) as ctx:
+    with _ImportTaskContext(job_id=job_id, tenant_id=tenant_id, user_id=user_id) as ctx:
         try:
             try:
                 job = Job.objects.get(pk=job_id)
