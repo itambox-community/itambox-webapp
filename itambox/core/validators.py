@@ -9,12 +9,28 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 
+def _is_globally_routable(ip):
+    """True only for a publicly routable address.
+
+    Rejects everything that is not global instead of enumerating dangerous
+    ranges, so shared address space (100.64.0.0/10, e.g. Alibaba metadata at
+    100.100.100.200) and ranges nobody listed are refused too. An IPv4-mapped
+    IPv6 address is judged by its embedded IPv4 address, since the
+    classification of ::ffff:0:0/96 differs between Python versions.
+    """
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
+    return ip.is_global and not ip.is_multicast
+
+
 def validate_external_url(url, allow_private=False):
     """
     SSRF guard for user/tenant-configured outbound URLs (webhooks, notification
     channels). Rejects non-HTTP(S) schemes and any URL whose host resolves to a
-    loopback, link-local (incl. cloud metadata 169.254.169.254), private,
-    reserved, multicast or unspecified address.
+    address that is not globally routable (loopback, link-local incl. cloud
+    metadata 169.254.169.254, private, CGNAT shared space, reserved, multicast,
+    unspecified).
 
     Resolution is performed here and the caller should connect to the validated
     address; re-validate at send time to limit DNS-rebinding exposure.
@@ -57,14 +73,7 @@ def validate_external_url(url, allow_private=False):
         resolved.append(ip)
         if allow_private:
             continue
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-            or ip.is_unspecified
-        ):
+        if not _is_globally_routable(ip):
             raise ValidationError(_("URL host resolves to a disallowed internal address (%(ip)s).") % {"ip": str(ip)})
     return resolved
 
