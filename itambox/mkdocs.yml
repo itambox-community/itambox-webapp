@@ -186,6 +186,10 @@ nav:
           - Testing a Plugin: 'plugins/testing.md'
           - Plugin Migrations: 'plugins/migrations.md'
   - Security: 'security/deployment-security.md'
+  - Policies:
+      - Compatibility: 'policies/compatibility.md'
+      - Support: 'policies/support.md'
+      - Upgrade: 'policies/upgrade.md'
   - API Reference:
       - REST & GraphQL: 'integration/developer_guide.md'
       - Plugin API Reference: 'plugins/api_reference.md'

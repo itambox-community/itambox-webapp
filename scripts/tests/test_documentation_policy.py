@@ -153,6 +153,7 @@ class NavigationPolicyTest(unittest.TestCase):
                         "models/",
                         "integration/",
                         "plugins/",
+                        "policies/",
                         "security/",
                     )
                 ),
