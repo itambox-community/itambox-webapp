@@ -120,6 +120,44 @@ proposed for repair as `TenantResourceGrant` payloads via `--proposals`.
 
 ## 6. Rate limiting or client-IP confusion
 
+### `429 Too many requests` on `/accounts/login/` for everyone
+
+**Symptom:** the login page (or a login submit) returns the plain-text
+response `Too many requests. Please try again in a minute.` with status 429,
+for several users at once, after only a handful of attempts. With SSO the
+button appears to do nothing: the SSO entry is on the login page, which is
+itself throttled, so the redirect to the identity provider never happens.
+There is no ITAMbox error page and no SSO error.
+
+**Cause:** login throttling keys on the resolved client address. If your
+reverse proxy does not forward the client address in a way ITAMbox reads, every
+request resolves to the proxy's own address and all clients share one bucket
+(5 requests per 60 seconds by default).
+
+**Confirm:** inspect the throttle keys in the cache (shown for the Valkey/Redis
+backend; use the database number from `ITAMBOX_REDIS_URL`, default `1`):
+
+```bash
+valkey-cli -n 1 --scan --pattern '*ratelimit_*'
+```
+
+Keys look like `:1:ratelimit_<client-ip>_/accounts/login/`. If several users
+sign in from different machines but only one key appears, and its address is
+your proxy (a private or container-network address), that confirms the shared
+bucket. Distinct public addresses per user mean this is not your problem. With
+`locmem` the counters are per process and cannot be listed from outside; switch
+to the shared backend first (see below).
+
+**Fix:** make the proxy append the real client address to `X-Forwarded-For`,
+then set `ITAMBOX_RATELIMIT_USE_X_FORWARDED_FOR=True` and
+`ITAMBOX_RATELIMIT_NUM_PROXIES` to the number of trusted proxies. Wait for the
+window (60 seconds) to expire before retesting. Supported topologies and the
+consequences of giving up client-based throttling are in
+[Deployment Security](../security/deployment-security.md#reverse-proxies-that-do-not-forward-the-client-address).
+For SSO symptoms see [SSO & MFA](../usage/sso-and-mfa.md#sso-button-does-nothing-login-returns-429).
+
+### Other rate-limit symptoms
+
 - 429s for legitimate users behind a proxy — enable
   `ITAMBOX_RATELIMIT_USE_X_FORWARDED_FOR=True` **only** when every request
   goes through your trusted proxy, and set `ITAMBOX_RATELIMIT_NUM_PROXIES` to
