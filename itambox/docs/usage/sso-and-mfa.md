@@ -607,6 +607,22 @@ but have not yet verified:
 
 ## Troubleshooting SSO
 
+### SSO Button Does Nothing, Login Returns 429
+
+**Symptom:** clicking the SSO button on the login page has no effect, or the
+login page itself answers `429 Too many requests`; no IdP redirect occurs and
+there is no ITAMbox error.
+
+**Cause:** login throttling is keyed on the client address. Behind a reverse
+proxy that does not forward the client address, all users share one throttle
+bucket, so a few attempts block everybody before the authorize redirect can
+happen. This is not an IdP or SSO configuration fault.
+
+**Fix:** see
+[Rate limiting behind a reverse proxy](../security/deployment-security.md#reverse-proxies-that-do-not-forward-the-client-address)
+and the
+[troubleshooting checklist](../operations/troubleshooting.md#6-rate-limiting-or-client-ip-confusion).
+
 ### Redirect URI Mismatch
 
 **Symptom:** IdP returns an error like "The redirect URI is not registered"
