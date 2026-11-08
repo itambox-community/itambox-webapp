@@ -6,6 +6,10 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Security
+
+- GraphQL: `Asset.supplier` and `LicenseNode.supplier` now return `null` unless the caller holds `assets.view_supplier`, so a role that can see an asset or license no longer reads the supplier's account ID, portal URL and notes through a nested selection.
+
 ## [1.0.0-rc.2] - 2026-11-05
 
 ### Security

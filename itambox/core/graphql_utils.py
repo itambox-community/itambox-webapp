@@ -1,7 +1,6 @@
 import logging
 
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from core.managers import Scope
@@ -78,26 +77,6 @@ def check_permission(info, perm, obj=None):
     if not user.has_perm(perm, obj=obj):
         raise PermissionDenied(_("Permission denied."))
     return user
-
-
-def get_object_or_denied(model, pk, user, tenant=None):
-    try:
-        qs = model.objects.all()
-        if tenant and hasattr(model, "tenant"):
-            if getattr(model, "allow_global_tenant", False):
-                # Models that intentionally share global (tenant=None) rows across
-                # tenants (e.g. the tenant-scopable Supplier catalogue) declare
-                # allow_global_tenant. The scoped manager already limits
-                # tenant_group visibility to the caller's groups, so narrowing to
-                # the active tenant plus the shared global rows preserves that
-                # semantics without widening the scope.
-                qs = qs.filter(Q(tenant=tenant) | Q(tenant__isnull=True))
-            else:
-                qs = qs.filter(tenant=tenant)
-        obj = qs.get(pk=pk)
-        return obj
-    except model.DoesNotExist:
-        raise PermissionDenied(_("Permission denied.")) from None
 
 
 def generate_slug(instance):

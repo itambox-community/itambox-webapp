@@ -224,10 +224,18 @@ class AssetTypeNode:
 )
 class AssetNode:
     asset_role: AssetRoleNode | None
+    # Decision (#1049): status and location stay open to anyone who can see the
+    # asset. They expose only names, slugs, a colour and a description, nothing
+    # a role would be denied on purpose. Supplier is gated below.
     status: StatusLabelNode | None
     location: LocationNode | None
     tenant: TenantNode | None
-    supplier: SupplierNode | None
+
+    @strawberry.field
+    def supplier(self, info: strawberry.Info) -> SupplierNode | None:
+        if not has_global_permission(info, "assets.view_supplier"):
+            return None
+        return self.supplier
 
     @strawberry.field
     def asset_type(self, info: strawberry.Info) -> AssetTypeNode | None:
