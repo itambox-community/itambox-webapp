@@ -3,6 +3,7 @@ from collections.abc import Mapping, Sequence
 from typing import cast
 
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
@@ -79,118 +80,159 @@ def import_csv_task(
     Asynchronously imports parsed CSV/YAML rows into a target model
     using the dynamic BulkImportForm schema inside database transactions.
     """
-    with TaskContext(tenant_id=tenant_id, user_id=user_id) as ctx:
+    context_entered = False
+    try:
+        with TaskContext(tenant_id=tenant_id, user_id=user_id) as ctx:
+            context_entered = True
+            _run_import(job_id, rows_data, app_label, model_name, user_id, tenant_id, ctx)
+    except Exception as exc:
+        # broad except: task-isolation: a setup failure must not leave the job pending
+        if context_entered:
+            raise
+        _fail_job_after_setup_error(job_id, user_id, tenant_id, exc)
+
+
+def _fail_job_after_setup_error(job_id, user_id, tenant_id, exc):
+    """Fail the pending job and notify the actor when TaskContext setup was refused."""
+    extra = _task_log_extra(
+        operation="task.setup",
+        tenant_id=tenant_id,
+        actor_id=user_id,
+        exception_type=type(exc).__name__,
+    )
+    logger.error("Asynchronous import setup failed import_context=%s", extra["import_context"], extra=extra)
+    # unscoped: the context that would scope this lookup is the one that failed to set up
+    job = Job._base_manager.filter(pk=job_id).first()
+    if job is None or job.status != Job.STATUS_PENDING:
+        return
+    job.mark_failed(IMPORT_ABORT_MESSAGE)
+    if user_id is None:
+        return
+    # unscoped: the actor may be inactive or its access revoked, which is why setup failed
+    actor = get_user_model()._base_manager.filter(pk=user_id, is_active=True).first()
+    if actor is None:
+        return
+    Notification.objects.create(
+        user=actor,
+        subject=_("Bulk Import Error"),
+        message=_("A system error occurred during the import. View job logs for details."),
+        level=Notification.LEVEL_DANGER,
+        target_url=reverse_job_detail(job.pk),
+    )
+
+
+def _run_import(job_id, rows_data, app_label, model_name, user_id, tenant_id, ctx):
+    try:
         try:
-            try:
-                job = Job.objects.get(pk=job_id)
-            except Job.DoesNotExist:
-                logger.error(f"Job {job_id} not found during async import.")
-                return
+            job = Job.objects.get(pk=job_id)
+        except Job.DoesNotExist:
+            logger.error(f"Job {job_id} not found during async import.")
+            return
 
-            if not job.mark_running():
-                logger.info("Job %s is no longer pending (cancelled?); skipping import.", job_id)
-                return
-            job.append_log("Initializing asynchronous import pipeline...")
-            job.append_log(f"Target model: {app_label}.{model_name} | Row Count: {len(rows_data)}")
+        if not job.mark_running():
+            logger.info("Job %s is no longer pending (cancelled?); skipping import.", job_id)
+            return
+        job.append_log("Initializing asynchronous import pipeline...")
+        job.append_log(f"Target model: {app_label}.{model_name} | Row Count: {len(rows_data)}")
 
-            try:
-                model = ContentType.objects.get(app_label=app_label, model=model_name).model_class()
-                if not model:
-                    raise ValidationError(
-                        _("Target model %(app_label)s.%(model_name)s could not be resolved.")
-                        % {"app_label": app_label, "model_name": model_name}
-                    )
+        try:
+            model = ContentType.objects.get(app_label=app_label, model=model_name).model_class()
+            if not model:
+                raise ValidationError(
+                    _("Target model %(app_label)s.%(model_name)s could not be resolved.")
+                    % {"app_label": app_label, "model_name": model_name}
+                )
 
-                ImportFormClass = _authorized_import_form_class(model, ctx.user)
+            ImportFormClass = _authorized_import_form_class(model, ctx.user)
 
-                form = ImportFormClass()
-                form._rows_data = rows_data
-                # Updates are authorized per object against the importing actor.
-                form.actor = ctx.user
+            form = ImportFormClass()
+            form._rows_data = rows_data
+            # Updates are authorized per object against the importing actor.
+            form.actor = ctx.user
 
-                job.append_log("Validating and importing records inside transaction...")
+            job.append_log("Validating and importing records inside transaction...")
 
-                with transaction.atomic():
-                    imported_count, errors = form.import_data()
+            with transaction.atomic():
+                imported_count, errors = form.import_data()
 
+            job.append_log(
+                ngettext(
+                    "Import finished. Successfully imported %(count)s record.",
+                    "Import finished. Successfully imported %(count)s records.",
+                    imported_count,
+                )
+                % {"count": imported_count}
+            )
+
+            skipped = _log_skipped(job, form)
+            updated = _log_updated(job, form)
+
+            if errors:
                 job.append_log(
                     ngettext(
-                        "Import finished. Successfully imported %(count)s record.",
-                        "Import finished. Successfully imported %(count)s records.",
-                        imported_count,
+                        "Encountered %(count)s error during processing:",
+                        "Encountered %(count)s errors during processing:",
+                        len(errors),
                     )
-                    % {"count": imported_count}
+                    % {"count": len(errors)}
                 )
+                for err in errors:
+                    job.append_log(f" - {err}")
 
-                skipped = _log_skipped(job, form)
-                updated = _log_updated(job, form)
-
-                if errors:
-                    job.append_log(
-                        ngettext(
-                            "Encountered %(count)s error during processing:",
-                            "Encountered %(count)s errors during processing:",
-                            len(errors),
-                        )
-                        % {"count": len(errors)}
+                if imported_count == 0 and not updated:
+                    job.mark_failed("All records failed to import due to validation errors.")
+                    Notification.objects.create(
+                        user=ctx.user,
+                        subject=_("Bulk Import Failed"),
+                        message=_("Failed to import CSV/YAML data to %(model)s. View job logs for details.")
+                        % {"model": model._meta.verbose_name_plural},
+                        level=Notification.LEVEL_DANGER,
+                        target_url=reverse_job_detail(job.pk),
                     )
-                    for err in errors:
-                        job.append_log(f" - {err}")
+                    return
 
-                    if imported_count == 0 and not updated:
-                        job.mark_failed("All records failed to import due to validation errors.")
-                        Notification.objects.create(
-                            user=ctx.user,
-                            subject=_("Bulk Import Failed"),
-                            message=_("Failed to import CSV/YAML data to %(model)s. View job logs for details.")
-                            % {"model": model._meta.verbose_name_plural},
-                            level=Notification.LEVEL_DANGER,
-                            target_url=reverse_job_detail(job.pk),
-                        )
-                        return
+            result = {"imported": imported_count, "failed": len(errors), "total": len(rows_data)}
+            result.update({"skipped": len(skipped)} if skipped else {})
+            result.update({"updated": len(updated)} if updated else {})
+            job.mark_completed(result=result)
 
-                result = {"imported": imported_count, "failed": len(errors), "total": len(rows_data)}
-                result.update({"skipped": len(skipped)} if skipped else {})
-                result.update({"updated": len(updated)} if updated else {})
-                job.mark_completed(result=result)
-
-                Notification.objects.create(
-                    user=ctx.user,
-                    subject=_("Bulk Import Complete"),
-                    message=ngettext(
-                        "Successfully imported %(count)s record to %(model)s.",
-                        "Successfully imported %(count)s records to %(model)s.",
-                        imported_count,
-                    )
-                    % {"count": imported_count, "model": model._meta.verbose_name_plural},
-                    level=Notification.LEVEL_SUCCESS,
-                    target_url=reverse_job_detail(job.pk),
+            Notification.objects.create(
+                user=ctx.user,
+                subject=_("Bulk Import Complete"),
+                message=ngettext(
+                    "Successfully imported %(count)s record to %(model)s.",
+                    "Successfully imported %(count)s records to %(model)s.",
+                    imported_count,
                 )
+                % {"count": imported_count, "model": model._meta.verbose_name_plural},
+                level=Notification.LEVEL_SUCCESS,
+                target_url=reverse_job_detail(job.pk),
+            )
 
-            except Exception as exc:
-                # broad except: task-isolation: task aborts must leave a safe job result and notification
-                extra = _task_log_extra(
-                    operation="task.run",
-                    tenant_id=tenant_id,
-                    actor_id=user_id,
-                    exception_type=type(exc).__name__,
-                )
-                logger.error("Asynchronous import aborted import_context=%s", extra["import_context"], extra=extra)
-                job.mark_failed(IMPORT_ABORT_MESSAGE)
-                Notification.objects.create(
-                    user=ctx.user,
-                    subject=_("Bulk Import Error"),
-                    message=_("A system error occurred during the import. View job logs for details."),
-                    level=Notification.LEVEL_DANGER,
-                    target_url=reverse_job_detail(job.pk),
-                )
         except Exception as exc:
-            # broad except: cleanup-reraise: record safe task context before worker-level propagation
+            # broad except: task-isolation: task aborts must leave a safe job result and notification
             extra = _task_log_extra(
-                operation="task.cleanup",
+                operation="task.run",
                 tenant_id=tenant_id,
                 actor_id=user_id,
                 exception_type=type(exc).__name__,
             )
-            logger.error("Asynchronous import cleanup failed import_context=%s", extra["import_context"], extra=extra)
-            raise
+            logger.error("Asynchronous import aborted import_context=%s", extra["import_context"], extra=extra)
+            job.mark_failed(IMPORT_ABORT_MESSAGE)
+            Notification.objects.create(
+                user=ctx.user,
+                subject=_("Bulk Import Error"),
+                message=_("A system error occurred during the import. View job logs for details."),
+                level=Notification.LEVEL_DANGER,
+                target_url=reverse_job_detail(job.pk),
+            )
+    except Exception as exc:
+        # broad except: cleanup-reraise: record safe task context before worker-level propagation
+        extra = _task_log_extra(
+            operation="task.cleanup",
+            tenant_id=tenant_id,
+            actor_id=user_id,
+            exception_type=type(exc).__name__,
+        )
+        logger.error("Asynchronous import cleanup failed import_context=%s", extra["import_context"], extra=extra)
+        raise
