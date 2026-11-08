@@ -46,6 +46,25 @@ unsupported entry keys, and methods other than `oidc` or `saml` are rejected at 
 is enabled when the mapping is non-empty. An unset or empty mapping preserves
 the current login page.
 
+> [!WARNING]
+> A non-empty mapping hides **every** SSO button on the login page, not only
+> those of the mapped tenants. Tenants without a mapped domain, deployment-wide
+> OIDC (configured in the Django settings) and a `default` SAML entry get no
+> button any more; their users can only sign in by entering an address whose
+> domain is mapped, or with a password. Map every tenant that should keep SSO
+> before enabling discovery (the configuration check warns about unclaimed
+> tenant SSO), and leave the setting empty when you rely on deployment-wide
+> OIDC, on a `default` SAML entry, or when tenants share email domains that
+> cannot be mapped one-to-one. Discovery is then the wrong choice and the
+> classic button list stays in place.
+
+Domain matching uses the IDNA 2003 codec of the Python standard library, so `ß`
+folds to `ss`: a domain mapped as `straße.de` also matches a visitor typing
+`strasse.de`, and the reverse. This only affects which login action is offered,
+never credentials or account matching, so the folding is intended. IDNA 2008
+would treat the two spellings as different domains; switching would be a
+compatibility change and is not done silently.
+
 With discovery enabled, a visitor enters an email address or username. A live
 mapped tenant with one usable tenant-bound provider redirects to that provider;
 multiple usable providers are offered with neutral protocol labels. Unknown or

@@ -54,6 +54,11 @@
                 </div>
                 <input type="hidden" name="next" value="{{ next }}">
               </form>
+              <p class="visually-hidden" role="status" aria-live="polite">
+                {% if login_discovery_mode == "choose" and login_discovery_actions %}
+                  {% translate "Several sign-in methods are available. Choose one below." %}
+                {% endif %}
+              </p>
               {% if login_discovery_mode == "choose" and login_discovery_actions %}
                 <div class="hr-text">{% translate "or" %}</div>
                 <nav class="d-grid gap-2"
@@ -61,7 +66,8 @@
                   {% for action in login_discovery_actions %}
                     <a href="{{ action.url }}"
                        class="btn btn-outline-primary w-100"
-                       rel="nofollow">
+                       rel="nofollow"
+                       {% if forloop.first %}autofocus{% endif %}>
                       <i class="mdi mdi-shield-key-outline me-1" aria-hidden="true"></i>
                       {% blocktranslate with provider_name=action.protocol %}Sign in with {{ provider_name }}{% endblocktranslate %}
                     </a>
