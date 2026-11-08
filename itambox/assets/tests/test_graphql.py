@@ -132,8 +132,7 @@ class GraphQLTestCase(TestCase):
         # Create Tokens
         self.token_a = Token.objects.create(user=self.staff_a, tenant=self.tenant_a)
         self.token_b = Token.objects.create(user=self.staff_b, tenant=self.tenant_b)
-        # Admin token: used in tests that require a superuser context so that
-        # get_object_or_denied() runs without an active_tenant filter (superusers
+        # Admin token: used in tests that require a superuser context (superusers
         # have no forced tenant context when no session tenant is selected).
         self.token_admin = Token.objects.create(user=self.admin_user, tenant=self.tenant_a)
 
@@ -162,10 +161,7 @@ class GraphQLTestCase(TestCase):
             tenant=self.tenant_a,
             location=self.location_a,
         )
-        # Tenant-owned so that get_object_or_denied(Software, ..., tenant=tenant_a)
-        # can find it (the function adds an extra .filter(tenant=tenant) on top of
-        # the TenantScopingSoftDeleteManager queryset, which would exclude a
-        # global/null-tenant entry when active_tenant=tenant_a).
+        # Tenant-owned so that it is visible under active_tenant=tenant_a.
         self.software = Software.objects.create(name="Slack", manufacturer=self.manufacturer, tenant=self.tenant_a)
         self.license_a = License.objects.create(
             name="Slack Entitlement A", software=self.software, tenant=self.tenant_a, seats=5
