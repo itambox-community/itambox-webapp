@@ -3,6 +3,7 @@ from __future__ import annotations
 import strawberry
 import strawberry_django
 
+from assets.graphql_specifications.integration import has_global_permission
 from assets.schema import SupplierNode, TenantNode
 from core.graphql_choice_enums import choice_enum
 from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
@@ -48,8 +49,13 @@ LicenseTypeChoices = choice_enum(License, "license_type")
 class LicenseNode:
     software: SoftwareNode
     license_type: LicenseTypeChoices
-    supplier: SupplierNode | None
     tenant: TenantNode | None
+
+    @strawberry.field
+    def supplier(self, info: strawberry.Info) -> SupplierNode | None:
+        if not has_global_permission(info, "assets.view_supplier"):
+            return None
+        return self.supplier
 
 
 @strawberry.type
