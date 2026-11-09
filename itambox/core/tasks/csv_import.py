@@ -36,8 +36,10 @@ def _task_log_extra(*, operation, tenant_id, actor_id, exception_type=None):
 
 def _authorized_import_form_class(model: type[models.Model], actor: object) -> type[forms.Form]:
     form_class = cast(type[forms.Form], get_import_form_class(model))
+    # Unconditional: a form without its own hook inherits BulkImportForm.can_import,
+    # and a form class lacking one fails closed instead of skipping the check.
     can_import = getattr(form_class, "can_import", None)
-    if can_import is not None and not can_import(actor):
+    if can_import is None or not can_import(actor):
         raise PermissionDenied("The actor is not authorized to import this model.")
     return form_class
 
