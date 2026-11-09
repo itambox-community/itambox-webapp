@@ -64,6 +64,9 @@ _COMPONENT_RELATED = ("manufacturer", "category", "tenant")
     fields=["id", "name", "slug", "part_number", "min_qty", "allow_overallocate", "created_at", "updated_at"],
 )
 class AccessoryNode:
+    # Decision (#1067): manufacturer and category stay open to anyone who can
+    # see the item (names, slugs, colour, description only). Category's
+    # specification definitions are gated on CategoryNode.
     manufacturer: ManufacturerNode
     category: CategoryNode | None
     tenant: TenantNode | None
@@ -81,6 +84,9 @@ class AccessoryNode:
     fields=["id", "name", "slug", "part_number", "min_qty", "allow_overallocate", "created_at", "updated_at"],
 )
 class ConsumableNode:
+    # Decision (#1067): manufacturer and category stay open to anyone who can
+    # see the item (names, slugs, colour, description only). Category's
+    # specification definitions are gated on CategoryNode.
     manufacturer: ManufacturerNode
     category: CategoryNode | None
     tenant: TenantNode | None
@@ -97,6 +103,9 @@ class KitNode:
     fields=["id", "name", "slug", "part_number", "allow_overallocate", "created_at", "updated_at"],
 )
 class ComponentNode:
+    # Decision (#1067): manufacturer and category stay open to anyone who can
+    # see the item (names, slugs, colour, description only). Category's
+    # specification definitions are gated on CategoryNode.
     manufacturer: ManufacturerNode
     category: CategoryNode | None
     tenant: TenantNode | None

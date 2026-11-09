@@ -41,6 +41,8 @@ SoftwareLicenseTypeChoices = choice_enum(Software, "license_type")
     ],
 )
 class SoftwareNode:
+    # Decision (#1067): manufacturer stays open to anyone who can see the
+    # software (name, slug, description only).
     manufacturer: ManufacturerNode
     category: SoftwareCategoryChoices | None
     license_type: SoftwareLicenseTypeChoices | None
