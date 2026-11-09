@@ -1,6 +1,9 @@
+from types import SimpleNamespace
+
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
+from assets.graphql_specifications.integration import has_global_permission
 from assets.models import Category, Manufacturer
 from core.schema import schema
 from core.tests.mixins import grant
@@ -69,3 +72,31 @@ class SoftwareRelationGateTests(TestCase):
 
     def test_manufacturer_software_products_listed_with_software_permission(self):
         self.assertEqual([p["name"] for p in self._manufacturer_products(self.allowed)], ["Gate Suite"])
+
+
+class _CountingUser:
+    is_authenticated = True
+
+    def __init__(self):
+        self.calls = 0
+
+    def has_perm(self, perm):
+        self.calls += 1
+        return perm == "software.view_software"
+
+
+class GlobalPermissionMemoTests(TestCase):
+    def test_permission_is_resolved_once_per_context(self):
+        user = _CountingUser()
+        info = SimpleNamespace(context=SimpleNamespace(user=user))
+        for _ in range(3):
+            self.assertTrue(has_global_permission(info, "software.view_software"))
+        self.assertFalse(has_global_permission(info, "assets.view_asset"))
+        self.assertEqual(user.calls, 2)
+
+    def test_mapping_context_is_not_memoized(self):
+        user = _CountingUser()
+        info = SimpleNamespace(context={"user": user})
+        self.assertTrue(has_global_permission(info, "software.view_software"))
+        self.assertTrue(has_global_permission(info, "software.view_software"))
+        self.assertEqual(user.calls, 2)

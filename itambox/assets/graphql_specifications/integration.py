@@ -123,18 +123,10 @@ def has_global_permission(info: object, permission: str) -> bool:
     rows repeats the membership lookup N times (the page-size query budget).
     """
     user = authenticated_user(info)
-    context = getattr(info, "context", None)
-    memo = None
-    if context is not None and not isinstance(context, Mapping):
-        memo = getattr(context, "_global_permission_memo", None)
-        if memo is None:
-            memo = {}
-            try:
-                context._global_permission_memo = memo
-            except AttributeError:
-                memo = None
-    if memo is None:
+    state = getattr(getattr(info, "context", None), "__dict__", None)
+    if state is None:
         return bool(user.has_perm(permission))
+    memo = state.setdefault("_global_permission_memo", {})
     key = (id(user), permission)
     if key not in memo:
         memo[key] = bool(user.has_perm(permission))
