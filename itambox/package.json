@@ -49,7 +49,7 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "@mdi/font": "^7.4.47",
-    "@tabler/core": "^1.6.1",
+    "@tabler/core": "^1.7.3",
     "bootstrap": "^5.3.3",
     "echarts": "^6.1.0",
     "gridstack": "^14.0.0",
