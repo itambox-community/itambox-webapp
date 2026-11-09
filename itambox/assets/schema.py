@@ -159,6 +159,11 @@ class CategoryNode:
 
     @strawberry.field
     def default_fieldsets(self, info: strawberry.Info) -> list[SpecificationFieldsetType]:
+        # Decision (#1067): fieldset definitions decide which fields exist on
+        # assets, so they need ``extras.view_customfield`` like the
+        # ``specificationFields`` root. List type is non-nullable: return [].
+        if not has_global_permission(info, "extras.view_customfield"):
+            return []
         loader = request_loader_for_info(info)
         return cast(
             list[SpecificationFieldsetType],
@@ -182,6 +187,10 @@ class CategoryNode:
     ],
 )
 class AssetTypeNode:
+    # Decision (#1067): manufacturer, depreciation, category and asset_role stay
+    # open to anyone who can see the asset type. They expose only names, slugs,
+    # a colour, a description (depreciation: a month count), nothing a role
+    # would be denied on purpose. Specification definitions are gated below.
     manufacturer: ManufacturerNode
     depreciation: DepreciationNode | None
     category: CategoryNode | None
@@ -193,6 +202,9 @@ class AssetTypeNode:
 
     @strawberry.field
     def fieldsets(self, info: strawberry.Info) -> list[SpecificationFieldsetType]:
+        # Decision (#1067): same gate as ``CategoryNode.default_fieldsets``.
+        if not has_global_permission(info, "extras.view_customfield"):
+            return []
         return fieldsets_for_type(request_loader_for_info(info), int(self.pk))
 
     @strawberry.field

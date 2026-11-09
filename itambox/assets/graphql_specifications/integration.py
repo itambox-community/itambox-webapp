@@ -51,6 +51,7 @@ from organization.services.access_scope import (
 )
 
 from .loaders import RequestScopedSpecificationLoader
+from .permissions import authenticated_user, has_global_permission
 from .readers import fields_for_fieldset, issues_for_entries, issues_for_missing_required
 from .types import FieldsetView, UserErrorType
 
@@ -93,44 +94,6 @@ class ScopeReadView:
 
 _MAX_PAGE_SIZE = 100
 _DEFAULT_PAGE_SIZE = 50
-
-
-def authenticated_user(info: object) -> object:
-    context = getattr(info, "context", None)
-    if context is None:
-        raise GraphQLError(
-            "Authentication credentials were not provided.",
-            extensions={"code": "UNAUTHENTICATED"},
-        )
-    if isinstance(context, Mapping):
-        user = context.get("user")
-    else:
-        user = getattr(context, "user", None)
-        if user is None:
-            user = getattr(getattr(context, "request", None), "user", None)
-    if user is None or not getattr(user, "is_authenticated", False):
-        raise GraphQLError(
-            "Authentication credentials were not provided.",
-            extensions={"code": "UNAUTHENTICATED"},
-        )
-    return user
-
-
-def has_global_permission(info: object, permission: str) -> bool:
-    """Return whether the caller holds ``permission``, memoized per request context.
-
-    Field resolvers call this once per parent row; without the memo a list of N
-    rows repeats the membership lookup N times (the page-size query budget).
-    """
-    user = authenticated_user(info)
-    state = getattr(getattr(info, "context", None), "__dict__", None)
-    if state is None:
-        return bool(user.has_perm(permission))
-    memo = state.setdefault("_global_permission_memo", {})
-    key = (id(user), permission)
-    if key not in memo:
-        memo[key] = bool(user.has_perm(permission))
-    return memo[key]
 
 
 def require_global_permission(info: object, permission: str) -> object:
