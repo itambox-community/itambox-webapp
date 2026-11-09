@@ -325,9 +325,17 @@ $action-bar-fab-size: 56px;
             padding: 0 !important;
         }
 
-        // Profile action: padded card, text truncates instead of widening
+        // Profile action: padded card, text truncates instead of widening.
+        // The item must shrink below its content width, otherwise a long
+        // display name pushes the brand and the brand is what gives way.
+        .mobile-topbar-profile {
+            min-width: 0;
+            flex-shrink: 1;
+        }
+
         .nav-item > .nav-link.p-0 {
             max-width: 10rem;
+            min-width: 0;
             padding: 0.25rem 0.5rem !important;
 
             > div {
