@@ -41,6 +41,26 @@ class TestKitImport(TenantTestMixin):
         job.refresh_from_db()
         return job
 
+    def test_revoked_add_permission_stops_queued_create(self):
+        """#1054: the worker rechecks add_kit, so a revoked grant cannot create."""
+        self._setup(permissions=("inventory.change_kit", "inventory.add_kititem"))
+        job = self._run([{"name": "Revoked", "items": f"accessory:{self.mouse.slug}"}])
+        assert job.status == Job.STATUS_FAILED, job.logs
+        assert not Kit.objects.filter(name="Revoked").exists()
+        assert not KitItem.objects.exists()
+
+    def test_revoked_add_permission_stops_queued_create_without_items(self):
+        self._setup(permissions=("inventory.change_kit",))
+        job = self._run([{"name": "RevokedBare"}])
+        assert job.status == Job.STATUS_FAILED, job.logs
+        assert not Kit.objects.filter(name="RevokedBare").exists()
+
+    def test_intact_add_permission_still_creates(self):
+        self._setup(permissions=BASE_PERMS)
+        job = self._run([{"name": "Allowed", "items": f"accessory:{self.mouse.slug}"}])
+        assert job.status == Job.STATUS_COMPLETED, job.logs
+        assert Kit.objects.get(name="Allowed").items.count() == 1
+
     def test_form_is_registered(self):
         assert get_registered_import_form(Kit) is KitBulkImportForm
 
