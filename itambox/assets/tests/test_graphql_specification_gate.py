@@ -4,12 +4,15 @@ from django.test import RequestFactory, TestCase
 
 from assets.models import AssetType, Category, CategoryDefaultFieldset, Manufacturer
 from assets.models.catalog import AssetTypeFieldset
-from core.schema import schema
+from core.schema import build_schema
 from core.tests.mixins import grant
 from extras.models import CustomField, CustomFieldChoice, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField
 from inventory.models import Accessory, Component, Consumable
 from itambox.middleware import set_current_tenant
 from organization.models import AssetHolder, Role, Tenant
+
+# The budgets are the endpoint contract; resolver gating is tested without them.
+schema = build_schema(extensions=[])
 
 BASE = ["assets.view_assettype", "inventory.view_accessory", "inventory.view_consumable", "inventory.view_component"]
 FIELD = "extras.view_customfield"
