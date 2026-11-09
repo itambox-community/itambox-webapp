@@ -22,7 +22,7 @@ CATEGORY_PATHS = {
     "assetTypes": "query { assetTypes(first: 10) { edges { node { category { defaultFieldsets { identity } } } } } }",
 }
 TYPE_FIELDSETS = "query { assetTypes(first: 10) { edges { node { fieldsets { identity } } } } }"
-CHOICE_SET = "query { assetTypes(first: 10) { edges { node { fieldsets { fields { key choiceSet { identity } } } } } } }"
+CHOICE_SET = "query { assetTypes(first: 1) { edges { node { fieldsets { fields { key choiceSet { identity } } } } } } }"
 
 
 class SpecificationGateTests(TestCase):
