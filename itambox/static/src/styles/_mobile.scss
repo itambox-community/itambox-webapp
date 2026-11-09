@@ -304,6 +304,37 @@ $action-bar-fab-size: 56px;
     }
 
     .mobile-topbar-actions {
+        // One box model for every action: same height, same radius, so the
+        // active highlight reads as one shape family. The p-0/px-0 utilities
+        // on the anchors are !important, hence the !important padding here.
+        $topbar-action-size: 2.5rem;
+
+        .workspace-switcher--compact,
+        .nav-item > .nav-link {
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: $topbar-action-size;
+            border-radius: var(--itambox-radius, 8px);
+        }
+
+        // Icon-only action (bell): fixed square target, no .nav-link padding
+        .nav-item > .nav-link.px-0:not(.p-0) {
+            width: $topbar-action-size;
+            padding: 0 !important;
+        }
+
+        // Profile action: padded card, text truncates instead of widening
+        .nav-item > .nav-link.p-0 {
+            max-width: 10rem;
+            padding: 0.25rem 0.5rem !important;
+
+            > div {
+                min-width: 0;
+            }
+        }
+
         .nav-link:hover,
         .nav-link:active {
             background-color: transparent !important;
@@ -313,7 +344,7 @@ $action-bar-fab-size: 56px;
         .nav-link:focus-visible {
             outline: 2px solid var(--tblr-primary);
             outline-offset: 2px;
-            border-radius: var(--tblr-border-radius);
+            border-radius: var(--itambox-radius, 8px);
         }
 
         .nav-item.show > .nav-link,
@@ -321,7 +352,7 @@ $action-bar-fab-size: 56px;
         .nav-link.active {
             background-color: var(--tblr-primary-lt) !important;
             color: var(--tblr-primary) !important;
-            border-radius: var(--tblr-border-radius);
+            border-radius: var(--itambox-radius, 8px);
         }
     }
 
