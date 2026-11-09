@@ -47,9 +47,16 @@ LicenseTypeChoices = choice_enum(License, "license_type")
     ],
 )
 class LicenseNode:
-    software: SoftwareNode
     license_type: LicenseTypeChoices
     tenant: TenantNode | None
+
+    @strawberry.field
+    def software(self, info: strawberry.Info) -> SoftwareNode | None:
+        # Decision (#1055): the license entry point does not authorize the
+        # software record; the direct software roots require this permission.
+        if not has_global_permission(info, "software.view_software"):
+            return None
+        return self.software
 
     @strawberry.field
     def supplier(self, info: strawberry.Info) -> SupplierNode | None:

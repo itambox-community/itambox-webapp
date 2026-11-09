@@ -9,6 +9,7 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Security
 
 - GraphQL supplier relations on assets, licenses, accessories and subscriptions now return `null` unless the caller holds `assets.view_supplier`. A subscription assignment's subscription relation also returns `null` without `subscriptions.view_subscription`, so assignment access alone no longer exposes subscription details.
+- GraphQL: `LicenseNode.software` now returns `null` and `ManufacturerNode.softwareProducts` returns an empty list unless the caller holds `software.view_software`; holding the license or asset-type entry-point permission no longer reveals the software catalogue. `LicenseNode.software` is now nullable in the published schema (#1055).
 
 ## [1.0.0-rc.2] - 2026-11-05
 

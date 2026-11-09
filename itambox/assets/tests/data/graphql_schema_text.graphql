@@ -272,7 +272,6 @@ type KitNode {
 }
 
 type LicenseNode {
-  software: SoftwareNode!
   licenseType: LicensesLicenseLicenseTypeChoices!
   tenant: TenantNode
   id: ID!
@@ -291,6 +290,7 @@ type LicenseNode {
 
   """For term licenses or maintenance"""
   expirationDate: Date
+  software: SoftwareNode
   supplier: SupplierNode
 }
 

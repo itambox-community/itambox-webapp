@@ -94,7 +94,13 @@ class AssetRoleNode:
 )
 class ManufacturerNode:
     @strawberry.field
-    def software_products(self) -> list[Annotated["SoftwareNode", strawberry.lazy("software.schema")]]:
+    def software_products(
+        self, info: strawberry.Info
+    ) -> list[Annotated["SoftwareNode", strawberry.lazy("software.schema")]]:
+        # Decision (#1055): the list type is non-nullable, so a caller without
+        # the software view permission gets an empty list, not None.
+        if not has_global_permission(info, "software.view_software"):
+            return []
         # The related manager applies no ambient scope (Software uses an
         # explicit-scope manager), so scope here exactly like the flat
         # ``softwareList`` resolver does. A request-scoped prefetch (see
