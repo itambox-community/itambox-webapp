@@ -59,11 +59,15 @@ class SubscriptionNode:
         return self.supplier
 
     @strawberry.field
-    def cost_center_id(self) -> strawberry.ID | None:
+    def cost_center_id(self, info: strawberry.Info) -> strawberry.ID | None:
+        if not has_global_permission(info, "organization.view_costcenter"):
+            return None
         return self.cost_center_id
 
     @strawberry.field
-    def cost_center_name(self) -> str | None:
+    def cost_center_name(self, info: strawberry.Info) -> str | None:
+        if not has_global_permission(info, "organization.view_costcenter"):
+            return None
         return str(self.cost_center) if self.cost_center_id else None
 
     @strawberry.field(deprecation_reason="Use vendorContractAutoRenews; autoRenewal is removed in 2.0.")
