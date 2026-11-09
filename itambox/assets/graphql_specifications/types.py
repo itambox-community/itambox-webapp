@@ -32,6 +32,7 @@ from .readers import (
     UninterpretedSpecificationValue,
     specification_value_for_entry,
 )
+from .permissions import has_global_permission
 from .scalars import CursorScalar, DateScalar, DecimalScalar, JSONScalar, SafeInteger
 
 
@@ -133,9 +134,6 @@ class SpecificationFieldNode:
         # Decision (#1067): choice sets are configuration data with their own
         # permission; the parent's permission does not authorise them. The
         # type is nullable, so a caller without it gets None. ``self`` is the DTO.
-        # inline import: cycle: assets.graphql_specifications.integration imports this module
-        from .integration import has_global_permission
-
         if not has_global_permission(info, "extras.view_customfieldchoiceset"):
             return None
         return self.choice_set  # type: ignore[attr-defined,no-any-return]
