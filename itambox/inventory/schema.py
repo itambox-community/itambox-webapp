@@ -3,6 +3,7 @@ from __future__ import annotations
 import strawberry
 import strawberry_django
 
+from assets.graphql_specifications.integration import has_global_permission
 from assets.schema import CategoryNode, ManufacturerNode, SupplierNode, TenantNode
 from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
 
@@ -65,8 +66,13 @@ _COMPONENT_RELATED = ("manufacturer", "category", "tenant")
 class AccessoryNode:
     manufacturer: ManufacturerNode
     category: CategoryNode | None
-    supplier: SupplierNode | None
     tenant: TenantNode | None
+
+    @strawberry.field
+    def supplier(self, info: strawberry.Info) -> SupplierNode | None:
+        if not has_global_permission(info, "assets.view_supplier"):
+            return None
+        return self.supplier
 
 
 @strawberry_django.type(
