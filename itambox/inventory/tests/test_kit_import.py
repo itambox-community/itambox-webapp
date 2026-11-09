@@ -2,12 +2,13 @@
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 
 from assets.models import AssetType, Manufacturer
 from assets.services import checkout_kit
-from core.importers.bulk_forms import get_registered_import_form
+from core.importers.bulk_forms import BulkImportForm, get_registered_import_form
 from core.models import Job
+from core.tasks import csv_import
 from core.tasks.csv_import import import_csv_task
 from core.tests.mixins import TenantTestMixin
 from inventory.forms.import_forms import KitBulkImportForm, _declared_entries, _parse_entry
@@ -54,6 +55,18 @@ class TestKitImport(TenantTestMixin):
         job = self._run([{"name": "RevokedBare"}])
         assert job.status == Job.STATUS_FAILED, job.logs
         assert not Kit.objects.filter(name="RevokedBare").exists()
+
+    def test_can_import_denies_missing_actor_and_modelless_form(self):
+        self._setup()
+        assert KitBulkImportForm.can_import(None) is False
+        assert KitBulkImportForm.can_import(self.tenant_user) is True
+        assert BulkImportForm.can_import(self.tenant_user) is False
+
+    def test_worker_refuses_a_form_without_the_hook(self, monkeypatch):
+        self._setup()
+        monkeypatch.setattr(csv_import, "get_import_form_class", lambda model: object)
+        with pytest.raises(PermissionDenied):
+            csv_import._authorized_import_form_class(Kit, self.tenant_user)
 
     def test_intact_add_permission_still_creates(self):
         self._setup(permissions=BASE_PERMS)
