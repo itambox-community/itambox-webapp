@@ -33,7 +33,7 @@
     "esbuild": "^0.28.1",
     "eslint": "^10.14.0",
     "globals": "^17.13.0",
-    "graphiql": "^5.4.0",
+    "graphiql": "^6.0.0",
     "openapi-fetch": "0.17.0",
     "openapi-typescript": "6.7.6",
     "postcss": "^8.5.26",
