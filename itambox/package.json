@@ -52,7 +52,7 @@
     "@tabler/core": "^1.7.3",
     "bootstrap": "^5.3.3",
     "echarts": "^6.1.0",
-    "gridstack": "^14.0.0",
+    "gridstack": "^14.1.0",
     "html5-qrcode": "^2.3.8",
     "htmx.org": "^2.0.10",
     "tom-select": "^2.3.1"
