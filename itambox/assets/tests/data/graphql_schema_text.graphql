@@ -449,8 +449,8 @@ type SpecificationDefinition {
 
 type SpecificationEntry {
   key: String!
-  definition: SpecificationField
   state: SpecificationEntryState!
+  definition: SpecificationField
   reasonCodes: [String!]!
   value: SpecificationValue!
 }
