@@ -117,8 +117,28 @@ def authenticated_user(info: object) -> object:
 
 
 def has_global_permission(info: object, permission: str) -> bool:
+    """Return whether the caller holds ``permission``, memoized per request context.
+
+    Field resolvers call this once per parent row; without the memo a list of N
+    rows repeats the membership lookup N times (the page-size query budget).
+    """
     user = authenticated_user(info)
-    return bool(user.has_perm(permission))
+    context = getattr(info, "context", None)
+    memo = None
+    if context is not None and not isinstance(context, Mapping):
+        memo = getattr(context, "_global_permission_memo", None)
+        if memo is None:
+            memo = {}
+            try:
+                context._global_permission_memo = memo
+            except AttributeError:
+                memo = None
+    if memo is None:
+        return bool(user.has_perm(permission))
+    key = (id(user), permission)
+    if key not in memo:
+        memo[key] = bool(user.has_perm(permission))
+    return memo[key]
 
 
 def require_global_permission(info: object, permission: str) -> object:
