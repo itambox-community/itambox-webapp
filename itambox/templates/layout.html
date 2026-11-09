@@ -25,7 +25,7 @@
           </a>
         </h1>
         <!-- Mobile Unified Actions Header (visible on mobile only) -->
-        <div class="mobile-topbar-actions d-flex d-lg-none align-items-center gap-2 ms-auto me-2">
+        <div class="mobile-topbar-actions d-flex d-lg-none align-items-center gap-1 ms-auto me-1">
           {# Workspace switcher: on mobile the header keeps the only tenant entry point. #}
           {% include 'global_includes/_workspace_switcher.html' with variant='compact' %}
           {# Mobile Notifications Dropdown — opens as a full-width panel on mobile #}
@@ -69,7 +69,7 @@
             </div>
           </div>
           {# Mobile User Profile Dropdown #}
-          <div class="nav-item dropdown">
+          <div class="nav-item dropdown mobile-topbar-profile">
             <a href="#"
                class="nav-link d-flex align-items-center lh-1 text-reset p-0"
                data-bs-toggle="dropdown">
