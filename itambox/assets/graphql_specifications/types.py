@@ -20,6 +20,7 @@ from extras.services.specifications.contracts import (
     ResolvedFieldDTO,
 )
 
+from .permissions import has_global_permission
 from .readers import (
     BooleanSpecificationValue,
     ChoiceSpecificationValue,
@@ -32,7 +33,6 @@ from .readers import (
     UninterpretedSpecificationValue,
     specification_value_for_entry,
 )
-from .permissions import has_global_permission
 from .scalars import CursorScalar, DateScalar, DecimalScalar, JSONScalar, SafeInteger
 
 
