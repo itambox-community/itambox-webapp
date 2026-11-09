@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import RequestFactory, TestCase
 
-from assets.models import AssetType, Category, CategoryDefaultFieldset, Manufacturer
+from assets.models import Asset, AssetType, Category, CategoryDefaultFieldset, Manufacturer
 from assets.models.catalog import AssetTypeFieldset
 from core.schema import build_schema
 from core.tests.mixins import grant
@@ -25,6 +25,11 @@ CATEGORY_PATHS = {
     "assetTypes": "query { assetTypes(first: 10) { edges { node { category { defaultFieldsets { identity } } } } } }",
 }
 TYPE_FIELDSETS = "query { assetTypes(first: 10) { edges { node { fieldsets { identity } } } } }"
+DEFINITION = (
+    "query { assetTypes(first: 1) { edges { node { specificationDefinition(target: ASSET_TYPE) "
+    "{ sections { label fields { key } } } } } } }"
+)
+ENTRIES = "query { assets { specificationEntries { key definition { key } } } }"
 CHOICE_SET = "query { assetTypes(first: 1) { edges { node { fieldsets { fields { key choiceSet { identity } } } } } } }"
 
 
@@ -54,13 +59,18 @@ class SpecificationGateTests(TestCase):
             max_values=1,
             nullable=True,
         )
-        field.object_types.add(ContentType.objects.get_for_model(AssetType))
+        field.object_types.add(*ContentType.objects.get_for_models(AssetType, Asset).values())
         CustomFieldsetField.objects.create(fieldset=fieldset, custom_field=field, position=1)
         CategoryDefaultFieldset.objects.create(category=category, fieldset=fieldset, position=1)
         asset_type = AssetType.objects.create(
             manufacturer=manufacturer, model="Gate Type", slug="gate-type", category=category
         )
         AssetTypeFieldset.objects.create(asset_type=asset_type, fieldset=fieldset, position=1)
+        Asset.objects.create(
+            tenant=self.tenant, name="Gate Asset", asset_type=asset_type, custom_field_data={"gate_state": "ready"}
+        )
+        self.asset_reader = self._member("specassets", [*BASE, "assets.view_asset"])
+        self.asset_reader_fields = self._member("specassetsf", [*BASE, "assets.view_asset", FIELD])
         kwargs = {"manufacturer": manufacturer, "category": category, "tenant": self.tenant}
         Accessory.objects.create(name="Gate Acc", **kwargs)
         Consumable.objects.create(name="Gate Con", **kwargs)
@@ -123,3 +133,23 @@ class SpecificationGateTests(TestCase):
         edges = self._run(CHOICE_SET, self.full)["assetTypes"]["edges"]
         fields = edges[0]["node"]["fieldsets"][0]["fields"]
         self.assertEqual(fields[0]["choiceSet"], {"identity": "local/gate-state"})
+
+    def test_definition_sections_empty_without_custom_field_permission(self):
+        edges = self._run(DEFINITION, self.restricted)["assetTypes"]["edges"]
+        self.assertEqual(edges[0]["node"]["specificationDefinition"]["sections"], [])
+
+    def test_definition_sections_visible_with_custom_field_permission(self):
+        edges = self._run(DEFINITION, self.fields_only)["assetTypes"]["edges"]
+        sections = edges[0]["node"]["specificationDefinition"]["sections"]
+        self.assertEqual([f["key"] for s in sections for f in s["fields"]], ["gate_state"])
+
+    def test_entry_definition_null_without_custom_field_permission(self):
+        rows = self._run(ENTRIES, self.asset_reader)["assets"]
+        entries = rows[0]["specificationEntries"]
+        self.assertEqual([e["key"] for e in entries], ["gate_state"])
+        self.assertIsNone(entries[0]["definition"])
+
+    def test_entry_definition_visible_with_custom_field_permission(self):
+        rows = self._run(ENTRIES, self.asset_reader_fields)["assets"]
+        entries = rows[0]["specificationEntries"]
+        self.assertEqual(entries[0]["definition"], {"key": "gate_state"})
