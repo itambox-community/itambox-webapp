@@ -272,7 +272,7 @@ type KitNode {
 }
 
 type LicenseNode {
-  software: SoftwareNode!
+  software: SoftwareNode
   licenseType: LicensesLicenseLicenseTypeChoices!
   tenant: TenantNode
   id: ID!
