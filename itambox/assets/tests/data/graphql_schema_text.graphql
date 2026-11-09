@@ -476,8 +476,8 @@ type SpecificationField {
   canonicalUnit: String
   validation: SpecificationValidation!
   lifecycle: DefinitionLifecycle!
-  choiceSet: ChoiceSet
   targets: [SpecificationTarget!]!
+  choiceSet: ChoiceSet
   sources: [String!]!
 }
 
