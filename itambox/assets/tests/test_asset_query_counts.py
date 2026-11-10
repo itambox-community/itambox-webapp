@@ -27,7 +27,7 @@ from assets.services import checkout_asset
 from core.tests.mixins import TenantTestMixin, grant
 from extras.models import CustomField, JournalEntry, Tag
 from licenses.models import License, LicenseSeatAssignment
-from organization.models import AssetHolder, Contact, ContactAssignment, ContactRole, Location, Site, Tenant
+from organization.models import AssetHolder, Contact, ContactAssignment, ContactRole, Location, Role, Site, Tenant
 from procurement.models import Contract
 from software.models import InstalledSoftware, Software
 
@@ -329,7 +329,12 @@ class AllAccessibleListQueryCountTests(_LinkedAssetFixture):
 
         for index in range(3):
             extra = Tenant.objects.create(name=f"QB Extra {index}", slug=f"qb-extra-{index}")
-            grant(self.tenant_user, extra, self.tenant_role)
+            extra_role = Role.objects.create(
+                tenant=extra,
+                name=f"QB Extra Role {index}",
+                permissions=PERMISSIONS,
+            )
+            grant(self.tenant_user, extra, extra_role)
             self._add_assets_for_tenant(extra, index * 2, 2)
         self.tenant_user.refresh_from_db()
 
