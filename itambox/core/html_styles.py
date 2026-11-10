@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from functools import lru_cache
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
