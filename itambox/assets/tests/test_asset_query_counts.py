@@ -24,10 +24,10 @@ from django.urls import reverse
 from assets.choices import StatusTypeChoices
 from assets.models import Asset, AssetMaintenance, AssetRole, AssetType, Manufacturer, StatusLabel, Warranty
 from assets.services import checkout_asset
-from core.tests.mixins import TenantTestMixin
+from core.tests.mixins import TenantTestMixin, grant
 from extras.models import CustomField, JournalEntry, Tag
 from licenses.models import License, LicenseSeatAssignment
-from organization.models import AssetHolder, Contact, ContactAssignment, ContactRole, Location, Site
+from organization.models import AssetHolder, Contact, ContactAssignment, ContactRole, Location, Role, Site, Tenant
 from procurement.models import Contract
 from software.models import InstalledSoftware, Software
 
@@ -292,3 +292,56 @@ class GlobalSearchQueryCountTests(_LinkedAssetFixture):
         self.assertIn("QB Tag 0", rows["QB-00"].get_cell("tags"))
         self.assertIn("QB Holder 0", rows["QB-00"].get_cell("assignee"))
         self.assertIn("QB Mfr", str(rows["QB-01"].get_cell("manufacturer")))
+
+
+class AllAccessibleListQueryCountTests(_LinkedAssetFixture):
+    """The all-accessible scope must not repeat its resolution per rendered row.
+
+    The tenant and tenant-group paths are pinned above. The all-accessible
+    scope resolves every accessible tenant, so any per-row resolution turns a
+    large page into a multi-second one: the demo installation measured ~6 ms
+    per row at 1000 rows across tenants while the same 835 rows cost a flat
+    second inside a single tenant.
+    """
+
+    def _add_assets_for_tenant(self, tenant, start, total):
+        for index in range(start, start + total):
+            Asset.objects.create(
+                name=f"QB Alt {index:02d}",
+                asset_tag=f"QB-ALT-{index:02d}",
+                asset_type=self.asset_type,
+                asset_role=self.role,
+                status=self.status,
+                tenant=tenant,
+            )
+
+    def _measure_all_accessible(self):
+        url = reverse("assets:asset_list") + "?switch_all_accessible=1"
+        self.assertEqual(self.client.get(url).status_code, 200)
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        return len(ctx.captured_queries)
+
+    def test_all_accessible_list_query_count_does_not_grow_with_tenant_count(self):
+        self._add_assets(6)
+        one_tenant = self._measure_all_accessible()
+
+        for index in range(3):
+            extra = Tenant.objects.create(name=f"QB Extra {index}", slug=f"qb-extra-{index}")
+            extra_role = Role.objects.create(
+                tenant=extra,
+                name=f"QB Extra Role {index}",
+                permissions=PERMISSIONS,
+            )
+            grant(self.tenant_user, extra, extra_role)
+            self._add_assets_for_tenant(extra, index * 2, 2)
+        self.tenant_user.refresh_from_db()
+
+        four_tenants = self._measure_all_accessible()
+        self.assertEqual(
+            one_tenant,
+            four_tenants,
+            f"all-accessible list used {four_tenants} queries across 4 tenants against "
+            f"{one_tenant} for 1: it must not scale with the accessible tenant count",
+        )
