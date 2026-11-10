@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load render_table from django_tables2 %}
 {% load static %}
 {% load i18n %}
@@ -22,7 +22,7 @@
       <div class="card-header"><h3 class="card-title">{% translate "Tenants in this Group (" %}{{ tenants_table.page.paginator.count }})</h3></div>
       <div class="table-responsive">{% render_table tenants_table %}</div>
       {% if tenants_table.page %}
-        {% include 'global_includes/pagination_links.html' with page_obj=tenants_table.page hx_push_url="false" %}
+        {% include "global_includes/pagination_links.html" with page_obj=tenants_table.page hx_push_url="false" %}
       {% endif %}
     </div>
   {% elif tenants_table %}
@@ -59,5 +59,5 @@
 {% block extra_tab_panes %}
   {% translate "Tenant-Scoped Custody Policies &amp; EULAs" as t_custody %}
   {% translate "No custody policies or templates are currently registered for this tenant group." as e_custody %}
-  {% include 'generic/includes/related_table_tab.html' with tab="custody-policies" table=custody_templates_table title=t_custody empty=e_custody %}
+  {% include "generic/includes/related_table_tab.html" with tab="custody-policies" table=custody_templates_table title=t_custody empty=e_custody %}
 {% endblock extra_tab_panes %}

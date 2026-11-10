@@ -2,7 +2,7 @@
 {% translate "Not set" as not_set %}
 {% translate "No notes" as no_notes %}
 <dl class="row mb-0">
-  {% if object.status == 'pending' %}
+  {% if object.status == "pending" %}
     <dd class="col-sm-12 text-muted py-4 text-center">
       <i class="mdi mdi-hourglass-empty text-muted mb-2"></i>
       <p class="mb-0">{% translate "This asset request is currently pending administrative review." %}</p>

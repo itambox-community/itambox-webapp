@@ -32,7 +32,7 @@
   <dd class="col-sm-9">
     <span class="badge bg-purple-lt px-2.5 py-1 text-uppercase">{{ object.get_action_type_display }}</span>
   </dd>
-  {% if object.action_type == 'webhook' %}
+  {% if object.action_type == "webhook" %}
     <dt class="col-sm-3">{% translate "Webhook Endpoint:" %}</dt>
     <dd class="col-sm-9">
       {% if object.webhook %}

@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {# --- Page Title and Header --- #}
@@ -39,8 +39,8 @@
 {% block extra_tab_panes %}
   {% translate "Locations in this Site" as t_loc %}
   {% translate "No locations defined under this site." as e_loc %}
-  {% include 'generic/includes/related_table_tab.html' with tab="locations" table=locations_table title=t_loc empty=e_loc %}
+  {% include "generic/includes/related_table_tab.html" with tab="locations" table=locations_table title=t_loc empty=e_loc %}
   {% translate "Assets Physical-Located inside this Site" as t_assets %}
   {% translate "No assets currently located at this site." as e_assets %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assets" table=assets_table title=t_assets empty=e_assets %}
+  {% include "generic/includes/related_table_tab.html" with tab="assets" table=assets_table title=t_assets empty=e_assets %}
 {% endblock extra_tab_panes %}

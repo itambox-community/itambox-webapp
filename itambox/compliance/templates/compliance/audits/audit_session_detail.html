@@ -1,4 +1,4 @@
-{% extends base_template|default:'layout.html' %}
+{% extends base_template|default:"layout.html" %}
 {% load static %}
 {% load i18n %}
 {% load utility_tags %}
@@ -11,13 +11,13 @@
     </div>
     <div class="col-auto ms-auto d-print-none">
       <div class="btn-list">
-        {% if object.status == 'active' %}
+        {% if object.status == "active" %}
           <a href="{% url 'compliance:auditsession_close' pk=object.pk %}"
              class="btn btn-warning">
             <i class="mdi mdi-check-circle-outline"></i>
             {% translate "Close Campaign & Reconcile" %}
           </a>
-        {% elif object.status == 'completed' %}
+        {% elif object.status == "completed" %}
           <a href="{% url 'compliance:auditsession_report_csv' pk=object.pk %}"
              class="btn btn-outline-secondary"
              download
@@ -37,7 +37,8 @@
             </form>
           {% endif %}
           {% if missing_assets %}
-            <button class="btn btn-warning"
+            <button type="button"
+                    class="btn btn-warning"
                     hx-get="{% url 'compliance:auditsession_flag_missing' pk=object.pk %}"
                     hx-target="#modal-placeholder"
                     hx-swap="innerHTML">
@@ -65,7 +66,7 @@
           <div class="card-body">
             <div class="row align-items-center">
               <div class="col-auto">
-                {% if object.status == 'active' %}
+                {% if object.status == "active" %}
                   <span class="bg-primary text-white avatar">
                     <i class="mdi mdi-play"></i>
                   </span>
@@ -167,13 +168,14 @@
     <div class="row">
       <!-- Scanned Form / Session Details -->
       <div class="col-md-4">
-        {% if object.status == 'active' %}
+        {% if object.status == "active" %}
           <div id="audit-basket-root"
                data-validate-url="{% url 'compliance:auditsession_validate' pk=object.pk %}">
             {# ── Scan capture card (camera + USB/keyboard) ── #}
             <div class="card mb-3">
               <div class="card-body">
-                <label for="audit-basket-input" class="form-label fw-bold">{% translate "Scan or enter an asset" %}</label>
+                <label for="audit-basket-input"
+                       class="form-label fw-bold">{% translate "Scan or enter an asset" %}</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="mdi mdi-barcode-scan"></i></span>
                   <input type="text"
@@ -269,7 +271,9 @@
                         class="btn btn-outline-light d-none">
                   <i class="mdi mdi-flashlight"></i> {% translate "Toggle Flash" %}
                 </button>
-                <button type="button" id="audit-close-scanner-btn" class="btn btn-danger">{% translate "Done" %}</button>
+                <button type="button"
+                        id="audit-close-scanner-btn"
+                        class="btn btn-danger">{% translate "Done" %}</button>
               </div>
             </div>
             {# ── Row template ── #}

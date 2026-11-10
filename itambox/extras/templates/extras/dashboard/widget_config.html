@@ -31,7 +31,7 @@
       <h6 class="mb-3">{% translate "Widget Settings" %}</h6>
       {% for field in widget_config_form %}
         <div class="mb-3">
-          {% if field.field.widget.input_type == 'checkbox' and field.field.widget.allow_multiple_selected %}
+          {% if field.field.widget.input_type == "checkbox" and field.field.widget.allow_multiple_selected %}
             {# Any CheckboxSelectMultiple renders as a checkbox grid #}
             <label class="form-label">{{ field.label }}</label>
             <div class="row g-2">
@@ -46,7 +46,7 @@
                 </div>
               {% endfor %}
             </div>
-          {% elif field.field.widget.input_type == 'checkbox' %}
+          {% elif field.field.widget.input_type == "checkbox" %}
             <div class="form-check form-switch pt-2">
               {{ field }}
               <label class="form-check-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>

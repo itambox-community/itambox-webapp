@@ -33,9 +33,9 @@
             </td>
             {# Action — plain bg-* badges; the soft-badge overlay styles them #}
             <td class="csp-style-adad3d83de12" data-label="{% translate "Action" %}">
-              {% if change.action == 'create' %}
+              {% if change.action == "create" %}
                 <span class="badge bg-success">{% translate "Created" %}</span>
-              {% elif change.action == 'update' %}
+              {% elif change.action == "update" %}
                 <span class="badge bg-info">{% translate "Updated" %}</span>
               {% else %}
                 <span class="badge bg-danger">{% translate "Deleted" %}</span>

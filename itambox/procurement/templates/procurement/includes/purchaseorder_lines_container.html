@@ -39,7 +39,8 @@
             <td data-label="{% translate "Received" %}">{{ line.qty_received }}</td>
             <td data-label="{% translate "Total Cost" %}">{% if line.total_cost %}{{ line.total_cost|money:line }}{% else %}-{% endif %}</td>
             <td class="text-end" data-label="">
-              <button class="btn btn-sm btn-success"
+              <button type="button"
+                      class="btn btn-sm btn-success"
                       hx-post="{% url 'procurement:purchaseorderline_edit' pk=line.pk %}"
                       hx-include="closest tr"
                       hx-target="#line-items-container"
@@ -47,7 +48,8 @@
                       title="{% translate 'Save line item' %}">
                 <i class="mdi mdi-check" aria-hidden="true"></i>
               </button>
-              <button class="btn btn-sm btn-secondary"
+              <button type="button"
+                      class="btn btn-sm btn-secondary"
                       hx-get="{% url 'procurement:purchaseorderline_add' po_pk=object.pk %}"
                       hx-target="#line-items-container"
                       aria-label="{% translate 'Cancel line item edit' %}"
@@ -70,15 +72,17 @@
             <td data-label="{% translate "Received" %}">{{ line.qty_received }}</td>
             <td data-label="{% translate "Total Cost" %}">{% if line.total_cost %}{{ line.total_cost|money:line }}{% else %}-{% endif %}</td>
             <td class="text-end" data-label="">
-              {% if object.status == 'draft' %}
-                <button class="btn btn-sm btn-outline-secondary me-1"
+              {% if object.status == "draft" %}
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary me-1"
                         hx-get="{% url 'procurement:purchaseorderline_edit' pk=line.pk %}"
                         hx-target="#line-items-container"
                         aria-label="{% translate 'Edit line item' %}"
                         title="{% translate 'Edit line item' %}">
                   <i class="mdi mdi-pencil" aria-hidden="true"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-danger"
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger"
                         hx-post="{% url 'procurement:purchaseorderline_delete' pk=line.pk %}"
                         hx-target="#line-items-container"
                         hx-confirm="{% translate 'Are you sure?' %}"
@@ -92,13 +96,15 @@
         {% endif %}
       {% empty %}
         <tr>
-          <td colspan="6" class="text-muted text-center py-4" data-label="">{% translate "No line items added yet." %}</td>
+          <td colspan="6"
+              class="text-muted text-center py-4"
+              data-label="">{% translate "No line items added yet." %}</td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-{% if object.status == 'draft' %}
+{% if object.status == "draft" %}
   <h4 class="card-title text-secondary border-top pt-3 mt-3">{% translate "Quick Add Line Item" %}</h4>
   <form hx-post="{% url 'procurement:purchaseorderline_add' po_pk=object.pk %}"
         hx-target="#line-items-container">

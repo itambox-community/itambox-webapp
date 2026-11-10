@@ -158,7 +158,9 @@ clients strip CSS variables).
         <div class="meta">
           {% blocktranslate with gen=generated_at|date:"Y-m-d H:i" %}Generated {{ gen }} UTC{% endblocktranslate %}
           <span class="no-print"> ·
-            <a href="?print=true" data-action="print" class="report-print-link">{% translate "Print / Save as PDF" %}</a>
+            <a href="?print=true"
+               data-action="print"
+               class="report-print-link">{% translate "Print / Save as PDF" %}</a>
           </span>
         </div>
         {% if disclosure_text %}
@@ -180,7 +182,7 @@ clients strip CSS variables).
           <div class="chart-wrapper">{{ distribution_chart|safe }}</div>
         {% endif %}
         {% for group_name, group_rows in grouped_data.items %}
-          {% if group_name != 'General' %}<div class="group-title">{{ group_name }}</div>{% endif %}
+          {% if group_name != "General" %}<div class="group-title">{{ group_name }}</div>{% endif %}
           <table>
             <thead>
               <tr>{% for head in headers %}<th>{{ head }}</th>{% endfor %}</tr>

@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load static %}
 {% load render_table from django_tables2 %}
@@ -250,14 +250,14 @@
         <div class="card-header border-0 bg-transparent pb-0">
           <h3 class="card-title text-secondary">{% translate "Asset Details" %}</h3>
         </div>
-        <div class="card-body">{% include 'assets/includes/detail/asset_asset_info.html' %}</div>
+        <div class="card-body">{% include "assets/includes/detail/asset_asset_info.html" %}</div>
       </div>
       {# 2. Deployment & Custody Card #}
       <div class="card mb-3 shadow-sm">
         <div class="card-header border-0 bg-transparent pb-0">
           <h3 class="card-title text-secondary">{% translate "Deployment &amp; Custody" %}</h3>
         </div>
-        <div class="card-body">{% include 'assets/includes/detail/asset_assignment.html' %}</div>
+        <div class="card-body">{% include "assets/includes/detail/asset_assignment.html" %}</div>
       </div>
       <div class="card mb-3 shadow-sm" id="asset-recent-activity">
         <div class="card-header border-0 bg-transparent pb-0">
@@ -285,13 +285,13 @@
       {# 3. Hardware Specifications Card (Conditional Check) #}
       {% if asset_type_spec_panel or object.component_allocations.all %}
         <div class="card mb-3 shadow-sm">
-          <div class="card-body">{% include 'assets/includes/detail/asset_specs.html' %}</div>
+          <div class="card-body">{% include "assets/includes/detail/asset_specs.html" %}</div>
         </div>
       {% endif %}
       {# 4. Custom Specifications Card (Conditional Check) #}
       {% if asset_spec_panel %}
         <div class="card mb-3 shadow-sm">
-          <div class="card-body">{% include 'assets/includes/detail/asset_custom_fields.html' %}</div>
+          <div class="card-body">{% include "assets/includes/detail/asset_custom_fields.html" %}</div>
         </div>
       {% endif %}
       {# 5. Support & Warranty Details Card #}
@@ -299,7 +299,7 @@
         <div class="card-header border-0 bg-transparent pb-0">
           <h3 class="card-title text-secondary">{% translate "Support &amp; Warranty Details" %}</h3>
         </div>
-        <div class="card-body">{% include 'assets/includes/detail/asset_support.html' %}</div>
+        <div class="card-body">{% include "assets/includes/detail/asset_support.html" %}</div>
       </div>
       {# 6. Comments, Notes, & Description Card (Stacked at bottom) --- #}
       {% if object.notes %}
@@ -334,7 +334,7 @@
           </div>
           <div class="card-body pt-0">
             {% for tag in object.tags.all %}
-              {% include 'inc/tags.html' with tag=tag %}
+              {% include "inc/tags.html" with tag=tag %}
             {% endfor %}
           </div>
         </div>
@@ -344,11 +344,11 @@
         <div class="card-header border-0 bg-transparent pb-0">
           <h3 class="card-title text-secondary">{% translate "Financial &amp; Lifecycle" %}</h3>
         </div>
-        <div class="card-body">{% include 'assets/includes/detail/asset_financial.html' %}</div>
+        <div class="card-body">{% include "assets/includes/detail/asset_financial.html" %}</div>
       </div>
       {# 4. Audit & Compliance Card #}
       <div class="card mb-3 shadow-sm">
-        <div class="card-body">{% include 'assets/includes/detail/asset_audit.html' %}</div>
+        <div class="card-body">{% include "assets/includes/detail/asset_audit.html" %}</div>
       </div>
       {# 5. Related Inventory Card #}
       {% if related_objects_list %}
@@ -388,7 +388,7 @@
         </div>
         {% if components_table.rows %}
           <div class="table-responsive">{% render_table components_table %}</div>
-          {% include 'generic/includes/table_pagination.html' with table=components_table tab="components" %}
+          {% include "generic/includes/table_pagination.html" with table=components_table tab="components" %}
         {% else %}
           <div class="card-body py-5 text-muted text-center">
             <p class="mb-0">{% translate "No physical modules (like RAM, SSD, GPU) checked into this hardware asset." %}</p>
@@ -412,7 +412,7 @@
       </div>
       {% if maintenances_table.rows %}
         <div class="table-responsive">{% render_table maintenances_table %}</div>
-        {% include 'generic/includes/table_pagination.html' with table=maintenances_table tab="maintenances" %}
+        {% include "generic/includes/table_pagination.html" with table=maintenances_table tab="maintenances" %}
       {% else %}
         <div class="card-body py-5 text-muted text-center">
           <p class="mb-0">{% translate "No repair, calibration, or hardware maintenance logged for this asset." %}</p>
@@ -425,35 +425,35 @@
   {% translate "Install Software" as t_add_software %}
   {% url 'software:installedsoftware_create' as sw_add_base %}
   {% with asset_pk=object.pk|stringformat:"s" %}
-    {% include 'generic/includes/related_table_tab.html' with tab="software" table=software_table title=t_software empty=e_software add_modal_url=sw_add_base|add:"?asset="|add:asset_pk|add:"&_quickadd=1" add_label=t_add_software %}
+    {% include "generic/includes/related_table_tab.html" with tab="software" table=software_table title=t_software empty=e_software add_modal_url=sw_add_base|add:"?asset="|add:asset_pk|add:"&_quickadd=1" add_label=t_add_software %}
   {% endwith %}
   {% if accessory_table.rows %}
     {% translate "Assigned Accessories" as t_acc %}
     {% translate "No accessories assigned to this asset." as e_acc %}
-    {% include 'generic/includes/related_table_tab.html' with tab="accessories" table=accessory_table title=t_acc empty=e_acc %}
+    {% include "generic/includes/related_table_tab.html" with tab="accessories" table=accessory_table title=t_acc empty=e_acc %}
   {% endif %}
   {% if consumable_table.rows %}
     {% translate "Assigned Consumables" as t_cons %}
     {% translate "No consumables assigned to this asset." as e_cons %}
-    {% include 'generic/includes/related_table_tab.html' with tab="consumables" table=consumable_table title=t_cons empty=e_cons %}
+    {% include "generic/includes/related_table_tab.html" with tab="consumables" table=consumable_table title=t_cons empty=e_cons %}
   {% endif %}
   {% translate "Asset Requests History" as t_requests %}
   {% translate "No requests logged for this asset." as e_requests %}
-  {% include 'generic/includes/related_table_tab.html' with tab="requests" table=requests_table title=t_requests empty=e_requests %}
+  {% include "generic/includes/related_table_tab.html" with tab="requests" table=requests_table title=t_requests empty=e_requests %}
   {% translate "Asset Verification &amp; Audits" as t_audits %}
   {% translate "No verification audits logged for this asset." as e_audits %}
-  {% include 'generic/includes/related_table_tab.html' with tab="audits" table=audits_table title=t_audits empty=e_audits %}
+  {% include "generic/includes/related_table_tab.html" with tab="audits" table=audits_table title=t_audits empty=e_audits %}
   {% if can_view_custody_receipts %}
     {% translate "Custody Receipts" as t_receipts %}
     {% translate "No custody receipts exist for this asset." as e_receipts %}
-    {% include 'generic/includes/related_table_tab.html' with tab="custody-receipts" table=receipts_table title=t_receipts empty=e_receipts %}
+    {% include "generic/includes/related_table_tab.html" with tab="custody-receipts" table=receipts_table title=t_receipts empty=e_receipts %}
   {% endif %}
   {% translate "Allocated Software Licenses" as t_seats %}
   {% translate "No software license seats allocated to this asset." as e_seats %}
   {% translate "Assign License" as t_add_license %}
   {% url 'licenses:licenseseatassignment_create' as lic_add_base %}
   {% with asset_pk=object.pk|stringformat:"s" %}
-    {% include 'generic/includes/related_table_tab.html' with tab="license-seats" table=license_seats_table title=t_seats empty=e_seats add_modal_url=lic_add_base|add:"?asset="|add:asset_pk|add:"&_quickadd=1" add_label=t_add_license %}
+    {% include "generic/includes/related_table_tab.html" with tab="license-seats" table=license_seats_table title=t_seats empty=e_seats add_modal_url=lic_add_base|add:"?asset="|add:asset_pk|add:"&_quickadd=1" add_label=t_add_license %}
   {% endwith %}
   <div class="tab-pane fade {% if request.GET.tab == 'warranties' %}show active{% endif %}"
        id="warranties"
@@ -470,7 +470,7 @@
       </div>
       {% if warranties_table.rows %}
         <div class="table-responsive">{% render_table warranties_table %}</div>
-        {% include 'generic/includes/table_pagination.html' with table=warranties_table tab="warranties" %}
+        {% include "generic/includes/table_pagination.html" with table=warranties_table tab="warranties" %}
       {% else %}
         <div class="card-body py-5 text-muted text-center">
           <p class="mb-0">{% translate "No warranties registered for this asset." %}</p>
@@ -493,7 +493,7 @@
       </div>
       {% if reservations_table.rows %}
         <div class="table-responsive">{% render_table reservations_table %}</div>
-        {% include 'generic/includes/table_pagination.html' with table=reservations_table tab="reservations" %}
+        {% include "generic/includes/table_pagination.html" with table=reservations_table tab="reservations" %}
       {% else %}
         <div class="card-body py-5 text-muted text-center">
           <p class="mb-0">{% translate "No reservations for this asset." %}</p>
@@ -551,7 +551,7 @@
       {% else %}
         <div class="card-body py-5 text-muted text-center">
           <p class="mb-0">{% translate "No active disposal record for this asset." %}</p>
-          {% if object.status and object.status.type == 'archived' %}
+          {% if object.status and object.status.type == "archived" %}
             <p class="mb-0 mt-2">
               <span class="badge bg-secondary-lt">{% translate "Archived, not disposed" %}</span>
             </p>
@@ -611,7 +611,7 @@
           <i class="mdi mdi-plus"></i> {% translate "Log repair" %}
         </button>
       </div>
-      {% include 'assets/includes/detail/asset_timeline.html' with timeline=asset_timeline %}
+      {% include "assets/includes/detail/asset_timeline.html" with timeline=asset_timeline %}
     </div>
   </div>
 {% endblock extra_tab_panes %}

@@ -14,7 +14,7 @@
     <div class="col-12 js-selection-scope {% if filter_form %}col-md-9 order-2 order-md-1{% endif %}"
          id="object-list-main-col">
       <div class="card">
-        {% if app_label == 'inventory' and model_name in 'component,componentstock,componentallocation' %}
+        {% if app_label == "inventory" and model_name in "component,componentstock,componentallocation" %}
           <div class="card-header">
             <ul class="nav nav-tabs card-header-tabs">
               <li class="nav-item">
@@ -37,7 +37,7 @@
               </li>
             </ul>
           </div>
-        {% elif app_label == 'inventory' and model_name in 'accessory,accessorystock,accessoryassignment' %}
+        {% elif app_label == "inventory" and model_name in "accessory,accessorystock,accessoryassignment" %}
           <div class="card-header">
             <ul class="nav nav-tabs card-header-tabs">
               <li class="nav-item">
@@ -60,7 +60,7 @@
               </li>
             </ul>
           </div>
-        {% elif app_label == 'inventory' and model_name in 'consumable,consumablestock,consumableassignment' %}
+        {% elif app_label == "inventory" and model_name in "consumable,consumablestock,consumableassignment" %}
           <div class="card-header">
             <ul class="nav nav-tabs card-header-tabs">
               <li class="nav-item">
@@ -118,14 +118,14 @@
         {# Pagination Controls Container (Persistently outside dynamic content) #}
         <div id="object-list-pagination">
           {% if table.page %}
-            {% include 'global_includes/pagination_links.html' with page_obj=table.page hx_target="#object-list-dynamic-content" %}
+            {% include "global_includes/pagination_links.html" with page_obj=table.page hx_target="#object-list-dynamic-content" %}
           {% endif %}
         </div>
         {# End #object-list-pagination #}
       </div>
       {# Bulk-Action Toolbar host — lives OUTSIDE the table card (NetBox-style), right-bound below the table. #}
       {# Refreshed on HTMX list swaps via an out-of-band update from htmx/list_page_wrapper.html. #}
-      <div id="bulk-action-toolbar-host">{% include 'generic/includes/bulk_action_toolbar.html' %}</div>
+      <div id="bulk-action-toolbar-host">{% include "generic/includes/bulk_action_toolbar.html" %}</div>
     </div>
     {# Right-Side Filter Panel Column #}
     {% if filter_form %}
@@ -144,7 +144,7 @@
             </a>
           </div>
           <div class="card-body p-3">
-            <div id="filters-sidebar-content">{% include 'htmx/filter_form_tab.html' %}</div>
+            <div id="filters-sidebar-content">{% include "htmx/filter_form_tab.html" %}</div>
           </div>
         </div>
       </div>
@@ -153,9 +153,9 @@
 {% endblock content %}
 {% block page_modals %}
   {% if table_config_form %}
-    {% include 'core/modals/table_config.html' %}
+    {% include "core/modals/table_config.html" %}
   {% endif %}
-  {% if model_name_str == 'inventory.consumable' or model_name_str == 'inventory.consumablestock' or model_name_str == 'inventory.accessory' or model_name_str == 'inventory.accessorystock' or model_name_str == 'inventory.component' or model_name_str == 'inventory.componentstock' %}
+  {% if model_name_str == "inventory.consumable" or model_name_str == "inventory.consumablestock" or model_name_str == "inventory.accessory" or model_name_str == "inventory.accessorystock" or model_name_str == "inventory.component" or model_name_str == "inventory.componentstock" %}
     <div class="modal modal-blur fade"
          id="bulk-checkout-inventory-modal"
          tabindex="-1"
@@ -212,9 +212,10 @@
                 </select>
               </div>
               <!-- From Location (Only shown if we checkout from Catalog page) -->
-              {% if model_name_str == 'inventory.consumable' or model_name_str == 'inventory.accessory' or model_name_str == 'inventory.component' %}
+              {% if model_name_str == "inventory.consumable" or model_name_str == "inventory.accessory" or model_name_str == "inventory.component" %}
                 <div class="mb-3">
-                  <label for="bulk-checkout-from-location" class="form-label">{% translate "From Location (source of stock)" %}</label>
+                  <label for="bulk-checkout-from-location"
+                         class="form-label">{% translate "From Location (source of stock)" %}</label>
                   <select name="from_location"
                           id="bulk-checkout-from-location"
                           class="form-select"
@@ -228,7 +229,8 @@
               {% endif %}
               <!-- Quantity -->
               <div class="mb-3">
-                <label for="bulk-checkout-qty" class="form-label">{% translate "Quantity to Check-out (per item)" %}</label>
+                <label for="bulk-checkout-qty"
+                       class="form-label">{% translate "Quantity to Check-out (per item)" %}</label>
                 <input type="number"
                        name="qty"
                        id="bulk-checkout-qty"
@@ -269,6 +271,6 @@
         without a full reload. extra_controls (above) live outside it and persist. Nested
         btn-list keeps button spacing.
     {% endcomment %}
-    <div id="page-actions-block" class="btn-list">{% include 'generic/includes/list_page_actions.html' %}</div>
+    <div id="page-actions-block" class="btn-list">{% include "generic/includes/list_page_actions.html" %}</div>
   </div>
 {% endblock page_actions %}

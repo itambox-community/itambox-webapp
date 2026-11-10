@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% block title %}{{ object.name }} {% translate "- Component Details - ITAMbox" %}{% endblock %}
@@ -47,7 +47,7 @@
       </div>
       {% if stocks_table.rows %}
         <div class="table-responsive">{% render_table stocks_table %}</div>
-        {% include 'generic/includes/table_pagination.html' with table=stocks_table %}
+        {% include "generic/includes/table_pagination.html" with table=stocks_table %}
       {% else %}
         <div class="card-body py-5 text-muted text-center">
           <p class="mb-0">{% translate "No stock records for this component yet." %}</p>
@@ -58,5 +58,5 @@
   {# Allocations Tab Pane #}
   {% translate "Component Allocations" as t_allocations %}
   {% translate "No allocations recorded for this component yet." as e_allocations %}
-  {% include 'generic/includes/related_table_tab.html' with tab="allocations" table=allocations_table title=t_allocations empty=e_allocations %}
+  {% include "generic/includes/related_table_tab.html" with tab="allocations" table=allocations_table title=t_allocations empty=e_allocations %}
 {% endblock extra_tab_panes %}

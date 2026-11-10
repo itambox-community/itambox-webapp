@@ -61,7 +61,7 @@
                 <td class="text-secondary fw-bold">{% translate "Threshold Value" %}</td>
                 <td>
                   <strong>{{ object.threshold_value }}</strong>
-                  {% if object.alert_type == 'low_stock' %}
+                  {% if object.alert_type == "low_stock" %}
                     {% translate "units limit" %}
                   {% else %}
                     {% translate "days planning horizon" %}
@@ -85,9 +85,9 @@
               <tr>
                 <td class="text-secondary fw-bold">{% translate "Severity" %}</td>
                 <td>
-                  {% if object.severity == 'info' %}
+                  {% if object.severity == "info" %}
                     <span class="badge bg-info">{% translate "Info" %}</span>
-                  {% elif object.severity == 'warning' %}
+                  {% elif object.severity == "warning" %}
                     <span class="badge bg-warning">{% translate "Warning" %}</span>
                   {% else %}
                     <span class="badge bg-danger">{% translate "Critical" %}</span>
@@ -209,9 +209,9 @@
                       <div class="text-secondary small">{{ log.message }}</div>
                     </td>
                     <td>
-                      {% if log.status == 'active' %}
+                      {% if log.status == "active" %}
                         <span class="badge bg-danger">{% translate "Active" %}</span>
-                      {% elif log.status == 'acknowledged' %}
+                      {% elif log.status == "acknowledged" %}
                         <span class="badge bg-warning">{% translate "Acknowledged" %}</span>
                       {% else %}
                         <span class="badge bg-success">{% translate "Resolved" %}</span>
@@ -219,7 +219,7 @@
                     </td>
                     <td class="text-end">
                       <div class="d-flex gap-1 justify-content-end">
-                        {% if log.status == 'active' %}
+                        {% if log.status == "active" %}
                           <form method="post" action="{% url 'extras:alertlog_acknowledge' log.pk %}">
                             {% csrf_token %}
                             <input type="hidden" name="return_url" value="{{ request.get_full_path }}">
@@ -228,7 +228,7 @@
                                     title="{% translate 'Acknowledge' %}">{% translate "Acknowledge" %}</button>
                           </form>
                         {% endif %}
-                        {% if log.status != 'resolved' %}
+                        {% if log.status != "resolved" %}
                           <form method="post" action="{% url 'extras:alertlog_resolve' log.pk %}">
                             {% csrf_token %}
                             <input type="hidden" name="return_url" value="{{ request.get_full_path }}">

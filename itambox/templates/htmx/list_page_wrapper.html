@@ -13,7 +13,7 @@
 {# and "save current filter" form (which read `saved_filters`/`active_saved_filter_id` #}
 {# from the view context) so the active saved filter stays highlighted after an HTMX swap. #}
 {% if filter_form %}
-  <div id="filters-sidebar-content" hx-swap-oob="true">{% include 'htmx/filter_form_tab.html' %}</div>
+  <div id="filters-sidebar-content" hx-swap-oob="true">{% include "htmx/filter_form_tab.html" %}</div>
   <span id="filters-applied-count"
         hx-swap-oob="true"
         class="badge bg-primary ms-2 {% if not filter_form.applied_filters %}d-none{% endif %}">
@@ -22,11 +22,11 @@
 {% endif %}
 <div id="object-list-pagination" hx-swap-oob="true">
   {% if table.page %}
-    {% include 'global_includes/pagination_links.html' with page_obj=table.page hx_target="#object-list-dynamic-content" %}
+    {% include "global_includes/pagination_links.html" with page_obj=table.page hx_target="#object-list-dynamic-content" %}
   {% endif %}
 </div>
 {# Refresh the bulk-action toolbar (it lives outside #object-list-dynamic-content) out-of-band #}
-<div id="bulk-action-toolbar-host" hx-swap-oob="true">{% include 'generic/includes/bulk_action_toolbar.html' %}</div>
+<div id="bulk-action-toolbar-host" hx-swap-oob="true">{% include "generic/includes/bulk_action_toolbar.html" %}</div>
 {# --- Main Content Area (Rendered directly, replaces innerHTML of #object-list-dynamic-content) --- #}
 {% if is_deleted_view %}
   <div class="alert alert-warning border-0 rounded-0 border-bottom d-flex align-items-center mb-0 px-3 py-2">

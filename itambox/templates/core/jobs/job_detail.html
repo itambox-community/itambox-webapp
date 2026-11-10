@@ -33,15 +33,15 @@
               <tr>
                 <td><strong>{% translate "Status" %}</strong></td>
                 <td class="text-end">
-                  {% if object.status == 'pending' %}
+                  {% if object.status == "pending" %}
                     <span class="badge bg-info">{% translate "Pending" %}</span>
-                  {% elif object.status == 'running' %}
+                  {% elif object.status == "running" %}
                     <span class="badge bg-warning">{% translate "Running" %}</span>
                     <span class="spinner-border spinner-border-sm text-warning ms-1"
                           role="status"></span>
-                  {% elif object.status == 'completed' %}
+                  {% elif object.status == "completed" %}
                     <span class="badge bg-success">{% translate "Completed" %}</span>
-                  {% elif object.status == 'failed' %}
+                  {% elif object.status == "failed" %}
                     <span class="badge bg-danger">{% translate "Failed" %}</span>
                   {% endif %}
                 </td>
@@ -93,7 +93,7 @@
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">{% translate "Log" %}</h3>
-            {% if object.status == 'running' %}
+            {% if object.status == "running" %}
               <span class="spinner-border spinner-border-sm text-muted ms-2"
                     role="status"></span>
             {% endif %}

@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% block title %}{{ object.name }} {% translate "- Depreciation Rule - ITAMbox" %}{% endblock %}
@@ -32,8 +32,8 @@
 {% block extra_tab_panes %}
   {% translate "Affected Asset Types" as t_types %}
   {% translate "No asset types associated with this depreciation rule." as e_types %}
-  {% include 'generic/includes/related_table_tab.html' with tab="asset-types" table=assettypes_table title=t_types empty=e_types %}
+  {% include "generic/includes/related_table_tab.html" with tab="asset-types" table=assettypes_table title=t_types empty=e_types %}
   {% translate "Active Assets Amortization Schedule" as t_assets %}
   {% translate "No active assets currently using this depreciation rule." as e_assets %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assets" table=assets_table title=t_assets empty=e_assets %}
+  {% include "generic/includes/related_table_tab.html" with tab="assets" table=assets_table title=t_assets empty=e_assets %}
 {% endblock extra_tab_panes %}

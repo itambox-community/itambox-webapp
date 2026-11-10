@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n money %}
 {% block page_title %}{{ object.contract_number }}: {{ object.name }}{% endblock %}
 {% block page_header %}
@@ -42,13 +42,13 @@
             <div class="datagrid-item">
               <div class="datagrid-title">{% translate "Status" %}</div>
               <div class="datagrid-content">
-                {% if object.status == 'active' %}
+                {% if object.status == "active" %}
                   <span class="badge bg-success-lt">{% translate "Active" %}</span>
-                {% elif object.status == 'draft' %}
+                {% elif object.status == "draft" %}
                   <span class="badge bg-secondary-lt">{% translate "Draft" %}</span>
-                {% elif object.status == 'expired' %}
+                {% elif object.status == "expired" %}
                   <span class="badge bg-danger-lt">{% translate "Expired" %}</span>
-                {% elif object.status == 'cancelled' %}
+                {% elif object.status == "cancelled" %}
                   <span class="badge bg-danger-lt">{% translate "Cancelled" %}</span>
                 {% else %}
                   <span class="badge bg-primary-lt">{{ object.get_status_display }}</span>
@@ -70,172 +70,173 @@
   </div>
   </div>
   </div>
-<!-- Dates -->
-<div class="card shadow-sm border-0 mb-3">
-  <div class="card-header border-0 bg-transparent pb-0">
-    <h3 class="card-title text-secondary">{% translate "Dates" %}</h3>
-  </div>
-  <div class="card-body">
-    <div class="datagrid">
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "Start Date" %}</div>
-        <div class="datagrid-content">{{ object.start_date }}</div>
-      </div>
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "End Date" %}</div>
-        <div class="datagrid-content">
-          {{ object.end_date }}
-          {% if object.is_expiring_soon %}
-            <span class="badge bg-warning-lt ms-1">{% translate "Expiring Soon" %}</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "Renewal Date" %}</div>
-        <div class="datagrid-content">{{ object.renewal_date|default:"-" }}</div>
-      </div>
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "Auto-Renew" %}</div>
-        <div class="datagrid-content">
-          {% if object.auto_renew %}
-            <span class="badge bg-green-lt">{% translate "Yes" %}</span>
-          {% else %}
-            <span class="badge bg-secondary-lt">{% translate "No" %}</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "Days Until Expiry" %}</div>
-        <div class="datagrid-content">{{ object.days_until_expiry }}</div>
-      </div>
-    </div>
-  </div>
-  </div>
-<!-- SLA -->
-<div class="card shadow-sm border-0 mb-3">
-  <div class="card-header border-0 bg-transparent pb-0">
-    <h3 class="card-title text-secondary">{% translate "SLA" %}</h3>
-  </div>
-  <div class="card-body">
-    <div class="datagrid">
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "Response Time" %}</div>
-        <div class="datagrid-content">{{ object.sla_response_time|default:"-" }}</div>
-      </div>
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "Resolution Time" %}</div>
-        <div class="datagrid-content">{{ object.sla_resolution_time|default:"-" }}</div>
-      </div>
-      <div class="datagrid-item">
-        <div class="datagrid-title">{% translate "Coverage Hours" %}</div>
-        <div class="datagrid-content">{{ object.coverage_hours|default:"-" }}</div>
-      </div>
-    </div>
-    {% if object.sla_terms %}
-      <div class="mt-3">
-        <div class="text-muted small mb-1">{% translate "SLA Terms" %}</div>
-        <div class="csp-style-ee488c67b751">{{ object.sla_terms }}</div>
-      </div>
-    {% endif %}
-  </div>
-  </div>
-<!-- Covered Assets -->
-<div class="card shadow-sm border-0">
-  <div class="card-header border-0 bg-transparent pb-0">
-    <h3 class="card-title text-secondary">{% translate "Covered Assets" %}</h3>
-  </div>
-  <div class="card-body p-0">
-    {% if covered_assets %}
-      <div class="table-responsive">
-        <table class="table table-vcenter card-table table-striped">
-          <thead>
-            <tr>
-              <th>{% translate "Asset" %}</th>
-              <th>{% translate "Type" %}</th>
-              <th>{% translate "Serial" %}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for asset in covered_assets %}
-              <tr>
-                <td data-label="{% translate "Asset" %}">
-                  <a href="{{ asset.get_absolute_url }}">{{ asset }}</a>
-                </td>
-                <td data-label="{% translate "Type" %}">{{ asset.asset_type|default:"-" }}</td>
-                <td class="text-muted" data-label="{% translate "Serial" %}">{{ asset.serial_number|default:"-" }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="text-center text-muted py-4">
-        <i class="mdi mdi-monitor-multiple mdi-24px d-block mb-1"></i>
-        {% translate "No assets linked to this contract." %}
-      </div>
-    {% endif %}
-  </div>
-  </div>
-  </div>
-<!-- Right sidebar -->
-<div class="col-lg-4 col-12">
+  <!-- Dates -->
   <div class="card shadow-sm border-0 mb-3">
     <div class="card-header border-0 bg-transparent pb-0">
-      <h3 class="card-title text-secondary">{% translate "Commercial" %}</h3>
+      <h3 class="card-title text-secondary">{% translate "Dates" %}</h3>
     </div>
     <div class="card-body">
-      <div class="mb-3">
-        <div class="text-muted small">{% translate "Contract Cost" %}</div>
-        <div class="h2 text-primary font-weight-bold mb-0">
-          {% if object.cost %}{{ object.cost|money:object }}{% else %}-{% endif %}
-        </div>
-        <div class="text-muted small">{{ object.get_billing_cycle_display }}</div>
-      </div>
-      <div class="hr-text my-3">{% translate "Metadata" %}</div>
       <div class="datagrid">
         <div class="datagrid-item">
-          <div class="datagrid-title">{% translate "Cost Center" %}</div>
+          <div class="datagrid-title">{% translate "Start Date" %}</div>
+          <div class="datagrid-content">{{ object.start_date }}</div>
+        </div>
+        <div class="datagrid-item">
+          <div class="datagrid-title">{% translate "End Date" %}</div>
           <div class="datagrid-content">
-            {% if object.cost_center %}
-              <a href="{% url 'organization:costcenter_detail' pk=object.cost_center.pk %}">{% if object.cost_center.code %}{{ object.cost_center.code }}: {% endif %}{{ object.cost_center.name }}</a>
+            {{ object.end_date }}
+            {% if object.is_expiring_soon %}
+              <span class="badge bg-warning-lt ms-1">{% translate "Expiring Soon" %}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="datagrid-item">
+          <div class="datagrid-title">{% translate "Renewal Date" %}</div>
+          <div class="datagrid-content">{{ object.renewal_date|default:"-" }}</div>
+        </div>
+        <div class="datagrid-item">
+          <div class="datagrid-title">{% translate "Auto-Renew" %}</div>
+          <div class="datagrid-content">
+            {% if object.auto_renew %}
+              <span class="badge bg-green-lt">{% translate "Yes" %}</span>
+            {% else %}
+              <span class="badge bg-secondary-lt">{% translate "No" %}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="datagrid-item">
+          <div class="datagrid-title">{% translate "Days Until Expiry" %}</div>
+          <div class="datagrid-content">{{ object.days_until_expiry }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- SLA -->
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-header border-0 bg-transparent pb-0">
+      <h3 class="card-title text-secondary">{% translate "SLA" %}</h3>
+    </div>
+    <div class="card-body">
+      <div class="datagrid">
+        <div class="datagrid-item">
+          <div class="datagrid-title">{% translate "Response Time" %}</div>
+          <div class="datagrid-content">{{ object.sla_response_time|default:"-" }}</div>
+        </div>
+        <div class="datagrid-item">
+          <div class="datagrid-title">{% translate "Resolution Time" %}</div>
+          <div class="datagrid-content">{{ object.sla_resolution_time|default:"-" }}</div>
+        </div>
+        <div class="datagrid-item">
+          <div class="datagrid-title">{% translate "Coverage Hours" %}</div>
+          <div class="datagrid-content">{{ object.coverage_hours|default:"-" }}</div>
+        </div>
+      </div>
+      {% if object.sla_terms %}
+        <div class="mt-3">
+          <div class="text-muted small mb-1">{% translate "SLA Terms" %}</div>
+          <div class="csp-style-ee488c67b751">{{ object.sla_terms }}</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  <!-- Covered Assets -->
+  <div class="card shadow-sm border-0">
+    <div class="card-header border-0 bg-transparent pb-0">
+      <h3 class="card-title text-secondary">{% translate "Covered Assets" %}</h3>
+    </div>
+    <div class="card-body p-0">
+      {% if covered_assets %}
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table table-striped">
+            <thead>
+              <tr>
+                <th>{% translate "Asset" %}</th>
+                <th>{% translate "Type" %}</th>
+                <th>{% translate "Serial" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for asset in covered_assets %}
+                <tr>
+                  <td data-label="{% translate "Asset" %}">
+                    <a href="{{ asset.get_absolute_url }}">{{ asset }}</a>
+                  </td>
+                  <td data-label="{% translate "Type" %}">{{ asset.asset_type|default:"-" }}</td>
+                  <td class="text-muted"
+                      data-label="{% translate "Serial" %}">{{ asset.serial_number|default:"-" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="mdi mdi-monitor-multiple mdi-24px d-block mb-1"></i>
+          {% translate "No assets linked to this contract." %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  </div>
+  <!-- Right sidebar -->
+  <div class="col-lg-4 col-12">
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header border-0 bg-transparent pb-0">
+        <h3 class="card-title text-secondary">{% translate "Commercial" %}</h3>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="text-muted small">{% translate "Contract Cost" %}</div>
+          <div class="h2 text-primary font-weight-bold mb-0">
+            {% if object.cost %}{{ object.cost|money:object }}{% else %}-{% endif %}
+          </div>
+          <div class="text-muted small">{{ object.get_billing_cycle_display }}</div>
+        </div>
+        <div class="hr-text my-3">{% translate "Metadata" %}</div>
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">{% translate "Cost Center" %}</div>
+            <div class="datagrid-content">
+              {% if object.cost_center %}
+                <a href="{% url 'organization:costcenter_detail' pk=object.cost_center.pk %}">{% if object.cost_center.code %}{{ object.cost_center.code }}: {% endif %}{{ object.cost_center.name }}</a>
 {% else %}-{% endif %}
   </div>
   </div>
-<div class="datagrid-item">
-  <div class="datagrid-title">{% translate "Tenant" %}</div>
-  <div class="datagrid-content">{{ object.tenant|default:"-" }}</div>
+  <div class="datagrid-item">
+    <div class="datagrid-title">{% translate "Tenant" %}</div>
+    <div class="datagrid-content">{{ object.tenant|default:"-" }}</div>
   </div>
-<div class="datagrid-item">
-  <div class="datagrid-title">{% translate "Created" %}</div>
-  <div class="datagrid-content">{{ object.created_at|date:"Y-m-d H:i" }}</div>
+  <div class="datagrid-item">
+    <div class="datagrid-title">{% translate "Created" %}</div>
+    <div class="datagrid-content">{{ object.created_at|date:"Y-m-d H:i" }}</div>
   </div>
-<div class="datagrid-item">
-  <div class="datagrid-title">{% translate "Last Updated" %}</div>
-  <div class="datagrid-content">{{ object.updated_at|date:"Y-m-d H:i" }}</div>
-  </div>
-  </div>
+  <div class="datagrid-item">
+    <div class="datagrid-title">{% translate "Last Updated" %}</div>
+    <div class="datagrid-content">{{ object.updated_at|date:"Y-m-d H:i" }}</div>
   </div>
   </div>
-{% if object.tags.all %}
-  <div class="card shadow-sm border-0 mb-3">
-    <div class="card-header border-0 bg-transparent pb-0">
-      <h3 class="card-title text-secondary">{% translate "Tags" %}</h3>
+  </div>
+  </div>
+  {% if object.tags.all %}
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header border-0 bg-transparent pb-0">
+        <h3 class="card-title text-secondary">{% translate "Tags" %}</h3>
+      </div>
+      <div class="card-body">
+        {% for tag in object.tags.all %}
+          {% include "inc/tags.html" with tag=tag %}
+        {% endfor %}
+      </div>
     </div>
-    <div class="card-body">
-      {% for tag in object.tags.all %}
-        {% include 'inc/tags.html' with tag=tag %}
-      {% endfor %}
+  {% endif %}
+  {% if object.notes %}
+    <div class="card shadow-sm border-0">
+      <div class="card-header border-0 bg-transparent pb-0">
+        <h3 class="card-title text-secondary">{% translate "Notes" %}</h3>
+      </div>
+      <div class="card-body csp-style-ee488c67b751">{{ object.notes }}</div>
     </div>
-  </div>
-{% endif %}
-{% if object.notes %}
-  <div class="card shadow-sm border-0">
-    <div class="card-header border-0 bg-transparent pb-0">
-      <h3 class="card-title text-secondary">{% translate "Notes" %}</h3>
-    </div>
-    <div class="card-body csp-style-ee488c67b751">{{ object.notes }}</div>
-  </div>
-{% endif %}
+  {% endif %}
   </div>
   </div>
 {% endblock %}

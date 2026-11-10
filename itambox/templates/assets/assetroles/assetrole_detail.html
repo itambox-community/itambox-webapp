@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% load static %}
@@ -35,6 +35,6 @@
     {# Assets Tab Pane #}
     {% translate "Assets in this Role" as t_assets %}
     {% translate "No assets have been assigned this role yet." as e_assets %}
-    {% include 'generic/includes/related_table_tab.html' with tab="assets-tab" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-laptop" %}
+    {% include "generic/includes/related_table_tab.html" with tab="assets-tab" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-laptop" %}
   {% endif %}
 {% endblock extra_tab_panes %}

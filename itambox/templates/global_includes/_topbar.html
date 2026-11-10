@@ -44,7 +44,7 @@
         {% elif model_name_str %}
           {% plugin_template_content model_name_str "navbar" %}
         {% endif %}
-        {% include 'global_includes/_workspace_switcher.html' with variant='full' %}
+        {% include "global_includes/_workspace_switcher.html" with variant="full" %}
         <div class="nav-item dropdown d-none d-md-flex me-3"
              hx-get="{% url 'users:notification_poll' %}"
              hx-trigger="load, every 30s"
@@ -104,7 +104,7 @@
         <a href="#"
            class="nav-link d-flex lh-1 text-reset p-0"
            data-bs-toggle="dropdown">
-          <span class="visually-hidden">{% translate 'Open user menu' %}</span>
+          <span class="visually-hidden">{% translate "Open user menu" %}</span>
           <div class="d-none d-xl-block ps-2">
             <div>{% if user.is_authenticated %}{{ user.get_full_name|default:user.username }}{% else %}{% translate "Guest" %}{% endif %}</div>
             <div class="mt-1 small text-muted">

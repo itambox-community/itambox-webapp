@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n utility_tags request_actions %}
 {% block title %}
   {% translate "Request Details - ITAMbox" %}
@@ -9,7 +9,7 @@
 {% block page_actions %}
   <div class="btn-list">
     {% can_asset_request_action request.user object "approve" as can_approve %}
-    {% if can_approve and object.status == 'pending' %}
+    {% if can_approve and object.status == "pending" %}
       <button type="button"
               class="btn btn-success"
               hx-get="{% url 'assets:request_approve' pk=object.pk %}"
@@ -28,14 +28,14 @@
       </button>
     {% endif %}
     {% can_asset_request_action request.user object "fulfill" as can_fulfill %}
-    {% if perms.procurement.add_purchaseorder and can_fulfill and object.status == 'approved' and not object.asset and not object.parent_id %}
+    {% if perms.procurement.add_purchaseorder and can_fulfill and object.status == "approved" and not object.asset and not object.parent_id %}
       <a href="{% url 'procurement:purchaseorder_create' %}?from_request={{ object.pk }}"
          class="btn btn-warning">
         <i class="mdi mdi-cart-plus"></i>
         {% translate "Create Purchase Order..." %}
       </a>
     {% endif %}
-    {% if request.user.is_staff and object.status == 'approved' and object.asset %}
+    {% if request.user.is_staff and object.status == "approved" and object.asset %}
       <button type="button"
               class="btn btn-primary"
               hx-get="{% url 'assets:asset_checkout_modal' pk=object.asset.pk %}?request_id={{ object.pk }}"
@@ -46,7 +46,7 @@
       </button>
     {% endif %}
     {% can_asset_request_action request.user object "claim" as can_claim %}
-    {% if can_claim and object.status == 'approved' %}
+    {% if can_claim and object.status == "approved" %}
       {% if object.asset or object.is_group or object.component or object.accessory or object.consumable %}
         <form method="post"
               action="{% url 'assets:request_claim' pk=object.pk %}"
@@ -66,7 +66,7 @@
       {% endif %}
     {% endif %}
     {% can_asset_request_action request.user object "mark_fulfilled" as can_mark_fulfilled %}
-    {% if can_mark_fulfilled and object.status == 'approved' %}
+    {% if can_mark_fulfilled and object.status == "approved" %}
       <a href="{% url 'assets:request_mark_fulfilled' pk=object.pk %}"
          class="btn btn-outline-warning"
          hx-get="{% url 'assets:request_mark_fulfilled' pk=object.pk %}"
@@ -78,7 +78,7 @@
     {% endif %}
     {% can_asset_request_action request.user object "cancel" as can_cancel %}
     {% if can_cancel %}
-      {% if object.status == 'pending' or object.status == 'approved' or object.status == 'procurement' %}
+      {% if object.status == "pending" or object.status == "approved" or object.status == "procurement" %}
         <form method="post"
               action="{% url 'assets:request_cancel' pk=object.pk %}"
               class="d-inline">
@@ -110,12 +110,12 @@
               <div class="step-description">{{ object.request_date|date:"Y-m-d" }}</div>
             </li>
             <!-- Step 2: Approved / Denied / Cancelled -->
-            {% if object.status == 'denied' %}
+            {% if object.status == "denied" %}
               <li class="step-item active bg-danger-lt">
                 <div class="step-title text-danger">{% translate "Denied" %}</div>
                 <div class="step-description">{{ object.response_date|date:"Y-m-d"|default:"-" }}</div>
               </li>
-            {% elif object.status == 'cancelled' %}
+            {% elif object.status == "cancelled" %}
               <li class="step-item active bg-secondary-lt">
                 <div class="step-title text-muted">{% translate "Cancelled" %}</div>
                 <div class="step-description">{{ object.updated_at|date:"Y-m-d" }}</div>
@@ -124,7 +124,7 @@
               <li class="step-item {% if object.status != 'pending' %}active{% endif %}">
                 <div class="step-title">{% translate "Approved" %}</div>
                 <div class="step-description">
-                  {% if object.status != 'pending' and object.response_date %}
+                  {% if object.status != "pending" and object.response_date %}
                     {{ object.response_date|date:"Y-m-d" }}
                   {% else %}
                     {% translate "Awaiting Approval" %}
@@ -133,7 +133,7 @@
               </li>
             {% endif %}
             <!-- Step 3: Procurement -->
-            {% if object.status != 'denied' and object.status != 'cancelled' %}
+            {% if object.status != "denied" and object.status != "cancelled" %}
               {% with links=asset_request_fulfillment_links %}
                 <li class="step-item {% if object.status == 'procurement' or object.status == 'fulfilled' or links %}active{% endif %}">
                   <div class="step-title">{% translate "Procurement" %}</div>
@@ -148,8 +148,8 @@
                             {% translate "Received" %} {{ link.qty_received }} / {{ link.qty_allocated }}
                       {% else %}-{% endif %}
                         </div>
-                    {% endfor %}
-                    {% elif object.status == 'procurement' %}
+                      {% endfor %}
+                    {% elif object.status == "procurement" %}
                       {% translate "Awaiting PO creation" %}
                     {% else %}
                       {% translate "Not Required (Stock)" %}
@@ -159,13 +159,13 @@
               {% endwith %}
             {% endif %}
             <!-- Step 4: Fulfilled -->
-            {% if object.status != 'denied' and object.status != 'cancelled' %}
+            {% if object.status != "denied" and object.status != "cancelled" %}
               <li class="step-item {% if object.status == 'fulfilled' %}active{% endif %}">
                 <div class="step-title">{% translate "Completion" %}</div>
                 <div class="step-description">
                   {% if fulfillment_label %}
                     {{ fulfillment_label }}
-                  {% elif object.status == 'fulfilled' %}
+                  {% elif object.status == "fulfilled" %}
                     {% translate "Fulfilled: Handover evidence not verified" %}
                   {% else %}
                     {% translate "Pending pickup/checkout" %}
@@ -326,7 +326,7 @@
           </div>
         </div>
       {% endif %}
-      {% if object.status == 'approved' or object.status == 'fulfilled' or object.status == 'denied' %}
+      {% if object.status == "approved" or object.status == "fulfilled" or object.status == "denied" %}
         <div class="card shadow-sm border-0 mb-3">
           <div class="card-header border-0 bg-transparent pb-0">
             <h3 class="card-title text-secondary">{% translate "Decision &amp; Response Details" %}</h3>
@@ -345,7 +345,7 @@
                 <div class="datagrid-content">{% if object.response_date %}{{ object.response_date|date:"Y-m-d H:i" }}{% else %}{% translate "Not set" %}{% endif %}</div>
               </div>
             </div>
-            {% if fulfillment_method == 'manual' and fulfillment_evidence.reason %}
+            {% if fulfillment_method == "manual" and fulfillment_evidence.reason %}
               <div class="alert alert-warning">
                 <div class="fw-bold">{% translate "Manual completion reason" %}</div>
                 <p class="mb-0">{{ fulfillment_evidence.reason|linebreaksbr }}</p>

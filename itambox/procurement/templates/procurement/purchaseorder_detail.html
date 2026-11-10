@@ -1,9 +1,9 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n money %}
 {% block page_title %}PO {{ object.order_number }} - {{ object.supplier }}{% endblock %}
 {% block page_actions %}
   <div class="btn-list">
-    {% if object.status == 'draft' %}
+    {% if object.status == "draft" %}
       <a href="{% url 'procurement:purchaseorder_edit' pk=object.pk %}"
          class="btn btn-primary">
         <i class="mdi mdi-pencil me-1"></i> {% translate "Edit" %}
@@ -28,7 +28,7 @@
          class="btn btn-danger">
         <i class="mdi mdi-delete me-1"></i> {% translate "Delete" %}
       </a>
-    {% elif object.status == 'approved' %}
+    {% elif object.status == "approved" %}
       <form method="post"
             action="{% url 'procurement:purchaseorder_order' pk=object.pk %}"
             class="d-inline">
@@ -45,7 +45,7 @@
           <i class="mdi mdi-close-circle-outline me-1"></i> {% translate "Cancel Order" %}
         </button>
       </form>
-    {% elif object.status == 'ordered' or object.status == 'partial' %}
+    {% elif object.status == "ordered" or object.status == "partial" %}
       <form method="post"
             action="{% url 'procurement:purchaseorder_receive' pk=object.pk %}"
             class="d-inline">
@@ -62,7 +62,7 @@
           <i class="mdi mdi-close-circle-outline me-1"></i> {% translate "Cancel Order" %}
         </button>
       </form>
-    {% elif object.status == 'cancelled' %}
+    {% elif object.status == "cancelled" %}
       <form method="post"
             action="{% url 'procurement:purchaseorder_reopen' pk=object.pk %}"
             class="d-inline">
@@ -98,17 +98,17 @@
             <div class="datagrid-item">
               <div class="datagrid-title">{% translate "Status" %}</div>
               <div class="datagrid-content">
-                {% if object.status == 'draft' %}
+                {% if object.status == "draft" %}
                   <span class="badge bg-secondary-lt">{% translate "Draft" %}</span>
-                {% elif object.status == 'approved' %}
+                {% elif object.status == "approved" %}
                   <span class="badge bg-green-lt">{% translate "Approved" %}</span>
-                {% elif object.status == 'ordered' %}
+                {% elif object.status == "ordered" %}
                   <span class="badge bg-blue-lt">{% translate "Ordered" %}</span>
-                {% elif object.status == 'partial' %}
+                {% elif object.status == "partial" %}
                   <span class="badge bg-warning-lt">{% translate "Partially Received" %}</span>
-                {% elif object.status == 'received' %}
+                {% elif object.status == "received" %}
                   <span class="badge bg-success-lt">{% translate "Received" %}</span>
-                {% elif object.status == 'cancelled' %}
+                {% elif object.status == "cancelled" %}
                   <span class="badge bg-danger-lt">{% translate "Cancelled" %}</span>
                 {% else %}
                   <span class="badge bg-primary-lt">{{ object.get_status_display }}</span>
@@ -141,7 +141,7 @@
           <h3 class="card-title text-secondary mb-0">{% translate "Line Items" %}</h3>
         </div>
         <div class="card-body">
-          <div id="line-items-container">{% include 'procurement/includes/purchaseorder_lines_container.html' %}</div>
+          <div id="line-items-container">{% include "procurement/includes/purchaseorder_lines_container.html" %}</div>
         </div>
       </div>
     </div>
@@ -180,7 +180,7 @@
           </div>
           <div class="card-body">
             {% for tag in object.tags.all %}
-              {% include 'inc/tags.html' with tag=tag %}
+              {% include "inc/tags.html" with tag=tag %}
             {% endfor %}
           </div>
         </div>
@@ -226,14 +226,14 @@
                         {% if link.received_attribution_tracked %}{{ link.qty_received }} / {{ link.qty_allocated }}
                   {% else %}-{% endif %}
                     </td>
-                  <td data-label="{% translate "Outstanding" %}">
-                    {% if link.received_attribution_tracked %}{{ link.qty_outstanding }}
+                    <td data-label="{% translate "Outstanding" %}">
+                      {% if link.received_attribution_tracked %}{{ link.qty_outstanding }}
                   {% else %}-{% endif %}
                     </td>
                     </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
           {% else %}
             <div class="text-center text-muted py-4">

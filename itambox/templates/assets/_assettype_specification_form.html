@@ -118,7 +118,8 @@
                       <div class="small text-muted">{{ option.identity }} · {{ option.source }}</div>
                       {% if option.description %}<div class="small mt-1">{{ option.description }}</div>{% endif %}
                       {% if option.has_stored_values %}
-                        <div class="small text-warning" data-specification-retained-notice>{% translate "Stored values are retained until explicitly cleared." %}</div>
+                        <div class="small text-warning"
+                             data-specification-retained-notice>{% translate "Stored values are retained until explicitly cleared." %}</div>
                       {% endif %}
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load static %}
 {% load render_table from django_tables2 %}
@@ -22,7 +22,7 @@
 {% endblock extra_cards_right %}
 {% block extra_page_actions %}
   {# Renew button #}
-  {% if object.status != 'cancelled' %}
+  {% if object.status != "cancelled" %}
     <button type="button"
             class="btn btn-outline-primary"
             hx-get="{% url 'subscriptions:subscription_renew' pk=object.pk %}"
@@ -33,7 +33,7 @@
     </button>
   {% endif %}
   {# Suspend button #}
-  {% if object.status == 'active' %}
+  {% if object.status == "active" %}
     <button type="button"
             class="btn btn-outline-warning"
             hx-post="{% url 'subscriptions:subscription_suspend' pk=object.pk %}"
@@ -42,7 +42,7 @@
       <i class="mdi mdi-view-column-outline me-1"></i>
       {% translate "Suspend" %}
     </button>
-  {% elif object.status == 'suspended' %}
+  {% elif object.status == "suspended" %}
     <button type="button"
             class="btn btn-outline-success"
             hx-post="{% url 'subscriptions:subscription_resume' pk=object.pk %}"
@@ -53,7 +53,7 @@
     </button>
   {% endif %}
   {# Cancel button #}
-  {% if object.status != 'cancelled' %}
+  {% if object.status != "cancelled" %}
     <button type="button"
             class="btn btn-outline-danger"
             hx-get="{% url 'subscriptions:subscription_cancel' pk=object.pk %}"
@@ -86,7 +86,7 @@
       </div>
       {% if assignments_table.rows %}
         <div class="table-responsive">{% render_table assignments_table %}</div>
-        {% include 'generic/includes/table_pagination.html' with table=assignments_table %}
+        {% include "generic/includes/table_pagination.html" with table=assignments_table %}
       {% else %}
         <div class="card-body py-5 text-muted text-center">
           <i class="mdi mdi-link-variant-off text-muted mb-2"></i>

@@ -12,7 +12,8 @@
             data-config-root="tables.{{ table_name }}">
         {% csrf_token %}
         <div class="modal-header">
-          <h5 class="modal-title" id="tableConfigModalLabel">{% translate "Configure" %} {{ table_verbose_name }} {% translate "Table" %}</h5>
+          <h5 class="modal-title"
+              id="tableConfigModalLabel">{% translate "Configure" %} {{ table_verbose_name }} {% translate "Table" %}</h5>
           <button type="button"
                   class="btn-close"
                   data-bs-dismiss="modal"
@@ -36,7 +37,9 @@
             {{ form.columns }}
             <div class="mt-2">
               <button type="button" class="btn btn-primary btn-sm" id="btn-cols-up">↑ {% translate "Move Up" %}</button>
-              <button type="button" class="btn btn-primary btn-sm ms-1" id="btn-cols-down">↓ {% translate "Move Down" %}</button>
+              <button type="button"
+                      class="btn btn-primary btn-sm ms-1"
+                      id="btn-cols-down">↓ {% translate "Move Down" %}</button>
             </div>
           </div>
         </div>

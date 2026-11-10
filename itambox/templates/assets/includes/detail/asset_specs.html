@@ -8,7 +8,7 @@
   </h4>
   {% if asset_type_spec_panel %}
     <div class="mb-3 text-muted small">{% translate "Values inherited from the selected Asset Type" %}</div>
-    {% include 'assets/includes/detail/_spec_panel_body.html' with panel=asset_type_spec_panel %}
+    {% include "assets/includes/detail/_spec_panel_body.html" with panel=asset_type_spec_panel %}
   {% endif %}
   {% if object.component_allocations.all %}
     {% if asset_type_spec_panel %}

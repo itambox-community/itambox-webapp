@@ -6,7 +6,7 @@
   {# the page nav isn't drawn (single page), because both side columns are 1fr. #}
   <div class="pagination-bar border-top p-2" {% if hx_target %} hx-target="{{ hx_target }}" hx-swap="innerHTML" hx-push-url="{% if hx_push_url is not None %}{{ hx_push_url }}{% else %}true{% endif %}" {% endif %}>
     <div class="pagination-bar__per-page">
-      {% include 'global_includes/pagination_per_page.html' with paginator=page_obj.paginator hx_target=hx_target hx_push_url=hx_push_url tab=tab %}
+      {% include "global_includes/pagination_per_page.html" with paginator=page_obj.paginator hx_target=hx_target hx_push_url=hx_push_url tab=tab %}
     </div>
     <small class="text-muted pagination-bar__count">
       {% blocktranslate trimmed with start=page_obj.start_index end=page_obj.end_index total=page_obj.paginator.count %}

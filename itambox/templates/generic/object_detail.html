@@ -303,7 +303,7 @@
             {% endif %}
             {# --- Generic Custom Fields Card --- #}
             {% if not hide_generic_custom_fields %}
-              {% include 'extras/includes/custom_fields_panel.html' %}
+              {% include "extras/includes/custom_fields_panel.html" %}
             {% endif %}
             {# --- Tags Card --- #}
             {% if object.tags.all %}
@@ -313,7 +313,7 @@
                 </div>
                 <div class="card-body pt-0">
                   {% for tag in object.tags.all %}
-                    {% include 'inc/tags.html' with tag=tag %}
+                    {% include "inc/tags.html" with tag=tag %}
                   {% endfor %}
                 </div>
               </div>
@@ -360,7 +360,7 @@
             <h3 class="card-title">{% translate "Changelog History (Last 50 changes)" %}</h3>
           </div>
           <div class="table-responsive">{% render_table changelog_table %}</div>
-          {% include 'generic/includes/table_pagination.html' with table=changelog_table %}
+          {% include "generic/includes/table_pagination.html" with table=changelog_table %}
         </div>
       </div>
     {% endif %}

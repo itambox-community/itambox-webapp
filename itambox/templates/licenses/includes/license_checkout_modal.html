@@ -27,7 +27,8 @@
             hx-swap="innerHTML">
         {% csrf_token %}
         <div class="modal-header">
-          <h5 class="modal-title" id="licenseCheckOutModalLabel">{% translate "Check Out License:" %} {{ license.name }}</h5>
+          <h5 class="modal-title"
+              id="licenseCheckOutModalLabel">{% translate "Check Out License:" %} {{ license.name }}</h5>
           <button type="button"
                   class="btn-close"
                   data-bs-dismiss="modal"

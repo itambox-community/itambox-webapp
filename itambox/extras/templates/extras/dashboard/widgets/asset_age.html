@@ -6,7 +6,7 @@
       <span class="h3 mb-0 text-primary fw-bold">{{ avg_asset_age_years }}y</span>
       <span class="text-muted small ms-2">{% translate "average asset age" %}</span>
     </div>
-    {% if chart_format == 'list' %}
+    {% if chart_format == "list" %}
       <!-- Simple List View -->
       <div class="d-flex flex-wrap gap-2 csp-style-8b511f076fb1">
         <span class="d-inline-flex align-items-center gap-1"><span class="badge badge-dot bg-success"></span>&lt;1y <span class="text-muted fw-bold">{{ age_buckets.lt1y }}</span></span>

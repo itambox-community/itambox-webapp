@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load static %}
 {% load utility_tags %}
@@ -42,9 +42,9 @@
   {# Installed Instances Tab Pane #}
   {% translate "Installed Instances on Assets / Devices" as t_inst %}
   {% translate "This software catalog item is not currently installed on any asset." as e_inst %}
-  {% include 'generic/includes/related_table_tab.html' with tab="installed-instances" table=instances_table title=t_inst empty=e_inst icon="mdi mdi-checkbox-outline" %}
+  {% include "generic/includes/related_table_tab.html" with tab="installed-instances" table=instances_table title=t_inst empty=e_inst icon="mdi mdi-checkbox-outline" %}
   {# Licenses Tab Pane #}
   {% translate "Associated Software Licenses &amp; Entitlements" as t_lic %}
   {% translate "No software license entitlements created for this software product yet." as e_lic %}
-  {% include 'generic/includes/related_table_tab.html' with tab="licenses" table=licenses_table title=t_lic empty=e_lic %}
+  {% include "generic/includes/related_table_tab.html" with tab="licenses" table=licenses_table title=t_lic empty=e_lic %}
 {% endblock extra_tab_panes %}

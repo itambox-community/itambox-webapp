@@ -55,11 +55,11 @@
         <br>
         <small class="text-muted">
           {{ resolved_depreciation_policy }}
-          {% if resolved_depreciation_rung == 'override' %}
+          {% if resolved_depreciation_rung == "override" %}
             <span class="badge bg-blue-lt ms-1">{% translate "asset override" %}</span>
-          {% elif resolved_depreciation_rung == 'tenant' %}
+          {% elif resolved_depreciation_rung == "tenant" %}
             <span class="badge bg-secondary-lt ms-1">{% translate "tenant default" %}</span>
-          {% elif resolved_depreciation_rung == 'type' %}
+          {% elif resolved_depreciation_rung == "type" %}
             <span class="badge bg-secondary-lt ms-1">{% translate "asset type" %}</span>
           {% endif %}
         </small>

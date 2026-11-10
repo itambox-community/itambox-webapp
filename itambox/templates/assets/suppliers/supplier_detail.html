@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% load static %}
@@ -114,11 +114,11 @@
                   </td>
                   <td>{{ assignment.role.name }}</td>
                   <td>
-                    {% if assignment.priority == 'primary' %}
+                    {% if assignment.priority == "primary" %}
                       <span class="badge bg-green text-green-fg">{% translate "Primary" %}</span>
-                    {% elif assignment.priority == 'secondary' %}
+                    {% elif assignment.priority == "secondary" %}
                       <span class="badge bg-blue text-blue-fg">{% translate "Secondary" %}</span>
-                    {% elif assignment.priority == 'inactive' %}
+                    {% elif assignment.priority == "inactive" %}
                       <span class="badge bg-secondary text-secondary-fg">{% translate "Inactive" %}</span>
                     {% else %}
                       <span class="badge bg-surface-secondary text-body">{{ assignment.get_priority_display }}</span>
@@ -149,17 +149,17 @@
   {# Supplied Assets Tab Pane #}
   {% blocktranslate with name=object.name asvar t_assets %}Assets Sourced from {{ name }}{% endblocktranslate %}
   {% translate "No physical assets sourced from this supplier yet." as e_assets %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-devices" %}
+  {% include "generic/includes/related_table_tab.html" with tab="assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-devices" %}
   {# Accessories Supplied Tab Pane #}
   {% blocktranslate with name=object.name asvar t_accessories %}Accessories Supplied by {{ name }}{% endblocktranslate %}
   {% translate "No accessories supplied by this supplier yet." as e_accessories %}
-  {% include 'generic/includes/related_table_tab.html' with tab="accessories" table=accessories_table title=t_accessories empty=e_accessories %}
+  {% include "generic/includes/related_table_tab.html" with tab="accessories" table=accessories_table title=t_accessories empty=e_accessories %}
   {# Maintenances Tab Pane #}
   {% blocktranslate with name=object.name asvar t_maint %}Maintenance Expenditures with {{ name }}{% endblocktranslate %}
   {% translate "No maintenance logs recorded for this supplier yet." as e_maint %}
-  {% include 'generic/includes/related_table_tab.html' with tab="maintenances" table=maintenances_table title=t_maint empty=e_maint %}
+  {% include "generic/includes/related_table_tab.html" with tab="maintenances" table=maintenances_table title=t_maint empty=e_maint %}
   {# Licenses Purchased Tab Pane #}
   {% blocktranslate with name=object.name asvar t_lic %}Licenses Purchased from {{ name }}{% endblocktranslate %}
   {% translate "No licenses purchased from this supplier yet." as e_lic %}
-  {% include 'generic/includes/related_table_tab.html' with tab="licenses" table=licenses_table title=t_lic empty=e_lic %}
+  {% include "generic/includes/related_table_tab.html" with tab="licenses" table=licenses_table title=t_lic empty=e_lic %}
 {% endblock extra_tab_panes %}

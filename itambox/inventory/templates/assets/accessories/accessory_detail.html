@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% load static %}
@@ -77,7 +77,7 @@
       </div>
       {% if stocks_table.rows %}
         <div class="table-responsive">{% render_table stocks_table %}</div>
-        {% include 'generic/includes/table_pagination.html' with table=stocks_table %}
+        {% include "generic/includes/table_pagination.html" with table=stocks_table %}
       {% else %}
         <div class="card-body py-5 text-muted text-center">
           <p class="mb-0">{% translate "No stock pools registered for this accessory." %}</p>
@@ -88,9 +88,9 @@
   {# Active Assignments Tab Pane #}
   {% translate "Checked Out Assignments" as t_assignments %}
   {% translate "No active checkout assignments logged for this peripheral." as e_assignments %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assignments" table=assignments_table title=t_assignments empty=e_assignments icon="mdi mdi-keyboard-outline" %}
+  {% include "generic/includes/related_table_tab.html" with tab="assignments" table=assignments_table title=t_assignments empty=e_assignments icon="mdi mdi-keyboard-outline" %}
   {# Kits Tab Pane #}
   {% translate "Kits Allocating this Accessory" as t_kits %}
   {% translate "No kits allocate this accessory." as e_kits %}
-  {% include 'generic/includes/related_table_tab.html' with tab="kits" table=kits_table title=t_kits empty=e_kits %}
+  {% include "generic/includes/related_table_tab.html" with tab="kits" table=kits_table title=t_kits empty=e_kits %}
 {% endblock extra_tab_panes %}

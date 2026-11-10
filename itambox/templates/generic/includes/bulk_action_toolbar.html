@@ -56,7 +56,7 @@
         </button>
       </form>
     {% endif %}
-    {% if model_name_str == 'assets.asset' %}
+    {% if model_name_str == "assets.asset" %}
       {% if bulk_scan_capabilities.checkout %}
         <button type="button"
                 class="btn btn-sm btn-primary bulk-action-btn btn-bulk-scan-seed"
@@ -88,7 +88,7 @@
         </button>
       {% endif %}
     {% endif %}
-    {% if model_name_str == 'assets.assetrequest' and asset_request_bulk_receive_available %}
+    {% if model_name_str == "assets.assetrequest" and asset_request_bulk_receive_available %}
       <form method="post"
             action="{% url 'assets:request_bulk_receive' %}"
             class="bulk-receive-form d-inline"
@@ -103,7 +103,7 @@
         </button>
       </form>
     {% endif %}
-    {% if model_name_str == 'inventory.consumable' or model_name_str == 'inventory.consumablestock' or model_name_str == 'inventory.accessory' or model_name_str == 'inventory.accessorystock' or model_name_str == 'inventory.component' or model_name_str == 'inventory.componentstock' %}
+    {% if model_name_str == "inventory.consumable" or model_name_str == "inventory.consumablestock" or model_name_str == "inventory.accessory" or model_name_str == "inventory.accessorystock" or model_name_str == "inventory.component" or model_name_str == "inventory.componentstock" %}
       <button type="button"
               class="btn btn-sm btn-success bulk-action-btn"
               id="btn-bulk-checkout-inventory"
@@ -115,7 +115,7 @@
         {% translate "Check-out" %}
       </button>
     {% endif %}
-    {% if model_name_str == 'core.alertlog' %}
+    {% if model_name_str == "core.alertlog" %}
       <form method="post"
             action="{% url 'extras:alertlog_bulk_acknowledge' %}"
             class="bulk-acknowledge-form d-inline"

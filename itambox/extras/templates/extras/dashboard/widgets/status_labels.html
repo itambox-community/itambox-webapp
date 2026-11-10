@@ -6,7 +6,7 @@
     <span class="h2 mb-0">{{ total_assets }}</span>
     <span class="text-muted small ms-2">{% translate "Total Managed Assets" %}</span>
   </div>
-  {% if chart_type == 'list' %}
+  {% if chart_type == "list" %}
     <!-- Simple List View -->
     <div class="row g-2 csp-style-8b511f076fb1">
       {% for status in status_stats %}

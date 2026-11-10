@@ -8,11 +8,12 @@
 <div class="mb-3">
   <span class="text-muted small d-block">{% translate "Physical Audit State" %}</span>
   <div id="asset-audit-badge-container" class="mt-1">
-    {% include 'assets/includes/asset_audit_badge.html' with asset=object %}
+    {% include "assets/includes/asset_audit_badge.html" with asset=object %}
   </div>
 </div>
 <div class="d-grid gap-2">
-  <button class="btn btn-success font-weight-bold shadow-sm"
+  <button type="button"
+          class="btn btn-success font-weight-bold shadow-sm"
           hx-get="{% url 'assets:asset_audit' pk=object.pk %}"
           hx-target="#modal-placeholder"
           hx-swap="innerHTML"

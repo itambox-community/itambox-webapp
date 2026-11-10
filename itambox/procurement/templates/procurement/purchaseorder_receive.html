@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n crispy_forms_tags %}
 {% block page_title %}{% translate "Receive Purchase Order" %}: {{ object.order_number }}{% endblock %}
 {% block details_tab %}
@@ -49,7 +49,8 @@
                     </tr>
                   {% empty %}
                     <tr>
-                      <td colspan="5" class="text-center text-muted py-4">{% translate "No outstanding items to receive." %}</td>
+                      <td colspan="5"
+                          class="text-center text-muted py-4">{% translate "No outstanding items to receive." %}</td>
                     </tr>
                   {% endfor %}
                 </tbody>

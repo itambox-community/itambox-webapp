@@ -5,9 +5,9 @@
 {% block page_header %}
   <div class="page-pretitle">{{ pretitle }}</div>
   <h2 class="page-title">
-    {% if mode == 'dispose' %}
+    {% if mode == "dispose" %}
       <i class="mdi mdi-delete-clock-outline me-2"></i>
-    {% elif mode == 'checkout' %}
+    {% elif mode == "checkout" %}
       <i class="mdi mdi-logout me-2"></i>
     {% else %}
       <i class="mdi mdi-inbox-arrow-down me-2"></i>
@@ -83,7 +83,7 @@
                     <th>{% translate "Tag" %}</th>
                     <th>{% translate "Asset" %}</th>
                     <th>{% translate "Status" %}</th>
-                    {% if mode == 'dispose' %}
+                    {% if mode == "dispose" %}
                       <th class="text-end">{% translate "Book value" %}</th>
                       <th class="csp-style-22e445681534">{% translate "Proceeds" %}</th>
                     {% else %}
@@ -108,9 +108,9 @@
           <div class="card">
             <div class="card-header">
               <h3 class="card-title m-0">
-                {% if mode == 'dispose' %}
+                {% if mode == "dispose" %}
                   {% translate "Disposal details" %}
-                {% elif mode == 'checkout' %}
+                {% elif mode == "checkout" %}
                   {% translate "Check-out options" %}
                 {% else %}
                   {% translate "Check-in options" %}
@@ -119,7 +119,7 @@
             </div>
             <div class="card-body">
               {% crispy form %}
-              {% if mode == 'dispose' %}
+              {% if mode == "dispose" %}
                 <div class="alert alert-warning d-flex align-items-center mt-2 mb-0">
                   <i class="mdi mdi-alert-outline me-2 fs-3"></i>
                   <div class="small">
@@ -129,7 +129,7 @@
               {% endif %}
             </div>
             <div class="card-footer text-end">
-              {% if mode == 'dispose' %}
+              {% if mode == "dispose" %}
                 <button type="button"
                         class="btn btn-danger"
                         id="scan-basket-submit"
@@ -138,7 +138,7 @@
                         data-bs-target="#bulk-dispose-confirm-modal">
                   <i class="mdi mdi-delete-outline me-1"></i>{% translate "Dispose basket" %}
                 </button>
-              {% elif mode == 'checkout' %}
+              {% elif mode == "checkout" %}
                 <button type="submit"
                         class="btn btn-success"
                         id="scan-basket-submit"
@@ -170,7 +170,7 @@
       <td>
         <span class="badge bg-blue-lt" data-field="status"></span>
       </td>
-      {% if mode == 'dispose' %}
+      {% if mode == "dispose" %}
         <td class="text-end text-muted" data-field="book_value"></td>
         <td>
           <input type="number"
@@ -202,9 +202,9 @@
   <div id="basket-scanner-modal" class="scanner-overlay">
     <div class="text-center mb-3">
       <h3 class="text-white mb-1">
-        {% if mode == 'dispose' %}
+        {% if mode == "dispose" %}
           {% translate "Scan to dispose" %}
-        {% elif mode == 'checkout' %}
+        {% elif mode == "checkout" %}
           {% translate "Scan to check out" %}
         {% else %}
           {% translate "Scan to check in" %}
@@ -239,7 +239,7 @@
       <button type="button" id="basket-close-scanner-btn" class="btn btn-danger">{% translate "Done" %}</button>
     </div>
   </div>
-  {% if mode == 'dispose' %}
+  {% if mode == "dispose" %}
     <div class="modal modal-blur fade"
          id="bulk-dispose-confirm-modal"
          tabindex="-1"

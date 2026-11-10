@@ -1,11 +1,11 @@
 {% load i18n %}
-{% if record.status == 'pending' %}
+{% if record.status == "pending" %}
   <span class="badge bg-warning text-warning-fg">{{ label|default:record.get_status_display }}</span>
-{% elif record.status == 'approved' or record.status == 'procurement' %}
+{% elif record.status == "approved" or record.status == "procurement" %}
   <span class="badge bg-info text-info-fg">{{ label|default:record.get_status_display }}</span>
-{% elif record.status == 'denied' %}
+{% elif record.status == "denied" %}
   <span class="badge bg-danger text-danger-fg">{{ label|default:record.get_status_display }}</span>
-{% elif record.status == 'fulfilled' %}
+{% elif record.status == "fulfilled" %}
   <span class="badge bg-secondary text-secondary-fg">
     {% if label %}
       {{ label }}

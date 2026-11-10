@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% load static %}
@@ -75,19 +75,19 @@
   {# Asset Types Tab Pane #}
   {% blocktranslate with name=object.name asvar t_types %}Asset Types / Models Categorized under {{ name }}{% endblocktranslate %}
   {% translate "No asset types or models categorized under this section yet." as e_types %}
-  {% include 'generic/includes/related_table_tab.html' with tab="asset-types" table=asset_types_table title=t_types empty=e_types icon="mdi mdi-cog-outline" %}
+  {% include "generic/includes/related_table_tab.html" with tab="asset-types" table=asset_types_table title=t_types empty=e_types icon="mdi mdi-cog-outline" %}
   {# Accessories Tab Pane #}
   {% blocktranslate with name=object.name asvar t_accessories %}Accessories Monitored under {{ name }}{% endblocktranslate %}
   {% translate "No accessories registered under this notification category yet." as e_accessories %}
-  {% include 'generic/includes/related_table_tab.html' with tab="accessories" table=accessories_table title=t_accessories empty=e_accessories icon="mdi mdi-puzzle-outline" %}
+  {% include "generic/includes/related_table_tab.html" with tab="accessories" table=accessories_table title=t_accessories empty=e_accessories icon="mdi mdi-puzzle-outline" %}
   {# Components Tab Pane #}
   {% blocktranslate with name=object.name asvar t_components %}Components Scoped under {{ name }}{% endblocktranslate %}
   {% translate "No components registered under this category yet." as e_components %}
-  {% include 'generic/includes/related_table_tab.html' with tab="components" table=components_table title=t_components empty=e_components %}
+  {% include "generic/includes/related_table_tab.html" with tab="components" table=components_table title=t_components empty=e_components %}
   {# Consumables Tab Pane #}
   {% blocktranslate with name=object.name asvar t_consumables %}Consumables Scoped under {{ name }}{% endblocktranslate %}
   {% translate "No consumables registered under this category yet." as e_consumables %}
-  {% include 'generic/includes/related_table_tab.html' with tab="consumables" table=consumables_table title=t_consumables empty=e_consumables %}
+  {% include "generic/includes/related_table_tab.html" with tab="consumables" table=consumables_table title=t_consumables empty=e_consumables %}
   {# Custody EULAs & Policies Tab Pane #}
   <div class="tab-pane fade {% if request.GET.tab == 'custody-policies' %}show active{% endif %}"
        id="custody-policies"

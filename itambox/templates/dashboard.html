@@ -69,34 +69,38 @@
     <div class="btn-list" id="dashboard-controls">
       {# On phones these controls collapse to icon-only to save space; labels return at ≥sm. #}
       <span id="dashboard-locked-controls">
-        <button id="unlock-dashboard"
+        <button type="button"
+                id="unlock-dashboard"
                 class="btn btn-outline-secondary d-flex align-items-center"
                 title="{% translate 'Unlock dashboard to resize and reorder widgets' %}">
           <i class="mdi mdi-lock-open-outline"></i>
-          <span class="d-none d-sm-inline ms-1">{% translate 'Unlock' %}</span>
+          <span class="d-none d-sm-inline ms-1">{% translate "Unlock" %}</span>
         </button>
       </span>
       <span class="d-none"  id="dashboard-unlocked-controls">
-        <button id="save-dashboard"
+        <button type="button"
+                id="save-dashboard"
                 class="btn btn-primary d-flex align-items-center"
                 title="{% translate 'Save layout' %}">
           <i class="mdi mdi-floppy"></i>
-          <span class="d-none d-sm-inline ms-1">{% translate 'Save Layout' %}</span>
+          <span class="d-none d-sm-inline ms-1">{% translate "Save Layout" %}</span>
         </button>
-        <button class="btn btn-outline-secondary d-flex align-items-center"
+        <button type="button"
+                class="btn btn-outline-secondary d-flex align-items-center"
                 hx-get="{% url 'extras:dashboard_widget_add' dashboard_id=active_dashboard.id %}"
                 hx-target="#dashboard-modal-content"
                 data-bs-toggle="modal"
                 data-bs-target="#dashboard-modal"
                 title="{% translate 'Add Widget' %}">
           <i class="mdi mdi-plus"></i>
-          <span class="d-none d-sm-inline ms-1">{% translate 'Add Widget' %}</span>
+          <span class="d-none d-sm-inline ms-1">{% translate "Add Widget" %}</span>
         </button>
-        <button id="lock-dashboard"
+        <button type="button"
+                id="lock-dashboard"
                 class="btn btn-outline-secondary d-flex align-items-center"
                 title="{% translate 'Lock dashboard' %}">
           <i class="mdi mdi-lock"></i>
-          <span class="d-none d-sm-inline ms-1">{% translate 'Lock' %}</span>
+          <span class="d-none d-sm-inline ms-1">{% translate "Lock" %}</span>
         </button>
       </span>
       <form method="post"
@@ -108,7 +112,7 @@
                 title="{% translate 'Reset' %}"
                 data-confirm="{% translate 'Reset dashboard to default layout? This cannot be undone.' %}">
           <i class="mdi mdi-refresh"></i>
-          <span class="d-none d-sm-inline ms-1">{% translate 'Reset' %}</span>
+          <span class="d-none d-sm-inline ms-1">{% translate "Reset" %}</span>
         </button>
       </form>
     </div>
@@ -138,7 +142,8 @@
               <span class="widget-title-text">{{ entry.config.title }}</span>
             </h2>
             <div class="card-actions d-flex gap-1">
-              <button class="btn btn-icon btn-sm btn-ghost-secondary"
+              <button type="button"
+                      class="btn btn-icon btn-sm btn-ghost-secondary"
                       hx-get="{% url 'extras:dashboard_widget_config' dashboard_id=active_dashboard.id index=entry.index %}"
                       hx-target="#dashboard-modal-content"
                       data-bs-toggle="modal"
@@ -146,7 +151,8 @@
                       title="{% translate 'Configure' %}">
                 <i class="mdi mdi-cog-outline"></i>
               </button>
-              <button class="btn btn-icon btn-sm btn-ghost-danger dashboard-manage-btn d-none"
+              <button type="button"
+                      class="btn btn-icon btn-sm btn-ghost-danger dashboard-manage-btn d-none"
                       hx-get="{% url 'extras:dashboard_widget_delete' dashboard_id=active_dashboard.id index=entry.index %}"
                       hx-target="#dashboard-modal-content"
                       data-bs-toggle="modal"
@@ -177,15 +183,16 @@
         <div class="card">
           <div class="card-body text-center py-5">
             <i class="mdi mdi-view-dashboard mb-3 text-muted"></i>
-            <h4>{% translate 'Your dashboard is empty' %}</h4>
-            <p class="text-muted mb-3">{% translate 'No widgets are currently configured.' %}</p>
-            <button class="btn btn-primary"
+            <h4>{% translate "Your dashboard is empty" %}</h4>
+            <p class="text-muted mb-3">{% translate "No widgets are currently configured." %}</p>
+            <button type="button"
+                    class="btn btn-primary"
                     hx-get="{% url 'extras:dashboard_widget_add' %}"
                     hx-target="#dashboard-modal-content"
                     data-bs-toggle="modal"
                     data-bs-target="#dashboard-modal">
               <i class="mdi mdi-plus me-1"></i>
-              {% translate 'Add your first widget' %}
+              {% translate "Add your first widget" %}
             </button>
           </div>
         </div>

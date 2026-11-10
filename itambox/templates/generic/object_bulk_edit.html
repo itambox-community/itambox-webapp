@@ -1,4 +1,4 @@
-{% extends base_template|default:'layout.html' %}
+{% extends base_template|default:"layout.html" %}
 {% load i18n %}
 {% load crispy_forms_tags %}
 {% block title %}{{ title }} {% translate "- ITAMbox" %}{% endblock %}
@@ -36,7 +36,7 @@
           <div class="card-body">
             {% if form.fields %}
               {% for field in form %}
-                {% if field.name != '_selected_fields' %}
+                {% if field.name != "_selected_fields" %}
                   <div class="mb-3 row align-items-center">
                     <div class="col-sm-3">
                       <div class="form-check">
