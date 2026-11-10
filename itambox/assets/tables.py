@@ -240,6 +240,47 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
         # Format date if it exists
         return value.strftime("%Y-%m-%d") if value else ""
 
+    _ACTION_ROUTES = {
+        "checkin": "assets:asset_checkin",
+        "checkout": "assets:asset_checkout_modal",
+        "clone": "assets:asset_clone",
+        "detail": "assets:asset_detail",
+        "update": "assets:asset_update",
+        "delete": "assets:asset_delete",
+    }
+
+    def _action_support(self):
+        """URL templates and labels shared by every row of this table instance.
+
+        Neither depends on the record, so they are resolved once instead of one
+        ``reverse()``/``gettext`` per row and action.
+        """
+        support = getattr(self, "_action_support_cache", None)
+        if support is None:
+            marker = 2147483000  # a pk that cannot collide with other URL parts
+            urls = {}
+            for key, name in self._ACTION_ROUTES.items():
+                url = reverse(name, kwargs={"pk": marker})
+                head, sep, tail = url.partition(f"/{marker}/")
+                urls[key] = (head + "/", tail) if sep else None
+            labels = {
+                "checkin": str(_("Check in")),
+                "checkout": str(_("Check out")),
+                "clone": str(_("Clone")),
+                "changelog": str(_("Change log")),
+                "edit": str(_("Edit")),
+                "more": str(_("More actions")),
+                "delete": str(_("Delete")),
+            }
+            support = self._action_support_cache = (urls, labels)
+        return support
+
+    def _action_url(self, key, pk):
+        parts = self._action_support()[0][key]
+        if parts is None:
+            return reverse(self._ACTION_ROUTES[key], kwargs={"pk": pk})
+        return f"{parts[0]}{pk}/{parts[1]}"
+
     def render_actions(self, record):
         if getattr(record, "deleted_at", None) is not None:
             ct = ContentType.objects.get_for_model(record)
@@ -281,6 +322,7 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
         if not can_edit and not can_delete and not can_clone:
             return ""
 
+        labels = self._action_support()[1]
         html = '<div class="d-flex align-items-center gap-1 justify-content-end">'
 
         if can_edit:
@@ -290,8 +332,8 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
             # check-out = soft filled tint (give out), check-in = soft
             # outline (take back). Equal width via .check-action.
             if record.active_assignment:
-                checkin_url = reverse("assets:asset_checkin", kwargs={"pk": record.pk})
-                checkin_label = _("Check in")
+                checkin_url = self._action_url("checkin", record.pk)
+                checkin_label = labels["checkin"]
                 html += format_html(
                     '<button class="btn btn-sm btn-soft-outline-success check-action cursor-pointer" type="button" '
                     'hx-get="{0}" hx-target="#modal-placeholder" hx-swap="innerHTML" '
@@ -300,8 +342,8 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
                     checkin_label,
                 )
             else:
-                checkout_url = reverse("assets:asset_checkout_modal", kwargs={"pk": record.pk})
-                checkout_label = _("Check out")
+                checkout_url = self._action_url("checkout", record.pk)
+                checkout_label = labels["checkout"]
                 html += format_html(
                     '<button class="btn btn-sm btn-soft-success check-action cursor-pointer" type="button" '
                     'hx-get="{0}" hx-target="#modal-placeholder" hx-swap="innerHTML" '
@@ -312,8 +354,8 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
                 )
 
         if can_clone:
-            clone_url = reverse("assets:asset_clone", kwargs={"pk": record.pk})
-            clone_title = _("Clone")
+            clone_url = self._action_url("clone", record.pk)
+            clone_title = labels["clone"]
             html += format_html(
                 '<a class="btn btn-sm btn-action" href="{}" title="{}" aria-label="{}">'
                 '<i class="mdi mdi-content-copy"></i></a>',
@@ -322,19 +364,19 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
                 clone_title,
             )
 
-        changelog_url = reverse("assets:asset_detail", kwargs={"pk": record.pk}) + "?tab=changelog"
+        changelog_url = self._action_url("detail", record.pk) + "?tab=changelog"
         changelog_li = format_html(
             '<li><a class="dropdown-item" href="{}"><i class="mdi mdi-history me-1"></i>{}</a></li>',
             changelog_url,
-            _("Change log"),
+            labels["changelog"],
         )
-        edit_title = _("Edit")
-        more_actions = _("More actions")
-        delete_label = _("Delete")
+        edit_title = labels["edit"]
+        more_actions = labels["more"]
+        delete_label = labels["delete"]
 
         if can_edit and can_delete:
-            edit_url = reverse("assets:asset_update", kwargs={"pk": record.pk})
-            del_url = reverse("assets:asset_delete", kwargs={"pk": record.pk})
+            edit_url = self._action_url("update", record.pk)
+            del_url = self._action_url("delete", record.pk)
             html += format_html(
                 '<span class="btn-group dropdown">'
                 '<a class="btn btn-sm btn-action" href="{}" title="{}" aria-label="{}">'
@@ -353,7 +395,7 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
                 delete_label,
             )
         elif can_edit:
-            edit_url = reverse("assets:asset_update", kwargs={"pk": record.pk})
+            edit_url = self._action_url("update", record.pk)
             html += format_html(
                 '<span class="btn-group dropdown">'
                 '<a class="btn btn-sm btn-action" href="{}" title="{}" aria-label="{}">'
@@ -368,7 +410,7 @@ class AssetTable(BaseTable):  # Inherit from BaseTable
                 changelog_li,
             )
         elif can_delete:
-            del_url = reverse("assets:asset_delete", kwargs={"pk": record.pk})
+            del_url = self._action_url("delete", record.pk)
             html += format_html(
                 '<a class="btn btn-sm btn-action btn-action-danger" href="{}" title="{}" aria-label="{}">'
                 '<i class="mdi mdi-trash-can-outline"></i></a>',

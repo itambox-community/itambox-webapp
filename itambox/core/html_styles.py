@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -81,12 +82,22 @@ def safe_hex_color(color: str | None, fallback: str = "6c757d") -> str:
     return normalized.lower()
 
 
+@lru_cache(maxsize=512)
+def _color_class_name(prefix: str, normalized: str, css_property: str) -> str:
+    digest = hashlib.sha256(f"{css_property}:{normalized}".encode("ascii")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
 def _color_class(prefix: str, color: str | None, css_property: str) -> tuple[str, str]:
     normalized = safe_hex_color(color)
-    digest = hashlib.sha256(f"{css_property}:{normalized}".encode("ascii")).hexdigest()[:16]
-    class_name = f"{prefix}-{digest}"
+    class_name = _color_class_name(prefix, normalized, css_property)
 
     return class_name, _nonce_style_block(class_name, f"{css_property}:#{normalized};")
+
+
+@lru_cache(maxsize=1024)
+def _render_style_block(nonce: str, class_name: str, declarations: str):
+    return format_html('<style nonce="{}">.{}{{{}}}</style>', nonce, class_name, declarations)
 
 
 def _nonce_style_block(class_name: str, declarations: str):
@@ -94,4 +105,6 @@ def _nonce_style_block(class_name: str, declarations: str):
     if not nonce or not _SAFE_NONCE.fullmatch(nonce):
         return mark_safe("")
 
-    return format_html('<style nonce="{}">.{}{{{}}}</style>', nonce, class_name, declarations)
+    # A page repeats the same few colors on every row; the rendered block only
+    # depends on (nonce, class, declarations), all plain strings.
+    return _render_style_block(nonce, class_name, declarations)
