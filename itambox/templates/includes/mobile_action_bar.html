@@ -20,16 +20,20 @@
             <h6 class="dropdown-header">{% translate "Create" %}</h6>
           </li>
           {% if perms.assets.add_asset %}
-            <li><a class="dropdown-item" href="{% url 'assets:asset_create' %}"><i class="mdi mdi-server me-2 text-muted"></i>{% translate "Asset" %}</a></li>
+            <li><a class="dropdown-item"
+   href="{% url 'assets:asset_create' %}"><i class="mdi mdi-server me-2 text-muted"></i>{% translate "Asset" %}</a></li>
           {% endif %}
           {% if perms.inventory.add_component %}
-            <li><a class="dropdown-item" href="{% url 'inventory:component_create' %}"><i class="mdi mdi-memory me-2 text-muted"></i>{% translate "Component" %}</a></li>
+            <li><a class="dropdown-item"
+   href="{% url 'inventory:component_create' %}"><i class="mdi mdi-memory me-2 text-muted"></i>{% translate "Component" %}</a></li>
           {% endif %}
           {% if perms.inventory.add_accessory %}
-            <li><a class="dropdown-item" href="{% url 'inventory:accessory_create' %}"><i class="mdi mdi-headphones me-2 text-muted"></i>{% translate "Accessory" %}</a></li>
+            <li><a class="dropdown-item"
+   href="{% url 'inventory:accessory_create' %}"><i class="mdi mdi-headphones me-2 text-muted"></i>{% translate "Accessory" %}</a></li>
           {% endif %}
           {% if perms.inventory.add_consumable %}
-            <li><a class="dropdown-item" href="{% url 'inventory:consumable_create' %}"><i class="mdi mdi-water-outline me-2 text-muted"></i>{% translate "Consumable" %}</a></li>
+            <li><a class="dropdown-item"
+   href="{% url 'inventory:consumable_create' %}"><i class="mdi mdi-water-outline me-2 text-muted"></i>{% translate "Consumable" %}</a></li>
           {% endif %}
         {% endif %}
         {% if bulk_scan_capabilities.checkin or bulk_scan_capabilities.checkout or bulk_scan_capabilities.dispose %}

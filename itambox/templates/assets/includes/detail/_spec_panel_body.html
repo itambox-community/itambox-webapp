@@ -6,7 +6,7 @@
     {% for entry in group.entries %}
       <div class="col-md-6">
         <div class="text-muted small">{{ entry.label }}</div>
-        <div class="fw-semibold">{% include 'assets/includes/detail/_spec_value.html' %}</div>
+        <div class="fw-semibold">{% include "assets/includes/detail/_spec_value.html" %}</div>
       </div>
     {% endfor %}
   </div>
@@ -17,14 +17,14 @@
   <div class="row g-3 text-muted">
     {% for entry in panel.further %}
       <div class="col-md-6">
-        <div class="small">{% if entry.kind == 'unknown' %}<code>{{ entry.key }}</code>{% else %}{{ entry.label }}{% endif %}
-          {% if entry.state == 'unknown_field' %}
+        <div class="small">{% if entry.kind == "unknown" %}<code>{{ entry.key }}</code>{% else %}{{ entry.label }}{% endif %}
+          {% if entry.state == "unknown_field" %}
             <span class="badge bg-secondary-lt ms-1">{% translate "Unknown field" %}</span>
           {% else %}
             <span class="badge bg-secondary-lt ms-1">{% translate "Not in current specification" %}</span>
           {% endif %}
         </div>
-        <div>{% include 'assets/includes/detail/_spec_value.html' %}</div>
+        <div>{% include "assets/includes/detail/_spec_value.html" %}</div>
       </div>
     {% endfor %}
   </div>

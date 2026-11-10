@@ -14,7 +14,7 @@
       </a>
     </div>
     <div class="card card-md">
-      {% if mode == 'backup_codes' %}
+      {% if mode == "backup_codes" %}
         {# ── One-time display of the freshly generated backup codes ── #}
         <div class="card-body">
           <h2 class="h2 text-center mb-2">{% translate "Save your backup codes" %}</h2>
@@ -42,7 +42,7 @@
             <a href="{{ next }}" class="btn btn-primary w-100">{% translate "I've saved my codes. Continue" %}</a>
           </div>
         </div>
-      {% elif mode == 'verify' %}
+      {% elif mode == "verify" %}
         {# ── Already enrolled: verify a TOTP or backup code ── #}
         <div class="card-body">
           <h2 class="h2 text-center mb-4">{% translate "Two-Factor Authentication" %}</h2>

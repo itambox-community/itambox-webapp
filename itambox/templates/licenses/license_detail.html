@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load static %}
 {% load utility_tags %}
@@ -59,11 +59,11 @@
   {# Assignments Tab Pane #}
   {% translate "Active License Seat Allocations" as t_seats %}
   {% translate "No active seats assigned for this license entitlement." as e_seats %}
-  {% include 'generic/includes/related_table_tab.html' with tab="seats" table=assignments_table title=t_seats empty=e_seats icon="mdi mdi-account-multiple-minus-outline" %}
+  {% include "generic/includes/related_table_tab.html" with tab="seats" table=assignments_table title=t_seats empty=e_seats icon="mdi mdi-account-multiple-minus-outline" %}
   {# Kit Assignments Tab Pane #}
   {% translate "Kits Allocating this License" as t_kits %}
   {% translate "No kits allocate this license." as e_kits %}
-  {% include 'generic/includes/related_table_tab.html' with tab="kits" table=kits_table title=t_kits empty=e_kits %}
+  {% include "generic/includes/related_table_tab.html" with tab="kits" table=kits_table title=t_kits empty=e_kits %}
 {% endblock extra_tab_panes %}
 {% block javascript %}
 {% endblock javascript %}

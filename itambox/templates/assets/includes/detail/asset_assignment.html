@@ -4,13 +4,13 @@
   <dt class="col-sm-4">{% translate "Assigned To:" %}</dt>
   <dd class="col-sm-8">
     {% if assignment and assignment.assigned_to %}
-      {% if assignment.assigned_to_type == 'asset' %}
+      {% if assignment.assigned_to_type == "asset" %}
         <a href="{% url 'assets:asset_detail' pk=assignment.assigned_to.pk %}"
            class="badge bg-blue-lt px-2 py-1">
           <i class="mdi mdi-server me-1"></i>
           {{ assignment.assigned_to }}
         </a>
-      {% elif assignment.assigned_to_type == 'location' %}
+      {% elif assignment.assigned_to_type == "location" %}
         <a href="{% url 'organization:location_detail' pk=assignment.assigned_to.pk %}"
            class="badge bg-azure-lt px-2 py-1">
           <i class="mdi mdi-map-marker-outline me-1"></i>
@@ -57,7 +57,7 @@
       {% translate "Preserved on person assignment; changed by explicit location moves. Not a live position." %}
     </div>
   </dd>
-  {% if can_view_custody_receipts and assignment and assignment.assigned_to and assignment.assigned_to_type == 'assetholder' %}
+  {% if can_view_custody_receipts and assignment and assignment.assigned_to and assignment.assigned_to_type == "assetholder" %}
     <dt class="col-sm-4">{% translate "Custody Status:" %}</dt>
     <dd class="col-sm-8">
       {% if custody_receipt_summary.acceptance_status == "accepted" %}

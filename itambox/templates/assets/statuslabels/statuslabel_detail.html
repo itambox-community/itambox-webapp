@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% load static %}
@@ -42,7 +42,7 @@
         </div>
         {% if assets_table.rows %}
           <div class="table-responsive">{% render_table assets_table %}</div>
-          {% include 'generic/includes/table_pagination.html' with table=assets_table tab="assets" %}
+          {% include "generic/includes/table_pagination.html" with table=assets_table tab="assets" %}
         {% else %}
           <div class="card-body py-5 text-muted text-center">
             <i class="mdi mdi-devices text-muted mb-2"></i>

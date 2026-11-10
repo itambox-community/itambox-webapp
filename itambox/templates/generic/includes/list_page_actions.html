@@ -49,7 +49,7 @@ without a full reload.
           <div class="dropdown-divider"></div>
         {% endif %}
         {% if can_export %}
-          {% include 'generic/includes/export_menu_items.html' %}
+          {% include "generic/includes/export_menu_items.html" %}
         {% endif %}
         {% if has_soft_delete %}
           {% if request.user.is_superuser or perms.core.view_recyclebin %}

@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load rbac_badges %}
 {% block object_details %}
@@ -91,7 +91,7 @@
             {% membership_kind_badge membership %}
             {% with grants=membership.role_grants.all %}
               {% if grants %}
-                ({% for grant in grants %}{{ grant.role.name }}{% if grant.reach == 'managed' %} {% reach_badge grant %}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %})
+                ({% for grant in grants %}{{ grant.role.name }}{% if grant.reach == "managed" %} {% reach_badge grant %}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %})
               {% else %}
                 <span class="text-muted small">({% translate "no roles" %})</span>
               {% endif %}

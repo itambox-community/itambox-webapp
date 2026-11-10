@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load static %}
 {% load utility_tags %}
@@ -53,12 +53,12 @@
   {% if can_view_assets %}
     {% translate "Assets of this Model / Type" as t_assets %}
     {% translate "No physical assets registered under this type/model yet." as e_assets %}
-    {% include 'generic/includes/related_table_tab.html' with tab="related-assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-cancel" %}
+    {% include "generic/includes/related_table_tab.html" with tab="related-assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-cancel" %}
   {% endif %}
   {% translate "Asset Requests for this Model / Type" as t_requests %}
   {% translate "No requests logged for this asset type." as e_requests %}
-  {% include 'generic/includes/related_table_tab.html' with tab="requests" table=requests_table title=t_requests empty=e_requests %}
+  {% include "generic/includes/related_table_tab.html" with tab="requests" table=requests_table title=t_requests empty=e_requests %}
   {% translate "Kits Allocating this Model / Type" as t_kits %}
   {% translate "No kits allocate this asset type." as e_kits %}
-  {% include 'generic/includes/related_table_tab.html' with tab="kits" table=kits_table title=t_kits empty=e_kits %}
+  {% include "generic/includes/related_table_tab.html" with tab="kits" table=kits_table title=t_kits empty=e_kits %}
 {% endblock extra_tab_panes %}

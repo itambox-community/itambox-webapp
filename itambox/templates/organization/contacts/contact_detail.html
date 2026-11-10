@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% load static %}
@@ -32,5 +32,5 @@
   {# Assignments Tab Pane #}
   {% translate "Associated Assignments" as t_assign %}
   {% translate "This contact has no active assignments." as e_assign %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assignments" table=assignments_table title=t_assign empty=e_assign icon="mdi mdi-account-group-outline" %}
+  {% include "generic/includes/related_table_tab.html" with tab="assignments" table=assignments_table title=t_assign empty=e_assign icon="mdi mdi-account-group-outline" %}
 {% endblock extra_tab_panes %}

@@ -118,10 +118,10 @@
         </tbody>
       </table>
     </div>
-    {% if 'assets.add_delegated_assetrequest' in object.permissions or 'procurement.approve_purchaseorder' in object.permissions or 'procurement.receive_purchaseorder' in object.permissions %}
+    {% if "assets.add_delegated_assetrequest" in object.permissions or "procurement.approve_purchaseorder" in object.permissions or "procurement.receive_purchaseorder" in object.permissions %}
       <h4 class="card-title text-primary mt-4 mb-3">{% translate "Additional permissions" %}</h4>
       <div class="row">
-        {% if 'assets.add_delegated_assetrequest' in object.permissions %}
+        {% if "assets.add_delegated_assetrequest" in object.permissions %}
           <div class="col-md-6 mb-3">
             <div class="card card-sm border shadow-none bg-transparent">
               <div class="card-body d-flex align-items-center">
@@ -134,7 +134,7 @@
             </div>
           </div>
         {% endif %}
-        {% if 'procurement.approve_purchaseorder' in object.permissions %}
+        {% if "procurement.approve_purchaseorder" in object.permissions %}
           <div class="col-md-6 mb-3">
             <div class="card card-sm border shadow-none bg-transparent">
               <div class="card-body d-flex align-items-center">
@@ -147,7 +147,7 @@
             </div>
           </div>
         {% endif %}
-        {% if 'procurement.receive_purchaseorder' in object.permissions %}
+        {% if "procurement.receive_purchaseorder" in object.permissions %}
           <div class="col-md-6 mb-3">
             <div class="card card-sm border shadow-none bg-transparent">
               <div class="card-body d-flex align-items-center">

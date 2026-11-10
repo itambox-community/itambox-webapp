@@ -39,11 +39,11 @@ or on the user group).
               </td>
               <td>
                 {% for source in entry.sources %}
-                  {% if source == 'managed' %}
+                  {% if source == "managed" %}
                     <span class="badge bg-purple-lt text-purple me-1">
                       <i class="mdi mdi-domain me-1"></i>{% blocktranslate with provider=tenant.managed_by.name %}Managed by {{ provider }}{% endblocktranslate %}
                     </span>
-                  {% elif source == 'group' %}
+                  {% elif source == "group" %}
                     {% for group_name in entry.groups %}
                       <span class="badge bg-cyan-lt text-cyan me-1">
                         <i class="mdi mdi-account-group-outline me-1"></i>{% blocktranslate with group=group_name %}Via group {{ group }}{% endblocktranslate %}

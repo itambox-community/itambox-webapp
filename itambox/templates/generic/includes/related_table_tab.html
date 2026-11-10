@@ -38,7 +38,7 @@ Params:
     </div>
     {% if table.rows %}
       <div class="table-responsive">{% render_table table %}</div>
-      {% include 'generic/includes/table_pagination.html' with table=table tab=tab %}
+      {% include "generic/includes/table_pagination.html" with table=table tab=tab %}
     {% else %}
       <div class="card-body py-5 text-muted text-center">
         {% if icon %}<i class="{{ icon }} text-muted mb-2"></i>{% endif %}

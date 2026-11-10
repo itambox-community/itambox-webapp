@@ -57,19 +57,19 @@ single-currency install renders exactly one set, unchanged from before.{% endcom
     <div class="text-muted small fw-medium mt-2 mb-1">{{ bucket.currency_code }}</div>
   {% endif %}
   <div class="widget-count-list">
-    {% if 'purchase' in metrics %}
+    {% if "purchase" in metrics %}
       <div class="widget-count-row">
         <span class="widget-count-label">{% translate "Original Purchase Cost" %}</span>
         <span class="widget-count-value">{{ bucket.total_purchase_cost|money:bucket.currency_obj }}</span>
       </div>
     {% endif %}
-    {% if 'maintenance' in metrics %}
+    {% if "maintenance" in metrics %}
       <div class="widget-count-row">
         <span class="widget-count-label">{% translate "Maintenance Expenditures" %}</span>
         <span class="widget-count-value">{{ bucket.total_maintenance_cost|money:bucket.currency_obj }}</span>
       </div>
     {% endif %}
-    {% if 'salvage' in metrics %}
+    {% if "salvage" in metrics %}
       <div class="widget-count-row">
         <span class="widget-count-label">{% translate "Total Salvage Book Value" %}</span>
         <span class="widget-count-value text-success">{{ bucket.total_salvage_value|money:bucket.currency_obj }}</span>
@@ -77,7 +77,7 @@ single-currency install renders exactly one set, unchanged from before.{% endcom
     {% endif %}
   </div>
 {% endfor %}
-{% if 'asset_count' in metrics %}
+{% if "asset_count" in metrics %}
   <div class="widget-count-list">
     <div class="widget-count-row">
       <span class="widget-count-label">{% translate "Costed Assets" %}</span>

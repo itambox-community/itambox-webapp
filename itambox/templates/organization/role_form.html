@@ -60,7 +60,8 @@
           {{ form.preset_field_map|json_script:"role-preset-field-map" }}
           <div class="row mb-4">
             <div class="col-md-5">
-              <label class="form-label fw-semibold" for="role-preset-picker">{% translate "Start from a preset" %}</label>
+              <label class="form-label fw-semibold"
+                     for="role-preset-picker">{% translate "Start from a preset" %}</label>
               <select id="role-preset-picker" class="form-select" data-role-preset-picker>
                 {% for value, label in form.preset_definitions %}
                   <option value="{{ value }}">{{ label }}</option>
@@ -140,7 +141,7 @@
                       </td>
                       <td class="text-center">
                         <div class="form-check d-inline-block create-checkbox">
-                          {% if item.key != 'recyclebin' %}
+                          {% if item.key != "recyclebin" %}
                             {{ item.create_field }}
                           {% endif %}
                         </div>

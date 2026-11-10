@@ -19,15 +19,15 @@
   </dd>
   <dt class="col-sm-4">{% translate "Status:" %}</dt>
   <dd class="col-sm-8">
-    {% if object.status == 'pending' %}
+    {% if object.status == "pending" %}
       <span class="badge bg-warning text-warning-fg">{% translate "Pending" %}</span>
-    {% elif object.status == 'approved' %}
+    {% elif object.status == "approved" %}
       <span class="badge bg-blue text-blue-fg">{% translate "Approved" %}</span>
-    {% elif object.status == 'denied' %}
+    {% elif object.status == "denied" %}
       <span class="badge bg-danger text-danger-fg">{% translate "Denied" %}</span>
-    {% elif object.status == 'fulfilled' %}
+    {% elif object.status == "fulfilled" %}
       <span class="badge bg-success text-success-fg">{% translate "Fulfilled" %}</span>
-    {% elif object.status == 'cancelled' %}
+    {% elif object.status == "cancelled" %}
       <span class="badge bg-secondary text-secondary-fg">{% translate "Cancelled" %}</span>
     {% else %}
       <span class="badge bg-surface-secondary text-body">{{ object.get_status_display }}</span>

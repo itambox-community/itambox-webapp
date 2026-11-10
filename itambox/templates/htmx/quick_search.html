@@ -31,7 +31,7 @@ are delegated from the input via `from:find`.
     </span>
   </div>
   {% for field in filter_form %}
-    {% if field.name != 'q' and field.value %}
+    {% if field.name != "q" and field.value %}
       <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
     {% endif %}
   {% endfor %}

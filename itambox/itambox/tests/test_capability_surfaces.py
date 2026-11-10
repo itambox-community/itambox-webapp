@@ -320,9 +320,11 @@ class TestAccessibilityTemplateContracts:
             assert "color-mode-toggle" not in markup, f"{name} still renders a theme toggle"
 
         # The workspace switcher is the single tenant entry point on mobile now.
-        assert "variant='compact'" in layout
+        # Match either quote style: the template formatter normalises tag
+        # attribute quotes, and that is not a behavioural contract.
+        assert any(f"variant={quote}compact{quote}" in layout for quote in "\"'")
         assert "mobile-tenant-switcher" not in layout, "the drawer switcher must be gone"
-        assert "variant='full'" in topbar
+        assert any(f"variant={quote}full{quote}" in topbar for quote in "\"'")
 
     def test_page_shell_has_language_and_landmark_contracts(self):
         base = (_APP_ROOT / "templates" / "base.html").read_text(encoding="utf-8")

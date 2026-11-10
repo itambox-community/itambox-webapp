@@ -25,7 +25,7 @@
           </div>
           {% if group.events %}
             <ul class="list-unstyled px-3 pb-2 mb-0">
-              {% include 'assets/includes/detail/asset_timeline_events.html' with events=group.events %}
+              {% include "assets/includes/detail/asset_timeline_events.html" with events=group.events %}
             </ul>
           {% else %}
             <div class="px-3 pb-3 text-muted small">{% translate "No records are linked to this repair yet." %}</div>
@@ -40,7 +40,7 @@
         {% endif %}
       </div>
       <ul class="list-unstyled px-3 pb-2 mb-0">
-        {% include 'assets/includes/detail/asset_timeline_events.html' with events=timeline.ungrouped %}
+        {% include "assets/includes/detail/asset_timeline_events.html" with events=timeline.ungrouped %}
       </ul>
     {% endif %}
   </div>

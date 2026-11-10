@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load helpers %}
 {% block title %}{{ object }}{% endblock %}
@@ -60,15 +60,15 @@
       <div class="card">
         <h2 class="card-header">{% translate "Difference" %}</h2>
         <div class="card-body">
-          {% if not diff_removed_json == '{}' or not diff_added_json == '{}' %}
-            {% if not diff_removed_json == '{}' %}
+          {% if not diff_removed_json == "{}" or not diff_added_json == "{}" %}
+            {% if not diff_removed_json == "{}" %}
               <div class="text-danger small font-weight-bold mb-1">
                 <i class="mdi mdi-minus me-1"></i>
                 {% translate "REMOVED OR ORIGINAL STATE" %}
               </div>
               <pre class="change-diff change-removed mb-3">{{ diff_removed_json }}</pre>
             {% endif %}
-            {% if not diff_added_json == '{}' %}
+            {% if not diff_added_json == "{}" %}
               <div class="text-success small font-weight-bold mb-1">
                 <i class="mdi mdi-plus me-1"></i>
                 {% translate "ADDED OR MODIFIED STATE" %}
@@ -77,9 +77,9 @@
             {% endif %}
           {% else %}
             <span class="text-muted">
-              {% if object.action == 'create' %}
+              {% if object.action == "create" %}
                 {% translate "Object Created" %}
-              {% elif object.action == 'delete' %}
+              {% elif object.action == "delete" %}
                 {% translate "Object Deleted" %}
               {% else %}
                 {% translate "No Changes Logged" %}
@@ -97,7 +97,7 @@
         <div class="card-body p-0">
           {# Remove padding for pre #}
           {% if object.prechange_data %}
-            <pre class="change-data">{% for line in diff_lines %}{% with prefix=line|slice:":2" %}{% if prefix == '- ' or prefix == '  ' %}<span class="diff-line {% if prefix == '- ' %}removed{% elif prefix == '  ' %}context{% endif %}">{{ line|slice:"2:"|escape }}</span>{% endif %}{% endwith %}{% endfor %}</pre>
+            <pre class="change-data">{% for line in diff_lines %}{% with prefix=line|slice:":2" %}{% if prefix == '- ' or prefix == '  ' %}<span class="diff-line {% if prefix == '- ' %}removed{% elif prefix == ' ' %}context{% endif %}">{{ line|slice:"2:"|escape }}</span>{% endif %}{% endwith %}{% endfor %}</pre>
           {% else %}
             <div class="p-3"><span class="text-muted">{% translate "None" %}</span></div>
             {# Add padding back if empty #}
@@ -111,7 +111,7 @@
         <div class="card-body p-0">
           {# Remove padding for pre #}
           {% if object.postchange_data %}
-            <pre class="change-data">{% for line in diff_lines %}{% with prefix=line|slice:":2" %}{% if prefix == '+ ' or prefix == '  ' %}<span class="diff-line {% if prefix == '+ ' %}added{% elif prefix == '  ' %}context{% endif %}">{{ line|slice:"2:"|escape }}</span>{% endif %}{% endwith %}{% endfor %}</pre>
+            <pre class="change-data">{% for line in diff_lines %}{% with prefix=line|slice:":2" %}{% if prefix == '+ ' or prefix == '  ' %}<span class="diff-line {% if prefix == '+ ' %}added{% elif prefix == ' ' %}context{% endif %}">{{ line|slice:"2:"|escape }}</span>{% endif %}{% endwith %}{% endfor %}</pre>
           {% else %}
             <div class="p-3"><span class="text-muted">{% translate "None" %}</span></div>
             {# Add padding back if empty #}

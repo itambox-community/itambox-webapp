@@ -19,7 +19,7 @@
       <span class="workspace-switcher-icon" aria-hidden="true">
         <i class="mdi mdi-briefcase-outline"></i>
       </span>
-      {% if variant != 'compact' %}
+      {% if variant != "compact" %}
         <span class="workspace-switcher-name">
           {% if request.active_tenant %}
             {{ request.active_tenant.name }}
@@ -41,7 +41,7 @@
           <h3 class="card-title text-reset fs-6">{% translate "Active Workspace" %}</h3>
         </div>
         <div class="list-group list-group-flush list-group-hoverable csp-style-59e43b640b5a">
-          {% include 'global_includes/_tenant_switcher_list.html' %}
+          {% include "global_includes/_tenant_switcher_list.html" %}
         </div>
       </div>
     </div>

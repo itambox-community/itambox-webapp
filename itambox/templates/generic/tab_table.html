@@ -13,7 +13,7 @@
   </div>
   {% if table.rows %}
     <div class="table-responsive">{% render_table table %}</div>
-    {% include 'generic/includes/table_pagination.html' with table=table hx_target="closest .tab-pane" hx_push_url="false" tab=request.GET.tab %}
+    {% include "generic/includes/table_pagination.html" with table=table hx_target="closest .tab-pane" hx_push_url="false" tab=request.GET.tab %}
   {% else %}
     <div class="card-body py-5 text-muted text-center">
       {% if empty_icon %}

@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load render_table from django_tables2 %}
 {% load static %}
 {% load i18n %}
@@ -124,27 +124,27 @@
   {# Assets Tab Pane #}
   {% translate "Assets Located in this Specific Location" as t_assets %}
   {% translate "No assets assigned to this specific location." as e_assets %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-devices" %}
+  {% include "generic/includes/related_table_tab.html" with tab="assets" table=assets_table title=t_assets empty=e_assets icon="mdi mdi-devices" %}
   {# Accessory Stocks Tab Pane #}
   {% translate "Accessory Stocks" as t_acc %}
   {% translate "No accessories stored in this location." as e_acc %}
-  {% include 'generic/includes/related_table_tab.html' with tab="accessory-stocks" table=accessory_stocks_table title=t_acc empty=e_acc %}
+  {% include "generic/includes/related_table_tab.html" with tab="accessory-stocks" table=accessory_stocks_table title=t_acc empty=e_acc %}
   {# Consumable Stocks Tab Pane #}
   {% translate "Consumable Stocks" as t_cons %}
   {% translate "No consumables stored in this location." as e_cons %}
-  {% include 'generic/includes/related_table_tab.html' with tab="consumable-stocks" table=consumable_stocks_table title=t_cons empty=e_cons %}
+  {% include "generic/includes/related_table_tab.html" with tab="consumable-stocks" table=consumable_stocks_table title=t_cons empty=e_cons %}
   {# Component Stocks Tab Pane #}
   {% translate "Component Stocks" as t_comp %}
   {% translate "No components stored in this location." as e_comp %}
-  {% include 'generic/includes/related_table_tab.html' with tab="component-stocks" table=component_stocks_table title=t_comp empty=e_comp %}
+  {% include "generic/includes/related_table_tab.html" with tab="component-stocks" table=component_stocks_table title=t_comp empty=e_comp %}
   {# Checkout Log Tab Pane #}
   {% translate "Historical Checkout Log" as t_log %}
   {% translate "No checkout logs for this location." as e_log %}
-  {% include 'generic/includes/related_table_tab.html' with tab="checkout-log" table=asset_assignments_table title=t_log empty=e_log %}
+  {% include "generic/includes/related_table_tab.html" with tab="checkout-log" table=asset_assignments_table title=t_log empty=e_log %}
   {# Audit Campaigns Tab Pane #}
   {% translate "Audit Campaigns run in this Location" as t_audits %}
   {% translate "No audit campaigns logged for this location." as e_audits %}
-  {% include 'generic/includes/related_table_tab.html' with tab="audits" table=audits_table title=t_audits empty=e_audits %}
+  {% include "generic/includes/related_table_tab.html" with tab="audits" table=audits_table title=t_audits empty=e_audits %}
   {# Child Locations Tab Pane #}
   <div class="tab-pane fade {% if request.GET.tab == 'child-locations' %}show active{% endif %}"
        id="child-locations"

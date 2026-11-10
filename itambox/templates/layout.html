@@ -27,7 +27,7 @@
         <!-- Mobile Unified Actions Header (visible on mobile only) -->
         <div class="mobile-topbar-actions d-flex d-lg-none align-items-center gap-1 ms-auto me-1">
           {# Workspace switcher: on mobile the header keeps the only tenant entry point. #}
-          {% include 'global_includes/_workspace_switcher.html' with variant='compact' %}
+          {% include "global_includes/_workspace_switcher.html" with variant="compact" %}
           {# Mobile Notifications Dropdown — opens as a full-width panel on mobile #}
           <div class="nav-item dropdown">
             <a href="#"
@@ -73,7 +73,7 @@
             <a href="#"
                class="nav-link d-flex align-items-center lh-1 text-reset p-0"
                data-bs-toggle="dropdown">
-              <span class="visually-hidden">{% translate 'Open user menu' %}</span>
+              <span class="visually-hidden">{% translate "Open user menu" %}</span>
               <div class="ps-1 text-end csp-style-b7ef83b20586">
                 <div class="fw-bold text-truncate small">{% if user.is_authenticated %}{{ user.get_full_name|default:user.username }}{% else %}{% translate "Guest" %}{% endif %}</div>
                 <div class="text-muted text-truncate csp-style-a6c62bdf9337">
@@ -138,7 +138,7 @@
           <div class="container-fluid"
                role="region"
                aria-label="{% translate 'Page header' %}">
-            <div id="breadcrumbs-block">{% include 'global_includes/_breadcrumbs.html' %}</div>
+            <div id="breadcrumbs-block">{% include "global_includes/_breadcrumbs.html" %}</div>
             <div class="row g-2 align-items-center mt-2">
               <div class="col-12 col-lg order-2 order-lg-1">
                 {% block page_header %}
@@ -235,7 +235,7 @@
           </ul>
           <ul class="list-inline list-inline-dots fs-5 mb-0 text-center text-lg-end"
               id="footer-stamp">
-            <li class="list-inline-item">{% now 'Y-m-d H:i:s T' %}</li>
+            <li class="list-inline-item">{% now "Y-m-d H:i:s T" %}</li>
             <li class="list-inline-item">v{{ settings.VERSION }}</li>
           </ul>
         </div>

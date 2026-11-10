@@ -1,4 +1,4 @@
-{% extends 'users/base.html' %}
+{% extends "users/base.html" %}
 {% load i18n %}
 {% load crispy_forms_tags %}
 {% block title_tab %}
@@ -59,7 +59,8 @@
                 {% for token in tokens %}
                   <tr>
                     <td data-label="{% translate 'Token' %}">
-                      <code class="font-monospace text-body fw-medium" title="{{ token.key }}">{{ token.key|slice:":6" }}...</code>
+                      <code class="font-monospace text-body fw-medium"
+                            title="{{ token.key }}">{{ token.key|slice:":6" }}...</code>
                     </td>
                     <td data-label="{% translate 'Description' %}">
                       {% if token.description %}

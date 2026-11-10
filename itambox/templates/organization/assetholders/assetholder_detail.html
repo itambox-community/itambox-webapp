@@ -1,4 +1,4 @@
-{% extends 'generic/object_detail.html' %}
+{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load render_table from django_tables2 %}
 {% load static %}
@@ -99,25 +99,25 @@
   {# Assignments Tab Pane #}
   {% translate "Checked Out Assets" as t_assets %}
   {% translate "No checked out assets assigned to this holder." as e_assets %}
-  {% include 'generic/includes/related_table_tab.html' with tab="assignments" table=assignments_table title=t_assets empty=e_assets icon="mdi mdi-clipboard-off-outline" %}
+  {% include "generic/includes/related_table_tab.html" with tab="assignments" table=assignments_table title=t_assets empty=e_assets icon="mdi mdi-clipboard-off-outline" %}
   {# Accessories Tab Pane #}
   {% translate "Assigned Accessories" as t_acc %}
   {% translate "No checked out accessories assigned to this holder." as e_acc %}
-  {% include 'generic/includes/related_table_tab.html' with tab="accessories" table=accessory_assignments_table title=t_acc empty=e_acc %}
+  {% include "generic/includes/related_table_tab.html" with tab="accessories" table=accessory_assignments_table title=t_acc empty=e_acc %}
   {# Consumables Tab Pane #}
   {% translate "Consumable Dispatches" as t_cons %}
   {% translate "No consumables assigned to this holder." as e_cons %}
-  {% include 'generic/includes/related_table_tab.html' with tab="consumables" table=consumable_dispatches_table title=t_cons empty=e_cons %}
+  {% include "generic/includes/related_table_tab.html" with tab="consumables" table=consumable_dispatches_table title=t_cons empty=e_cons %}
   {# Licenses Tab Pane #}
   {% translate "Software Licenses" as t_lic %}
   {% translate "No software license seats assigned to this holder." as e_lic %}
-  {% include 'generic/includes/related_table_tab.html' with tab="licenses" table=license_assignments_table title=t_lic empty=e_lic %}
+  {% include "generic/includes/related_table_tab.html" with tab="licenses" table=license_assignments_table title=t_lic empty=e_lic %}
   {% if can_view_custody_receipts %}
     {# Custody Tab Pane #}
     {% translate "Custody Receipts" as t_custody %}
     {% translate "No electronic custody receipts logged for this holder." as e_custody %}
-    {% include 'generic/includes/related_table_tab.html' with tab="custody" table=custody_receipts_table title=t_custody empty=e_custody %}
+    {% include "generic/includes/related_table_tab.html" with tab="custody" table=custody_receipts_table title=t_custody empty=e_custody %}
   {% endif %}
   {# Offboarding Tab Pane: read-only roll-up of outstanding obligations. #}
-  {% include 'organization/assetholders/includes/offboarding_tab.html' with tab="offboarding" report=offboarding_report offboarding_obligation_count=offboarding_obligation_count %}
+  {% include "organization/assetholders/includes/offboarding_tab.html" with tab="offboarding" report=offboarding_report offboarding_obligation_count=offboarding_obligation_count %}
 {% endblock extra_tab_panes %}

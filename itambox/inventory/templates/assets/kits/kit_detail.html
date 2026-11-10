@@ -1,4 +1,4 @@
-﻿{% extends 'generic/object_detail.html' %}
+﻿{% extends "generic/object_detail.html" %}
 {% load i18n %}
 {% load static %}
 {% block title %}{% translate "Kit:" %} {{ object.name }} {% translate "- ITAMbox" %}{% endblock %}
@@ -8,7 +8,7 @@
   <div class="text-muted mt-1">{{ object.description }}</div>
 {% endblock %}
 {% block page_actions %}
-  {% if availability_state == 'available' %}
+  {% if availability_state == "available" %}
     <button type="button"
             class="btn btn-success"
             hx-get="{% url 'inventory:kit_checkout_modal' pk=object.pk %}"
@@ -17,7 +17,7 @@
       <i class="mdi mdi-check-circle-outline"></i>
       {% translate "Deploy / Checkout Kit" %}
     </button>
-  {% elif availability_state == 'out_of_stock' %}
+  {% elif availability_state == "out_of_stock" %}
     <button type="button"
             class="btn btn-secondary"
             disabled
