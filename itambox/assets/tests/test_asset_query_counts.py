@@ -13,6 +13,7 @@ assets.
 
 import datetime
 import re
+import time
 from collections import Counter
 
 from django.contrib.contenttypes.models import ContentType
@@ -344,4 +345,46 @@ class AllAccessibleListQueryCountTests(_LinkedAssetFixture):
             four_tenants,
             f"all-accessible list used {four_tenants} queries across 4 tenants against "
             f"{one_tenant} for 1: it must not scale with the accessible tenant count",
+        )
+
+
+class AssetListRenderCostTests(_LinkedAssetFixture):
+    """Time per rendered row stays bounded and does not depend on the scope.
+
+    A single-tenant and an all-accessible list of the same row count render
+    through identical row code, so their cost per row must sit in the same
+    range. Pinning absolute milliseconds is unreliable on shared CI runners:
+    the ceiling is generous and only catches an order-of-magnitude regression
+    such as per-cell reflection or per-row URL/translation resolution growing
+    back; the scope comparison is relative.
+    """
+
+    ROWS = 60
+    MAX_SECONDS_PER_ROW = 0.05
+    MAX_SCOPE_RATIO = 3.0
+
+    def _seconds_per_row(self, url):
+        self.assertEqual(self.client.get(url).status_code, 200)  # warm caches
+        best = None
+        for _attempt in range(3):
+            started = time.perf_counter()
+            response = self.client.get(url)
+            elapsed = time.perf_counter() - started
+            self.assertEqual(response.status_code, 200)
+            best = elapsed if best is None else min(best, elapsed)
+        return best / self.ROWS
+
+    def test_render_cost_per_row_is_bounded_and_scope_independent(self):
+        self._add_assets(self.ROWS)
+        base = reverse("assets:asset_list") + "?per_page=100"
+        tenant_cost = self._seconds_per_row(base)
+        all_cost = self._seconds_per_row(base + "&switch_all_accessible=1")
+
+        self.assertLess(tenant_cost, self.MAX_SECONDS_PER_ROW, f"tenant scope: {tenant_cost * 1000:.2f} ms/row")
+        self.assertLess(all_cost, self.MAX_SECONDS_PER_ROW, f"all-accessible: {all_cost * 1000:.2f} ms/row")
+        ratio = max(tenant_cost, all_cost) / min(tenant_cost, all_cost)
+        self.assertLess(
+            ratio,
+            self.MAX_SCOPE_RATIO,
+            f"scope changes the per-row cost: tenant {tenant_cost * 1000:.2f} ms vs all {all_cost * 1000:.2f} ms",
         )

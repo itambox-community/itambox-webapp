@@ -5,6 +5,8 @@ from django.apps import apps
 from django.core.exceptions import FieldDoesNotExist
 from django.utils.translation import gettext_lazy as _
 from django_tables2.data import TableQuerysetData
+from django_tables2.rows import BoundRow, BoundRows
+from django_tables2.utils import signature as _callable_signature
 
 from core.paginator import EnhancedPaginator
 from core.tables.columns import IDColumn
@@ -12,6 +14,54 @@ from core.tables.constants import TABLE_EMPTY_VALUE
 from itambox.utils import get_paginate_count
 
 logger = logging.getLogger(__name__)
+
+
+def _call_with_cached_signature(cache, key, fn, kwargs):
+    """``call_with_appropriate`` with the signature looked up once per column.
+
+    django-tables2 runs ``inspect.signature`` for every rendered cell, but a
+    column's render/value callable never changes during one table rendering.
+    The cache lives on the table instance, so no foreign objects outlive it.
+    """
+    try:
+        args, kwargs_name = cache[key]
+    except KeyError:
+        args, kwargs_name = cache[key] = _callable_signature(fn)
+    if not kwargs_name:
+        kwargs = {name: kwargs[name] for name in kwargs if name in args}
+        if any(arg not in kwargs for arg in args):
+            return None
+    return fn(**kwargs)
+
+
+class _SignatureCachingRow(BoundRow):
+    def _call_render(self, bound_column, value=None):
+        render_kwargs = self._optional_cell_arguments(bound_column, value)
+        content = _call_with_cached_signature(
+            self._table._signature_cache, ("render", bound_column.name), bound_column.render, render_kwargs
+        )
+        return bound_column.link(content, **render_kwargs) if bound_column.link else content
+
+    def _call_value(self, bound_column, value=None):
+        return _call_with_cached_signature(
+            self._table._signature_cache,
+            ("value", bound_column.name),
+            bound_column.value,
+            self._optional_cell_arguments(bound_column, value),
+        )
+
+
+class _SignatureCachingRows(BoundRows):
+    def __iter__(self):
+        yield from self.generator_pinned_row(self.pinned_data.get("top"))
+        for record in self.data:
+            yield _SignatureCachingRow(record, table=self.table)
+        yield from self.generator_pinned_row(self.pinned_data.get("bottom"))
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            return _SignatureCachingRows(data=self.data[key], table=self.table, pinned_data=self.pinned_data)
+        return _SignatureCachingRow(record=self.data[key], table=self.table)
 
 
 class BaseTable(tables.Table):
@@ -39,6 +89,8 @@ class BaseTable(tables.Table):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("default", TABLE_EMPTY_VALUE)
         super().__init__(*args, **kwargs)
+        self._signature_cache = {}
+        self.rows = _SignatureCachingRows(data=self.data, table=self, pinned_data=self.pinned_data)
 
         if self.empty_text is None:
             model = getattr(self.Meta, "model", None)
