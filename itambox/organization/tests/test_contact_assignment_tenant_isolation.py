@@ -14,6 +14,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 
+from assets.api.serializers import SupplierSerializer
 from assets.models import (
     Asset,
     AssetAssignment,
@@ -21,14 +22,19 @@ from assets.models import (
     AssetType,
     Manufacturer,
     StatusLabel,
+    Supplier,
 )
+from core.context import set_current_tenant, set_current_user
+from core.managers import Scope
 from core.tests.mixins import grant
 from organization.models import (
     Contact,
     ContactAssignment,
     ContactRole,
+    Membership,
     Role,
     Tenant,
+    TenantGroup,
 )
 from software.models import Software
 
@@ -282,3 +288,174 @@ class ContactAssignmentCrossTenantTestCase(TestCase):
                 object_id=self.asset_a.pk,
             ).exists()
         )
+
+
+API_SECRET_NAME = "CAA-SECRET-B-PERSON"
+API_SECRET_EMAIL = "caa-secret-b@example.invalid"
+
+
+class ContactAssignmentScopedReadTests(TestCase):
+    """The shared ``visible_in`` helper and the API readers built on it (F4, F6).
+
+    Before the fix the API filtered only the generic-FK target: a tenant-B
+    private contact assigned to a global Manufacturer or Supplier was listed for
+    every tenant, with its email, and the supplier endpoint nested it too.
+    """
+
+    def setUp(self):
+        self.group = TenantGroup.objects.create(name="CAA Group", slug="caa-group")
+        self.tenant_a = Tenant.objects.create(name="CAA Tenant A", slug="caa-a", group=self.group)
+        self.tenant_a2 = Tenant.objects.create(name="CAA Tenant A2", slug="caa-a2", group=self.group)
+        self.tenant_b = Tenant.objects.create(name="CAA Tenant B", slug="caa-b")
+        self.user = User.objects.create_user(username="caa_member", password="password123")
+        perms = ["organization.view_contactassignment", "assets.view_supplier"]
+        for tenant in (self.tenant_a, self.tenant_a2):
+            grant(self.user, tenant, Role.objects.create(tenant=tenant, name="CAA Reader", permissions=perms))
+
+        self.manufacturer = Manufacturer.objects.create(name="CAA Maker", slug="caa-maker")
+        self.supplier = Supplier.objects.create(name="CAA Supplier", slug="caa-supplier")
+        self.global_contact = Contact.objects.create(name="CAA Global Desk")
+        self.contact_a2 = Contact.objects.create(name="CAA Person A2", tenant=self.tenant_a2)
+        self.secret_contact = Contact.objects.create(name=API_SECRET_NAME, email=API_SECRET_EMAIL, tenant=self.tenant_b)
+        self.role = ContactRole.objects.create(name="CAA Role", slug="caa-role")
+        status = StatusLabel.objects.create(name="CAA Active", slug="caa-active")
+        asset_role = AssetRole.objects.create(name="CAA Laptop", slug="caa-laptop")
+        asset_type = AssetType.objects.create(manufacturer=self.manufacturer, model="CAA Model")
+        self.asset_b = Asset.objects.create(
+            name="CAA Asset B",
+            asset_tag="CAA-B",
+            status=status,
+            asset_role=asset_role,
+            asset_type=asset_type,
+            tenant=self.tenant_b,
+        )
+
+        self.global_on_supplier = self._assign(self.global_contact, self.supplier)
+        self.global_on_manufacturer = self._assign(self.global_contact, self.manufacturer)
+        self.a2_on_supplier = self._assign(self.contact_a2, self.supplier)
+        self.secret_on_supplier = self._assign(self.secret_contact, self.supplier)
+        self.secret_on_manufacturer = self._assign(self.secret_contact, self.manufacturer)
+        self.global_on_foreign_asset = self._assign(self.global_contact, self.asset_b)
+
+    def _assign(self, contact, target):
+        return ContactAssignment.objects.create(
+            contact=contact,
+            role=self.role,
+            content_type=ContentType.objects.get_for_model(target),
+            object_id=target.pk,
+        )
+
+    def _login(self, **session_values):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session.update(session_values)
+        session.save()
+
+    def _visible(self, scope):
+        return set(ContactAssignment.objects.visible_in(scope).values_list("pk", flat=True))
+
+    def _secret_free(self, response):
+        body = response.content.decode()
+        self.assertNotIn(API_SECRET_NAME, body)
+        self.assertNotIn(API_SECRET_EMAIL, body)
+        self.assertNotIn("CAA Asset B", body)
+
+    # -- helper --------------------------------------------------------------
+
+    def test_helper_tenant_scope_requires_visible_target_and_contact(self):
+        visible = self._visible(Scope(Scope.TENANT, user=self.user, tenant=self.tenant_a))
+
+        self.assertEqual(visible, {self.global_on_supplier.pk, self.global_on_manufacturer.pk})
+
+    def test_helper_group_and_all_accessible_scopes_union_member_tenants(self):
+        expected = {self.global_on_supplier.pk, self.global_on_manufacturer.pk, self.a2_on_supplier.pk}
+
+        self.assertEqual(self._visible(Scope(Scope.GROUP, user=self.user, group=self.group)), expected)
+        self.assertEqual(self._visible(Scope(Scope.ALL_ACCESSIBLE, user=self.user)), expected)
+
+    def test_helper_tenant_b_sees_its_own_contact_and_asset(self):
+        visible = self._visible(Scope(Scope.TENANT, user=self.user, tenant=self.tenant_b))
+
+        self.assertIn(self.secret_on_supplier.pk, visible)
+        self.assertIn(self.global_on_foreign_asset.pk, visible)
+        self.assertNotIn(self.a2_on_supplier.pk, visible)
+
+    def test_helper_denied_is_empty_and_system_is_unfiltered(self):
+        self.assertEqual(self._visible(Scope(Scope.DENIED, user=self.user)), set())
+        self.assertEqual(
+            self._visible(Scope(Scope.SYSTEM)), set(ContactAssignment.objects.values_list("pk", flat=True))
+        )
+
+    def test_helper_never_widens_for_unknown_or_unscopable_targets(self):
+        stale_type = ContentType.objects.create(app_label="organization", model="caagone")
+        stale = ContactAssignment.objects.create(
+            contact=self.global_contact, role=self.role, content_type=stale_type, object_id=1
+        )
+        membership = Membership.objects.get(user=self.user, tenant=self.tenant_a)
+        unscopable = self._assign(self.global_contact, membership)
+
+        visible = self._visible(Scope(Scope.TENANT, user=self.user, tenant=self.tenant_a))
+
+        self.assertNotIn(stale.pk, visible)
+        self.assertNotIn(unscopable.pk, visible)
+        self.assertIn(self.global_on_manufacturer.pk, visible)
+
+    def test_helper_skips_targets_with_a_non_integer_primary_key(self):
+        session_type = ContentType.objects.get(app_label="sessions", model="session")
+        row = ContactAssignment.objects.create(
+            contact=self.global_contact, role=self.role, content_type=session_type, object_id=1
+        )
+
+        self.assertNotIn(row.pk, self._visible(Scope(Scope.TENANT, user=self.user, tenant=self.tenant_a)))
+
+    # -- REST ----------------------------------------------------------------
+
+    def test_api_list_hides_foreign_private_contact_on_shared_targets(self):
+        self._login(active_tenant_id=self.tenant_a.pk)
+
+        response = self.client.get(reverse("api:organization_api:contactassignment-list"))
+
+        self.assertEqual(response.status_code, 200)
+        ids = {row["id"] for row in response.json()["results"]}
+        self.assertEqual(ids, {self.global_on_supplier.pk, self.global_on_manufacturer.pk})
+        self._secret_free(response)
+
+    def test_api_detail_of_foreign_private_contact_on_shared_target_is_404(self):
+        self._login(active_tenant_id=self.tenant_a.pk)
+        url = reverse("api:organization_api:contactassignment-detail", kwargs={"pk": self.secret_on_supplier.pk})
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+        self._secret_free(response)
+
+    def test_api_list_works_in_group_and_all_accessible_scopes(self):
+        expected = {self.global_on_supplier.pk, self.global_on_manufacturer.pk, self.a2_on_supplier.pk}
+        for session_values in ({"active_tenant_group_id": self.group.pk}, {"active_all_accessible": True}):
+            with self.subTest(scope=session_values):
+                self._login(**session_values)
+                response = self.client.get(reverse("api:organization_api:contactassignment-list"))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual({row["id"] for row in response.json()["results"]}, expected)
+                self._secret_free(response)
+                self.client.logout()
+
+    def test_supplier_api_nests_only_visible_contacts(self):
+        self._login(active_tenant_id=self.tenant_a.pk)
+        detail = self.client.get(reverse("api:assets_api:supplier-detail", kwargs={"pk": self.supplier.pk}))
+        listing = self.client.get(reverse("api:assets_api:supplier-list"), {"slug": self.supplier.slug})
+
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual([row["id"] for row in detail.json()["contacts"]], [self.global_on_supplier.pk])
+        self._secret_free(detail)
+        self.assertEqual(listing.status_code, 200)
+        (row,) = [row for row in listing.json()["results"] if row["id"] == self.supplier.pk]
+        self.assertEqual([contact["id"] for contact in row["contacts"]], [self.global_on_supplier.pk])
+        self._secret_free(listing)
+
+    def test_supplier_serializer_without_prefetch_scopes_by_itself(self):
+        set_current_user(self.user)
+        set_current_tenant(self.tenant_a)
+        data = SupplierSerializer(Supplier.objects.get(pk=self.supplier.pk), context={"request": None}).data
+
+        self.assertEqual([row["id"] for row in data["contacts"]], [self.global_on_supplier.pk])

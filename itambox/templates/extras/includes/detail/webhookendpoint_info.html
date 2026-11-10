@@ -54,7 +54,7 @@
   {% endif %}
   <dt class="col-sm-3">{% translate "Used By Rules:" %}</dt>
   <dd class="col-sm-9">
-    {% with rules=object.event_rules.all %}
+    {% with rules=event_rules %}
       {% if rules %}
         <div class="d-flex flex-wrap gap-1">
           {% for rule in rules %}

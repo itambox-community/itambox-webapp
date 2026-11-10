@@ -6,7 +6,8 @@
     "nanoid": "3.3.18",
     "undici": "6.29.1",
     "fast-uri": "3.1.9",
-    "minimatch": "11.0.1"
+    "minimatch": "11.0.1",
+    "dompurify": "3.4.17"
   },
   "description": "IT Asset Management System — static assets build pipeline",
   "scripts": {
@@ -33,7 +34,7 @@
     "esbuild": "^0.28.1",
     "eslint": "^10.14.0",
     "globals": "^17.13.0",
-    "graphiql": "^5.4.0",
+    "graphiql": "^6.0.0",
     "openapi-fetch": "0.17.0",
     "openapi-typescript": "6.7.6",
     "postcss": "^8.5.26",
@@ -49,10 +50,10 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
     "@mdi/font": "^7.4.47",
-    "@tabler/core": "^1.6.1",
+    "@tabler/core": "^1.7.3",
     "bootstrap": "^5.3.3",
     "echarts": "^6.1.0",
-    "gridstack": "^14.0.0",
+    "gridstack": "^14.1.0",
     "html5-qrcode": "^2.3.8",
     "htmx.org": "^2.0.10",
     "tom-select": "^2.3.1"

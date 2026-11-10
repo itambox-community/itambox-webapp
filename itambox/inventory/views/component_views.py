@@ -9,6 +9,8 @@ from inventory.services import (
     checkin_component,
     checkout_inventory_item,
     create_component_allocation,
+    item_assignments_for_scope,
+    item_stock_prefetch,
     recipient_assignment_union,
     shared_stock_union,
     update_component_allocation,
@@ -32,11 +34,16 @@ from .stock_actions import StockAdjustView, StockCreateModalView
 
 
 class ComponentListView(ObjectListView):
-    queryset = Component.objects.with_counts().select_related("manufacturer", "category").prefetch_related("tags")
+    queryset = Component.objects.select_related("manufacturer", "category").prefetch_related("tags")
     filterset = filters.ComponentFilterSet
     filterset_form = forms.ComponentFilterForm
     table = tables.ComponentTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        # Scope-aware annotations must be built per request; a class-level
+        # with_counts() would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -54,15 +61,19 @@ class ComponentListView(ObjectListView):
 
 
 class ComponentDetailView(ObjectDetailView):
-    queryset = Component.objects.select_related("manufacturer", "category").prefetch_related(
-        "tags", "stocks", "allocations"
-    )
+    queryset = Component.objects.select_related("manufacturer", "category").prefetch_related("tags", "allocations")
     template_name = "inventory/components/component_detail.html"
 
     layout = (
         ((Panel("metrics", _("Metrics Overview")),),),
         ((Panel("info", _("Component Details")),),),
     )
+
+    def get_queryset(self):
+        # Stock pools belong to their location's tenant, not to the catalogue
+        # item.  Build the scoped annotations and prefetch per request; a
+        # class-level scope would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts().prefetch_related(item_stock_prefetch(ComponentStock))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -73,7 +84,10 @@ class ComponentDetailView(ObjectDetailView):
         context["stocks_table"] = stocks_table
 
         allocations_table = tables.ComponentAllocationTable(
-            component.allocations.filter(deleted_at__isnull=True), request=self.request
+            item_assignments_for_scope(ComponentAllocation, "component", component).select_related(
+                "assigned_holder", "assigned_location", "assigned_asset"
+            ),
+            request=self.request,
         )
         allocations_table.configure(self.request)
         context["allocations_table"] = allocations_table

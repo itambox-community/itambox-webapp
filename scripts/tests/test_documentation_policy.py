@@ -76,6 +76,7 @@ CONTRACT_SETTINGS = (
     "ITAMBOX_HEALTH_JOB_STUCK_SECONDS",
     "ITAMBOX_HEALTH_FAILURES_24H_MAX",
     "ITAMBOX_REQUISITION_AUTO_APPROVAL_THRESHOLDS",
+    "ITAMBOX_TENANT_LOGIN_DOMAINS",
 )
 
 MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+)\)")
@@ -152,6 +153,7 @@ class NavigationPolicyTest(unittest.TestCase):
                         "models/",
                         "integration/",
                         "plugins/",
+                        "policies/",
                         "security/",
                     )
                 ),

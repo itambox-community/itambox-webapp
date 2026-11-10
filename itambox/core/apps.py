@@ -28,6 +28,7 @@ class CoreConfig(AppConfig):
 
         # inline import: app-registry: register the production configuration checks after app loading
         from core import checks  # noqa: F401 -- registers Django system checks
+        from core.auth import checks as auth_checks  # noqa: F401 -- registers authentication configuration checks
 
         # inline import: app-registry: avoid AppRegistryNotReady at app-load time
         from core.django_q_task_resubmission import GuardedFailAdmin, GuardedTaskAdmin

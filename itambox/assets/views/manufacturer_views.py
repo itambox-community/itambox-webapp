@@ -88,6 +88,9 @@ class ManufacturerDetailView(ObjectDetailView):
         context["asset_types_table"] = asset_types_table
         context["assets_table"] = assets_table
         context["related_objects_list"] = related_objects_list
+        context["contact_assignments"] = list(
+            manufacturer.contacts.visible_in(Scope.current()).select_related("contact", "role")
+        )
 
         # Components
 

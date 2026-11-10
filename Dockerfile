@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
-FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 AS uv
 
 # ---- Stage 1: build the frontend (SCSS + vendor copy + JS bundle) ----
 # Keep the readable tag beside the authoritative multi-arch index digest; Dependabot maintains these pins.
-FROM node:26-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS frontend
+FROM node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS frontend
 WORKDIR /app
 COPY itambox/package.json itambox/package-lock.json ./
 RUN npm ci
@@ -67,13 +67,13 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Runtime tools and libraries for PostgreSQL, LDAP, SAML/xmlsec, and libmagic.
-# openssl, libssl3, tzdata, and libpcre2-8-0 are named explicitly so this
+# openssl, libssl3, tzdata, libpcre2-8-0 and apt are named explicitly so this
 # install upgrades them to the current bookworm-security builds; the slim base
 # image ships the builds from its own build time, and a plain install would
 # leave them in place.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates openssl libssl3 postgresql-client libldap-2.5-0 libsasl2-2 xmlsec1 tzdata libmagic1 libpcre2-8-0 \
+        apt ca-certificates openssl libssl3 postgresql-client libldap-2.5-0 libsasl2-2 xmlsec1 tzdata libmagic1 libpcre2-8-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # collectstatic, gunicorn, qcluster, and the health check all run from the locked

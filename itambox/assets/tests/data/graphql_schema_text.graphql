@@ -1,7 +1,6 @@
 type AccessoryNode {
   manufacturer: ManufacturerNode!
   category: Category
-  supplier: SupplierNode
   tenant: TenantNode
   id: ID!
   createdAt: DateTime!
@@ -17,6 +16,7 @@ type AccessoryNode {
 
   """Allow checkout count to exceed stock capacity"""
   allowOverallocate: Boolean!
+  supplier: SupplierNode
 }
 
 type Asset {
@@ -24,7 +24,6 @@ type Asset {
   status: StatusLabelNode
   location: LocationNode
   tenant: TenantNode
-  supplier: SupplierNode
   id: ID!
   createdAt: DateTime!
   updatedAt: DateTime!
@@ -36,6 +35,7 @@ type Asset {
 
   """Allow users to request this asset"""
   requestable: Boolean
+  supplier: SupplierNode
   assetType: AssetType
   resourceRevision: String!
   specificationDefinition: SpecificationDefinition!
@@ -272,9 +272,7 @@ type KitNode {
 }
 
 type LicenseNode {
-  software: SoftwareNode!
   licenseType: LicensesLicenseLicenseTypeChoices!
-  supplier: SupplierNode
   tenant: TenantNode
   id: ID!
   createdAt: DateTime!
@@ -292,6 +290,8 @@ type LicenseNode {
 
   """For term licenses or maintenance"""
   expirationDate: Date
+  software: SoftwareNode
+  supplier: SupplierNode
 }
 
 """An enumeration."""
@@ -449,8 +449,8 @@ type SpecificationDefinition {
 
 type SpecificationEntry {
   key: String!
-  definition: SpecificationField
   state: SpecificationEntryState!
+  definition: SpecificationField
   reasonCodes: [String!]!
   value: SpecificationValue!
 }
@@ -476,8 +476,8 @@ type SpecificationField {
   canonicalUnit: String
   validation: SpecificationValidation!
   lifecycle: DefinitionLifecycle!
-  choiceSet: ChoiceSet
   targets: [SpecificationTarget!]!
+  choiceSet: ChoiceSet
   sources: [String!]!
 }
 
@@ -547,7 +547,6 @@ type StatusLabelNode {
 }
 
 type SubscriptionAssignmentNode {
-  subscription: SubscriptionNode!
   contentType: ContentTypeNode
   objectId: BigInt!
   id: ID!
@@ -555,11 +554,10 @@ type SubscriptionAssignmentNode {
   updatedAt: DateTime!
   assignedDate: DateTime!
   notes: String!
+  subscription: SubscriptionNode
 }
 
 type SubscriptionNode {
-  """The commercial vendor of this subscription."""
-  supplier: SupplierNode!
   type: SubscriptionsSubscriptionTypeChoices!
   status: SubscriptionsSubscriptionStatusChoices!
 
@@ -604,6 +602,9 @@ type SubscriptionNode {
 
   """Optional internal notes"""
   notes: String!
+
+  """The commercial vendor of this subscription."""
+  supplier: SupplierNode
   costCenterId: ID
   costCenterName: String
   autoRenewal: Boolean @deprecated(reason: "Use vendorContractAutoRenews; autoRenewal is removed in 2.0.")

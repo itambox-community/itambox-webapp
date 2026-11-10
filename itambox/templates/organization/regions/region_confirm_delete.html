@@ -14,13 +14,14 @@
       <div class="card-body">
         <p>{% translate "Are you sure you want to delete the region:" %} <strong>{{ region.name }} ({{ region.slug }})</strong>?</p>
         {# Add warning about related objects #}
-        {% if region.sites.count > 0 or region.children.count > 0 %}
+        {% if related_site_count > 0 or region.children.count > 0 %}
           <p class="text-warning">
-            {% translate "Warning: This region has" %} {{ region.sites.count }} {% translate "assigned site" %}{{ region.sites.count|pluralize }}
+            {% translate "Warning: This region has" %} {{ related_site_count }} {% translate "assigned site" %}{{ related_site_count|pluralize }}
             {% translate "and" %} {{ region.children.count }} {% translate "child region" %}{{ region.children.count|pluralize }}.
             {% translate "Deleting it may affect related objects depending on your setup." %}
-            {# Adjust warning based on on_delete behavior #}
           </p>
+        {% elif related_sites_outside_scope %}
+          <p class="text-warning">{% translate "Some sites are referenced outside your scope." %}</p>
         {% endif %}
         <p class="text-danger">{% translate "This action cannot be undone." %}</p>
         <form method="post">

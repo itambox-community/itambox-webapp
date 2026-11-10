@@ -92,8 +92,11 @@ reverse proxy*.
 
 ## Rate limiting
 
-Login and invitation endpoints are rate-limited per client IP. The limit state
-lives in the cache:
+Login (`/accounts/login/`) and password reset (`/accounts/password_reset/`)
+requests are rate-limited per **resolved client address and path**: the cache
+key has the form `ratelimit_<client-ip>_<path>`, and every request to those
+paths counts, `GET` included. The default is 5 requests per 60 seconds per
+key. The limit state lives in the cache:
 
 - With `ITAMBOX_CACHE_BACKEND=locmem` (development default) limits are
   per-process and reset on restart — acceptable for single-worker setups only.
@@ -101,6 +104,69 @@ lives in the cache:
   production set `ITAMBOX_CACHE_BACKEND=redis` and configure
   `ITAMBOX_REDIS_URL` so that alias uses shared Redis/Valkey and limits hold
   across all gunicorn workers.
+
+### Reverse proxies that do not forward the client address
+
+Throttling keys on the address ITAMbox resolves for the request. If your
+proxy does not supply the real client address in a form ITAMbox reads, the
+resolved address is the proxy's own, and **all clients share one bucket**: a
+few concurrent logins, or one person retrying, produce
+`429 Too many requests` on `/accounts/login/` for everyone.
+
+How the address is resolved:
+
+- `ITAMBOX_RATELIMIT_USE_X_FORWARDED_FOR=False` (default): the socket peer
+  address (`REMOTE_ADDR`) is used. Behind any proxy this is the proxy's
+  address, so every client shares a bucket.
+- `ITAMBOX_RATELIMIT_USE_X_FORWARDED_FOR=True`: the `N`-th entry counted from
+  the right of the `X-Forwarded-For` header is used, where `N` is
+  `ITAMBOX_RATELIMIT_NUM_PROXIES`. With `N=1` that is the right-most entry,
+  the address your nearest proxy appended. With `N=2` it is the second from
+  the right (one more trusted proxy in front of ITAMbox), and so on. If the
+  header has fewer than `N` entries, ITAMbox uses its first entry; if the
+  header is absent, it uses `REMOTE_ADDR`.
+- Only `X-Forwarded-For` is read. `Forwarded`, `X-Real-IP` and
+  `CF-Connecting-IP` are ignored.
+
+Raising `ITAMBOX_RATELIMIT_NUM_PROXIES` does not help when the proxy never
+puts the client address into `X-Forwarded-For`: the counted entry is still
+the proxy's address. The value must equal the number of trusted proxies that
+actually append to the header, no more.
+
+Supported configurations:
+
+| Topology | Setting |
+|---|---|
+| ITAMbox directly reachable | `USE_X_FORWARDED_FOR=False`. |
+| One proxy that appends the client address to `X-Forwarded-For` | `USE_X_FORWARDED_FOR=True`, `NUM_PROXIES=1`. |
+| Two trusted proxies in a row (for example a load balancer in front of an ingress), both appending | `USE_X_FORWARDED_FOR=True`, `NUM_PROXIES=2`. |
+| Proxy that cannot supply the client address | Enable its forwarded-for option or replace it; see below if that is impossible. |
+
+The proxy must overwrite or append to the header and never pass a
+client-supplied value through untouched, otherwise a forged header bypasses
+the limit. `ITAMBOX_RATELIMIT_NUM_PROXIES` must be a positive integer; startup
+fails otherwise, so there is no "zero proxies" setting.
+
+If the proxy genuinely cannot supply the client address, client-based
+throttling cannot work behind it. ITAMbox has no environment switch to turn it
+off, and the limit and period (`RATELIMIT_LIMIT`, `RATELIMIT_PERIOD`) are
+Django settings that are not exposed as environment variables. The honest
+options are to apply per-client rate limiting in the proxy itself, where the
+address is known, and to raise `RATELIMIT_LIMIT` through a custom settings
+module so the shared bucket stops tripping. Doing so gives up ITAMbox's own
+brute-force and password-reset flood protection on these endpoints: the proxy
+rule becomes the only defence, and local-password logins (including break-glass
+accounts) are only as protected as that rule. Do not do this without a
+replacement control.
+
+!!! note "Throttling is per address, not per account"
+    The limiter does not look at the submitted username or email. One address
+    (or, behind a non-forwarding proxy, one shared bucket) can therefore block
+    every login attempt from that address, including legitimate ones. There is
+    no per-account lockout.
+
+To confirm the symptom, see
+[Troubleshooting, section 6](../operations/troubleshooting.md#6-rate-limiting-or-client-ip-confusion).
 
 ## SSO security expectations
 

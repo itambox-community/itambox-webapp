@@ -7,8 +7,8 @@
   "drf_spectacular_version": "0.29.0",
   "pyyaml_version": "6.0.3",
   "python_hash_seed": "0",
-  "settings_sha256": "1107be4748fd46a35bc10efdf74d57fa23f31dcbeadc8b9988558fa09591ce76",
-  "policy_sha256": "05fcfd0f7d38fa442ab07310858f30b55ad594b0dc94292421776f6680821b36",
+  "settings_sha256": "402953f6c0e9645b610911d575bc8dbbe4a9a552352720fd65d4d334b5af7bf3",
+  "policy_sha256": "47001d4617f2786677e503dbec6bfc1f8142218ceb53a076798f49afbcf005af",
   "diagnostics": [
     {
       "severity": "warning",
@@ -39,6 +39,12 @@
       "location": "itambox/inventory/api/serializers.py",
       "breadcrumb": "ConsumableViewSet > ConsumableSerializer",
       "message": "unable to resolve type hint for function \"get_category\". Consider using a type hint or @extend_schema_field. Defaulting to string."
+    },
+    {
+      "severity": "warning",
+      "location": "itambox/itambox/api/serializers/__init__.py",
+      "breadcrumb": "ContactAssignmentViewSet > ContactAssignmentSerializer > GenericObjectSerializer",
+      "message": "could not resolve serializer field \"GFKSerializerField(read_only=True)\". Defaulting to \"string\""
     },
     {
       "severity": "warning",

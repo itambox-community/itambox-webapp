@@ -51,6 +51,7 @@ from organization.services.access_scope import (
 )
 
 from .loaders import RequestScopedSpecificationLoader
+from .permissions import authenticated_user, has_global_permission
 from .readers import fields_for_fieldset, issues_for_entries, issues_for_missing_required
 from .types import FieldsetView, UserErrorType
 
@@ -95,37 +96,20 @@ _MAX_PAGE_SIZE = 100
 _DEFAULT_PAGE_SIZE = 50
 
 
-def authenticated_user(info: object) -> object:
-    context = getattr(info, "context", None)
-    if context is None:
-        raise GraphQLError(
-            "Authentication credentials were not provided.",
-            extensions={"code": "UNAUTHENTICATED"},
-        )
-    if isinstance(context, Mapping):
-        user = context.get("user")
-    else:
-        user = getattr(context, "user", None)
-        if user is None:
-            user = getattr(getattr(context, "request", None), "user", None)
-    if user is None or not getattr(user, "is_authenticated", False):
-        raise GraphQLError(
-            "Authentication credentials were not provided.",
-            extensions={"code": "UNAUTHENTICATED"},
-        )
-    return user
-
-
-def has_global_permission(info: object, permission: str) -> bool:
-    user = authenticated_user(info)
-    return bool(user.has_perm(permission))
-
-
 def require_global_permission(info: object, permission: str) -> object:
     user = authenticated_user(info)
     if not user.has_perm(permission):
         raise PermissionDenied("Permission denied.")
     return user
+
+
+def _token_tenant_id(info: object) -> int | None:
+    """Tenant a token-authenticated request is bound to, or None for session requests."""
+    context = getattr(info, "context", None)
+    request = context.get("request") if isinstance(context, Mapping) else getattr(context, "request", context)
+    token = getattr(request, "auth", None)
+    tenant_id = getattr(token, "tenant_id", None)
+    return None if tenant_id is None else int(tenant_id)
 
 
 def resolve_read_scope(info: object, requested_scope: Mapping[str, object] | object) -> ScopeReadView | None:
@@ -161,8 +145,13 @@ def resolve_read_scope(info: object, requested_scope: Mapping[str, object] | obj
         return None
     if not isinstance(resolved, AccessScopeResolvedDTO):
         return None
+    tenant_ids = frozenset(int(value) for value in resolved.access_scope.authorized_tenant_ids)
+    token_tenant_id = _token_tenant_id(info)
+    if token_tenant_id is not None and tenant_ids != frozenset({token_tenant_id}):
+        # A token is bound to exactly one tenant: an explicit selector must never widen beyond it.
+        return None
     return ScopeReadView(
-        tenant_ids=frozenset(int(value) for value in resolved.access_scope.authorized_tenant_ids),
+        tenant_ids=tenant_ids,
         fingerprint=str(resolved.access_scope.access_scope_fingerprint),
     )
 

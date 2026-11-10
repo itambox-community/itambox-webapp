@@ -21,7 +21,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6f42c1.svg" alt="Apache-2.0 license"></a>
   <a href="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml"><img src="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/status-public%20beta-d97706.svg" alt="Public beta status">
+  <img src="https://img.shields.io/badge/status-release%20candidate-2563ab.svg" alt="Release candidate status">
   <img src="https://img.shields.io/badge/python-3.12%2B-3776ab.svg" alt="Python 3.12 or newer">
   <img src="https://img.shields.io/badge/database-PostgreSQL%2016%2B-4169e1.svg" alt="PostgreSQL 16 or newer">
 </p>
@@ -86,11 +86,11 @@ REST/OpenAPI, scoped GraphQL, SCIM, identity-provider integrations, imports, exp
 ITAMbox is licensed under Apache 2.0 and designed to run on infrastructure you control. Your deployment, data, integrations, retention policies, and upgrade decisions remain under your administration.
 
 > [!IMPORTANT]
-> This repository is pre-release. `1.0.0-beta.6` is current version metadata for the public beta. The feature scope for 1.0 is frozen, but APIs, migrations, routes, configuration, and capabilities marked **Beta** may still change before the first stable release. Use ITAMbox for evaluation and controlled pilot deployments with tested backups, and review the [capability maturity guide](itambox/docs/operations/capability-maturity.md) before relying on pre-release functionality.
+> This repository is pre-release. `1.0.0-rc.2` is current version metadata for the 1.0 release candidate. The feature scope for 1.0 is frozen, but APIs, migrations, routes, configuration, and capabilities marked **Beta** may still change before the first stable release. Use ITAMbox for evaluation and controlled pilot deployments with tested backups, and review the [capability maturity guide](itambox/docs/operations/capability-maturity.md) before relying on pre-release functionality.
 
 The Report Designer is Stable and available in every deployment. CSV exports use each template's selected columns, and custom HTML/Jinja templates remain supported in a restricted sandbox. All templates use the same canonical schema and rendering path.
 
-Maturity is declared per capability rather than per module — see the [capability maturity guide](itambox/docs/operations/capability-maturity.md) for the public grades, activation modes, and known limitations. Tenant Resource Grants are a Stable, security-critical capability whose expiry and recovery behavior is documented in the [resource grant expiry runbook](itambox/docs/operations/resource-grant-expiry.md). SCIM is Beta, and the plugin system is Experimental.
+Maturity is declared per capability rather than per module — see the [capability maturity guide](itambox/docs/operations/capability-maturity.md) for the public grades, activation modes, and known limitations. Tenant Resource Grants are a Stable, security-critical capability whose expiry and recovery behavior is documented in the [resource grant expiry runbook](itambox/docs/operations/resource-grant-expiry.md). SCIM is Stable, and the plugin system is Experimental.
 
 ## Try the live demo
 
@@ -120,7 +120,7 @@ ITAMbox is designed to participate in a broader IT operations environment rather
 
 - **REST/OpenAPI** exposes tenant-scoped application resources with generated Swagger UI and ReDoc documentation.
 - **GraphQL** provides a scoped schema for assets, inventory, software, licenses, and subscriptions.
-- **Identity integrations** include LDAP, SAML, OIDC, privileged-account TOTP, and Beta SCIM provisioning.
+- **Identity integrations** include LDAP, SAML, OIDC, privileged-account TOTP, and SCIM provisioning.
 - **Discovery and data exchange** include Intune discovery, structured imports, exports, and bulk workflows.
 - **Automation** includes background jobs, event rules, alerts, scheduled reports, and outbound webhooks where enabled by capability status.
 - **Customization and extension** include custom fields, tags, labels, saved filters, report definitions, and an Experimental plugin system.

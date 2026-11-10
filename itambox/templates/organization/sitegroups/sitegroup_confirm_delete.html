@@ -14,12 +14,14 @@
       <div class="card-body">
         <p>{% translate "Are you sure you want to delete the site group:" %} <strong>{{ sitegroup.name }} ({{ sitegroup.slug }})</strong>?</p>
         {# Add warning about related objects #}
-        {% if sitegroup.sites.count > 0 or sitegroup.children.count > 0 %}
+        {% if related_site_count > 0 or sitegroup.children.count > 0 %}
           <p class="text-warning">
-            {% translate "Warning: This group has" %} {{ sitegroup.sites.count }} {% translate "assigned site" %}{{ sitegroup.sites.count|pluralize }}
+            {% translate "Warning: This group has" %} {{ related_site_count }} {% translate "assigned site" %}{{ related_site_count|pluralize }}
             {% translate "and" %} {{ sitegroup.children.count }} {% translate "child group" %}{{ sitegroup.children.count|pluralize }}.
             {% translate "Deleting it may affect related objects depending on your setup." %}
           </p>
+        {% elif related_sites_outside_scope %}
+          <p class="text-warning">{% translate "Some sites are referenced outside your scope." %}</p>
         {% endif %}
         <p class="text-danger">{% translate "This action cannot be undone." %}</p>
         <form method="post">

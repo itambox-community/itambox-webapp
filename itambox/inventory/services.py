@@ -3,7 +3,7 @@ from typing import Any, Optional, Tuple
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 
@@ -130,7 +130,7 @@ def checkout_inventory_item(
         # applies no ambient scope: the item may live in another tenant than the
         # active one (granted cross-tenant checkout) and callers have already
         # resolved it through an authorized surface.
-        item = type(item).objects.select_for_update().get(pk=item.pk)
+        item = type(item).objects.select_for_update().with_counts().get(pk=item.pk)
         source_stock = None
         if source_location is not None:
             source_location = Location.objects.get(
@@ -159,10 +159,10 @@ def checkout_inventory_item(
             system_authorization=system_authorization,
         )
 
-        # Item-level availability spans the ACTIVE tenant's pools (the related
-        # managers are tenant-scoped); for an authorized cross-tenant checkout
-        # the owner's pool is deliberately outside that view, so the pool-
-        # specific check below is the meaningful gate instead.
+        # Item-level availability is the per-scope aggregate built above. For an
+        # authorized cross-tenant checkout the owner's pool is deliberately
+        # outside that view, so the pool-specific check below is the meaningful
+        # gate instead.
         if resource_grant is None:
             if not item.allow_overallocate and item.available < qty:
                 raise ValidationError(_("No stock available for checkout."))
@@ -252,7 +252,7 @@ def create_component_allocation(
         raise ValidationError(_("Only a trusted system process can change this component's availability."))
     provenance = _system_authorization_provenance(actor, system_authorization)
     with transaction.atomic():
-        component = type(component).objects.select_for_update().get(pk=component.pk)
+        component = type(component).objects.select_for_update().with_counts().get(pk=component.pk)
         if not component.allow_overallocate and not system_allow_overallocate and component.available < qty:
             raise ValidationError(_("No stock available for allocation."))
         assignment = ComponentAllocation(
@@ -311,7 +311,7 @@ def update_component_allocation(
         if requested_shape != persisted_shape:
             raise ValidationError(_("Component allocation item, source, and destination are immutable."))
 
-        component = type(component).objects.select_for_update().get(pk=assignment.component_id)
+        component = type(component).objects.select_for_update().with_counts().get(pk=assignment.component_id)
         extra_qty = qty - assignment.qty
         if extra_qty > 0 and not component.allow_overallocate and component.available < extra_qty:
             raise ValidationError(_("No stock available for allocation."))
@@ -374,6 +374,23 @@ def shared_stock_union(queryset, stock_model):
     )
 
 
+def item_stock_prefetch(stock_model):
+    """Scoped prefetch for the stock pools of one catalogue item.
+
+    Stock rows are owned by their location's tenant, never by the catalogue
+    item.  The item detail pages read the reverse manager, so the prefetch is
+    built per request with the active scope and keeps pools shared TO that
+    tenant visible (ADR-0001 phase 4b).
+    """
+    return Prefetch(
+        "stocks",
+        queryset=shared_stock_union(
+            stock_model.objects.for_scope(Scope.current()),
+            stock_model,
+        ).select_related("location"),
+    )
+
+
 def recipient_assignment_union(queryset, assignment_model):
     """Extend a tenant-scoped assignment queryset with live rows TARGETING the
     active tenant (ADR-0001 phase 4b: recipients may view inbound cross-tenant
@@ -388,6 +405,20 @@ def recipient_assignment_union(queryset, assignment_model):
             deleted_at__isnull=True,
         ).distinct()
     )
+
+
+def item_assignments_for_scope(assignment_model, item_field, item):
+    """Assignments of one catalogue item the active scope may see.
+
+    The owner-scoped rows plus the inbound rows targeting the active tenant,
+    narrowed to ``item`` AFTER the union: the recipient side adds every row
+    targeting the tenant, whatever its item. Reverse relations on the item
+    (``accessory.assignments``) are unscoped and must not feed a table.
+    """
+    return recipient_assignment_union(
+        assignment_model.objects.for_scope(Scope.current()),
+        assignment_model,
+    ).filter(**{item_field: item, "deleted_at__isnull": True})
 
 
 def resolve_grant_for_checkout(

@@ -102,3 +102,59 @@ class ScopeSwitchNoticeTests(TestCase):
         request = self._run(f"?switch_all_accessible=1&tenant={self.tenant.pk}&scope_notice=filters")
 
         self.assertEqual(list(request._messages), [])
+
+
+class TenantMiddlewareExceptionSafetyTests(TestCase):
+    def setUp(self):
+        from core.managers import set_current_tenant, set_current_tenant_group
+
+        self.tenant = Tenant.objects.create(name="Safety Tenant", slug="safety-tenant")
+        self.user = User.objects.create_user(username="safety_user", password="pw", is_superuser=True)
+        self.prev_tenant = Tenant.objects.create(name="Prev Tenant", slug="prev-tenant")
+        set_current_tenant(self.prev_tenant)
+        self.addCleanup(set_current_tenant, None)
+        self.addCleanup(set_current_tenant_group, None)
+
+    def _request(self):
+        request = RequestFactory().get(f"/?switch_tenant={self.tenant.pk}")
+        request.user = self.user
+        request.session = import_module(settings.SESSION_ENGINE).SessionStore()
+        request._messages = FallbackStorage(request)
+        return request
+
+    def test_base_exception_restores_previous_scope(self):
+        from core.managers import get_current_tenant
+
+        class Cancelled(BaseException):
+            pass
+
+        def view(request):
+            self.assertEqual(get_current_tenant(), self.tenant)
+            raise Cancelled
+
+        with self.assertRaises(Cancelled):
+            TenantMiddleware(view)(self._request())
+        self.assertEqual(get_current_tenant(), self.prev_tenant)
+
+    def test_failure_inside_process_request_restores_previous_scope(self):
+        from unittest import mock
+
+        from core.managers import get_current_tenant, set_current_tenant
+
+        middleware = TenantMiddleware(lambda r: None)
+
+        def boom(self_, request):
+            set_current_tenant(self.tenant)
+            raise KeyboardInterrupt
+
+        with mock.patch.object(TenantMiddleware, "process_request", boom):
+            with self.assertRaises(KeyboardInterrupt):
+                middleware(self._request())
+        self.assertEqual(get_current_tenant(), self.prev_tenant)
+
+    def test_normal_response_restores_previous_scope(self):
+        from core.managers import get_current_tenant
+
+        sentinel = object()
+        self.assertIs(TenantMiddleware(lambda r: sentinel)(self._request()), sentinel)
+        self.assertEqual(get_current_tenant(), self.prev_tenant)

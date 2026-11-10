@@ -216,6 +216,22 @@ Keep the 16 volume until the 18 deployment has served normal traffic for a
 release cycle; deleting it is the point at which the upgrade stops being
 reversible.
 
+## SAML account binding (#1034)
+
+SAML logins no longer resolve an existing account by NameID alone. An assertion
+that names an existing account is accepted only when that account has an active
+membership in the tenant the login was started for, and superuser and staff
+accounts are never signed in through SAML. This is a deliberate behaviour
+change: users who previously signed in through a tenant's identity provider
+without a membership in that tenant, and superusers or staff who used SAML,
+are now refused. Add the missing membership, or use local password login for
+administrative accounts, before upgrading. Single-identity-provider deployments
+whose users are already members are unaffected.
+
+A tenant can additionally set `SAML_CREATE_UNKNOWN_USER` to `false` in its
+`ITAMBOX_TENANT_SAML_CONFIGS` entry to disable just-in-time account creation;
+when the key is absent, creation stays enabled. No schema migration is involved.
+
 ## OIDC identity binding migration (#454)
 
 The OIDC `(issuer, subject)` binding migration creates schema only. It performs no automatic backfill and never guesses a binding from email, username, UPN, tenant,
@@ -442,10 +458,12 @@ recognized shapes:
   migration of the named baseline and every current app leaf is recorded; no
   migration action is required. A fresh install and a finished upgrade of the
   declared origin end in this same recorder state.
-- A supported predecessor state declared in the checked manifest — currently
-  only the declared upgrade origin `v1.0.0-beta.5`
-  (`supported-predecessor-beta5`): the recorder is exactly at that predecessor
-  state. The database is recognized and safe to upgrade with the ordinary
+- A supported predecessor state declared in the checked manifest: the named
+  `supported-predecessor-beta5` state, the recorder of a database that has not
+  yet applied the post-transition migrations. The declared upgrade origin for
+  this release is `v1.0.0-beta.6`; a beta.6 database already records those
+  migrations and reports `current-normalized-baseline`. A database at the named
+  predecessor state is recognized and safe to upgrade with the ordinary
   migration executor; the migration itself is still required.
 
 A non-zero result is a stop condition. It distinguishes a partial normalized
@@ -468,9 +486,11 @@ starting points for a release are the previously tagged release — the supporte
 upgrade-origin chain begins at `v1.0.0-beta.2`, and each release's changelog
 states its declared origin — and, in addition, the predecessor revision
 recorded in the checked manifest (`recognized_states`): the declared upgrade
-origin (currently `v1.0.0-beta.5`). The stable baseline replaces the whole
-prerelease migration history, so a database from `v1.0.0-beta.4` or earlier must
-first be upgraded to `v1.0.0-beta.5`; the preflight rejects it. Databases
+origin is currently `v1.0.0-beta.6`, and the named `supported-predecessor-beta5`
+state remains recognized for a database that has not yet applied the
+post-transition migrations. The stable baseline replaces the whole prerelease
+migration history, so a database from `v1.0.0-beta.4` or earlier must first be
+upgraded to `v1.0.0-beta.5`; the preflight rejects it. Databases
 created by transitional development states are explicitly not supported; the
 executor fails closed with a clear recorder inconsistency instead of rewriting
 their history.

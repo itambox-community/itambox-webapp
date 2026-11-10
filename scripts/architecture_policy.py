@@ -210,6 +210,7 @@ MODULE_LAYER_OVERRIDES = {
     "assets.graphql_specifications.integration": "presentation",
     "assets.graphql_specifications.inputs": "presentation",
     "assets.graphql_specifications.loaders": "presentation",
+    "assets.graphql_specifications.permissions": "presentation",
     "assets.graphql_specifications.readers": "presentation",
     "assets.graphql_specifications.scalars": "presentation",
     "assets.graphql_specifications.types": "presentation",

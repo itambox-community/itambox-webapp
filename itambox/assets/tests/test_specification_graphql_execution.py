@@ -69,6 +69,7 @@ def graphql_world():
             "assets.view_assettype",
             "extras.view_customfield",
             "extras.view_customfieldchoiceset",
+            "software.view_software",
         ],
     )
     grant(user, tenant_a, role)

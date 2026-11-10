@@ -5,8 +5,8 @@ from django.http import Http404
 from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
-from core.tests.mixins import grant
-from extras.models import ReportTemplate
+from core.tests.mixins import TenantTestMixin, grant
+from extras.models import ReportTemplate, ScheduledReport
 from extras.views import ReportTemplateDownloadView, ReportTriggerImmediateView
 from organization.models import Role, Tenant
 
@@ -150,3 +150,83 @@ class RunNowDomainPermissionTests(TestCase):
         self.assertIsNone(sched.last_run_archive)
         deliver_email.assert_not_called()
         deliver_channels.assert_not_called()
+
+
+class ScheduledReportForeignActionScopeTests(TenantTestMixin, TestCase):
+    """A foreign schedule PK must not be actionable through run/retry URLs."""
+
+    def setUp(self):
+        self.setup_tenant_context(
+            name="Scheduled Action Tenant A",
+            slug="scheduled-action-tenant-a",
+            permissions=["extras.view_scheduledreport", "extras.change_scheduledreport"],
+        )
+        self.tenant_b = Tenant.objects.create(name="Scheduled Action Tenant B", slug="scheduled-action-tenant-b")
+        template_b = ReportTemplate.objects.create(
+            name="Scheduled Action Report B",
+            report_type=ReportTemplate.REPORT_TYPE_ASSET_SUMMARY,
+            tenant=self.tenant_b,
+            included_columns=["asset_tag"],
+        )
+        self.schedule_b = ScheduledReport.objects.create(
+            name="Scheduled Action Schedule B",
+            report=template_b,
+            tenant=self.tenant_b,
+            frequency=ScheduledReport.FREQUENCY_DAILY,
+            format=ScheduledReport.FORMAT_HTML,
+            recipients="scheduled-action-b@example.com",
+        )
+        self.client_login_to_tenant(self.tenant_user, self.tenant)
+
+    def test_foreign_schedule_run_now_is_denied_without_dispatch(self):
+        url = reverse("extras:scheduledreport_trigger", kwargs={"pk": self.schedule_b.pk})
+        with patch("extras.views.generate_scheduled_report_task") as dispatch:
+            response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 403)
+        dispatch.assert_not_called()
+
+    def test_foreign_schedule_retry_delivery_is_denied_without_retry(self):
+        url = reverse("extras:scheduledreport_retry_delivery", kwargs={"pk": self.schedule_b.pk})
+        with patch("extras.views.retry_failed_deliveries") as retry:
+            response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 403)
+        retry.assert_not_called()
+
+
+class ReportTemplateDetailScheduleScopeTests(TenantTestMixin, TestCase):
+    """F9: a global template's detail page lists only in-scope schedules."""
+
+    def setUp(self):
+        self.setup_tenant_context(name="F9 Tenant A", slug="f9-tenant-a", permissions=["extras.view_reporttemplate"])
+        self.tenant_a = self.tenant
+        self.tenant_b = Tenant.objects.create(name="F9 Tenant B", slug="f9-tenant-b")
+        self.template = ReportTemplate.objects.create(
+            name="F9 Global Template",
+            report_type=ReportTemplate.REPORT_TYPE_ASSET_SUMMARY,
+            included_columns=["asset_tag"],
+        )
+        self.url = reverse("extras:reporttemplate_detail", kwargs={"pk": self.template.pk})
+
+    def _schedule(self, tenant, name):
+        return ScheduledReport.objects.create(
+            name=name, report=self.template, tenant=tenant, recipients="f9@example.com"
+        )
+
+    def test_detail_lists_only_own_schedules(self):
+        self._schedule(self.tenant_a, "F9-SCHEDULE-A")
+        self._schedule(self.tenant_b, "F9-SECRET-SCHEDULE-B")
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "F9-SCHEDULE-A")
+        self.assertNotContains(response, "F9-SECRET-SCHEDULE-B")
+
+    def test_foreign_only_schedule_is_not_listed(self):
+        self._schedule(self.tenant_b, "F9-SECRET-SCHEDULE-B")
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "F9-SECRET-SCHEDULE-B")
+        self.assertEqual(len(response.context["schedules"]), 0)

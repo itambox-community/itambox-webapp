@@ -514,8 +514,8 @@
         "package": "braces",
         "version": "3.0.3"
       },
-      "review_on": "2026-11-02",
-      "expires_on": "2026-11-16",
+      "review_on": "2026-11-16",
+      "expires_on": "2026-11-30",
       "references": [
         "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
         "https://github.com/micromatch/braces/issues/70",

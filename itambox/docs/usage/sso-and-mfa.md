@@ -24,6 +24,71 @@ Each tenant can use a **different identity provider type**:
 | `gamma-inc` | OIDC | `ITAMBOX_TENANT_OIDC_CONFIGS` |
 | `delta-co` | Local only | (no SSO config — falls back to password login) |
 
+### Login-page discovery from email domains
+
+The optional `ITAMBOX_TENANT_LOGIN_DOMAINS` setting maps exact email domains to
+tenant slugs. It is only a login-page resolver; it does not change the SAML or
+OIDC entry points or authentication backends.
+
+```json
+{
+  "alpha-corp": {
+    "domains": ["alpha-corp.com", "alpha.example.com"],
+    "method": "oidc"
+  }
+}
+```
+
+Each `domains` value is normalized to lowercase IDNA form and must be unique
+across tenants. Public email domains, malformed domains, duplicate domains,
+unsupported entry keys, and methods other than `oidc` or `saml` are rejected at startup.
+`method` is optional; when set, only that protocol may be selected. Discovery
+is enabled when the mapping is non-empty. An unset or empty mapping preserves
+the current login page.
+
+> [!WARNING]
+> A non-empty mapping hides **every** SSO button on the login page, not only
+> those of the mapped tenants. Tenants without a mapped domain, deployment-wide
+> OIDC (configured in the Django settings) and a `default` SAML entry get no
+> button any more; their users can only sign in by entering an address whose
+> domain is mapped, or with a password. Map every tenant that should keep SSO
+> before enabling discovery (the configuration check warns about unclaimed
+> tenant SSO), and leave the setting empty when you rely on deployment-wide
+> OIDC, on a `default` SAML entry, or when tenants share email domains that
+> cannot be mapped one-to-one. Discovery is then the wrong choice and the
+> classic button list stays in place.
+
+Domain matching uses the IDNA 2003 codec of the Python standard library, so `ß`
+folds to `ss`: a domain mapped as `straße.de` also matches a visitor typing
+`strasse.de`, and the reverse. This only affects which login action is offered,
+never credentials or account matching, so the folding is intended. IDNA 2008
+would treat the two spellings as different domains; switching would be a
+compatibility change and is not done silently.
+
+With discovery enabled, a visitor enters an email address or username. A live
+mapped tenant with one usable tenant-bound provider redirects to that provider;
+multiple usable providers are offered with neutral protocol labels. Unknown or
+public domains, usernames without an email domain, deleted tenants, and missing
+or unusable providers use the local password form instead. The identifier is
+not looked up against users or memberships, and is not sent as an OIDC
+`login_hint`. The password form remains available without JavaScript.
+
+The configuration check warns when a mapped slug has no usable tenant SSO
+provider, when a tenant SSO provider has no mapped domain while discovery is
+enabled, or when multiple tenants share the same configured OIDC issuer or SAML
+metadata identity. The resolver reads the tenant by slug from the live tenant
+table on each request and fails closed for missing or soft-deleted tenants.
+
+> [!WARNING]
+> Discovery redirects every identifier at a mapped domain to the tenant's
+> identity provider **before** any password check. A local account whose email
+> address is at a mapped domain, such as a break-glass superuser
+> `admin@alpha-corp.com`, can no longer sign in with that address: the
+> identifier goes to the IdP, which does not know the local account. Sign in
+> with the bare username instead (`admin`, without the domain). A bare
+> username, a public domain, or an unmapped domain opens the password form. Keep
+> at least one local superuser reachable this way before you enable discovery.
+
 > [!IMPORTANT]
 > SSO backends are **additive**: they participate in the authentication chain
 > alongside the password backend. A tenant with no SSO configuration simply
@@ -243,6 +308,7 @@ shown on the login page because the callback could not be scoped safely.
 | `want_assertions_signed` | Require signed assertions. Default: `true`. |
 | `want_response_signed` | Require signed responses. Default: `true`. |
 | `SAML_GROUP_ROLE_MAPPING` | Map SAML group attribute values to ITAMbox role names. |
+| `SAML_CREATE_UNKNOWN_USER` | Set to `false` to stop this tenant's assertions from provisioning accounts that do not exist yet. It is combined with the global `SAML_CREATE_UNKNOWN_USER` setting (both must allow it). Default: `true`. |
 | `enabled` | Set to `false` to disable the provider and hide its login action without deleting the configuration. Default: `true`. |
 | `display_name` | Optional label used on the login page. The tenant name is used when omitted. |
 
@@ -260,6 +326,22 @@ are tried in order:
 | UPN | `upn`, `userPrincipalName`, `uid`, `nameidentifier` |
 | Groups | `groups`, `memberOf`, `User.Groups` |
 
+### Account Binding
+
+A SAML NameID is matched against the account username. To stop one tenant's
+identity provider from authenticating as another tenant's user, an assertion
+that names an **existing** account is accepted only when:
+
+- the account holds an **active membership** in the tenant the SAML login was
+  started for, and
+- the account is **neither a superuser nor staff**. These accounts can never be
+  signed in through a SAML NameID; use local password login (with MFA) for them.
+
+A refused assertion fails the login without changing anything: no membership,
+asset holder, profile update or audit entry is written. Unknown identities are
+still provisioned just in time, unless `SAML_CREATE_UNKNOWN_USER` is `false`
+for the tenant (see above).
+
 ### Security Defaults
 
 > [!IMPORTANT]
@@ -267,6 +349,15 @@ are tried in order:
 > `want_response_signed` are `true` by default. Unsolicited assertions are
 > rejected (`allow_unsolicited: false`). Only relax these if your IdP does
 > not support signed assertions — and only after a security review.
+
+### Authentik SAML provider
+
+ITAMbox requires a signed SAML response by default (`want_response_signed` is
+`true`, see [Security Defaults](#security-defaults)). On the Authentik SAML
+provider, set both `sign_assertion=True` and `sign_response=True`. The provider's
+`sign_response` option is `False` unless you set it, so a provider that signs
+only the assertion fails ITAMbox's check. ITAMbox shows no error in this case:
+the SAML round trip ends without a logged-in session.
 
 ---
 
@@ -340,6 +431,19 @@ configuration. The authorization URL is:
 ```
 https://<your-instance>/oidc/authenticate/<tenant_slug>/
 ```
+
+### Authentik OIDC provider
+
+When you create the OAuth2/OpenID provider in Authentik through its API (or any
+automation), set `grant_types` explicitly to `["authorization_code", "refresh_token"]`.
+A provider created without it stores an empty list. Authentik then rejects the
+authorize request with `invalid_request` ("The request is otherwise malformed")
+and redirects straight back to the callback, so the login page reloads and the SSO
+button appears to do nothing. ITAMbox logs no error because it never receives a
+valid response.
+
+Register the shared callback URL from [Callback URLs](#callback-urls) as the
+redirect URI of the provider.
 
 ### Token Validation
 
@@ -503,6 +607,22 @@ but have not yet verified:
 
 ## Troubleshooting SSO
 
+### SSO Button Does Nothing, Login Returns 429
+
+**Symptom:** clicking the SSO button on the login page has no effect, or the
+login page itself answers `429 Too many requests`; no IdP redirect occurs and
+there is no ITAMbox error.
+
+**Cause:** login throttling is keyed on the client address. Behind a reverse
+proxy that does not forward the client address, all users share one throttle
+bucket, so a few attempts block everybody before the authorize redirect can
+happen. This is not an IdP or SSO configuration fault.
+
+**Fix:** see
+[Rate limiting behind a reverse proxy](../security/deployment-security.md#reverse-proxies-that-do-not-forward-the-client-address)
+and the
+[troubleshooting checklist](../operations/troubleshooting.md#6-rate-limiting-or-client-ip-confusion).
+
 ### Redirect URI Mismatch
 
 **Symptom:** IdP returns an error like "The redirect URI is not registered"
@@ -518,6 +638,20 @@ ITAMbox constructs.
   the IdP sends assertions to.
 - Verify `ITAMBOX_BASE_URL` is set correctly in `.env` — it is used to
   construct absolute URLs when `base_url` is not explicitly configured.
+
+### SSO Button Does Nothing (Authentik OIDC)
+
+**Symptom:** Pressing the OIDC sign-in button returns you to the login page
+without an error, and ITAMbox logs nothing.
+
+**Cause:** The Authentik OAuth2/OpenID provider has an empty `grant_types` list,
+which happens when the provider is created through the API without that field.
+Authentik rejects the authorize request with `invalid_request` and redirects to
+the callback without a usable authorization code.
+
+**Fix:** Set the provider's `grant_types` to
+`["authorization_code", "refresh_token"]` and try again. See
+[Authentik OIDC provider](#authentik-oidc-provider).
 
 ### Certificate Expiry
 
@@ -593,6 +727,17 @@ logged in.
 **Fix:** Set `can_login = True` on the user's profile. This flag is checked
 by all SSO backends (LDAP, SAML, OIDC) after successful authentication and
 before returning the user object. It is a separate axis from `is_active`.
+
+### SAML Round Trip Ends Without a Session (Authentik)
+
+**Symptom:** The SAML login returns to ITAMbox but you are not signed in, and
+ITAMbox shows no error.
+
+**Cause:** The Authentik SAML provider signs the assertion but not the response,
+while ITAMbox requires a signed response (`want_response_signed: true`).
+
+**Fix:** Set both `sign_assertion=True` and `sign_response=True` on the
+Authentik SAML provider. See [Authentik SAML provider](#authentik-saml-provider).
 
 ### SAML Assertion Not Signed
 

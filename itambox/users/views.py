@@ -720,6 +720,15 @@ class UserDetailView(UserObjectScopeMixin, ObjectDetailView):
     )
     template_name = "users/user_detail.html"
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        memberships = list(self.object.memberships.all())
+        if not self.request.user.is_superuser:
+            scope_ids = self.get_scope_tenant_ids()
+            memberships = [membership for membership in memberships if membership.tenant_id in scope_ids]
+        context["visible_memberships"] = memberships
+        return context
+
 
 class UserEditView(UserObjectScopeMixin, ObjectEditView):
     queryset = User.objects.all()

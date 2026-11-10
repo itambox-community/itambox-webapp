@@ -2,15 +2,21 @@
 
 import csv
 import io
+import re
 from datetime import date, datetime
 from decimal import Decimal
+from posixpath import normpath
+from urllib.parse import urlsplit
 
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.template import Context, Template
 from django.utils.html import escape
 from django.utils.translation import gettext as _
 
 from core.csv_utils import csv_safe
 from core.reports.templates import get_polished_system_html_template
+from core.sandbox import RenderDeadlineExceeded, hardened_sandbox_environment, render_deadline
 
 
 def report_disclosure_text(result, row_limit, truncated_template=None):
@@ -90,22 +96,257 @@ def _custom_context(context_data):
     return {key: _safe_custom_value(context_data[key]) for key in _CUSTOM_CONTEXT_KEYS if key in context_data}
 
 
+_ALLOWED_ELEMENTS = frozenset(
+    "a abbr b blockquote br caption code col colgroup dd div dl dt em figcaption figure h1 h2 h3 h4 h5 h6 hr i img"
+    " li ol p pre s small span strong sub sup table tbody td tfoot th thead tr u ul".split()
+)
+# Subtrees removed together with their text: executable, framing, form and
+# foreign-content elements whose inner text would otherwise leak into the page.
+_DROP_ELEMENTS = frozenset(
+    "applet base button embed form frameset iframe input link math meta noembed noframes noscript object"
+    " option script select style svg template textarea title video audio".split()
+)
+_GLOBAL_ATTRIBUTES = frozenset({"aria-label", "class", "dir", "lang", "title"})
+_ELEMENT_ATTRIBUTES = {
+    "a": frozenset({"href"}),
+    "img": frozenset({"alt", "height", "src", "width"}),
+    "col": frozenset({"span"}),
+    "colgroup": frozenset({"span"}),
+    "td": frozenset({"align", "colspan", "rowspan", "valign"}),
+    "th": frozenset({"align", "colspan", "rowspan", "scope", "valign"}),
+}
+# Render budgets for stored custom templates (RS-1/RS-2/RS-3).
+MAX_TEMPLATE_CHARS = 200_000
+MAX_RENDERED_CHARS = 5_000_000
+MAX_HTML_DEPTH = 1000
+RENDER_DEADLINE_SECONDS = 8.0
+MAX_COLSPAN = 1000
+MAX_ROWSPAN = 65534
+_SPAN_LIMITS = {
+    ("td", "colspan"): MAX_COLSPAN,
+    ("th", "colspan"): MAX_COLSPAN,
+    ("td", "rowspan"): MAX_ROWSPAN,
+    ("th", "rowspan"): MAX_ROWSPAN,
+    ("col", "span"): MAX_COLSPAN,
+    ("colgroup", "span"): MAX_COLSPAN,
+}
+
+
+class ReportRenderLimitError(ValidationError):
+    """A custom report exceeded a rendering budget; the message is safe to show."""
+
+
+_LINK_SCHEMES = frozenset({"http", "https", "mailto", "tel"})
+_SAFE_DATA_IMAGE = re.compile(r"^data:image/(?:gif|jpe?g|png);base64,[A-Za-z0-9+/=]+$", re.IGNORECASE)
+_URL_NOISE = re.compile(r"[\x00-\x20\x7f-\xa0]+")
+
+
+def _safe_url(value, schemes, allow_network_path=True):
+    """Accept relative, fragment and allowlisted-scheme URLs; reject everything else.
+
+    Links pass ``allow_network_path=False``: a backslash (UNC share) or a
+    protocol-relative ``//host`` target is never a legitimate report link.
+    """
+    cleaned = _URL_NOISE.sub("", value or "")
+    if not cleaned:
+        return False
+    if not allow_network_path and ("\\" in cleaned or cleaned.startswith("//")):
+        return False
+    try:
+        scheme = urlsplit(cleaned).scheme.lower()
+    except ValueError:
+        return False
+    return not scheme or scheme in schemes
+
+
+def _is_own_asset_url(cleaned):
+    """True for an absolute URL on the configured ``ITAMBOX_BASE_URL`` origin under static/media."""
+    base = urlsplit(getattr(settings, "ITAMBOX_BASE_URL", "") or "")
+    if base.scheme not in {"http", "https"} or not base.netloc:
+        return False
+    try:
+        parts = urlsplit(cleaned)
+    except ValueError:
+        return False
+    if (parts.scheme.lower(), parts.netloc.lower()) != (base.scheme.lower(), base.netloc.lower()):
+        return False
+    path = parts.path
+    if ".." in path.split("/"):
+        return False
+    path = normpath(path)
+    prefixes = [p for p in (settings.STATIC_URL, settings.MEDIA_URL) if p and p.startswith("/")]
+    return any(path.startswith(prefix) and len(path) > len(prefix) for prefix in prefixes)
+
+
+def _safe_image_src(value):
+    """Allow only raster data URIs, relative paths and own-origin static/media URLs.
+
+    Remote images would let mail clients and offline HTML copies leak rendered
+    report data (and recipient IP/open events) to a third party.
+    """
+    cleaned = _URL_NOISE.sub("", value or "")
+    if not cleaned or "\\" in cleaned or cleaned.startswith("//"):
+        return False
+    if _SAFE_DATA_IMAGE.fullmatch(cleaned):
+        return True
+    try:
+        parts = urlsplit(cleaned)
+    except ValueError:
+        return False
+    if not parts.scheme and not parts.netloc:
+        return True
+    return _is_own_asset_url(cleaned)
+
+
+def _clamp_span(value, maximum):
+    """Return the span as a string clamped to 1..maximum, or ``None`` when not numeric."""
+    text = value.strip()
+    if not (text.isascii() and text.isdigit()):
+        return None
+    return str(min(max(int(text), 1), maximum))
+
+
+def _sanitize_attributes(element, tag):
+    allowed = _GLOBAL_ATTRIBUTES | _ELEMENT_ATTRIBUTES.get(tag, frozenset())
+    for raw_name, raw_value in list(element.attrib.items()):
+        name = raw_name.rsplit("}", 1)[-1].lower()
+        value = str(raw_value)
+        keep = name in allowed and not name.startswith("on")
+        if keep and name == "href":
+            keep = _safe_url(value, _LINK_SCHEMES, allow_network_path=False)
+        elif keep and name == "src":
+            keep = _safe_image_src(value)
+        if keep and (tag, name) in _SPAN_LIMITS:
+            clamped = _clamp_span(value, _SPAN_LIMITS[(tag, name)])
+            keep = clamped is not None
+            if keep:
+                element.attrib[raw_name] = clamped
+        if not keep:
+            del element.attrib[raw_name]
+
+
+def _splice(parent, child, replacement):
+    """Replace ``child`` with ``replacement`` nodes, keeping text and tail in order."""
+    index = list(parent).index(child)
+    tail = child.tail or ""
+    parent.remove(child)
+    previous = parent[index - 1] if index else None
+    for offset, node in enumerate(replacement):
+        parent.insert(index + offset, node)
+    last = replacement[-1] if replacement else previous
+    if last is None:
+        parent.text = (parent.text or "") + tail
+    elif last is previous or last in replacement:
+        last.tail = (last.tail or "") + tail
+
+
+def _unwrap(parent, child):
+    """Drop an unknown element's tag but keep its (already sanitised) content."""
+    lead = child.text or ""
+    kept = list(child)
+    if lead:
+        index = list(parent).index(child)
+        if index:
+            parent[index - 1].tail = (parent[index - 1].tail or "") + lead
+        else:
+            parent.text = (parent.text or "") + lead
+    _splice(parent, child, kept)
+
+
+def _sanitize_children(root):
+    """Sanitise the tree below ``root`` iteratively, so depth never consumes the call stack."""
+    stack = [[root, list(root), 0, None]]
+    while stack:
+        frame = stack[-1]
+        parent, children, index, pending_unwrap = frame
+        if pending_unwrap is not None:
+            _unwrap(parent, pending_unwrap)
+            frame[3] = None
+        if index >= len(children):
+            stack.pop()
+            continue
+        child = children[index]
+        frame[2] = index + 1
+        tag = child.tag.rsplit("}", 1)[-1].lower() if isinstance(child.tag, str) else None
+        if tag is None or tag in _DROP_ELEMENTS:
+            _splice(parent, child, [])
+            continue
+        if tag in _ALLOWED_ELEMENTS:
+            _sanitize_attributes(child, tag)
+        else:
+            frame[3] = child
+        stack.append([child, list(child), 0, None])
+
+
+def _assert_depth(root):
+    """Reject a tree deeper than ``MAX_HTML_DEPTH`` without recursing."""
+    stack = [(root, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > MAX_HTML_DEPTH:
+            raise ReportRenderLimitError(_("The report HTML is nested too deeply."))
+        stack.extend((child, depth + 1) for child in node)
+
+
+def sanitize_report_html(html):
+    """Return ``html`` reduced to an allowlist of presentational markup.
+
+    Autoescape protects interpolated values only; literal markup in a stored
+    template reaches the page and the mailbox unchanged.  The output is parsed
+    with html5lib and rebuilt from an element and attribute allowlist: script,
+    style, frame, form and foreign-content subtrees are removed, event-handler
+    and style attributes are dropped, and URLs are limited to http(s), mailto,
+    tel, relative and inline raster images.  It applies regardless of any
+    Content-Security-Policy, so a proxy that strips the header does not turn a
+    stored template into script execution, and email has no CSP at all.
+    """
+    # inline import: heavy-import: html5lib is needed only when rendering custom HTML reports
+    import html5lib
+
+    html = html or ""
+    if len(html) > MAX_RENDERED_CHARS:
+        raise ReportRenderLimitError(_("The report HTML is too large."))
+    fragment = html5lib.parseFragment(html, treebuilder="etree", namespaceHTMLElements=False)
+    _assert_depth(fragment)
+    _sanitize_children(fragment)
+    return html5lib.serialize(fragment, tree="etree", quote_attr_values="always", omit_optional_tags=False)
+
+
+def _render_custom_template(template_content, context_data):
+    """Render stored template source inside the size, output and wall-clock budgets (RS-1)."""
+    if len(template_content) > MAX_TEMPLATE_CHARS:
+        raise ReportRenderLimitError(_("The report template is too large."))
+    env = hardened_sandbox_environment(autoescape=True)
+    try:
+        with render_deadline(RENDER_DEADLINE_SECONDS):
+            chunks, size = [], 0
+            for chunk in env.from_string(template_content).generate(_custom_context(context_data)):
+                size += len(chunk)
+                if size > MAX_RENDERED_CHARS:
+                    raise ReportRenderLimitError(_("The rendered report is too large."))
+                chunks.append(chunk)
+            return "".join(chunks)
+    except RenderDeadlineExceeded:
+        raise ReportRenderLimitError(_("The report template took too long to render.")) from None
+    except env.sandbox_limit_error:
+        raise ReportRenderLimitError(_("The report template exceeds the rendering size budget.")) from None
+    except (RecursionError, MemoryError):
+        raise ReportRenderLimitError(_("The report template exceeds the rendering size budget.")) from None
+
+
 def render_report_html(context_data, template=None):
     """Render custom sandboxed HTML when present, otherwise the curated HTML.
 
-    Custom HTML executes through the sandboxed environment whenever template
-    content is stored.  A capped window or sample-only output appends the
-    disclosure notice to the custom output as well: forwarding the artifact
-    must not strip the qualifier.
+    Custom HTML executes through the hardened sandbox whenever template content
+    is stored, and the result is sanitised before it is returned to any sink
+    (preview, download, PDF, scheduled mail).  A capped window or sample-only
+    output appends the disclosure notice to the custom output as well:
+    forwarding the artifact must not strip the qualifier.  The notice is
+    generated, escaped markup and is appended after sanitising.
     """
     template_content = (getattr(template, "template_content", "") or "").strip()
     if template_content:
-        # inline import: optional-dependency: Jinja2 is only needed for custom HTML execution.
-        from jinja2.sandbox import SandboxedEnvironment
-
-        rendered = (
-            SandboxedEnvironment(autoescape=True).from_string(template_content).render(_custom_context(context_data))
-        )
+        rendered = sanitize_report_html(_render_custom_template(template_content, context_data))
         notice = report_disclosure_notice(context_data)
         return f"{rendered}\n{notice}" if notice else rendered
     return Template(get_polished_system_html_template()).render(Context(context_data))

@@ -2185,7 +2185,7 @@ msgid "Campaign '%(name)s' is now active."
 msgstr "Kampagne '%(name)s' ist jetzt aktiv."
 
 msgid "Core"
-msgstr "Kern"
+msgstr "Core"
 
 msgid "Created"
 msgstr "Erstellt"
@@ -6020,6 +6020,19 @@ msgstr ""
 "Kontakt '%(contact)s' kann nicht gelöscht werden: Er hat %(count)d "
 "Zuweisung%(plural)s."
 
+msgid ""
+"Cannot delete contact '%(contact)s': It has assignments outside your scope."
+msgstr ""
+"Kontakt '%(contact)s' kann nicht gelöscht werden: Er hat Zuweisungen "
+"außerhalb Ihres Bereichs."
+
+msgid ""
+"Cannot delete role '%(role)s': It is associated with contact assignments "
+"outside your scope."
+msgstr ""
+"Rolle '%(role)s' kann nicht gelöscht werden: Sie ist mit Kontaktzuweisungen "
+"außerhalb Ihres Bereichs verknüpft."
+
 msgid "Contact Role Details"
 msgstr "Kontaktrollen-Details"
 
@@ -6080,6 +6093,9 @@ msgstr "%(count)d Lagerort%(plural)s"
 #, python-format
 msgid "%(count)d asset%(plural)s"
 msgstr "%(count)d Asset%(plural)s"
+
+msgid "additional locations outside your scope"
+msgstr "zusätzliche Standorte außerhalb Ihres Geltungsbereichs"
 
 #, python-format
 msgid "Cannot delete site '%(name)s': It is associated with %(details)s."
@@ -9407,6 +9423,12 @@ msgstr "Anmelden"
 msgid "Log In to Your Account"
 msgstr "Bei Ihrem Konto anmelden"
 
+msgid "Email address or username"
+msgstr "E-Mail-Adresse oder Benutzername"
+
+msgid "Sign in with a password"
+msgstr "Mit Passwort anmelden"
+
 msgid "Your username and password didn't match. Please try again."
 msgstr ""
 "Benutzername und Passwort stimmen nicht überein. Bitte versuchen Sie es "
@@ -12476,6 +12498,10 @@ msgstr "Beta-Funktion"
 #: itambox/templates/organization/tenants/tenant_detail.html:284
 msgid "Loading Managed Tenants..."
 msgstr "Verwaltete Mandanten werden geladen..."
+
+#: itambox/templates/registration/login.html:60
+msgid "Several sign-in methods are available. Choose one below."
+msgstr "Mehrere Anmeldemethoden sind verfügbar. Wählen Sie unten eine aus."
 
 #: itambox/templates/registration/login.html:65
 msgid "Single sign-on providers"
@@ -17100,3 +17126,36 @@ msgstr "US-Letter-Bogen (Raster 3 x 8)"
 
 msgid "and %(counter)s more"
 msgstr "und %(counter)s weitere"
+
+msgid "The rendered report is too large."
+msgstr "Der gerenderte Bericht ist zu groß."
+
+msgid "The report HTML is nested too deeply."
+msgstr "Der Bericht-HTML-Code ist zu tief verschachtelt."
+
+msgid "The report HTML is too large."
+msgstr "Der Bericht-HTML-Code ist zu groß."
+
+msgid "The report template exceeds the rendering size budget."
+msgstr "Die Berichtsvorlage überschreitet das Größenbudget für die Darstellung."
+
+msgid "The report template is too large."
+msgstr "Die Berichtsvorlage ist zu groß."
+
+msgid "The report template took too long to render."
+msgstr "Die Darstellung der Berichtsvorlage hat zu lange gedauert."
+
+msgid "Cannot delete %(object)s: It is referenced outside your scope."
+msgstr "Kann %(object)s nicht löschen: Es wird außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "This asset type is referenced outside your scope."
+msgstr "Dieser Asset-Typ wird außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "This asset role is referenced outside your scope."
+msgstr "Diese Asset-Rolle wird außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "Some sites are referenced outside your scope."
+msgstr "Einige Standorte werden außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "Some assets are referenced outside your scope."
+msgstr "Einige Assets werden außerhalb Ihres Geltungsbereichs referenziert."

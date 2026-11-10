@@ -140,6 +140,8 @@ class InstalledSoftware(SoftDeleteMixin, ChangeLoggingMixin, BaseModel):
     # Tenant scoping via asset FK — asset is non-null (no blank=True/null=True),
     # so every row is always associated with a tenant through its asset.
     tenant_lookup = "asset__tenant"
+    # Children of a tenant-less asset must not be wider than the asset (hidden when global).
+    deny_global_tenant = True
     # ChangeLoggingMixin reads changelog_tenant_lookup (NOT tenant_lookup, which
     # only scopes the manager) — set both so audit rows are attributed to the
     # asset's tenant instead of the ambient request tenant.

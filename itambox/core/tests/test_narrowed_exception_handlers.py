@@ -379,14 +379,13 @@ class TestSubscriptionAssignmentFormTarget(TenantTestMixin, TestCase):
         choices = self._choices(ContentType.objects.get_for_model(Asset), asset.pk)
         self.assertEqual(choices, {self.active.pk})
 
-    def test_unresolvable_targets_leave_the_choices_unfiltered(self):
+    def test_unresolvable_targets_leave_no_selectable_choices(self):
         from assets.models import Asset
 
-        everything = {self.active.pk, self.cancelled.pk}
         missing_object = self._choices(ContentType.objects.get_for_model(Asset), 987654321)
         gone_model = self._choices(ContentType(app_label="no_such_app", model="gone"), 1)
-        self.assertEqual(missing_object, everything)
-        self.assertEqual(gone_model, everything)
+        self.assertEqual(missing_object, set())
+        self.assertEqual(gone_model, set())
 
 
 class TestEventNotificationTargetUrl(TestCase):

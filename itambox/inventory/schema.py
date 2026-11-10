@@ -3,6 +3,7 @@ from __future__ import annotations
 import strawberry
 import strawberry_django
 
+from assets.graphql_specifications.integration import has_global_permission
 from assets.schema import CategoryNode, ManufacturerNode, SupplierNode, TenantNode
 from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
 
@@ -63,10 +64,18 @@ _COMPONENT_RELATED = ("manufacturer", "category", "tenant")
     fields=["id", "name", "slug", "part_number", "min_qty", "allow_overallocate", "created_at", "updated_at"],
 )
 class AccessoryNode:
+    # Decision (#1067): manufacturer and category stay open to anyone who can
+    # see the item (names, slugs, colour, description only). Category's
+    # specification definitions are gated on CategoryNode.
     manufacturer: ManufacturerNode
     category: CategoryNode | None
-    supplier: SupplierNode | None
     tenant: TenantNode | None
+
+    @strawberry.field
+    def supplier(self, info: strawberry.Info) -> SupplierNode | None:
+        if not has_global_permission(info, "assets.view_supplier"):
+            return None
+        return self.supplier
 
 
 @strawberry_django.type(
@@ -75,6 +84,9 @@ class AccessoryNode:
     fields=["id", "name", "slug", "part_number", "min_qty", "allow_overallocate", "created_at", "updated_at"],
 )
 class ConsumableNode:
+    # Decision (#1067): manufacturer and category stay open to anyone who can
+    # see the item (names, slugs, colour, description only). Category's
+    # specification definitions are gated on CategoryNode.
     manufacturer: ManufacturerNode
     category: CategoryNode | None
     tenant: TenantNode | None
@@ -91,6 +103,9 @@ class KitNode:
     fields=["id", "name", "slug", "part_number", "allow_overallocate", "created_at", "updated_at"],
 )
 class ComponentNode:
+    # Decision (#1067): manufacturer and category stay open to anyone who can
+    # see the item (names, slugs, colour, description only). Category's
+    # specification definitions are gated on CategoryNode.
     manufacturer: ManufacturerNode
     category: CategoryNode | None
     tenant: TenantNode | None

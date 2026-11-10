@@ -66,7 +66,7 @@ Django + PostgreSQL (SQLite is rejected at settings load). Beyond Django itself:
 - **Tests** — pytest-django + model_bakery. The full suite runs on two lanes: pytest-xdist with `-n auto --dist=loadscope -m 'not serial_only'` for the parallel lane, plus a serial-only lane for tests that require serial semantics (races, migrations, global seed state — the `serial_only` marker).
 - **Docs** — MkDocs.
 
-Direct dependency policy lives in `pyproject.toml`; exact cross-platform versions live in `uv.lock`. Use uv `0.13.6` with `--locked` rather than installing ad hoc packages.
+Direct dependency policy lives in `pyproject.toml`; exact cross-platform versions live in `uv.lock`. Use uv `0.13.7` with `--locked` rather than installing ad hoc packages.
 
 ## Development commands
 
@@ -523,6 +523,7 @@ A fully-wired model touches every layer below. Skipping one leaves a half-wired 
 | `ITAMBOX_TENANT_LDAP_CONFIGS` | JSON per-tenant LDAP configs | `{}` |
 | `ITAMBOX_TENANT_SAML_CONFIGS` | JSON per-tenant SAML configs | `{}` |
 | `ITAMBOX_TENANT_OIDC_CONFIGS` | JSON per-tenant OIDC configs | `{}` |
+| `ITAMBOX_TENANT_LOGIN_DOMAINS` | JSON map of tenant slug to `{"domains": [...], "method": "oidc"\|"saml"}` enabling login-page discovery from email domains. A non-empty mapping replaces the SSO buttons with the email-domain step for **every** provider, including unmapped tenants, deployment-wide OIDC and `default` SAML. Login page only; entry points and backends are unchanged. | `{}` (discovery off) |
 | `ITAMBOX_TENANT_INTUNE_CONFIGS` | JSON per-tenant Intune discovery configs | `{}` |
 | `ITAMBOX_DOCS_ROOT` | Filesystem path to compiled MkDocs output | `BASE_DIR/docs` |
 | `ITAMBOX_REQUIRE_MFA` | Enforce TOTP MFA (django-otp) for local-password logins by superusers/owner-admin roles. SSO/LDAP/SAML/OIDC delegate MFA to the IdP and are always exempt. | `False` (dev); `True` (prod) |

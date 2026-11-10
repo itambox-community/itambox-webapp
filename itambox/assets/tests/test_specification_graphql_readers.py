@@ -29,6 +29,23 @@ from extras.services.specifications.contracts import (
 )
 
 
+def _permitted_context() -> dict[str, object]:
+    """Context whose user holds the custom-field permission.
+
+    The permission guards read the request user, so a schema executed without a
+    context is rejected as unauthenticated. These tests exercise the readers and
+    serialisation, not the gate, so they run as a permitted user.
+    """
+
+    class _PermittedUser:
+        is_authenticated = True
+
+        def has_perm(self, permission: str) -> bool:
+            return True
+
+    return {"user": _PermittedUser()}
+
+
 def _field(*, field_type: str = "integer", key: str = "memory_capacity") -> FieldDefinitionDTO:
     choice_set = None
     if field_type == "single_select":
@@ -221,7 +238,8 @@ def test_typed_definition_and_union_execute_with_decimal_and_history_escape_hatc
             }
           }
         }
-        """
+        """,
+        context_value=_permitted_context(),
     )
     assert result.errors is None, result.errors
     assert result.data == {

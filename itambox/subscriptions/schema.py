@@ -4,6 +4,7 @@ import strawberry
 import strawberry_django
 from django.contrib.contenttypes.models import ContentType
 
+from assets.graphql_specifications.integration import has_global_permission
 from assets.schema import SupplierNode, TenantNode
 from core.graphql_choice_enums import choice_enum
 from core.graphql_scalars import BigInt
@@ -45,19 +46,28 @@ SubscriptionBillingCycleChoices = choice_enum(Subscription, "billing_cycle")
     ],
 )
 class SubscriptionNode:
-    supplier: SupplierNode
     type: SubscriptionTypeChoices
     status: SubscriptionStatusChoices
     currency: SubscriptionCurrencyChoices | None
     billing_cycle: SubscriptionBillingCycleChoices | None
     tenant: TenantNode | None
 
+    @strawberry.field(description="The commercial vendor of this subscription.")
+    def supplier(self, info: strawberry.Info) -> SupplierNode | None:
+        if not has_global_permission(info, "assets.view_supplier"):
+            return None
+        return self.supplier
+
     @strawberry.field
-    def cost_center_id(self) -> strawberry.ID | None:
+    def cost_center_id(self, info: strawberry.Info) -> strawberry.ID | None:
+        if not has_global_permission(info, "organization.view_costcenter"):
+            return None
         return self.cost_center_id
 
     @strawberry.field
-    def cost_center_name(self) -> str | None:
+    def cost_center_name(self, info: strawberry.Info) -> str | None:
+        if not has_global_permission(info, "organization.view_costcenter"):
+            return None
         return str(self.cost_center) if self.cost_center_id else None
 
     @strawberry.field(deprecation_reason="Use vendorContractAutoRenews; autoRenewal is removed in 2.0.")
@@ -71,9 +81,14 @@ class SubscriptionNode:
     fields=["id", "assigned_date", "notes", "created_at", "updated_at"],
 )
 class SubscriptionAssignmentNode:
-    subscription: SubscriptionNode
     content_type: ContentTypeNode | None
     object_id: BigInt
+
+    @strawberry.field
+    def subscription(self, info: strawberry.Info) -> SubscriptionNode | None:
+        if not has_global_permission(info, "subscriptions.view_subscription"):
+            return None
+        return self.subscription
 
 
 SUBSCRIPTION_SORTABLE_FIELDS = {

@@ -8,6 +8,8 @@ from core.managers import Scope, get_current_tenant
 from inventory.services import (
     checkin_accessory,
     checkout_inventory_item,
+    item_assignments_for_scope,
+    item_stock_prefetch,
     recipient_assignment_union,
     shared_stock_union,
 )
@@ -31,16 +33,16 @@ from .stock_actions import StockAdjustView, StockCreateModalView
 
 
 class AccessoryListView(ObjectListView):
-    queryset = (
-        Accessory.objects.for_scope(Scope.current())
-        .with_counts()
-        .select_related("tenant", "manufacturer", "category")
-        .prefetch_related("tags")
-    )
+    queryset = Accessory.objects.select_related("tenant", "manufacturer", "category").prefetch_related("tags")
     filterset = filters.AccessoryFilterSet
     filterset_form = forms.AccessoryFilterForm
     table = tables.AccessoryTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        # Scope-aware annotations must be built per request; a class-level
+        # with_counts() would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -59,7 +61,7 @@ class AccessoryListView(ObjectListView):
 
 class AccessoryDetailView(ObjectDetailView):
     queryset = Accessory.objects.select_related("manufacturer").prefetch_related(
-        "tags", "assignments__assigned_holder", "assignments__assigned_location", "stocks__location"
+        "tags", "assignments__assigned_holder", "assignments__assigned_location"
     )
     template_name = "assets/accessories/accessory_detail.html"
 
@@ -68,11 +70,22 @@ class AccessoryDetailView(ObjectDetailView):
         ((Panel("info", _("Accessory Details")),),),
     )
 
+    def get_queryset(self):
+        # Stock pools belong to their location's tenant, not to the catalogue
+        # item.  Build the scoped annotations and prefetch per request; a
+        # class-level scope would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts().prefetch_related(item_stock_prefetch(AccessoryStock))
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         accessory = self.get_object()
 
-        assignments_table = tables.AccessoryAssignmentTable(accessory.assignments.all(), request=self.request)
+        assignments_table = tables.AccessoryAssignmentTable(
+            item_assignments_for_scope(AccessoryAssignment, "accessory", accessory).select_related(
+                "assigned_holder", "assigned_location", "assigned_asset"
+            ),
+            request=self.request,
+        )
         assignments_table.configure(self.request)
         context["assignments_table"] = assignments_table
 
@@ -109,13 +122,19 @@ class AccessoryDeleteView(ObjectDeleteView):
 
     def post(self, request, *args, **kwargs):
         accessory = self.get_object()
-        assignment_count = accessory.assignments.count()
+        assignment_count = AccessoryAssignment.all_objects.filter(
+            accessory=accessory
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
         if assignment_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete accessory '%(accessory)s': It has %(count)s active assignments.")
-                % {"accessory": accessory, "count": assignment_count},
-            )
+            visible_count = item_assignments_for_scope(AccessoryAssignment, "accessory", accessory).count()
+            if visible_count == assignment_count:
+                message = _("Cannot delete accessory '%(accessory)s': It has %(count)s active assignments.") % {
+                    "accessory": accessory,
+                    "count": assignment_count,
+                }
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": accessory}
+            messages.error(request, message)
             return redirect(accessory.get_absolute_url())
         return super().post(request, *args, **kwargs)
 

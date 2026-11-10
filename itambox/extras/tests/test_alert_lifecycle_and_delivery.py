@@ -506,3 +506,56 @@ class AlertRenotifyDeliveryTests(TransactionTestCase):
         self.assertEqual(alert.delivery_outcome, AlertLog.DELIVERY_OUTCOME_FAILED)
         self.assertEqual(alert.last_delivery_error, "dispatch_crash")
         self.assertGreater(alert.last_notified_at, old)
+
+
+class AlertRuleDetailTenantScopeTests(TenantTestMixin, TestCase):
+    """F8: a global rule's detail page lists and counts only in-scope alert logs."""
+
+    permissions = ["extras.view_alertrule", "extras.view_alertlog", "extras.change_alertlog"]
+
+    def setUp(self):
+        self.setup_tenant_context(name="F8 Tenant A", slug="f8-tenant-a", permissions=self.permissions)
+        self.tenant_a = self.tenant
+        self.tenant_b = Tenant.objects.create(name="F8 Tenant B", slug="f8-tenant-b")
+        self.rule = AlertRule.objects.create(
+            name="F8 Global Rule", alert_type=AlertRule.ALERT_TYPE_LOW_STOCK, threshold_value=1
+        )
+        self.ct = ContentType.objects.get_for_model(AlertRule)
+        self.log_a = self._log(self.tenant_a, "F8-SUBJECT-A")
+        self.log_b = self._log(self.tenant_b, "F8-SECRET-SUBJECT-B")
+        self.url = reverse("extras:alertrule_detail", kwargs={"pk": self.rule.pk})
+
+    def _log(self, tenant, subject):
+        return AlertLog._base_manager.create(
+            tenant=tenant,
+            rule=self.rule,
+            subject=subject,
+            message=subject + " message",
+            content_type=self.ct,
+            object_id=tenant.pk,
+        )
+
+    def test_detail_lists_and_counts_only_own_logs(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "F8-SUBJECT-A")
+        self.assertNotContains(response, "F8-SECRET-SUBJECT-B")
+        self.assertEqual(response.context["logs_count"], 1)
+        self.assertEqual(response.context["active_logs_count"], 1)
+        self.assertNotContains(response, "alerts/%d/acknowledge" % self.log_b.pk)
+
+    def test_foreign_only_logs_render_nothing_and_count_zero(self):
+        self.log_a.delete()
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "F8-SECRET-SUBJECT-B")
+        self.assertEqual(response.context["logs_count"], 0)
+        self.assertEqual(response.context["active_logs_count"], 0)
+
+    def test_foreign_log_acknowledge_post_stays_tenant_bound(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        self.client.post(reverse("extras:alertlog_acknowledge", kwargs={"pk": self.log_b.pk}))
+        self.log_b.refresh_from_db()
+        self.assertEqual(self.log_b.status, AlertLog.STATUS_ACTIVE)

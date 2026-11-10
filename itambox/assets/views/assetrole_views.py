@@ -90,23 +90,37 @@ class AssetRoleCloneView(ObjectCloneView):
 class AssetRoleDeleteView(ObjectDeleteView):
     queryset = AssetRole.objects.all()
     model = AssetRole
-    template_name = "generic/object_confirm_delete.html"
+    template_name = "assets/assetroles/assetrole_confirm_delete.html"
     success_url = reverse_lazy("assets:assetrole_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        assetrole = self.object
+        total = Asset.all_objects.filter(
+            asset_role=assetrole
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
+        visible = Asset.objects.for_scope(Scope.current()).filter(asset_role=assetrole).count()
+        context["related_objects_count"] = visible
+        context["related_objects_outside_scope"] = total > visible
+        return context
 
     def post(self, request, *args, **kwargs):
         assetrole = self.get_object()
-        asset_count = assetrole.assets.count()
+        asset_count = Asset.all_objects.filter(
+            asset_role=assetrole
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
 
         if asset_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete asset role '%(name)s': It is associated with %(count)s asset%(suffix)s.")
-                % {
+            visible_count = Asset.objects.for_scope(Scope.current()).filter(asset_role=assetrole).count()
+            if visible_count == asset_count:
+                message = _("Cannot delete asset role '%(name)s': It is associated with %(count)s asset%(suffix)s.") % {
                     "name": assetrole.name,
                     "count": asset_count,
                     "suffix": "s" if asset_count != 1 else "",
-                },
-            )
+                }
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": assetrole}
+            messages.error(request, message)
             return redirect(assetrole.get_absolute_url())
 
         return super().post(request, *args, **kwargs)

@@ -943,3 +943,226 @@ class SuperuserBypassTestCase(TestCase):
             tenant=other_tenant,
         )
         self.assertTrue(self.superuser.has_perm("assets.change_asset", obj=asset))
+
+
+class AmbientScopeLifecycleTestCase(TestCase):
+    """Permission reads never bind scope; the descendant cache has one owner."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="ambient_user", password="pass")
+        self.tenant = Tenant.objects.create(name="Ambient Tenant", slug="ambient-tenant")
+        self.role = Role.objects.create(tenant=self.tenant, name="Viewer", permissions=["assets.view_asset"])
+        self.membership = grant(self.user, self.tenant, self.role).membership
+
+    def tearDown(self):
+        set_current_tenant(None)
+        set_current_membership(None)
+
+    def _scope(self):
+        from core.managers import (
+            get_current_all_accessible,
+            get_current_membership,
+            get_current_tenant,
+            get_current_tenant_group,
+        )
+
+        return (
+            get_current_tenant(),
+            get_current_tenant_group(),
+            get_current_membership(),
+            get_current_all_accessible(),
+        )
+
+    def test_has_perm_without_bound_scope_does_not_write_scope(self):
+        before = self._scope()
+        self.assertEqual(before, (None, None, None, False))
+        self.assertTrue(self.user.has_perm("assets.view_asset"))
+        self.assertFalse(self.user.has_perm("assets.delete_asset"))
+        self.assertEqual(self._scope(), before)
+
+    def test_has_module_perms_without_bound_scope_does_not_write_scope(self):
+        before = self._scope()
+        self.assertTrue(self.user.has_module_perms("assets"))
+        self.assertEqual(self._scope(), before)
+
+    def test_ambient_fallback_membership_is_deterministic(self):
+        from core.auth import MembershipBackend
+
+        other = Tenant.objects.create(name="Aaa First", slug="aaa-first")
+        Membership.objects.create(user=self.user, tenant=other, is_active=True)
+        backend = MembershipBackend()
+        for _ in range(3):
+            self.assertEqual(backend._ambient_tenant(self.user), other)
+
+    def test_descendant_cache_is_single_variable(self):
+        from core import context, tenant_scope
+
+        self.assertIs(tenant_scope._descendant_group_ids_cache, context._descendant_group_ids_cache)
+
+    def test_scope_reset_clears_provider_descendant_cache(self):
+        from core.tenant_scope import get_descendant_tenant_group_ids
+
+        parent = TenantGroup.objects.create(name="C7 Parent", slug="c7-parent")
+        child = TenantGroup.objects.create(name="C7 Child", slug="c7-child", parent=parent)
+        self.assertEqual(get_descendant_tenant_group_ids(parent.pk, live_only=True), {parent.pk, child.pk})
+        child.delete()  # soft delete
+        # Still warm until a scope reset.
+        set_current_tenant(None)
+        self.assertEqual(get_descendant_tenant_group_ids(parent.pk, live_only=True), {parent.pk})
+
+
+class GlobalRowMutationGateTestCase(TestCase):
+    """Tenantless/global rows are readable but not mutable by tenant users (UI parity with the API)."""
+
+    def setUp(self):
+        from organization.models import Contact
+
+        self.Contact = Contact
+        self.tenant_a = Tenant.objects.create(name="GR-Tenant-A", slug="gr-tenant-a")
+        self.tenant_b = Tenant.objects.create(name="GR-Tenant-B", slug="gr-tenant-b")
+        self.perms = [
+            "organization.view_contact",
+            "organization.change_contact",
+            "organization.delete_contact",
+            "core.change_recyclebin",
+            "core.delete_recyclebin",
+        ]
+        role = Role.objects.create(tenant=self.tenant_a, name="GR-Admin-A", permissions=self.perms)
+        self.user = User.objects.create_user(username="gr_user_a", password="pass123")
+        grant(self.user, self.tenant_a, role)
+        self.superuser = User.objects.create_superuser(username="gr_super", password="pass123")
+        self.global_row = Contact.objects.create(name="GR-Global", tenant=None)
+        self.own_row = Contact.objects.create(name="GR-Own", tenant=self.tenant_a)
+        self.foreign_row = Contact.objects.create(name="GR-Foreign", tenant=self.tenant_b)
+        self.ct = ContentType.objects.get_for_model(Contact)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_tenant_id"] = self.tenant_a.pk
+        session.save()
+
+    def tearDown(self):
+        set_current_tenant(None)
+        set_current_membership(None)
+
+    def _row(self, pk):
+        return self.Contact.all_objects.filter(pk=pk).first()
+
+    def _assert_untouched(self, row, name):
+        current = self._row(row.pk)
+        self.assertIsNotNone(current)
+        self.assertEqual(current.name, name)
+        self.assertIsNone(current.deleted_at)
+        self.assertEqual(current.description, "")
+
+    def _tombstone(self, row):
+        self.Contact.all_objects.filter(pk=row.pk).update(deleted_at=row.created_at)
+
+    def test_tenant_user_can_still_read_global_row(self):
+        response = self.client.get(reverse("organization:contact_detail", kwargs={"pk": self.global_row.pk}))
+        self.assertEqual(response.status_code, 200)
+
+    def test_edit_global_row_rejected(self):
+        url = reverse("organization:contact_update", kwargs={"pk": self.global_row.pk})
+        self.assertEqual(self.client.post(url, {"name": "HACKED"}).status_code, 403)
+        self._assert_untouched(self.global_row, "GR-Global")
+
+    def test_delete_global_row_rejected(self):
+        url = reverse("organization:contact_delete", kwargs={"pk": self.global_row.pk})
+        self.assertEqual(self.client.post(url, {"confirm": "on"}).status_code, 403)
+        self._assert_untouched(self.global_row, "GR-Global")
+
+    def test_edit_and_delete_own_row_still_allowed(self):
+        edit = reverse("organization:contact_update", kwargs={"pk": self.own_row.pk})
+        self.assertEqual(self.client.get(edit).status_code, 200)
+        delete = reverse("organization:contact_delete", kwargs={"pk": self.own_row.pk})
+        self.assertEqual(self.client.get(delete).status_code, 200)
+
+    def test_foreign_row_edit_delete_remain_rejected(self):
+        for name in ("contact_update", "contact_delete"):
+            url = reverse(f"organization:{name}", kwargs={"pk": self.foreign_row.pk})
+            self.assertEqual(self.client.post(url, {"name": "HACKED", "confirm": "on"}).status_code, 404)
+        self._assert_untouched(self.foreign_row, "GR-Foreign")
+
+    def test_bulk_edit_mixed_list_skips_global_and_foreign(self):
+        response = self.client.post(
+            reverse("organization:contact_bulk_edit"),
+            {
+                "pk": [self.global_row.pk, self.own_row.pk, self.foreign_row.pk],
+                "_apply": "1",
+                "_selected_fields": ["description"],
+                "description": "BULKHACK",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self._assert_untouched(self.global_row, "GR-Global")
+        self._assert_untouched(self.foreign_row, "GR-Foreign")
+        self.assertEqual(self._row(self.own_row.pk).description, "BULKHACK")
+
+    def test_bulk_delete_mixed_list_skips_global_and_foreign(self):
+        response = self.client.post(
+            reverse("organization:contact_bulk_delete"),
+            {"pk": [self.global_row.pk, self.own_row.pk, self.foreign_row.pk], "_confirm": "1"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self._assert_untouched(self.global_row, "GR-Global")
+        self._assert_untouched(self.foreign_row, "GR-Foreign")
+        self.assertIsNotNone(self._row(self.own_row.pk).deleted_at)
+
+    def test_restore_and_purge_global_tombstone_rejected(self):
+        self._tombstone(self.global_row)
+        kwargs = {"content_type_id": self.ct.pk, "object_id": self.global_row.pk}
+        self.assertEqual(self.client.post(reverse("object_restore", kwargs=kwargs)).status_code, 403)
+        self.assertEqual(self.client.post(reverse("object_purge", kwargs=kwargs)).status_code, 403)
+        current = self._row(self.global_row.pk)
+        self.assertIsNotNone(current)
+        self.assertIsNotNone(current.deleted_at)
+
+    def test_bulk_restore_and_purge_skip_global_tombstone(self):
+        self._tombstone(self.global_row)
+        self._tombstone(self.own_row)
+        kwargs = {"content_type_id": self.ct.pk}
+        self.client.post(reverse("object_bulk_restore", kwargs=kwargs), {"pk": [self.global_row.pk, self.own_row.pk]})
+        self.assertIsNotNone(self._row(self.global_row.pk).deleted_at)
+        self.assertIsNone(self._row(self.own_row.pk).deleted_at)
+        self._tombstone(self.own_row)
+        self.client.post(reverse("object_bulk_purge", kwargs=kwargs), {"pk": [self.global_row.pk, self.own_row.pk]})
+        self.assertIsNotNone(self._row(self.global_row.pk))
+        self.assertIsNone(self._row(self.own_row.pk))
+
+    def test_attachment_and_journal_on_global_parent_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from extras.models import FileAttachment, ImageAttachment, JournalEntry
+
+        kwargs = {"app_label": "organization", "model_name": "contact", "object_id": self.global_row.pk}
+        journal = self.client.post(reverse("journal_entry_add", kwargs=kwargs), {"comment": "x"})
+        self.assertEqual(journal.status_code, 404)
+        image = SimpleUploadedFile("t.png", b"\x89PNG\r\n", content_type="image/png")
+        upload = self.client.post(reverse("image_attachment_upload", kwargs=kwargs), {"image": image})
+        self.assertEqual(upload.status_code, 404)
+        self.assertEqual(JournalEntry.objects.filter(object_id=self.global_row.pk, model=self.ct).count(), 0)
+        self.assertEqual(ImageAttachment.objects.filter(object_id=self.global_row.pk, model=self.ct).count(), 0)
+        attachment = FileAttachment.objects.create(
+            model=self.ct, object_id=self.global_row.pk, name="d.pdf", file="test/d.pdf"
+        )
+        delete_url = reverse("file_attachment_delete", kwargs={"pk": attachment.pk})
+        self.assertEqual(self.client.post(delete_url, {"return_url": "/"}).status_code, 404)
+        self.assertTrue(FileAttachment.objects.filter(pk=attachment.pk).exists())
+        attachment.delete()
+
+    def test_superuser_can_still_mutate_global_row(self):
+        self.client.force_login(self.superuser)
+        pk = self.global_row.pk
+        edit = reverse("organization:contact_update", kwargs={"pk": pk})
+        self.assertEqual(self.client.get(edit).status_code, 200)
+        self.assertEqual(self.client.post(edit, {"name": "RENAMED"}).status_code, 302)
+        self.assertEqual(self._row(pk).name, "RENAMED")
+        delete = reverse("organization:contact_delete", kwargs={"pk": pk})
+        self.assertEqual(self.client.post(delete, {"confirm": "on"}).status_code, 302)
+        self.assertIsNotNone(self._row(pk).deleted_at)
+        kwargs = {"content_type_id": self.ct.pk, "object_id": pk}
+        self.assertEqual(self.client.post(reverse("object_restore", kwargs=kwargs)).status_code, 302)
+        self.assertIsNone(self._row(pk).deleted_at)
+        self._tombstone(self.global_row)
+        self.assertEqual(self.client.post(reverse("object_purge", kwargs=kwargs)).status_code, 302)
+        self.assertIsNone(self._row(pk))

@@ -3,6 +3,8 @@
 from django.db import models
 from django.urls import NoReverseMatch, reverse
 
+from core.managers import Scope
+
 
 class CheckableInventoryModelMixin(models.Model):
     """
@@ -32,13 +34,14 @@ class CheckableInventoryModelMixin(models.Model):
         Resolves the active assignment/allocation/consumption queryset for this model instance
         regardless of the varying reverse relationship names (assignments vs allocations vs consumptions).
         """
+        scope = Scope.current()
         if hasattr(self, "assignments"):
-            return self.assignments.all()
+            return self.assignments.all().for_scope(scope)
         elif hasattr(self, "allocations"):
             # Soft-deletable component allocations
-            return self.allocations.filter(deleted_at__isnull=True)
+            return self.allocations.filter(deleted_at__isnull=True).for_scope(scope)
         elif hasattr(self, "consumptions"):
-            return self.consumptions.all()
+            return self.consumptions.all().for_scope(scope)
         return None
 
     @property

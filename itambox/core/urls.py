@@ -30,7 +30,7 @@ from django.views.i18n import JavaScriptCatalog
 from assets.views_scan import ScanResolveView
 from core.auth.oidc import TenantOIDCAuthorizeView, TenantOIDCCallbackView
 from core.schema import schema
-from core.views.auth import ITAMboxLoginView, TenantSamlAcsView, TenantSamlLoginView
+from core.views.auth import ITAMboxLoginView, LoginDiscoveryView, TenantSamlAcsView, TenantSamlLoginView
 from core.views.graphql import PrivateGraphQLView
 from core.views.mfa import MFASetupView
 from extras.attachment_views import (
@@ -83,6 +83,7 @@ urlpatterns = [
     # Must precede the auth include: our login view renders the configured SSO
     # entry points alongside the local credential form.
     path("accounts/login/", ITAMboxLoginView.as_view(), name="login"),
+    path("accounts/login/discover/", LoginDiscoveryView.as_view(), name="login_discover"),
     path("accounts/", include("django.contrib.auth.urls")),
     # MFA gate (TOTP) for local-password logins; the OTP middleware redirects here.
     path("accounts/mfa/", MFASetupView.as_view(), name="mfa_setup"),

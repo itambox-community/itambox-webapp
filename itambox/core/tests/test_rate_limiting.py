@@ -168,6 +168,22 @@ class RateLimitAtomicAdmissionTestCase(SimpleTestCase):
         self.assertEqual(response.status_code, 429)
         downstream.assert_not_called()
 
+    def test_login_discovery_has_a_separate_counter_under_login_prefix(self):
+        cache = mock.Mock()
+        cache.add.return_value = True
+        downstream = mock.Mock(return_value=HttpResponse("ok"))
+        request = RequestFactory().post("/accounts/login/discover/")
+
+        with mock.patch("itambox.ratelimit._get_cache", return_value=cache):
+            response = RateLimitMiddleware(downstream)(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            cache.add.call_args.args[0],
+            "ratelimit_127.0.0.1_/accounts/login/discover/",
+        )
+        downstream.assert_called_once()
+
     def test_budget_is_exact_with_real_cache(self):
         caches["default"].clear()
         with override_settings(RATELIMIT_LIMIT=3):

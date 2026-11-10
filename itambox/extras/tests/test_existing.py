@@ -5,14 +5,19 @@ from django.test import TestCase
 from django.urls import reverse
 
 from assets.models import Asset
+from core.tests.mixins import TenantTestMixin
 from extras.models import (
+    AlertRule,
     CustomField,
     CustomFieldChoice,
     CustomFieldChoiceSet,
     CustomFieldset,
     CustomFieldsetField,
     Dashboard,
+    EventRule,
+    NotificationChannel,
     Tag,
+    WebhookEndpoint,
 )
 
 User = get_user_model()
@@ -472,3 +477,140 @@ class BulkEditFormTests(TestCase):
         # 'description' (Textarea widget) should have 'form-control' class
         desc_class = form.fields["description"].widget.attrs.get("class", "")
         self.assertIn("form-control", desc_class)
+
+
+class TagDetailTenantScopeTests(TenantTestMixin, TestCase):
+    """F7: a global tag must list only assets visible in the active scope."""
+
+    def setUp(self):
+        from assets.models import AssetType, Manufacturer, StatusLabel
+        from organization.models import Tenant
+
+        self.setup_tenant_context(
+            name="Tag Scope A", slug="tag-scope-a", permissions=["extras.view_tag", "assets.view_asset"]
+        )
+        self.tenant_a = self.tenant
+        self.tenant_b = Tenant.objects.create(name="Tag Scope B", slug="tag-scope-b")
+        manufacturer = Manufacturer.objects.create(name="Tag Scope Mfr", slug="tag-scope-mfr")
+        asset_type = AssetType.objects.create(model="Tag Scope Type", slug="tag-scope-type", manufacturer=manufacturer)
+        status, _ = StatusLabel.objects.get_or_create(
+            slug="available", defaults={"name": "Available", "type": "deployable", "color": "28a745"}
+        )
+        self.tag = Tag.objects.create(name="Scope Global Tag", slug="scope-global-tag", color="00ff00")
+        self.asset_a = Asset.objects.create(
+            name="SCOPE-A-ASSET", asset_tag="SCOPE-A-TAG", tenant=self.tenant_a, status=status, asset_type=asset_type
+        )
+        self.asset_b = Asset.objects.create(
+            name="SECRET-B-ASSET", asset_tag="SECRET-B-TAG", tenant=self.tenant_b, status=status, asset_type=asset_type
+        )
+        self.asset_a.tags.add(self.tag)
+        self.asset_b.tags.add(self.tag)
+        self.url = reverse("extras:tag_detail", kwargs={"pk": self.tag.pk})
+
+    def test_tenant_sees_only_own_tagged_assets(self):
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "SCOPE-A-ASSET")
+        self.assertNotContains(response, "SECRET-B-ASSET")
+        self.assertNotContains(response, "SECRET-B-TAG")
+        self.assertEqual(len(response.context["assets_table"].rows), 1)
+
+    def test_foreign_only_tag_renders_empty_table(self):
+        self.asset_a.tags.remove(self.tag)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "SECRET-B-ASSET")
+        self.assertEqual(len(response.context["assets_table"].rows), 0)
+
+
+class _GlobalParentReverseScopeBase(TenantTestMixin, TestCase):
+    permissions = []
+
+    def setUp(self):
+        from organization.models import Tenant
+
+        self.setup_tenant_context(name="Rev Scope A", slug="rev-scope-a", permissions=self.permissions)
+        self.tenant_a = self.tenant
+        self.tenant_b = Tenant.objects.create(name="Rev Scope B", slug="rev-scope-b")
+
+
+class WebhookEndpointEventRuleScopeTests(_GlobalParentReverseScopeBase):
+    """R-2: a global endpoint must list only event rules visible in the active scope."""
+
+    permissions = ["extras.view_webhookendpoint", "extras.view_eventrule"]
+
+    def setUp(self):
+        super().setUp()
+        self.endpoint = WebhookEndpoint.objects.create(name="Rev Global Hook", url="https://example.com/hook")
+        self.content_type = ContentType.objects.get_for_model(Asset)
+        self.url = reverse("extras:webhookendpoint_detail", kwargs={"pk": self.endpoint.pk})
+
+    def _rule(self, name, tenant):
+        return EventRule.objects.create(
+            name=name,
+            model=self.content_type,
+            events=["create"],
+            action_type=EventRule.ACTION_WEBHOOK,
+            webhook=self.endpoint,
+            tenant=tenant,
+        )
+
+    def test_own_rule_visible_foreign_rule_hidden(self):
+        own = self._rule("A-RULE-VISIBLE", self.tenant_a)
+        self._rule("B-RULE-SECRET", self.tenant_b)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r.pk for r in response.context["event_rules"]], [own.pk])
+        self.assertContains(response, "A-RULE-VISIBLE")
+        self.assertNotContains(response, "B-RULE-SECRET")
+
+    def test_foreign_only_rule_renders_empty_state(self):
+        self._rule("B-RULE-SECRET", self.tenant_b)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["event_rules"]), [])
+        self.assertNotContains(response, "B-RULE-SECRET")
+        self.assertContains(response, "No event rules target this endpoint yet.")
+
+
+class AlertRuleChannelScopeTests(_GlobalParentReverseScopeBase):
+    """R-3: a global alert rule must list only notification channels visible in the active scope."""
+
+    permissions = ["extras.view_alertrule", "extras.view_notificationchannel"]
+
+    def setUp(self):
+        super().setUp()
+        self.rule = AlertRule.objects.create(
+            name="Rev Global Rule", alert_type=AlertRule.ALERT_TYPE_LOW_STOCK, threshold_value=5, tenant=None
+        )
+        self.url = reverse("extras:alertrule_detail", kwargs={"pk": self.rule.pk})
+
+    def _channel(self, name, tenant):
+        channel = NotificationChannel.objects.create(
+            name=name, channel_type=NotificationChannel.TYPE_EMAIL, tenant=tenant
+        )
+        self.rule.channels.add(channel)
+        return channel
+
+    def test_own_channel_visible_foreign_channel_hidden(self):
+        own = self._channel("A-CHAN-VISIBLE", self.tenant_a)
+        self._channel("B-CHAN-SECRET", self.tenant_b)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([c.pk for c in response.context["channels"]], [own.pk])
+        self.assertContains(response, "A-CHAN-VISIBLE")
+        self.assertNotContains(response, "B-CHAN-SECRET")
+
+    def test_foreign_only_channel_renders_empty_state(self):
+        self._channel("B-CHAN-SECRET", self.tenant_b)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["channels"]), [])
+        self.assertNotContains(response, "B-CHAN-SECRET")
+        self.assertContains(response, "No custom channels configured")

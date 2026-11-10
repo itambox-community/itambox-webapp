@@ -25,7 +25,7 @@ from assets.views.request_views import approve_asset_request, deny_asset_request
 from core.managers import set_current_tenant
 from core.models import ObjectChange
 from core.tasks.context import TaskContext
-from core.tests.mixins import grant
+from core.tests.mixins import TenantTestMixin, grant
 from inventory.models import (
     Accessory,
     AccessoryAssignment,
@@ -1134,3 +1134,77 @@ class RequisitionSystemTestCase(TestCase):
         req.refresh_from_db()
         self.assertIsNotNone(req.asset)
         self.assertEqual(req.asset.order_number, "")
+
+
+class RequestDetailChildScopeTests(TenantTestMixin, TestCase):
+    """R-1: a group parent must not expose children that belong to another tenant."""
+
+    def setUp(self):
+        self.setup_tenant_context(name="Child Scope A", slug="child-scope-a", permissions=["assets.view_assetrequest"])
+        self.tenant_a = self.tenant
+        self.tenant_b = Tenant.objects.create(name="Child Scope B", slug="child-scope-b")
+        manufacturer = Manufacturer.objects.create(name="Child Scope Mfr", slug="child-scope-mfr")
+        role = AssetRole.objects.create(name="Child Scope Role", slug="child-scope-role")
+        self.asset_type = AssetType.objects.create(
+            manufacturer=manufacturer,
+            model="Child Scope Type",
+            slug="child-scope-type",
+            requestable=True,
+            asset_role=role,
+        )
+        self.requester_b = User.objects.create_user(username="child_scope_req_b", password="x")
+        self.requester_a = User.objects.create_user(username="child_scope_req_a", password="x")
+        self.parent = AssetRequest.objects.create(
+            requester=self.tenant_user, asset_type=self.asset_type, is_group=True, qty=2, tenant=self.tenant_a
+        )
+        self.url = reverse("assets:assetrequest_detail", kwargs={"pk": self.parent.pk})
+
+    def _child(self, tenant, requester):
+        child = AssetRequest(requester=requester, asset_type=self.asset_type, parent=self.parent, tenant=tenant)
+        child.save()
+        return child
+
+    def test_own_child_visible_foreign_child_hidden(self):
+        own = self._child(self.tenant_a, self.requester_a)
+        foreign = self._child(self.tenant_b, self.requester_b)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([c.pk for c in response.context["asset_request_children"]], [own.pk])
+        self.assertNotContains(response, "child_scope_req_b")
+        self.assertNotIn(foreign.pk, [c.pk for c in response.context["asset_request_children"]])
+
+    def test_foreign_only_children_do_not_leak(self):
+        foreign = self._child(self.tenant_b, self.requester_b)
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["asset_request_children"], [])
+        self.assertEqual(response.context["asset_request_fulfillment_links"], [])
+        self.assertNotIn(foreign.pk, [c.pk for c in response.context["asset_request_children"]])
+
+    def test_fulfillment_links_scoped_by_order_line_tenant(self):
+        from procurement.models import FulfillmentLink, PurchaseOrder, PurchaseOrderLine
+
+        own = self._child(self.tenant_a, self.requester_a)
+        foreign = self._child(self.tenant_b, self.requester_b)
+        supplier = Supplier.objects.create(name="Child Scope Supplier", slug="child-scope-supplier")
+        links = {}
+        for key, tenant, child in (("own", self.tenant_a, own), ("foreign", self.tenant_b, foreign)):
+            site = Site.objects.create(name=f"CS Site {key}", slug=f"cs-site-{key}", tenant=tenant)
+            location = Location.objects.create(name=f"CS Loc {key}", slug=f"cs-loc-{key}", site=site, tenant=tenant)
+            order = PurchaseOrder.objects.create(
+                tenant=tenant, supplier=supplier, order_number=f"PO-CS-{key}", destination_location=location
+            )
+            line = PurchaseOrderLine.objects.create(
+                purchase_order=order, tenant=tenant, asset_type=self.asset_type, qty_ordered=1
+            )
+            links[key] = FulfillmentLink.objects.create(
+                asset_request=child, purchase_order_line=line, tenant=tenant, qty_allocated=1
+            )
+        self.client_login_to_tenant(self.tenant_user, self.tenant_a)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        shown = [link.pk for link in response.context["asset_request_fulfillment_links"]]
+        self.assertEqual(shown, [links["own"].pk])
+        self.assertNotContains(response, "PO-CS-foreign")

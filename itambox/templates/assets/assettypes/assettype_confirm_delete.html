@@ -9,16 +9,18 @@
 {% endblock %}
 {% block message %}
   <p>{% translate "Are you sure you want to delete the asset type" %} <strong>{{ object }}</strong>?</p>
-  {% if object.assets.exists %}
+  {% if related_asset_count > 0 %}
     <div class="alert alert-warning">
       <h4 class="alert-heading">{% translate "Warning:" %}</h4>
       <p>
-        {% blocktranslate trimmed count count=object.assets.count %}
+        {% blocktranslate trimmed count count=related_asset_count %}
           This asset type is currently assigned to {{ count }} asset.
         {% plural %}
           This asset type is currently assigned to {{ count }} assets.
         {% endblocktranslate %}
       </p>
     </div>
+  {% elif related_assets_outside_scope %}
+    <p class="text-warning">{% translate "This asset type is referenced outside your scope." %}</p>
   {% endif %}
 {% endblock %}

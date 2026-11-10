@@ -20,6 +20,7 @@ from extras.services.specifications.contracts import (
     ResolvedFieldDTO,
 )
 
+from .permissions import has_global_permission
 from .readers import (
     BooleanSpecificationValue,
     ChoiceSpecificationValue,
@@ -127,7 +128,15 @@ class SpecificationFieldNode:
     canonical_unit: str | None
     validation: SpecificationValidationType
     lifecycle: DefinitionLifecycleEnum
-    choice_set: ChoiceSetType | None
+
+    @strawberry.field
+    def choice_set(self, info: strawberry.Info) -> ChoiceSetType | None:
+        # Decision (#1067): choice sets are configuration data with their own
+        # permission; the parent's permission does not authorise them. The
+        # type is nullable, so a caller without it gets None. ``self`` is the DTO.
+        if not has_global_permission(info, "extras.view_customfieldchoiceset"):
+            return None
+        return self.choice_set  # type: ignore[attr-defined,no-any-return]
 
     @strawberry.field
     def sources(self) -> list[str]:
@@ -186,7 +195,13 @@ class SpecificationDefinitionType:
         return SpecificationTargetEnum(self.target_kind)  # type: ignore[attr-defined]
 
     @strawberry.field
-    def sections(self) -> list[SpecificationSectionType]:
+    def sections(self, info: strawberry.Info) -> list[SpecificationSectionType]:
+        # Decision (#1042 pass 6): the sections list the same field definitions
+        # as ``specificationFields``, which needs ``extras.view_customfield``.
+        # The owner's permission does not authorise them; the list is
+        # non-nullable, so return [].
+        if not has_global_permission(info, "extras.view_customfield"):
+            return []
         return list(self.rendered_sections)  # type: ignore[attr-defined,arg-type]
 
 
@@ -275,8 +290,15 @@ def _value_type_for(instance: object):
 @strawberry.type(name="SpecificationEntry")
 class SpecificationEntryType:
     key: str
-    definition: SpecificationFieldNode | None
     state: SpecificationEntryStateEnum
+
+    @strawberry.field
+    def definition(self, info: strawberry.Info) -> SpecificationFieldNode | None:
+        # Decision (#1042 pass 6): same gate as ``SpecificationDefinition.sections``.
+        # The type is nullable, so a caller without the permission gets None.
+        if not has_global_permission(info, "extras.view_customfield"):
+            return None
+        return self.definition  # type: ignore[attr-defined,no-any-return]
 
     @strawberry.field
     def reason_codes(self) -> list[str]:

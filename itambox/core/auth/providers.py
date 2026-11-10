@@ -38,13 +38,15 @@ REQUIRED_OIDC_SETTINGS = (
 )
 
 
-def get_login_providers(next_url=""):
+def get_login_providers(next_url="", *, tenant_slug=None):
     """Return the SSO actions to render on the login page.
 
     Each entry is a dict with ``protocol`` (``"SAML"``/``"OIDC"``), ``key`` (the
     configuration key, i.e. the tenant slug), ``name`` (a distinct, human
-    readable label) and ``url`` (the tenant-aware entry point, carrying
-    ``next`` when a validated destination was supplied).
+    readable label), ``url`` (the entry point, carrying ``next`` when a
+    validated destination was supplied), and ``tenant_bound``. Supplying
+    ``tenant_slug`` returns only actions pinned to that tenant; in particular,
+    deployment-wide OIDC settings are never used as a tenant fallback.
     """
     saml_configs = _config_mapping("ITAMBOX_TENANT_SAML_CONFIGS")
     oidc_configs = _config_mapping("ITAMBOX_TENANT_OIDC_CONFIGS")
@@ -55,6 +57,27 @@ def get_login_providers(next_url=""):
     if default_saml_tenant is not None:
         tenants[default_saml_tenant.slug] = default_saml_tenant
 
+    providers = _saml_login_providers(saml_configs, next_url, tenants, default_saml_tenant, tenant_slug)
+    providers.extend(_oidc_login_providers(oidc_configs, next_url, tenants, tenant_slug))
+
+    if _global_oidc_available(tenant_slug, oidc_configs):
+        # Single-tenant deployments may configure OIDC entirely in the Django
+        # settings; that is the untenanted entry point.
+        _add(
+            providers,
+            OIDC,
+            DEFAULT_KEY,
+            {},
+            tenants,
+            _entry_point("oidc_authentication_init", next_url),
+            tenant_bound=False,
+        )
+
+    providers.sort(key=lambda provider: (provider["name"].lower(), provider["protocol"]))
+    return providers
+
+
+def _saml_login_providers(saml_configs, next_url, tenants, default_saml_tenant, tenant_slug):
     providers = []
     for key, config in saml_configs.items():
         if not _is_usable_saml_config(config):
@@ -63,23 +86,32 @@ def get_login_providers(next_url=""):
         if resolved is None:
             continue
         key, url = resolved
-        _add(providers, SAML, key, config, tenants, url)
+        if tenant_slug is not None and tenant_slug != key:
+            continue
+        _add(providers, SAML, key, config, tenants, url, tenant_bound=True)
+    return providers
 
+
+def _oidc_login_providers(oidc_configs, next_url, tenants, tenant_slug):
+    providers = []
     for key, config in oidc_configs.items():
-        # OIDC settings are resolved per tenant slug only, so a key without a
-        # matching tenant (including "default") can never be applied.
-        if key not in tenants or not is_usable_oidc_config(config):
+        if not _oidc_provider_available(key, config, tenants, tenant_slug):
             continue
         url = _entry_point("oidc_authentication_init_tenant", next_url, tenant_slug=key)
-        _add(providers, OIDC, key, config, tenants, url)
-
-    if not oidc_configs and is_usable_oidc_config({}):
-        # Single-tenant deployments may configure OIDC entirely in the Django
-        # settings; that is the untenanted entry point.
-        _add(providers, OIDC, DEFAULT_KEY, {}, tenants, _entry_point("oidc_authentication_init", next_url))
-
-    providers.sort(key=lambda provider: (provider["name"].lower(), provider["protocol"]))
+        _add(providers, OIDC, key, config, tenants, url, tenant_bound=True)
     return providers
+
+
+def _oidc_provider_available(key, config, tenants, tenant_slug):
+    if key not in tenants:
+        return False
+    if tenant_slug is None:
+        return is_usable_oidc_config(config)
+    return tenant_slug == key and is_usable_tenant_oidc_config(config)
+
+
+def _global_oidc_available(tenant_slug, oidc_configs):
+    return tenant_slug is None and not oidc_configs and is_usable_oidc_config({})
 
 
 def _config_mapping(setting_name):
@@ -158,6 +190,22 @@ def is_usable_oidc_config(config):
     return True
 
 
+def is_usable_tenant_oidc_config(config):
+    """Check a tenant OIDC provider without borrowing global OIDC settings."""
+    if not _is_enabled(config):
+        return False
+    if not all(_tenant_oidc_setting(config, name) for name in REQUIRED_OIDC_SETTINGS):
+        return False
+
+    sign_algorithm = _tenant_oidc_setting(config, "OIDC_RP_SIGN_ALGO") or "RS256"
+    if str(sign_algorithm).upper().startswith(("RS", "ES")):
+        return bool(
+            _tenant_oidc_setting(config, "OIDC_RP_IDP_SIGN_KEY")
+            or _tenant_oidc_setting(config, "OIDC_OP_JWKS_ENDPOINT")
+        )
+    return True
+
+
 def _resolve_oidc_setting(config, name):
     """Mirror ``TenantOIDCSettingsMixin.get_settings`` resolution order."""
     for candidate in (name, name.lower()):
@@ -166,7 +214,16 @@ def _resolve_oidc_setting(config, name):
     return getattr(settings, name, None)
 
 
-def _add(providers, protocol, key, config, tenants, url):
+def _tenant_oidc_setting(config, name):
+    if not isinstance(config, dict):
+        return None
+    for candidate in (name, name.lower()):
+        if candidate in config:
+            return config[candidate]
+    return None
+
+
+def _add(providers, protocol, key, config, tenants, url, *, tenant_bound):
     """Record a provider action, unless its entry point could not be resolved.
 
     A button with an empty href is exactly the broken placeholder the login page
@@ -180,6 +237,7 @@ def _add(providers, protocol, key, config, tenants, url):
             "key": key,
             "name": _display_name(protocol, key, config, tenants),
             "url": url,
+            "tenant_bound": tenant_bound,
         }
     )
 

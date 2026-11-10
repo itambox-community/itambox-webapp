@@ -1,12 +1,12 @@
 from django.contrib import messages
-from django.db.models import Count, Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
-from assets.models import AssetAssignment
+from assets.models import Asset, AssetAssignment
+from assets.models.catalog import scoped_related_count
 from assets.tables import AssetTable
 from compliance.models import AuditSession
 from compliance.views_audit import AuditSessionTable
@@ -34,23 +34,23 @@ from ..tables import LocationTable
 
 
 class LocationListView(ObjectListView):
-    queryset = (
-        Location.objects.select_related("site", "site__region", "tenant")
-        .prefetch_related("tags")
-        .annotate(
-            asset_count=Count("assets", filter=Q(assets__deleted_at__isnull=True)),
-        )
-    )
+    queryset = Location.objects.select_related("site", "site__region", "tenant").prefetch_related("tags")
     filterset = LocationFilterSet
     filterset_form = LocationFilterForm
     table = LocationTable
     action_buttons = ("add",)
 
+    def get_queryset(self):
+        scope = Scope.current()
+        return (
+            super()
+            .get_queryset()
+            .annotate(asset_count=scoped_related_count(Asset.objects.for_scope(scope), "location_id"))
+        )
+
 
 class LocationDetailView(ObjectDetailView):
-    queryset = Location.objects.select_related("site", "parent", "tenant").prefetch_related(
-        "children", "tags", "assets"
-    )
+    queryset = Location.objects.select_related("site", "parent", "tenant").prefetch_related("tags")
 
     layout = (((Panel("info", _("Location Details")),),),)
 
@@ -58,7 +58,8 @@ class LocationDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         location = self.get_object()
 
-        assets_table = AssetTable(location.assets.all(), request=self.request)
+        location_assets = Asset.objects.for_scope(Scope.current()).filter(location=location)
+        assets_table = AssetTable(location_assets, request=self.request)
         assets_table.configure(self.request)
         context["assets_table"] = assets_table
 
@@ -98,7 +99,7 @@ class LocationDetailView(ObjectDetailView):
         context["audits_table"] = audits_table
 
         related_objects_list = []
-        asset_count = location.assets.count()
+        asset_count = location_assets.count()
         if asset_count:
             related_objects_list.append(
                 {
@@ -107,7 +108,8 @@ class LocationDetailView(ObjectDetailView):
                     "url": f"{reverse('assets:asset_list')}?location={location.slug}",
                 }
             )
-        child_count = location.children.count()
+        child_locations = Location.objects.for_scope(Scope.current()).filter(parent=location)
+        child_count = child_locations.count()
         if child_count:
             related_objects_list.append(
                 {
@@ -184,8 +186,20 @@ class LocationCloneView(ObjectCloneView):
 class LocationDeleteView(ObjectDeleteView):
     queryset = Location.objects.all()
     model = Location
-    template_name = "generic/object_confirm_delete.html"
+    template_name = "organization/locations/location_confirm_delete.html"
     success_url = reverse_lazy("organization:location_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        location = self.object
+        context["location"] = location
+        total = Asset.all_objects.filter(
+            location=location
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
+        visible = Asset.objects.for_scope(Scope.current()).filter(location=location).count()
+        context["related_asset_count"] = visible
+        context["related_assets_outside_scope"] = total > visible
+        return context
 
     def form_valid(self, form):
         """Archive the location through the per-aggregate service.

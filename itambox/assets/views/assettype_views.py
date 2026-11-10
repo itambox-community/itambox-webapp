@@ -156,23 +156,37 @@ class AssetTypeEditView(QuickAddMixin, ObjectEditView):
 class AssetTypeDeleteView(ObjectDeleteView):
     queryset = AssetType.objects.all()
     model = AssetType
-    template_name = "generic/object_confirm_delete.html"
+    template_name = "assets/assettypes/assettype_confirm_delete.html"
     success_url = reverse_lazy("assets:assettype_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        assettype = self.object
+        total = Asset.all_objects.filter(
+            asset_type=assettype
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
+        visible = Asset.objects.for_scope(Scope.current()).filter(asset_type=assettype).count()
+        context["related_asset_count"] = visible
+        context["related_assets_outside_scope"] = total > visible
+        return context
 
     def post(self, request, *args, **kwargs):
         assettype = self.get_object()
-        asset_count = assettype.assets.count()
+        asset_count = Asset.all_objects.filter(
+            asset_type=assettype
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
 
         if asset_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete asset type '%(type)s': It is associated with %(count)s asset%(suffix)s.")
-                % {
+            visible_count = Asset.objects.for_scope(Scope.current()).filter(asset_type=assettype).count()
+            if visible_count == asset_count:
+                message = _("Cannot delete asset type '%(type)s': It is associated with %(count)s asset%(suffix)s.") % {
                     "type": assettype,
                     "count": asset_count,
                     "suffix": "s" if asset_count != 1 else "",
-                },
-            )
+                }
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": assettype}
+            messages.error(request, message)
             return redirect(assettype.get_absolute_url())
 
         return super().post(request, *args, **kwargs)

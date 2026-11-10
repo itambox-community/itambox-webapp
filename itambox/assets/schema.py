@@ -94,7 +94,13 @@ class AssetRoleNode:
 )
 class ManufacturerNode:
     @strawberry.field
-    def software_products(self) -> list[Annotated["SoftwareNode", strawberry.lazy("software.schema")]]:
+    def software_products(
+        self, info: strawberry.Info
+    ) -> list[Annotated["SoftwareNode", strawberry.lazy("software.schema")]]:
+        # Decision (#1055): the list type is non-nullable, so a caller without
+        # the software view permission gets an empty list, not None.
+        if not has_global_permission(info, "software.view_software"):
+            return []
         # The related manager applies no ambient scope (Software uses an
         # explicit-scope manager), so scope here exactly like the flat
         # ``softwareList`` resolver does. A request-scoped prefetch (see
@@ -153,6 +159,11 @@ class CategoryNode:
 
     @strawberry.field
     def default_fieldsets(self, info: strawberry.Info) -> list[SpecificationFieldsetType]:
+        # Decision (#1067): fieldset definitions decide which fields exist on
+        # assets, so they need ``extras.view_customfield`` like the
+        # ``specificationFields`` root. List type is non-nullable: return [].
+        if not has_global_permission(info, "extras.view_customfield"):
+            return []
         loader = request_loader_for_info(info)
         return cast(
             list[SpecificationFieldsetType],
@@ -176,6 +187,10 @@ class CategoryNode:
     ],
 )
 class AssetTypeNode:
+    # Decision (#1067): manufacturer, depreciation, category and asset_role stay
+    # open to anyone who can see the asset type. They expose only names, slugs,
+    # a colour, a description (depreciation: a month count), nothing a role
+    # would be denied on purpose. Specification definitions are gated below.
     manufacturer: ManufacturerNode
     depreciation: DepreciationNode | None
     category: CategoryNode | None
@@ -187,6 +202,9 @@ class AssetTypeNode:
 
     @strawberry.field
     def fieldsets(self, info: strawberry.Info) -> list[SpecificationFieldsetType]:
+        # Decision (#1067): same gate as ``CategoryNode.default_fieldsets``.
+        if not has_global_permission(info, "extras.view_customfield"):
+            return []
         return fieldsets_for_type(request_loader_for_info(info), int(self.pk))
 
     @strawberry.field
@@ -224,10 +242,18 @@ class AssetTypeNode:
 )
 class AssetNode:
     asset_role: AssetRoleNode | None
+    # Decision (#1049): status and location stay open to anyone who can see the
+    # asset. They expose only names, slugs, a colour and a description, nothing
+    # a role would be denied on purpose. Supplier is gated below.
     status: StatusLabelNode | None
     location: LocationNode | None
     tenant: TenantNode | None
-    supplier: SupplierNode | None
+
+    @strawberry.field
+    def supplier(self, info: strawberry.Info) -> SupplierNode | None:
+        if not has_global_permission(info, "assets.view_supplier"):
+            return None
+        return self.supplier
 
     @strawberry.field
     def asset_type(self, info: strawberry.Info) -> AssetTypeNode | None:

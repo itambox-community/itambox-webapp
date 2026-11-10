@@ -9,13 +9,13 @@ ITAMbox ships as source and, starting with `v1.0.0-beta.2`, as an official conta
 Each tagged release publishes the qualified build to the GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/itambox-community/itambox-webapp:1.0.0-beta.5
+docker pull ghcr.io/itambox-community/itambox-webapp:1.0.0-rc.2
 ```
 
 The image is published as a multi-platform index for **linux/amd64** and **linux/arm64**; `docker pull` selects the variant matching the host platform, and `docker pull --platform linux/arm64` overrides that choice. Verify that the tag lists both platforms before pinning a digest:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/itambox-community/itambox-webapp:1.0.0-beta.5
+docker buildx imagetools inspect ghcr.io/itambox-community/itambox-webapp:1.0.0-rc.2
 ```
 
 The image is the exact build the release workflow scanned, archived, and SBOM-validated, and its registry digest carries build-provenance and SPDX-SBOM attestations:
@@ -290,6 +290,7 @@ Each variable accepts a JSON object keyed by tenant slug. These configure per-te
 | `ITAMBOX_TENANT_LDAP_CONFIGS` | Optional | *(empty)* | Per-tenant LDAP directory configuration. JSON object keyed by tenant slug. Each value is an object with keys: `SERVER_URI`, `BIND_DN`, `BIND_PASSWORD`, `USER_SEARCH_BASE`, `USER_SEARCH_FILTER`, and optional `REQUIRE_GROUP`. See `.env.example` for the full example. |
 | `ITAMBOX_TENANT_SAML_CONFIGS` | Optional | *(empty)* | Per-tenant SAML 2.0 identity provider configuration. JSON object keyed by tenant slug. Uses `djangosaml2` / `pysaml2` configuration format. Each entry requires `entityid` and `metadata` (remote URL or inline XML). |
 | `ITAMBOX_TENANT_OIDC_CONFIGS` | Optional | *(empty)* | Per-tenant OpenID Connect provider configuration. JSON object keyed by tenant slug. Each value includes the standard `mozilla-django-oidc` client, secret, authorization, token, userinfo and issuer settings, plus a JWKS endpoint or static IdP signing key for RS/ES tokens. |
+| `ITAMBOX_TENANT_LOGIN_DOMAINS` | Optional | `{}` | Enables setting-based login-page discovery. JSON object keyed by tenant slug; each entry has an exact-match `domains` list and optional `method` (`oidc` or `saml`). Domains are normalized to lowercase IDNA form; malformed, duplicate, or public email domains stop startup. An unusable or deleted tenant/provider falls back to the password form. See [SSO and MFA](../usage/sso-and-mfa.md#login-page-discovery-from-email-domains). |
 
 !!! note "SSO configuration format"
     Each SSO variable is a single-line JSON string. Escape inner quotes or use a `.env`-compatible quoting strategy. Example for LDAP:
@@ -348,5 +349,8 @@ curl -I https://itam.example.com/health/
 ```
 
 Replace the example host with the configured external URL, then sign in with the superuser created during initialization.
+
+!!! warning "Break-glass superuser and login discovery"
+    If you enable `ITAMBOX_TENANT_LOGIN_DOMAINS`, an identifier at a mapped domain is redirected to the tenant's identity provider before any password check. Do not sign in as a local superuser with an email address at a mapped domain (for example `admin@alpha-corp.com`); enter the bare username (`admin`) instead. See [SSO and MFA](../usage/sso-and-mfa.md#login-page-discovery-from-email-domains).
 
 Next, establish a tested [backup and restore](backup-restore.md) process before loading production data. Follow the [upgrade guide](upgrades.md) for later source revisions.

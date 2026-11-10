@@ -6,6 +6,44 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Security
+
+- GraphQL supplier relations on assets, licenses, accessories and subscriptions now return `null` unless the caller holds `assets.view_supplier`. A subscription assignment's subscription relation also returns `null` without `subscriptions.view_subscription`, so assignment access alone no longer exposes subscription details.
+- GraphQL: `LicenseNode.software` now returns `null` and `ManufacturerNode.softwareProducts` returns an empty list unless the caller holds `software.view_software`; holding the license or asset-type entry-point permission no longer reveals the software catalogue. `LicenseNode.software` is now nullable in the published schema (#1055).
+- GraphQL: specification definitions are configuration data and need their own permissions. `AssetType.fieldsets` and `Category.defaultFieldsets` (including through accessories, consumables, components and asset types) return an empty list unless the caller holds `extras.view_customfield`, and `FieldNode.choiceSet` returns `null` unless the caller holds `extras.view_customfieldchoiceset`. `choiceSet` now prints after `targets` in the published SDL; the type and nullability are unchanged.
+- GraphQL: `SpecificationDefinition.sections` returns an empty list and `SpecificationEntry.definition` returns `null` unless the caller holds `extras.view_customfield`, so the owner's permission no longer reveals field definitions through these paths. `SpecificationEntry.definition` is now a resolver field and prints after `state` in the published SDL; type and nullability are unchanged (#1042).
+
+## [1.0.0-rc.2] - 2026-11-05
+
+### Security
+
+- Tenant isolation now follows the row's source and target tenant for inventory assignments and consumptions, so stock movements can no longer appear in another tenant's lists.
+- Reverse tables on global catalogues and shared detail pages now resolve their child rows through the active scope. This covers tags, alert rules, report templates, contacts and contact assignments, asset lifecycle children, webhook event rules, alert-rule channels, user memberships and asset-request sub-requests.
+- The ObjectChange detail view requires the same view permission as its list and resolves the object through the active scope; a foreign change PK now answers 404 instead of rendering another tenant's snapshot.
+- A GraphQL token bound to one tenant can no longer widen its read scope through `requestedScope` or `all_accessible`; the token tenant remains a hard boundary.
+- The ambient tenant scope is read-only and exception-safe, so a failed request cannot leak a tenant binding into later work.
+- Tenant users can read shared/global rows but can no longer edit, delete, bulk-edit, bulk-delete, restore, purge, or attach files to them through the generic UI. Foreign tenant rows remain blocked.
+- SCIM: a tenant token no longer attaches an existing global or foreign user by username alone. Existing users are linked only through a tenant-owned holder with the same UPN or a matching tenant membership `externalId`; other requests return 409 `uniqueness`.
+- Scheduled-report Run now and Retry delivery resolve the schedule through the active scope, so a foreign schedule PK cannot trigger generation or delivery.
+- Custom reports now have bounded template size, output size and render time; recursive templates and deeply nested table spans are rejected or clamped instead of blocking the worker.
+- Remote images are removed from report output, while embedded `data:` images and same-origin relative/static media stay available. This prevents report data from being fetched by mail clients or a downloaded HTML file.
+- Chart labels, titles and display strings are escaped before the chart is rendered through the template's `|safe` path; a regression test now guards the invariant.
+- The release image upgrades `apt` and `libapt-pkg6.0` to the current `bookworm-security` build, clearing the fixed `CVE-2026-109518` finding from the image scan.
+- Item detail pages for accessories, consumables and components resolve stock pools through the active scope, and location/site/region/site-group detail tables resolve their assets, child locations and sites the same way. A global catalogue item no longer exposes another tenant's stock pool through its detail page.
+- Inventory availability is calculated per request scope. `total_stock`, checked-out/consumed/allocated quantities and `available` no longer sum raw reverse relations across tenants; the item list, detail, REST list/detail and checkout/allocation locks use the scoped annotations. The hardware inventory report uses the report's authorized tenant set.
+- Delete guards keep blocking on the complete reference set but only show the visible count. A deletion blocked solely by references outside the operator's scope now returns a neutral message instead of naming or counting foreign rows.
+- Organization list counts for regions, site groups, sites and locations are scoped to the active tenant, so the shared list pages no longer disclose aggregate counts from other tenants.
+
+### Fixed
+
+- The German UI keeps the application label **Core** instead of translating it to “Kern”.
+- Report chart output remains readable when category labels contain HTML-significant characters.
+
+## [1.0.0-rc.1] - 2026-11-02
+
+### Upgrade requirements
+- The supported upgrade origin for this release is `v1.0.0-beta.6`; version skipping remains unsupported. The named `supported-predecessor-beta5` state is still recognized by `migration_baseline_preflight` for a database that has not yet applied the post-transition migrations.
+
 ### Added
 - Labels print for accessories, components, consumables and locations as well as assets, through one print page (`/labels/<app>/<model>/`) reached from every labelled object's detail page and from the list and detail-tab selection toolbars. Up to 25 labels return as an inline PDF; larger selections (up to 1,000) run as a background job with the same engine. A built-in QR label is always available, so printing works without any saved template.
 - Label templates declare the object types they print for and are offered only for those types; the template detail page now shows its settings.
@@ -37,6 +75,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Signing a custody receipt applies the same exact-identity rule as SCIM linking. A holder linked to a login can be signed for only by that login. An unlinked holder matches only the login whose username equals the holder's UPN, and by e-mail only when the holder has no UPN. A login already linked to another holder of the same tenant is refused. Before, a matching e-mail address alone was enough even when the UPNs differed, so a shared or recycled mailbox could accept custody for someone else.
 - Custody receipts carry a keyed evidence seal. When the holder accepts or declines, the receipt stores a snapshot of what was attested: the asset tag, serial number and holder UPN as they were at the time, hashes of the EULA, disclaimer and signature, the client address and browser, and the decision time. The seal is an HMAC-SHA256 over that snapshot. Its key is derived with HKDF from `ITAMBOX_FIELD_ENCRYPTION_KEYS`, so the seal follows that keyring's rotation, and falls back to `SECRET_KEY` the same way field encryption does when the keyring is unset. The receipt detail page, the JSON and PDF exports and the receipt API report whether the seal verifies. The new `manage.py verify_custody_receipts` command checks every decided receipt. Before, `verification_hash` was a plain SHA-256 that anyone with database access could recompute after rewriting a receipt. Receipts decided before this change are reported as legacy. Keep a rotated-out key in the keyring for as long as receipts sealed with it must verify.
 - Export and label templates stay superuser-only through the batch endpoints. Serving the shared catalogue would otherwise have opened a generic write path that only their dedicated edit and delete views keep closed, so both models now belong to the model-wide mutation policy that every generic write path consults.
+- Creating a contact assignment requires `organization.add_contactassignment` on the target object and resolves the target through its tenant-scoped manager. Before, any authenticated member could attach a contact to another tenant's object, and the form disclosed the foreign target's name and URL.
+- Creating a subscription assignment resolves the target through its tenant-scoped manager and checks `subscriptions.add_subscriptionassignment` against the target object. Before, a user holding the permission in one tenant could bind a global subscription to another tenant's object.
+- Rendered Report Designer HTML is sanitized before preview, print download, PDF and scheduled e-mail, using the same element, attribute and URL allowlist as label templates, and the report sandbox now matches the export-template sandbox. Before, literal HTML in a stored template survived rendering, protected on the web path only by CSP and not protected at all in e-mail.
 
 ## [1.0.0-beta.6] - 2026-10-21
 
@@ -465,7 +506,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-beta.6...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.2
+[1.0.0-rc.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.1
 [1.0.0-beta.6]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.4

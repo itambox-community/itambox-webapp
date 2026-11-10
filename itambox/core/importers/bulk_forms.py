@@ -232,6 +232,19 @@ class BulkImportForm(forms.Form):
     # never update.
     actor = None
 
+    @classmethod
+    def can_import(cls, actor):
+        """Whether ``actor`` may create rows of ``cls.model``.
+
+        The view checks this before enqueueing and the worker rechecks it
+        before importing, so a permission revoked after submission stops the
+        queued job. Every import form inherits it; a subclass may only narrow it.
+        """
+        if actor is None or cls.model is None:
+            return False
+        meta = cls.model._meta
+        return actor.has_perm(f"{meta.app_label}.add_{meta.model_name}")
+
     active_tab = forms.CharField(widget=forms.HiddenInput(), initial="upload", required=False)
     import_format = forms.ChoiceField(
         choices=[("csv", "CSV"), ("yaml", "YAML")],
@@ -573,12 +586,6 @@ class HybridCatalogueImportForm(BulkImportForm):
     rejected_columns = {"tenant": "the import always writes into the active tenant; remove the tenant column"}
     # field name -> callable(queryset) narrowing the reference queryset
     reference_filters = {}
-
-    @classmethod
-    def can_import(cls, actor):
-        """Creating catalogue rows needs the model's add permission (checked by the view and the worker)."""
-        meta = cls.model._meta
-        return actor is not None and actor.has_perm(f"{meta.app_label}.add_{meta.model_name}")
 
     def _rejected_column_errors(self):
         present = {str(key).strip().lower() for row in self._rows_data for key in row}

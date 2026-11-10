@@ -7,6 +7,8 @@ from assets.models import Asset
 from core.managers import Scope, get_current_tenant
 from inventory.services import (
     checkout_inventory_item,
+    item_assignments_for_scope,
+    item_stock_prefetch,
     recipient_assignment_union,
     shared_stock_union,
 )
@@ -30,16 +32,16 @@ from .stock_actions import StockAdjustView, StockCreateModalView
 
 
 class ConsumableListView(ObjectListView):
-    queryset = (
-        Consumable.objects.for_scope(Scope.current())
-        .with_counts()
-        .select_related("tenant", "manufacturer", "category")
-        .prefetch_related("tags")
-    )
+    queryset = Consumable.objects.select_related("tenant", "manufacturer", "category").prefetch_related("tags")
     filterset = filters.ConsumableFilterSet
     filterset_form = forms.ConsumableFilterForm
     table = tables.ConsumableTable
     action_buttons = ("add",)
+
+    def get_queryset(self):
+        # Scope-aware annotations must be built per request; a class-level
+        # with_counts() would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -58,7 +60,7 @@ class ConsumableListView(ObjectListView):
 
 class ConsumableDetailView(ObjectDetailView):
     queryset = Consumable.objects.select_related("manufacturer").prefetch_related(
-        "tags", "consumptions__assigned_holder", "consumptions__assigned_location", "stocks__location"
+        "tags", "consumptions__assigned_holder", "consumptions__assigned_location"
     )
     template_name = "assets/consumables/consumable_detail.html"
 
@@ -67,11 +69,22 @@ class ConsumableDetailView(ObjectDetailView):
         ((Panel("info", _("Consumable Details")),),),
     )
 
+    def get_queryset(self):
+        # Stock pools belong to their location's tenant, not to the catalogue
+        # item.  Build the scoped annotations and prefetch per request; a
+        # class-level scope would freeze SYSTEM at import time.
+        return super().get_queryset().with_counts().prefetch_related(item_stock_prefetch(ConsumableStock))
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         consumable = self.get_object()
 
-        consumptions_table = tables.ConsumableAssignmentTable(consumable.consumptions.all(), request=self.request)
+        consumptions_table = tables.ConsumableAssignmentTable(
+            item_assignments_for_scope(ConsumableAssignment, "consumable", consumable).select_related(
+                "assigned_holder", "assigned_location", "assigned_asset"
+            ),
+            request=self.request,
+        )
         consumptions_table.configure(self.request)
         context["consumptions_table"] = consumptions_table
 
@@ -108,13 +121,18 @@ class ConsumableDeleteView(ObjectDeleteView):
 
     def post(self, request, *args, **kwargs):
         consumable = self.get_object()
-        consumption_count = consumable.consumptions.count()
+        consumption_count = ConsumableAssignment.all_objects.filter(
+            consumable=consumable
+        ).count()  # unscoped: delete guards must block on references outside the visible scope
         if consumption_count > 0:
-            messages.error(
-                request,
-                _("Cannot delete consumable '%(consumable)s': It has %(count)s historical consumption records.")
-                % {"consumable": consumable, "count": consumption_count},
-            )
+            visible_count = item_assignments_for_scope(ConsumableAssignment, "consumable", consumable).count()
+            if visible_count == consumption_count:
+                message = _(
+                    "Cannot delete consumable '%(consumable)s': It has %(count)s historical consumption records."
+                ) % {"consumable": consumable, "count": consumption_count}
+            else:
+                message = _("Cannot delete %(object)s: It is referenced outside your scope.") % {"object": consumable}
+            messages.error(request, message)
             return redirect(consumable.get_absolute_url())
         return super().post(request, *args, **kwargs)
 

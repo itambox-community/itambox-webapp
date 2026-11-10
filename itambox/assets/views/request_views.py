@@ -38,6 +38,7 @@ from itambox.views.generic import (
 )
 from itambox.views.generic.service_views import GenericTransactionView, SimplePostView
 from organization.rbac import build_accessible_tenant_permissions_map
+from procurement.models import FulfillmentLink, PurchaseOrderLine
 from procurement.services import lock_unit_fulfillment_links, release_fulfillment_links
 
 
@@ -244,12 +245,23 @@ class RequestDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         context["claim_is_self_service"] = is_self_service_claim(self.request.user, self.object)
         if self.object.is_group:
+            scope = Scope.current()
             children = list(
-                self.object.sub_requests.prefetch_related("fulfillment_links__purchase_order_line__purchase_order")
+                AssetRequest.objects.for_scope(scope)
+                .filter(parent=self.object)
+                .select_related("requester", "asset_type", "asset", "responded_by")
             )
+            visible_lines = PurchaseOrderLine.objects.for_scope(scope)
+            links_by_request = {child.pk: [] for child in children}
+            for link in FulfillmentLink.objects.filter(
+                asset_request__in=children, purchase_order_line__in=visible_lines
+            ).select_related("purchase_order_line__purchase_order"):
+                links_by_request[link.asset_request_id].append(link)
+            for child in children:
+                child.visible_fulfillment_links = links_by_request[child.pk]
             context["asset_request_children"] = children
             context["asset_request_fulfillment_links"] = [
-                link for child in children for link in child.fulfillment_links.all()
+                link for child in children for link in child.visible_fulfillment_links
             ]
             labels = request_fulfillment_labels([self.object, *children])
         else:

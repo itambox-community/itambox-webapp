@@ -8,7 +8,7 @@
 
 ```bash
 # Install the pinned resolver and synchronize tests + lint + runtime.
-python -m pip install "uv==0.13.5"
+python -m pip install "uv==0.13.7"
 uv sync --locked --group dev
 
 # Run migrations
@@ -103,14 +103,15 @@ Models that are **catalogs/references** shared across tenants: `Manufacturer`, `
 
 ### Dual-template architecture
 
-- `base.html` — Full page loads (contains sidebar, topbar, footer shell)
+- `base.html` — Document shell (CSP, vendor scripts, blocks) for full page loads
+- `layout.html` — Page chrome (sidebar, topbar, footer) on top of `base.html`
 - `base_htmx.html` — HTMX-boosted partial responses (swaps only `#page-content-wrapper`)
 
 ### OOB swap targets
 
 Always-active DOM elements that persist across navigations:
 ```html
-<span id="page-title-block" style="display:none" aria-hidden="true">
+<span id="page-title-block" hidden aria-hidden="true">
 <div id="django-messages" hx-swap-oob="true">
 ```
 
@@ -131,7 +132,7 @@ Filter state uses `localStorage` key `itambox-show-filters`. Call `window.initFi
 ### Creating a new HTMX-boosted list page
 
 1. Define `ObjectListView` subclass with `table`, `filterset`, `filterset_form`, `action_buttons`
-2. Template auto-resolved: `generic/object_list.html` extends `base_template|default:"base.html"`
+2. Template auto-resolved: `generic/object_list.html` extends `base_template|default:"layout.html"`
 3. Pagination: `RequestConfig.configure(table)` is called in `ObjectListView.get_context_data()`
 4. Search: extract to `_quick_search.html` partial; use `request.path` not `request.get_full_path`
 

@@ -2,6 +2,7 @@ import json
 import logging
 
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch, Q
 from django.http import HttpResponse
@@ -20,7 +21,7 @@ from assets.customfields import (
     resolve_asset_type_custom_fields,
 )
 from assets.depreciation import resolve_policy
-from assets.models import AssetDisposal
+from assets.models import AssetDisposal, Manufacturer
 from assets.services.request_authorization import can_asset_request_action, is_self_service_claim
 from assets.services.timeline import build_asset_timeline
 from assets.spec_display import build_spec_panel
@@ -113,10 +114,6 @@ class AssetDetailView(ObjectDetailView):
         ),
         "component_allocations__component",
         "component_allocations__component__manufacturer",
-        Prefetch(
-            "asset_type__manufacturer__contacts",
-            queryset=ContactAssignment.objects.select_related("contact", "role"),
-        ),
     )
     related_object_exclusions = ("compliance.custodyreceipt",)
 
@@ -135,6 +132,17 @@ class AssetDetailView(ObjectDetailView):
             ),
         ),
     )
+
+    def get_queryset(self):
+        # The manufacturer's contacts are shared catalogue rows; only those
+        # visible in the request's scope may become the asset's support contact.
+        # Built per request: the class attribute is evaluated without a scope.
+        contacts = ContactAssignment.objects.visible_in(
+            Scope.current(), content_type=ContentType.objects.get_for_model(Manufacturer)
+        ).select_related("contact", "role")
+        return (
+            super().get_queryset().prefetch_related(Prefetch("asset_type__manufacturer__contacts", queryset=contacts))
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -23,6 +23,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.generic import View
 from django_q.tasks import async_task
 
+from assets.models import Asset
 from assets.services.specification_consumers.contracts import FieldReference, parse_filter_document
 from assets.services.specification_consumers.exporting import machine_csv_bytes
 from assets.tables import AssetTable  # Import AssetTable
@@ -117,8 +118,8 @@ class TagDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         tag = self.object
 
-        # Fetch related assets using the related_name from Asset.tags
-        related_assets = tag.assets.all()
+        # Tag is global; the reverse manager is unscoped, so resolve through the scoped manager.
+        related_assets = Asset.objects.for_scope(Scope.current()).filter(tags=tag)
 
         # Create and configure the assets table
         assets_table = AssetTable(related_assets, request=self.request)
@@ -433,8 +434,11 @@ class AlertRuleDetailView(ObjectDetailView):
         context = super().get_context_data(**kwargs)
         obj = self.get_object()
         context["title"] = _("Alert Rule: %(name)s") % {"name": obj.name}
-        context["logs_count"] = obj.logs.count()
-        context["active_logs_count"] = obj.logs.filter(status="active").count()
+        logs = AlertLog.objects.for_scope(Scope.current()).filter(rule=obj)
+        context["channels"] = NotificationChannel.objects.for_scope(Scope.current()).filter(alert_rules=obj)
+        context["logs"] = logs
+        context["logs_count"] = logs.count()
+        context["active_logs_count"] = logs.filter(status=AlertLog.STATUS_ACTIVE).count()
         return context
 
 
@@ -817,7 +821,15 @@ class ReportTemplateDetailView(CapabilityRequiredMixin, ObjectDetailView):
         context = super().get_context_data(**kwargs)
         obj = self.get_object()
         context["title"] = _("Report Template: %(name)s") % {"name": obj.name}
-        context["schedules"] = obj.schedules.all()
+        # Resolve by the persisted id: the detail template object is a model
+        # instance in production and may be a mock in view-level tests. An
+        # unsaved/mock object has no report id, so fail closed instead of
+        # filtering on a non-integer object.
+        report_id = getattr(obj, "pk", None)
+        if report_id is None:
+            context["schedules"] = ScheduledReport.objects.none()
+        else:
+            context["schedules"] = ScheduledReport.objects.for_scope(Scope.current()).filter(report_id=report_id)
         return context
 
 
@@ -1214,16 +1226,19 @@ class ReportTriggerImmediateView(CapabilityRequiredMixin, PermissionRequiredMixi
     capability_key = REPORTING_SCHEDULED_CAPABILITY
     permission_required = ("extras.view_scheduledreport",)
 
+    def get_queryset(self):
+        return ScheduledReport.objects.for_scope(Scope.current())
+
     def has_permission(self):
         perms = self.get_permission_required()
         try:
-            obj = get_object_or_404(ScheduledReport, pk=self.kwargs.get("pk"))
+            obj = get_object_or_404(self.get_queryset(), pk=self.kwargs.get("pk"))
         except Http404:
             return False
         return self.request.user.has_perms(perms, obj=obj)
 
     def post(self, request, pk):
-        sched = get_object_or_404(ScheduledReport, pk=pk)
+        sched = get_object_or_404(self.get_queryset(), pk=pk)
 
         # Trigger report generation synchronously for immediate visual feedback in the UI
         success = generate_scheduled_report_task(sched.pk, invoked_by_user_id=request.user.pk)
@@ -1297,16 +1312,19 @@ class ScheduledReportRetryDeliveryView(CapabilityRequiredMixin, PermissionRequir
     capability_key = REPORTING_SCHEDULED_CAPABILITY
     permission_required = ("extras.change_scheduledreport",)
 
+    def get_queryset(self):
+        return ScheduledReport.objects.for_scope(Scope.current())
+
     def has_permission(self):
         perms = self.get_permission_required()
         try:
-            obj = get_object_or_404(ScheduledReport, pk=self.kwargs.get("pk"))
+            obj = get_object_or_404(self.get_queryset(), pk=self.kwargs.get("pk"))
         except Http404:
             return False
         return self.request.user.has_perms(perms, obj=obj)
 
     def post(self, request, pk):
-        sched = get_object_or_404(ScheduledReport, pk=pk)
+        sched = get_object_or_404(self.get_queryset(), pk=pk)
         outcome = retry_failed_deliveries(sched)
         if outcome.code == "retry.no_archive":
             messages.warning(
