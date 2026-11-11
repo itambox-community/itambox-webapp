@@ -309,6 +309,13 @@ $action-bar-fab-size: 56px;
         // on the anchors are !important, hence the !important padding here.
         $topbar-action-size: 2.5rem;
 
+        // The row is a flex item next to a brand that refuses to shrink. Its
+        // automatic minimum width is its content width, which would keep the
+        // profile's own `min-width: 0` from ever taking effect and push the
+        // page wider than the viewport. Let the row give way instead.
+        min-width: 0;
+        flex: 0 1 auto;
+
         .workspace-switcher--compact,
         .nav-item > .nav-link {
             box-sizing: border-box;
