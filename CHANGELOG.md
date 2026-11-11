@@ -6,6 +6,19 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- `THIRD-PARTY-NOTICES.md` and `LICENSES/` now document the frontend components redistributed in the container image (`@tabler/core`, `tom-select`, `gridstack`, `@mdi/font`, `@fontsource-variable/inter`, `htmx.org`, `bootstrap`, `html5-qrcode`, `graphiql`), with each package's pinned version, SPDX license identifier, copyright line, and verbatim license text; the runtime image ships both alongside the existing `NOTICE`/`LICENSE`.
+- Project metadata now declares an SPDX `license = "Apache-2.0"` with `license-files = ["LICENSE"]`.
+
+### Changed
+
+- Narrowed the supported Python range to `>=3.12,<3.13`: project metadata, the README, CONTRIBUTING.md, and DEVELOPMENT.md now state plainly that 3.13 is not yet supported, matching the interpreter CI and Docker actually run.
+
+### Removed
+
+- Removed the `SECURE_BROWSER_XSS_FILTER` production setting. Django 5.2 no longer defines it, so it configured nothing; the `X-XSS-Protection` header it used to send is ignored by every currently supported browser.
+
 ### Security
 
 - GraphQL supplier relations on assets, licenses, accessories and subscriptions now return `null` unless the caller holds `assets.view_supplier`. A subscription assignment's subscription relation also returns `null` without `subscriptions.view_subscription`, so assignment access alone no longer exposes subscription details.

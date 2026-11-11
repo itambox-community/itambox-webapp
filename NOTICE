@@ -69,3 +69,10 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+This product also redistributes a set of third-party frontend components
+(including Tabler, Tom Select, GridStack, Material Design Icons, Inter,
+htmx, Bootstrap, html5-qrcode, and GraphiQL) inside the container image's
+static/dist/vendor/ tree. Their exact versions, SPDX license identifiers,
+and copyright notices are listed in THIRD-PARTY-NOTICES.md, and the full
+license texts are collected in LICENSES/.

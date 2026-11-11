@@ -89,9 +89,11 @@ RUN set -eu; \
 COPY --from=python-deps /app/.venv /app/.venv
 COPY itambox/ .
 # License and attribution notices ship with the distributed application so the
-# bundled third-party components (Apache ECharts, zrender, d3-derived parts)
-# stay attributed in every runtime image.
-COPY NOTICE LICENSE ./
+# bundled third-party components (Apache ECharts, zrender, d3-derived parts,
+# and the vendored frontend set copied into static/dist/vendor/) stay
+# attributed in every runtime image.
+COPY NOTICE LICENSE THIRD-PARTY-NOTICES.md ./
+COPY LICENSES/ ./LICENSES/
 COPY --from=frontend /app/static/dist ./static/dist
 COPY --from=docs /app/itambox/static/docs ./static/docs
 

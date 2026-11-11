@@ -2,7 +2,9 @@
 name = "itambox"
 version = "1.0.0-rc.2"
 description = "IT Asset Management System inspired by NetBox"
-requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12,<3.13"
 # NOTE: ITAMbox is NOT pip-installable and does not ship wheels/sdists. The apps
 # are top-level packages (core, organization, assets, ...) rooted in itambox/ —
 # packaging them would install a package literally named `core` into
