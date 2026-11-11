@@ -10,6 +10,7 @@ wait. These tests pin the offered sizes so the option cannot quietly return.
 from django.conf import settings
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
+from core.paginator import EnhancedPaginator
 from itambox import constants
 from itambox.utils import get_paginate_count
 
@@ -62,3 +63,28 @@ class GetPaginateCountTests(SimpleTestCase):
         # deliberate rather than accidental.
         self.assertEqual(self._count("per_page=10"), constants.DEFAULT_PAGINATE_COUNT)
         self.assertEqual(self._count("per_page=25"), 25)
+
+
+class PaginatorPageLengthsTests(SimpleTestCase):
+    """The dropdown reads ``EnhancedPaginator.get_page_lengths``, not the constants."""
+
+    offered = [value for value, _label in constants.PAGINATE_COUNT_CHOICES]
+
+    def test_default_lengths_derive_from_the_choices(self):
+        self.assertEqual(list(EnhancedPaginator.default_page_lengths), self.offered)
+
+    def test_normal_page_size_offers_no_thousand(self):
+        lengths = EnhancedPaginator(list(range(10)), 25).get_page_lengths()
+        self.assertNotIn(1000, lengths)
+        self.assertEqual(list(lengths), self.offered)
+
+    def test_retired_page_size_is_not_reintroduced(self):
+        # get_page_lengths adds the current size when it is not offered; a
+        # direct per_page=1000 must not bring the retired option back.
+        lengths = EnhancedPaginator(list(range(10)), 1000).get_page_lengths()
+        self.assertNotIn(1000, lengths)
+        self.assertEqual(list(lengths), self.offered)
+
+    def test_unlisted_size_within_range_stays_visible(self):
+        lengths = EnhancedPaginator(list(range(10)), 30).get_page_lengths()
+        self.assertIn(30, lengths)
