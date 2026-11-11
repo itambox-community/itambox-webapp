@@ -6,7 +6,7 @@ from django.core.paginator import Page, Paginator
 from django.utils.functional import cached_property
 from django.utils.inspect import method_has_no_args
 
-from itambox.constants import DEFAULT_PAGINATE_COUNT
+from itambox.constants import DEFAULT_PAGINATE_COUNT, PAGINATE_COUNT_CHOICES
 
 __all__ = (
     "EnhancedPage",
@@ -19,7 +19,8 @@ DEFAULT_PAGINATOR_COUNT_CAP = 100000
 
 
 class EnhancedPaginator(Paginator):
-    default_page_lengths = (25, 50, 100, 250, 500, 1000)
+    # Single source: the offered sizes come from PAGINATE_COUNT_CHOICES.
+    default_page_lengths = tuple(value for value, _label in PAGINATE_COUNT_CHOICES)
 
     def __init__(self, object_list, per_page, orphans=None, **kwargs):
         try:
@@ -40,7 +41,11 @@ class EnhancedPaginator(Paginator):
         return EnhancedPage(*args, **kwargs)
 
     def get_page_lengths(self):
-        if self.per_page not in self.default_page_lengths:
+        # A page size outside the offered list stays visible in the menu so the
+        # current selection is never missing. It is only added while it does not
+        # exceed the largest offered size: a direct caller passing a retired
+        # size (e.g. 1000) must not bring it back into the dropdown.
+        if self.per_page not in self.default_page_lengths and self.per_page <= max(self.default_page_lengths):
             return sorted([*self.default_page_lengths, self.per_page])
         return self.default_page_lengths
 
