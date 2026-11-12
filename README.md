@@ -22,7 +22,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6f42c1.svg" alt="Apache-2.0 license"></a>
   <a href="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml"><img src="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
   <img src="https://img.shields.io/badge/status-release%20candidate-2563ab.svg" alt="Release candidate status">
-  <img src="https://img.shields.io/badge/python-3.12%2B-3776ab.svg" alt="Python 3.12 or newer">
+  <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12; 3.13 is not yet supported">
   <img src="https://img.shields.io/badge/database-PostgreSQL%2016%2B-4169e1.svg" alt="PostgreSQL 16 or newer">
 </p>
 
@@ -129,7 +129,7 @@ The [integration guide](itambox/docs/integration/developer_guide.md) documents R
 
 ## Architecture at a glance
 
-ITAMbox is built with Django 5.2 and Python 3.12, requires PostgreSQL 16 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Strawberry (with strawberry-graphql-django) provides the scoped, read-only GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
+ITAMbox is built with Django 5.2 and Python 3.12 (3.13 is not yet supported), requires PostgreSQL 16 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Strawberry (with strawberry-graphql-django) provides the scoped, read-only GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
 
 Architecture boundaries, implementation conventions, test lanes, and contributor quality gates are documented in [DEVELOPMENT.md](DEVELOPMENT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md).
 

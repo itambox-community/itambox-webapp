@@ -212,12 +212,19 @@ class TestProdSettingsPosture:
         prod = _load_prod({})
         assert prod.SECURE_HSTS_SECONDS > 0
 
-    def test_content_type_and_xss_hardening(self):
+    def test_content_type_hardening(self):
         prod = _load_prod({})
-        # Defensive: only assert when the attribute exists, but these are set
-        # unconditionally in prod.py so they must be present.
+        # Defensive: only assert when the attribute exists, but this is set
+        # unconditionally in prod.py so it must be present.
         assert getattr(prod, "SECURE_CONTENT_TYPE_NOSNIFF", None) is True
-        assert getattr(prod, "SECURE_BROWSER_XSS_FILTER", None) is True
+
+    def test_xss_filter_setting_is_not_reintroduced(self):
+        # Django 5.2 removed SECURE_BROWSER_XSS_FILTER entirely: the
+        # X-XSS-Protection header it used to send is a browser no-op in every
+        # supported browser, so the setting configured nothing even before
+        # removal. Assert it stays gone rather than silently doing nothing.
+        prod = _load_prod({})
+        assert not hasattr(prod, "SECURE_BROWSER_XSS_FILTER")
 
     def test_basic_authentication_dropped(self):
         prod = _load_prod({})
