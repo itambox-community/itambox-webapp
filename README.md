@@ -21,7 +21,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6f42c1.svg" alt="Apache-2.0 license"></a>
   <a href="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml"><img src="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/status-release%20candidate-2563ab.svg" alt="Release candidate status">
+  <img src="https://img.shields.io/badge/status-stable-2ea44f.svg" alt="Stable release">
   <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12; 3.13 is not yet supported">
   <img src="https://img.shields.io/badge/database-PostgreSQL%2016%2B-4169e1.svg" alt="PostgreSQL 16 or newer">
 </p>
@@ -86,7 +86,7 @@ REST/OpenAPI, scoped GraphQL, SCIM, identity-provider integrations, imports, exp
 ITAMbox is licensed under Apache 2.0 and designed to run on infrastructure you control. Your deployment, data, integrations, retention policies, and upgrade decisions remain under your administration.
 
 > [!IMPORTANT]
-> This repository is pre-release. `1.0.0-rc.2` is current version metadata for the 1.0 release candidate. The feature scope for 1.0 is frozen, but APIs, migrations, routes, configuration, and capabilities marked **Beta** may still change before the first stable release. Use ITAMbox for evaluation and controlled pilot deployments with tested backups, and review the [capability maturity guide](itambox/docs/operations/capability-maturity.md) before relying on pre-release functionality.
+> The current release is `1.0.0`. The 1.0 feature scope is complete; capabilities marked **Beta** may still change in minor releases. Review the [capability maturity guide](itambox/docs/operations/capability-maturity.md) for public grades and known limitations, keep tested backups, and read the changelog before upgrading.
 
 The Report Designer is Stable and available in every deployment. CSV exports use each template's selected columns, and custom HTML/Jinja templates remain supported in a restricted sandbox. All templates use the same canonical schema and rendering path.
 

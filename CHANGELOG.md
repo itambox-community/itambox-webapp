@@ -6,6 +6,10 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-12
+
+ITAMbox 1.0.0 is the first stable release. The 1.0 feature scope is complete; the documented stable API surface stays compatible within 1.x, while capabilities marked **Beta** may still change in minor releases. Follow the [upgrade guide](itambox/docs/operations/upgrades.md), keep a tested backup, and run the migrations for your target revision.
+
 ### Added
 
 - `THIRD-PARTY-NOTICES.md` and `LICENSES/` now document the frontend components redistributed in the container image (`@tabler/core`, `tom-select`, `gridstack`, `@mdi/font`, `@fontsource-variable/inter`, `htmx.org`, `bootstrap`, `html5-qrcode`, `graphiql`), with each package's pinned version, SPDX license identifier, copyright line, and verbatim license text; the runtime image ships both alongside the existing `NOTICE`/`LICENSE`.
@@ -519,7 +523,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0-rc.2...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0
 [1.0.0-rc.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.1
 [1.0.0-beta.6]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-beta.6
