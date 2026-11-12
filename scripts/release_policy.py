@@ -102,11 +102,11 @@ def _read_locked_project_version(path: Path) -> str:
 
 def _read_readme_version(path: Path) -> str:
     match = re.search(
-        r"This repository is pre-release\. `(?P<version>[^`]+)` is current version metadata",
+        r"The current release is `(?P<version>[^`]+)`",
         path.read_text(encoding="utf-8"),
     )
     if match is None:
-        raise ReleasePolicyError("README.md must declare the current version metadata")
+        raise ReleasePolicyError("README.md must declare the current release version")
     return match.group("version")
 
 

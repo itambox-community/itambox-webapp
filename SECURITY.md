@@ -1,21 +1,20 @@
 # Security Policy
 
-ITAMbox is an open-source, self-hosted IT asset management application and is currently in the **1.0 release-candidate phase**. This policy explains which code is covered by security reports, how to report a vulnerability privately, and how coordinated disclosure works. It describes real commitments only and does not establish a service-level agreement.
+ITAMbox is an open-source, self-hosted IT asset management application. `1.0.0` is its first stable release. This policy explains which code is covered by security reports, how to report a vulnerability privately, and how coordinated disclosure works. It describes real commitments only and does not establish a service-level agreement.
 
 ---
 
 ## Supported versions
 
-ITAMbox publishes tagged prereleases on GitHub (`1.0.0-alpha.N`, `1.0.0-beta.N`, and later `1.0.0-rc.N`). The **latest published prerelease is the current supported target**; older prereleases are superseded by it and do not receive dedicated fixes.
+ITAMbox publishes tagged releases on GitHub. The **latest published release is the current supported target**; older releases and prereleases are superseded by it and do not receive dedicated fixes.
 
 | Target | Status |
 |---|---|
-| Latest published prerelease | Current supported target for security reports |
+| `1.0.0` (latest stable) | Current supported target for security reports |
 | `main` | Development state, not a published release; may contain unreleased or unfinished changes |
-| Older prereleases | Superseded by the latest prerelease; no backport guarantee |
-| Stable `1.0.x` releases | Not available yet; a support policy will accompany the first stable release |
+| Prereleases (`1.0.0-rc.N` and older) | Superseded by `1.0.0`; no backport guarantee |
 
-Reports against the latest prerelease and against current `main` are both welcome. Reports about superseded prereleases are acknowledged, though any fix targets the supported line. Capability maturity grades — Stable, Beta, and Experimental in the [capability maturity guide](itambox/docs/operations/capability-maturity.md) — describe compatibility expectations only. They never waive tenant isolation or any other security requirement.
+Reports against the latest published release and against current `main` are both welcome. Reports about superseded prereleases are acknowledged, though any fix targets the supported line. Capability maturity grades — Stable, Beta, and Experimental in the [capability maturity guide](itambox/docs/operations/capability-maturity.md) — describe compatibility expectations only. They never waive tenant isolation or any other security requirement.
 
 ---
 

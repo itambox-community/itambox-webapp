@@ -62,10 +62,10 @@ class VersionPolicyTests(unittest.TestCase):
 
 class RepositoryPolicyTests(unittest.TestCase):
     def test_checked_in_release_metadata_is_consistent(self):
-        version = validate_repository(REPOSITORY_ROOT, expected_version="1.0.0-rc.2")
+        version = validate_repository(REPOSITORY_ROOT, expected_version="1.0.0")
 
-        self.assertEqual(version.semver, "1.0.0-rc.2")
-        self.assertEqual(version.pep440, "1.0.0rc2")
+        self.assertEqual(version.semver, "1.0.0")
+        self.assertEqual(version.pep440, "1.0.0")
 
     def test_checked_in_openapi_schema_matches_release_identity(self):
         version = validate_repository(REPOSITORY_ROOT)
@@ -104,7 +104,7 @@ class RepositoryPolicyTests(unittest.TestCase):
             encoding="utf-8",
         )
         (root / "README.md").write_text(
-            f"This repository is pre-release. `{readme_version}` is current version metadata.\n",
+            f"The current release is `{readme_version}`.\n",
             encoding="utf-8",
         )
 
