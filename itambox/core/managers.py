@@ -35,6 +35,7 @@ from core.tenant_scope import (
     accessible_tenant_ids,
     build_accessible_tenant_permissions_map,
     get_ancestor_tenant_group_ids,
+    get_descendant_tenant_group_ids,
 )
 
 _AMBIENT = object()
@@ -362,15 +363,16 @@ class TenantScopingQuerySet(models.QuerySet):
         """
         if not allowed_tenant_ids or user is None or getattr(user, "is_superuser", False):
             return allowed_tenant_ids
+        permissions = (required_permission,) if isinstance(required_permission, str) else tuple(required_permission)
         permission_map = build_accessible_tenant_permissions_map(user)
         empty_perms = frozenset()
         return [
             tenant_id
             for tenant_id in allowed_tenant_ids
-            if required_permission in permission_map.get(tenant_id, (empty_perms,))[0]
+            if all(permission in permission_map.get(tenant_id, (empty_perms,))[0] for permission in permissions)
         ]
 
-    def for_scope(self, scope, required_permission=None) -> QuerySet:
+    def for_scope(self, scope, required_permission=None, group_scope="visible") -> QuerySet:
         """Scope this queryset to an explicit ``Scope`` value.
 
         The per-model behaviour comes from the model's scoping declaration
@@ -402,7 +404,9 @@ class TenantScopingQuerySet(models.QuerySet):
         if declaration.strategy == TenantScopeDeclaration.SELF_GROUP:
             return self._scope_tenant_group_rows(scope, get_descendant_group_ids)
 
-        qs = self._scope_by_group_field(scope, declaration, allowed_tenant_ids, get_descendant_group_ids, Tenant)
+        qs = self._scope_by_group_field(
+            scope, declaration, allowed_tenant_ids, get_descendant_group_ids, Tenant, group_scope
+        )
         if declaration.strategy == TenantScopeDeclaration.FIELD:
             return self._scope_by_tenant_field(qs, declaration, allowed_tenant_ids)
         if declaration.strategy == TenantScopeDeclaration.LOOKUP:
@@ -449,21 +453,89 @@ class TenantScopingQuerySet(models.QuerySet):
             return self
         return self.filter(pk__in=expand_to_ancestors(self._member_visible_group_ids(user)))
 
-    def _scope_by_group_field(self, scope, declaration, allowed_tenant_ids, get_descendant_group_ids, Tenant):
-        """Narrow by the model's ``tenant_group`` field when it declares one."""
+    def _scope_by_group_field(
+        self, scope, declaration, allowed_tenant_ids, get_descendant_group_ids, Tenant, group_scope="visible"
+    ):
+        """Narrow by the model's ``tenant_group`` field when it declares one.
+
+        ``group_scope="visible"`` is the existential read rule: a row is visible
+        from every tenant in its group's subtree, so the authorized tenants'
+        groups plus their ancestors admit it. ``group_scope="all"`` is the write
+        rule used by the bulk routes (which never run a per-object check): a
+        group-shared row may only be written when the caller holds the
+        permission in every live tenant that row affects.
+        """
         if not declaration.has_tenant_group:
             return self
         allowed_group_ids = []
-        if scope.kind == Scope.GROUP:
-            allowed_group_ids = get_descendant_group_ids(scope.group.pk)
+        if group_scope == "all":
+            allowed_group_ids = self._fully_authorized_group_ids(
+                scope, allowed_tenant_ids, get_descendant_group_ids, Tenant
+            )
+        elif scope.kind == Scope.GROUP:
+            # Derive the groups from the (possibly permission-narrowed) tenant
+            # set, not from every descendant of the selected group: a sibling
+            # subgroup the caller holds no permission in must not contribute
+            # its group-scoped rows (#1088).
+            allowed_group_ids = self._group_ids_for_tenants(allowed_tenant_ids, Tenant)
         elif scope.kind == Scope.TENANT and scope.tenant.group:
-            allowed_group_ids = get_descendant_group_ids(scope.tenant.group.pk)
+            # A row scoped to group G is visible from G's subtree, so a tenant
+            # sees rows scoped to its own group and that group's ancestors --
+            # never a descendant group's rows.
+            allowed_group_ids = list(get_ancestor_tenant_group_ids(scope.tenant.group.pk, live_only=True))
         elif scope.kind == Scope.ALL_ACCESSIBLE:
             # Derived from the canonical accessible_tenant_ids, so no extra
             # RBAC resolution; only runs for the (few) models that carry a
             # tenant_group field.
             allowed_group_ids = self._all_accessible_group_ids(scope.user, allowed_tenant_ids, Tenant)
         return self.filter(models.Q(tenant_group_id__in=allowed_group_ids) | models.Q(tenant_group__isnull=True))
+
+    @classmethod
+    def _fully_authorized_group_ids(cls, scope, allowed_tenant_ids, get_descendant_group_ids, Tenant):
+        """Groups whose entire live tenant subtree the caller is authorized for.
+
+        Used by the bulk write routes: a row scoped to group G is shared with
+        every tenant in G's subtree, so holding the permission in one of them is
+        not enough to update or delete it. The candidate groups depend on the
+        active scope; a group with no live tenant authorizes nothing.
+        """
+        if scope.kind == Scope.GROUP:
+            candidates = get_descendant_group_ids(scope.group.pk)
+        elif scope.kind == Scope.TENANT and scope.tenant.group:
+            candidates = get_ancestor_tenant_group_ids(scope.tenant.group.pk, live_only=True)
+        else:
+            TenantGroup = apps.get_model("organization", "TenantGroup")
+            candidates = set(TenantGroup._base_manager.filter(deleted_at__isnull=True).values_list("pk", flat=True))
+        authorized = set(allowed_tenant_ids)
+        allowed = []
+        for group_id in candidates:
+            subtree = get_descendant_tenant_group_ids(group_id, live_only=True)
+            tenant_ids = set(
+                Tenant._base_manager.filter(group_id__in=subtree, deleted_at__isnull=True).values_list("pk", flat=True)
+            )
+            if tenant_ids and tenant_ids.issubset(authorized):
+                allowed.append(group_id)
+        return allowed
+
+    @staticmethod
+    def _group_ids_for_tenants(allowed_tenant_ids, Tenant):
+        """Groups of the authorized tenants plus their ancestors.
+
+        A group-scoped row is visible from every tenant in its group's subtree,
+        so its group must be one of (or an ancestor of) the groups the
+        authorized tenants live in. Deriving this from ``allowed_tenant_ids``
+        keeps a permission-narrowed group scope from admitting a sibling
+        subgroup (#1088).
+        """
+        direct_group_ids = set(
+            Tenant._base_manager.filter(pk__in=allowed_tenant_ids, group_id__isnull=False).values_list(
+                "group_id", flat=True
+            )
+        )
+        allowed: set[int] = set()
+        for group_id in direct_group_ids:
+            allowed |= get_ancestor_tenant_group_ids(group_id, live_only=True)
+        return list(allowed)
 
     @staticmethod
     def _scope_by_tenant_field(qs, declaration, allowed_tenant_ids):

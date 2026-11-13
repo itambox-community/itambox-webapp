@@ -18,6 +18,7 @@ from rest_framework.test import APITestCase
 
 from assets.models import Manufacturer, Supplier
 from core.managers import (
+    Scope,
     set_current_all_accessible,
     set_current_membership,
     set_current_tenant,
@@ -424,6 +425,34 @@ class AggregateScopeAuthorizationTests(TestCase):
         self.assertIn(response.status_code, (200, 204), response.content)
         self.assertFalse(License.all_objects.filter(pk=self.license_a.pk, deleted_at__isnull=True).exists())
         self.assertTrue(License.all_objects.filter(pk=self.license_b.pk, deleted_at__isnull=True).exists())
+
+    def test_for_scope_intersects_every_required_permission(self):
+        # B has view but not delete: requiring both must exclude B, while
+        # requiring view alone keeps it. This is the primitive the export path
+        # uses when a model declares a dedicated export permission.
+        role_b = Role.objects.create(
+            tenant=self.tenant_b, name="License Viewer B", permissions=["licenses.view_license"]
+        )
+        grant(self.user, self.tenant_b, role_b)
+        set_current_tenant_group(self.group)
+        user_token = _current_user.set(self.user)
+        try:
+            view_only = set(
+                License.objects.for_scope(Scope.current(), required_permission="licenses.view_license").values_list(
+                    "pk", flat=True
+                )
+            )
+            view_and_delete = set(
+                License.objects.for_scope(
+                    Scope.current(),
+                    required_permission=["licenses.view_license", "licenses.delete_license"],
+                ).values_list("pk", flat=True)
+            )
+        finally:
+            _current_user.reset(user_token)
+            set_current_tenant_group(None)
+        self.assertIn(self.license_b.pk, view_only)
+        self.assertNotIn(self.license_b.pk, view_and_delete)
 
     # ---------------------------------------------------------- unaffected paths
 

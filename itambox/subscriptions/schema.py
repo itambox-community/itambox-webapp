@@ -100,7 +100,13 @@ SUBSCRIPTION_SORTABLE_FIELDS = {
     "-updated_at",
 }
 
-_ASSIGNMENT_RELATED = ("subscription", "subscription__supplier", "assigned_by", "content_type")
+_ASSIGNMENT_RELATED = (
+    "subscription",
+    "subscription__supplier",
+    "subscription__cost_center",
+    "assigned_by",
+    "content_type",
+)
 
 
 @strawberry.type
@@ -120,7 +126,7 @@ class Query:
         # TenantScopingSoftDeleteManager handles tenant scoping and active filtering.
         qs = (
             scoped_queryset(info, Subscription.objects, required_permission="subscriptions.view_subscription")
-            .select_related("supplier", "linked_contract", "tenant", "owner")
+            .select_related("supplier", "linked_contract", "tenant", "owner", "cost_center")
             .all()
         )
         for key, val in (("name", name), ("status", status), ("type", type)):
@@ -136,7 +142,7 @@ class Query:
         try:
             return (
                 scoped_queryset(info, Subscription.objects, required_permission="subscriptions.view_subscription")
-                .select_related("supplier", "linked_contract", "tenant", "owner")
+                .select_related("supplier", "linked_contract", "tenant", "owner", "cost_center")
                 .get(pk=id)
             )
         except Subscription.DoesNotExist:

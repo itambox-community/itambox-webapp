@@ -75,7 +75,12 @@ class BaseViewSet(GenericViewSet):
             required_permission = (
                 f"{qs.model._meta.app_label}.{scope_action}_{qs.model._meta.model_name}" if scope_action else None
             )
-            qs = qs.for_scope(Scope.current(), required_permission=required_permission)
+            # Bulk update/destroy never run a per-object permission check, so a
+            # group-shared row may only enter their queryset when the caller is
+            # authorized in every tenant that row affects (writes affect the
+            # whole group subtree; reads only need one visible tenant).
+            group_scope = "all" if action in ("bulk_update", "bulk_partial_update", "bulk_destroy") else "visible"
+            qs = qs.for_scope(Scope.current(), required_permission=required_permission, group_scope=group_scope)
 
         serializer_class = self.get_serializer_class()
 

@@ -10,7 +10,13 @@ from graphql import GraphQLError
 from assets.services.specifications._command_support import load_prospective_definition
 from core.graphql_choice_enums import choice_enum
 from core.graphql_scalars import JSONString
-from core.graphql_utils import paginate_queryset, read_scope_from_info, requested_selector_from_scope, scoped_relation
+from core.graphql_utils import (
+    paginate_queryset,
+    read_scope_from_info,
+    request_from_info,
+    requested_selector_from_scope,
+    scoped_relation,
+)
 from core.managers import Scope
 from organization.models import Location, Tenant
 
@@ -109,7 +115,13 @@ class ManufacturerNode:
         # (see ``scoped_software_prefetch``) is reused when present.
         prefetched = getattr(self, SCOPED_SOFTWARE_ATTR, None)
         if prefetched is not None:
-            return prefetched
+            # A prefetch built from an asset-scoped tenant set can still carry
+            # software from a tenant where the caller holds no software view
+            # permission (the asset scope and the software permission are
+            # different grants). Filter the prefetched rows against the
+            # software permission itself (#1088).
+            user = request_from_info(info).user
+            return [software for software in prefetched if user.has_perm("software.view_software", obj=software)]
         return list(self.software_products.for_scope(Scope.current(), required_permission="software.view_software"))
 
 

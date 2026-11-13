@@ -77,9 +77,14 @@ def _scoped_export_base(request, model, policy):
     meta = model._meta
     queryset = model.objects.all()
     if hasattr(queryset, "for_scope"):
+        # Narrow by every permission the export gate demands: under a group
+        # scope the ambient gate can pass `view_<model>` in one tenant and a
+        # dedicated `export_<model>` in another, so row visibility must be the
+        # per-tenant intersection of both (#1088). A single-permission model
+        # reduces to `view_<model>`.
         queryset = queryset.for_scope(
             Scope.current(),
-            required_permission=f"{meta.app_label}.view_{meta.model_name}",
+            required_permission=required_export_permissions(model),
         )
     if policy.scope == SCOPE_CONTAINER:
         return visible_to_containers(request.user, queryset, f"{meta.app_label}.view_{meta.model_name}")
