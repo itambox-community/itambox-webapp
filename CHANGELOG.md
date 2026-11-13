@@ -13,6 +13,10 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Bulk import: a failure while creating the completion notification no longer marks a committed import as failed, so the operator is not prompted to retry a write that already happened.
 - List pagination counts rows exactly, so the last page reports consistent bounds (for example "Showing 101-123 of 123") instead of clamping to a former count cap. The REST paginator keeps `ITAMBOX_PAGINATOR_COUNT_CAP`.
 
+### Changed
+
+- `v1.0.0-rc.2` is the declared supported upgrade origin for `v1.0.0`. A restored rc.2 database was qualified against the published 1.0.0 image, covering preflight, migration, system check, health, login, the asset list and the worker cluster; the record is in the [upgrade qualification page](itambox/docs/operations/upgrade-qualification.md).
+
 ## [1.0.0] - 2026-11-12
 
 ITAMbox 1.0.0 is the first stable release. The 1.0 feature scope is complete; the documented stable API surface stays compatible within 1.x, while capabilities marked **Beta** may still change in minor releases. Follow the [upgrade guide](itambox/docs/operations/upgrades.md), keep a tested backup, and run the migrations for your target revision.
