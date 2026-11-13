@@ -203,22 +203,42 @@ jobs:
   validate-dispatch-ref:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.ref.outputs.branch }}
+      line: ${{ steps.ref.outputs.line }}
     steps:
-      - name: Reject release preparation outside main
+      - name: Accept main or a maintenance branch
+        id: ref
         shell: bash
         run: |
-          test "$GITHUB_REF" = "refs/heads/main" || {
-            echo "Release preparation must be dispatched from main" >&2
-            exit 1
-          }
+          set -euo pipefail
+          branch="${GITHUB_REF#refs/heads/}"
+          case "$branch" in
+            main)
+              echo "branch=main" >> "$GITHUB_OUTPUT"
+              echo "line=" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              if [[ ! "$branch" =~ ^release/[0-9]+\.[0-9]+$ ]]; then
+                echo "Release preparation runs from main or release/X.Y; got ${GITHUB_REF}" >&2
+                exit 1
+              fi
+              echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+              echo "line=${branch#release/}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
 
   e2e-qualification:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: [validate-dispatch-ref]
+    if: github.event_name == 'workflow_dispatch' && needs.validate-dispatch-ref.result == 'success'
     uses: ./.github/workflows/e2e.yml
 
   prepare-release:
     needs: [validate-dispatch-ref, e2e-qualification]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.e2e-qualification.result == 'success'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      needs.validate-dispatch-ref.result == 'success' &&
+      needs.e2e-qualification.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -234,6 +254,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_BRANCH: ${{ github.ref_name }}
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
     steps:
@@ -257,6 +278,19 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/release_policy.py verify --version "$RELEASE_VERSION"
+          line="${RELEASE_VERSION%.*}"
+          if [[ "$RELEASE_BRANCH" == release/* ]]; then
+            expected="${RELEASE_BRANCH#release/}"
+            if [[ "$line" != "$expected" ]]; then
+              echo "Version ${RELEASE_VERSION} does not belong to ${RELEASE_BRANCH}" >&2
+              exit 1
+            fi
+          else
+            if git ls-remote --exit-code --heads origin "refs/heads/release/${line}" >/dev/null 2>&1; then
+              echo "release/${line} exists; dispatch this patch from that branch" >&2
+              exit 1
+            fi
+          fi
           gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" > associated-pulls.json
           python - <<'PY'
           import json
@@ -266,12 +300,12 @@ jobs:
           reviewed = any(
               pull.get("merged_at")
               and pull.get("merge_commit_sha") == os.environ["GITHUB_SHA"]
-              and pull.get("base", {}).get("ref") == "main"
+              and pull.get("base", {}).get("ref") == os.environ["RELEASE_BRANCH"]
               for pull in pulls
           )
           if not reviewed:
-              raise SystemExit("release commit is not the reviewed result of a PR merged into main")
-          print("Reviewed main-branch release commit verified")
+              raise SystemExit("release commit is not the reviewed result of a PR merged into the release branch")
+          print("Reviewed release-branch commit verified")
           PY
 
       - name: Log in to the GitHub Container Registry
@@ -282,6 +316,24 @@ jobs:
           set +x
           printf '%s' "$REGISTRY_TOKEN" | docker login "${REGISTRY}" \
             --username "${{ github.actor }}" --password-stdin
+
+      - name: Reject an already published version
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag="v${RELEASE_VERSION}"
+          if git ls-remote --exit-code --refs origin "refs/tags/${release_tag}" >/dev/null 2>&1; then
+            echo "Tag ${release_tag} already exists; published versions are immutable." >&2
+            exit 1
+          fi
+          if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release ${release_tag} already exists." >&2
+            exit 1
+          fi
+          if docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "Image tag ${RELEASE_VERSION} already exists in ${REGISTRY}." >&2
+            exit 1
+          fi
 
       - name: Build and push the reviewed release image by digest
         id: image-build
@@ -313,8 +365,31 @@ jobs:
           # Materialize the host-platform image from the digest that was just
           # pushed, so everything verified below is byte-identical to the
           # registry state of the release candidate.
-          docker pull --platform linux/amd64 "${REGISTRY}/${IMAGE_NAME}@${index_digest}"
-          docker tag "${REGISTRY}/${IMAGE_NAME}@${index_digest}" "itambox:${RELEASE_VERSION}"
+          # Resolve each platform manifest from the index and pull it by that
+          # digest. Tagging the index reference instead would resolve to the
+          # host platform a second time and silently scan amd64 twice.
+          docker buildx imagetools inspect --raw "${REGISTRY}/${IMAGE_NAME}@${index_digest}" > index-manifest.json
+          mapfile -t platform_digests < <(python - index-manifest.json <<'PY'
+          import json
+          import sys
+
+          index = json.load(open(sys.argv[1], encoding="utf-8"))
+          for architecture in ("amd64", "arm64"):
+              print(next(
+                  manifest["digest"]
+                  for manifest in index["manifests"]
+                  if manifest.get("platform", {}).get("architecture") == architecture
+              ))
+          PY
+          )
+          amd64_manifest="${platform_digests[0]}"
+          arm64_manifest="${platform_digests[1]}"
+          echo "IMAGE_MANIFEST_DIGEST_AMD64=${amd64_manifest}" >> "$GITHUB_ENV"
+          echo "IMAGE_MANIFEST_DIGEST_ARM64=${arm64_manifest}" >> "$GITHUB_ENV"
+          docker pull --platform linux/amd64 "${REGISTRY}/${IMAGE_NAME}@${amd64_manifest}"
+          docker tag "${REGISTRY}/${IMAGE_NAME}@${amd64_manifest}" "itambox:${RELEASE_VERSION}"
+          docker pull --platform linux/arm64 "${REGISTRY}/${IMAGE_NAME}@${arm64_manifest}"
+          docker tag "${REGISTRY}/${IMAGE_NAME}@${arm64_manifest}" "itambox:${RELEASE_VERSION}-arm64"
 
       - name: Verify release image identity
         shell: bash
@@ -335,47 +410,62 @@ jobs:
                   raise SystemExit(f"invalid image label {name}: {labels.get(name)!r} != {value!r}")
           PY
 
-      - name: Scan reviewed release image
+      - name: Scan reviewed release image on both platforms
         shell: bash
         run: |
           set +x
           bash scripts/install_security_tools.sh "$RUNNER_TEMP/security-tools" trivy
-          if ! "$RUNNER_TEMP/security-tools/trivy" image --quiet --scanners vuln --ignore-unfixed \
-            --format json --output "$RUNNER_TEMP/trivy-image.json" \
-            "itambox:${RELEASE_VERSION}" \
-            >"$RUNNER_TEMP/trivy.stdout" 2>"$RUNNER_TEMP/trivy.stderr"; then
-            echo "Image scanner failed; raw diagnostics are retained only on the runner" >&2
-            exit 2
-          fi
+          for platform in amd64 arm64; do
+            suffix=""
+            [[ "$platform" == "arm64" ]] && suffix="-arm64"
+            if ! "$RUNNER_TEMP/security-tools/trivy" image --quiet --scanners vuln --ignore-unfixed \
+              --format json --output "$RUNNER_TEMP/trivy-image-${platform}.json" \
+              "itambox:${RELEASE_VERSION}${suffix}" \
+              >"$RUNNER_TEMP/trivy-${platform}.stdout" 2>"$RUNNER_TEMP/trivy-${platform}.stderr"; then
+              echo "Image scanner failed (${platform}); raw diagnostics are retained only on the runner" >&2
+              exit 2
+            fi
+          done
 
       - name: Apply draft-image thresholds and suppressions
         id: draft-image-gate
         shell: bash
         run: |
           set +x
-          set +e
-          python scripts/security_gate.py trivy \
-            --report "$RUNNER_TEMP/trivy-image.json" \
-            --sarif "$RUNNER_TEMP/trivy-image.sarif" \
-            --fail-on any
-          status=$?
-          set -e
+          status=0
+          for platform in amd64 arm64; do
+            set +e
+            python scripts/security_gate.py trivy \
+              --report "$RUNNER_TEMP/trivy-image-${platform}.json" \
+              --sarif "$RUNNER_TEMP/trivy-image-${platform}.sarif" \
+              --fail-on any
+            rc=$?
+            set -e
+            [[ "$rc" -ne 0 ]] && status="$rc"
+            if [[ -s "$RUNNER_TEMP/trivy-image-${platform}.sarif" ]]; then
+              echo "sarif_${platform}=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "sarif_${platform}=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
           echo "status=$status" >> "$GITHUB_OUTPUT"
-          if [[ -s "$RUNNER_TEMP/trivy-image.sarif" ]]; then
-            echo "sarif=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "sarif=false" >> "$GITHUB_OUTPUT"
-          fi
 
-      - name: Retain draft-image results in Code Scanning
-        if: always() && steps.draft-image-gate.outputs.sarif == 'true'
+      - name: Retain amd64 draft-image results in Code Scanning
+        if: always() && steps.draft-image-gate.outputs.sarif_amd64 == 'true'
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
-          sarif_file: ${{ runner.temp }}/trivy-image.sarif
+          sarif_file: ${{ runner.temp }}/trivy-image-amd64.sarif
           # Same configuration as the rehearsal upload: code scanning compares the
           # pull request against the default branch per tool+category, and this
           # upload only keeps that single configuration up to date.
           category: trivy-draft-image
+
+      - name: Retain arm64 draft-image results in Code Scanning
+        if: always() && steps.draft-image-gate.outputs.sarif_arm64 == 'true'
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: ${{ runner.temp }}/trivy-image-arm64.sarif
+          category: trivy-draft-image-arm64
 
       - name: Enforce draft-image gate
         if: always()
@@ -390,30 +480,31 @@ jobs:
       - name: Archive reviewed release image
         shell: bash
         run: |
-          docker save "itambox:${RELEASE_VERSION}" | gzip -9 > "itambox-${RELEASE_VERSION}.tar.gz"
-          sha256sum "itambox-${RELEASE_VERSION}.tar.gz" > "itambox-${RELEASE_VERSION}.tar.gz.sha256"
+          docker save "itambox:${RELEASE_VERSION}" | gzip -9 > "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz"
+          sha256sum "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz" > "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256"
           python scripts/release_policy.py notes \
             --version "$RELEASE_VERSION" > release-notes.md
 
-      - name: Generate release image SBOM
+      - name: Generate and validate release image SBOMs
         shell: bash
         run: |
           set +x
-          if ! "$RUNNER_TEMP/security-tools/trivy" image --quiet --format spdx-json \
-            --output "itambox-${RELEASE_VERSION}.sbom.spdx.json" \
-            "itambox:${RELEASE_VERSION}" \
-            >"$RUNNER_TEMP/trivy-sbom.stdout" 2>"$RUNNER_TEMP/trivy-sbom.stderr"; then
-            echo "SBOM generation failed; raw diagnostics are retained only on the runner" >&2
-            exit 2
-          fi
-
-      - name: Validate release image SBOM
-        shell: bash
-        run: |
-          python scripts/release_sbom.py verify \
-            --sbom "itambox-${RELEASE_VERSION}.sbom.spdx.json" \
-            --image-inspect image-inspect.json \
-            --image-ref "itambox:${RELEASE_VERSION}"
+          for platform in amd64 arm64; do
+            suffix=""
+            [[ "$platform" == "arm64" ]] && suffix="-arm64"
+            if ! "$RUNNER_TEMP/security-tools/trivy" image --quiet --format spdx-json \
+              --output "itambox-${RELEASE_VERSION}-${platform}.sbom.spdx.json" \
+              "itambox:${RELEASE_VERSION}${suffix}" \
+              >"$RUNNER_TEMP/trivy-sbom-${platform}.stdout" 2>"$RUNNER_TEMP/trivy-sbom-${platform}.stderr"; then
+              echo "SBOM generation failed (${platform}); raw diagnostics are retained only on the runner" >&2
+              exit 2
+            fi
+            docker image inspect "itambox:${RELEASE_VERSION}${suffix}" > "image-inspect-${platform}.json"
+            python scripts/release_sbom.py verify \
+              --sbom "itambox-${RELEASE_VERSION}-${platform}.sbom.spdx.json" \
+              --image-inspect "image-inspect-${platform}.json" \
+              --image-ref "itambox:${RELEASE_VERSION}${suffix}"
+          done
 
       - name: Promote the verified image digest to the release tag
         shell: bash
@@ -471,50 +562,71 @@ jobs:
           # itambox account is a user account, so records stay disabled.
           create-storage-record: false
 
-      - name: Attest the published image SBOM
+      - name: Attest the published amd64 image SBOM
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.ghcr-image.outputs.GHCR_MANIFEST_DIGEST }}
-          sbom-path: itambox-${{ inputs.version }}.sbom.spdx.json
+          subject-digest: ${{ steps.ghcr-image.outputs.IMAGE_MANIFEST_DIGEST_AMD64 }}
+          sbom-path: itambox-${{ inputs.version }}-amd64.sbom.spdx.json
           push-to-registry: true
           # Storage records require an organization-owned repository; the
           # itambox account is a user account, so records stay disabled.
+          create-storage-record: false
+
+      - name: Attest the published arm64 image SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.ghcr-image.outputs.IMAGE_MANIFEST_DIGEST_ARM64 }}
+          sbom-path: itambox-${{ inputs.version }}-arm64.sbom.spdx.json
+          push-to-registry: true
           create-storage-record: false
 
       - name: Verify the published image attestations
         shell: bash
         run: |
           set -euo pipefail
-          image_ref="oci://${REGISTRY}/${IMAGE_NAME}@${GHCR_MANIFEST_DIGEST}"
+          verify_attestation() {
+            local ref="$1"
+            local predicate="$2"
+            local bundle_source="$3"
+            local flags=()
+            if [[ "$bundle_source" == "registry" ]]; then
+              flags+=(--bundle-from-oci)
+            fi
+            local verified=false attempt
+            for attempt in 1 2 3; do
+              if gh attestation verify "$ref" \
+                --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+                --source-ref "$GITHUB_REF" \
+                --source-digest "$GITHUB_SHA" \
+                --predicate-type "$predicate" \
+                "${flags[@]}"; then
+                verified=true
+                break
+              fi
+              echo "Attestation (${predicate}, ${bundle_source}) not yet resolvable; retrying (${attempt}/3)" >&2
+              sleep 10
+            done
+            test "$verified" = "true" || {
+              echo "Attestation verification failed (${predicate}, ref ${ref}, source ${bundle_source})" >&2
+              exit 1
+            }
+          }
+          index_ref="oci://${REGISTRY}/${IMAGE_NAME}@${GHCR_MANIFEST_DIGEST}"
           # actions/attest signs the SPDX 2.3 document with the versioned
           # predicate type; the registry bundle matches that annotation
           # exactly, so verify the exact signed value.
-          for predicate in "https://slsa.dev/provenance/v1" "https://spdx.dev/Document/v2.3"; do
+          for bundle_source in github registry; do
+            verify_attestation "$index_ref" "https://slsa.dev/provenance/v1" "$bundle_source"
+          done
+          for platform in amd64 arm64; do
+            upper="$(printf '%s' "$platform" | tr '[:lower:]' '[:upper:]')"
+            digest_var="IMAGE_MANIFEST_DIGEST_${upper}"
+            manifest_ref="oci://${REGISTRY}/${IMAGE_NAME}@${!digest_var}"
             for bundle_source in github registry; do
-              flags=()
-              if [[ "$bundle_source" == "registry" ]]; then
-                flags+=(--bundle-from-oci)
-              fi
-              verified=false
-              for attempt in 1 2 3; do
-                if gh attestation verify "$image_ref" \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
-                  --source-ref "refs/heads/main" \
-                  --source-digest "$GITHUB_SHA" \
-                  --predicate-type "$predicate" \
-                  "${flags[@]}"; then
-                  verified=true
-                  break
-                fi
-                echo "Attestation (${predicate}, ${bundle_source}) not yet resolvable; retrying (${attempt}/3)" >&2
-                sleep 10
-              done
-              test "$verified" = "true" || {
-                echo "Attestation verification failed (${predicate}, source ${bundle_source})" >&2
-                exit 1
-              }
+              verify_attestation "$manifest_ref" "https://spdx.dev/Document/v2.3" "$bundle_source"
             done
           done
 
@@ -557,24 +669,26 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
-            itambox-${{ inputs.version }}.tar.gz
-            itambox-${{ inputs.version }}.tar.gz.sha256
-            itambox-${{ inputs.version }}.sbom.spdx.json
+            itambox-${{ inputs.version }}-linux-amd64.tar.gz
+            itambox-${{ inputs.version }}-linux-amd64.tar.gz.sha256
+            itambox-${{ inputs.version }}-amd64.sbom.spdx.json
+            itambox-${{ inputs.version }}-arm64.sbom.spdx.json
 
       - name: Verify release artifact attestation
         shell: bash
         run: |
           set -euo pipefail
           for artifact in \
-            "itambox-${RELEASE_VERSION}.tar.gz" \
-            "itambox-${RELEASE_VERSION}.tar.gz.sha256" \
-            "itambox-${RELEASE_VERSION}.sbom.spdx.json"; do
+            "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz" \
+            "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256" \
+            "itambox-${RELEASE_VERSION}-amd64.sbom.spdx.json" \
+            "itambox-${RELEASE_VERSION}-arm64.sbom.spdx.json"; do
             verified=false
             for attempt in 1 2 3; do
               if gh attestation verify "$artifact" \
                 --repo "$GITHUB_REPOSITORY" \
-                --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
-                --source-ref "refs/heads/main" \
+                --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+                --source-ref "$GITHUB_REF" \
                 --source-digest "$GITHUB_SHA"; then
                 verified=true
                 break
@@ -593,11 +707,13 @@ jobs:
         with:
           name: itambox-${{ inputs.version }}
           path: |
-            itambox-${{ inputs.version }}.tar.gz
-            itambox-${{ inputs.version }}.tar.gz.sha256
-            itambox-${{ inputs.version }}.sbom.spdx.json
+            itambox-${{ inputs.version }}-linux-amd64.tar.gz
+            itambox-${{ inputs.version }}-linux-amd64.tar.gz.sha256
+            itambox-${{ inputs.version }}-amd64.sbom.spdx.json
+            itambox-${{ inputs.version }}-arm64.sbom.spdx.json
             itambox-build-metadata.json
-            image-inspect.json
+            image-inspect-amd64.json
+            image-inspect-arm64.json
             registry-manifest.json
             registry-manifest-descriptor.json
             registry-image-manifest-amd64.json
@@ -636,7 +752,8 @@ jobs:
             flags+=(--prerelease)
           fi
           gh release create "$release_tag" "${flags[@]}" \
-            "itambox-${RELEASE_VERSION}.tar.gz" \
-            "itambox-${RELEASE_VERSION}.tar.gz.sha256" \
-            "itambox-${RELEASE_VERSION}.sbom.spdx.json"
+            "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz" \
+            "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256" \
+            "itambox-${RELEASE_VERSION}-amd64.sbom.spdx.json" \
+            "itambox-${RELEASE_VERSION}-arm64.sbom.spdx.json"
           verify_release_tag

@@ -237,12 +237,13 @@ class ReleaseAutomationContractTests(unittest.TestCase):
         self.assertIn("contents: read", workflow)
         self.assertIn("github.event_name == 'pull_request'", workflow)
         self.assertIn("validate-dispatch-ref:", workflow)
-        self.assertIn('test "$GITHUB_REF" = "refs/heads/main"', workflow)
-        self.assertIn("github.ref == 'refs/heads/main'", workflow)
+        self.assertIn("Release preparation runs from main or release/X.Y", workflow)
+        self.assertIn("release/[0-9]", workflow)
+        self.assertNotIn("github.ref == 'refs/heads/main'", workflow)
         self.assertIn("commits/${GITHUB_SHA}/pulls", workflow)
         self.assertIn("contents: write", workflow)
         self.assertIn("pull-requests: read", workflow)
-        self.assertNotIn("git ls-remote --exit-code --tags origin", workflow)
+        self.assertIn("git ls-remote --exit-code --refs origin \"refs/tags/${release_tag}\"", workflow)
         self.assertIn('git push --porcelain origin "$GITHUB_SHA:refs/tags/v${RELEASE_VERSION}"', workflow)
         self.assertIn("verify_release_tag()", workflow)
         self.assertGreaterEqual(workflow.count("verify_release_tag"), 3)
@@ -349,7 +350,8 @@ class ReleaseWorkflowHardeningTests(unittest.TestCase):
         self.assertNotIn("artifact-metadata", self.workflow_text)
         for step_name in (
             "Attest the published image provenance",
-            "Attest the published image SBOM",
+            "Attest the published amd64 image SBOM",
+            "Attest the published arm64 image SBOM",
         ):
             with self.subTest(step=step_name):
                 step = prepare.split(step_name, 1)[1].split("- name:", 1)[0]
@@ -365,15 +367,18 @@ class ReleaseWorkflowHardeningTests(unittest.TestCase):
         self.assertIn("itambox:release-rehearsal", rehearsal)
         self.assertIn("--format spdx-json", prepare)
         self.assertIn("scripts/release_sbom.py verify", prepare)
-        self.assertIn('"itambox:${RELEASE_VERSION}"', prepare)
+        self.assertIn('"itambox:${RELEASE_VERSION}${suffix}"', prepare)
+        self.assertIn("itambox-${RELEASE_VERSION}-${platform}.sbom.spdx.json", prepare)
 
     def test_sbom_is_shipped_as_a_release_asset_with_the_release_identity(self):
-        self.assertIn("itambox-${{ inputs.version }}.sbom.spdx.json", self.workflow_text)
+        for platform in ("amd64", "arm64"):
+            self.assertIn(f"itambox-${{{{ inputs.version }}}}-{platform}.sbom.spdx.json", self.workflow_text)
         release_command = self.workflow_text.split('gh release create "$release_tag"', 1)[1]
         for asset in (
-            '"itambox-${RELEASE_VERSION}.tar.gz"',
-            '"itambox-${RELEASE_VERSION}.tar.gz.sha256"',
-            '"itambox-${RELEASE_VERSION}.sbom.spdx.json"',
+            '"itambox-${RELEASE_VERSION}-linux-amd64.tar.gz"',
+            '"itambox-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256"',
+            '"itambox-${RELEASE_VERSION}-amd64.sbom.spdx.json"',
+            '"itambox-${RELEASE_VERSION}-arm64.sbom.spdx.json"',
         ):
             with self.subTest(asset=asset):
                 self.assertIn(asset, release_command)
@@ -384,8 +389,8 @@ class ReleaseWorkflowHardeningTests(unittest.TestCase):
         self.assertIn("actions/attest@", prepare)
         self.assertNotIn("attest-build-provenance", self.workflow_text)
         self.assertIn("gh attestation verify", prepare)
-        self.assertIn('"${GITHUB_REPOSITORY}/.github/workflows/release.yml"', prepare)
-        self.assertIn('--source-ref "refs/heads/main"', prepare)
+        self.assertIn('"${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"', prepare)
+        self.assertIn('--source-ref "$GITHUB_REF"', prepare)
         self.assertIn('--source-digest "$GITHUB_SHA"', prepare)
 
     def test_published_tag_promotes_the_digest_the_qualified_build_pushed(self):
@@ -407,12 +412,21 @@ class ReleaseWorkflowHardeningTests(unittest.TestCase):
             prepare,
         )
         self.assertIn("--metadata-file itambox-build-metadata.json", prepare)
+        self.assertIn("mapfile -t platform_digests", prepare)
         self.assertIn(
-            'docker pull --platform linux/amd64 "${REGISTRY}/${IMAGE_NAME}@${index_digest}"',
+            'docker pull --platform linux/amd64 "${REGISTRY}/${IMAGE_NAME}@${amd64_manifest}"',
             prepare,
         )
         self.assertIn(
-            'docker tag "${REGISTRY}/${IMAGE_NAME}@${index_digest}" "itambox:${RELEASE_VERSION}"',
+            'docker pull --platform linux/arm64 "${REGISTRY}/${IMAGE_NAME}@${arm64_manifest}"',
+            prepare,
+        )
+        self.assertIn(
+            'docker tag "${REGISTRY}/${IMAGE_NAME}@${amd64_manifest}" "itambox:${RELEASE_VERSION}"',
+            prepare,
+        )
+        self.assertIn(
+            'docker tag "${REGISTRY}/${IMAGE_NAME}@${arm64_manifest}" "itambox:${RELEASE_VERSION}-arm64"',
             prepare,
         )
         self.assertIn(
@@ -436,7 +450,7 @@ class ReleaseWorkflowHardeningTests(unittest.TestCase):
             prepare.index("Build and push the reviewed release image by digest"),
         )
         self.assertLess(
-            prepare.index("Validate release image SBOM"),
+            prepare.index("Generate and validate release image SBOMs"),
             prepare.index("Promote the verified image digest to the release tag"),
         )
         self.assertLess(
@@ -489,10 +503,13 @@ class ReleaseWorkflowHardeningTests(unittest.TestCase):
     def test_registry_attestations_share_the_registry_digest_and_are_verified_before_the_release(self):
         prepare = self.jobs["prepare-release"]
 
-        self.assertEqual(prepare.count("subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"), 2)
-        self.assertEqual(prepare.count("subject-digest: ${{ steps.ghcr-image.outputs.GHCR_MANIFEST_DIGEST }}"), 2)
-        self.assertEqual(prepare.count("push-to-registry: true"), 2)
-        self.assertIn("sbom-path: itambox-${{ inputs.version }}.sbom.spdx.json", prepare)
+        self.assertEqual(prepare.count("subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"), 3)
+        self.assertEqual(prepare.count("subject-digest: ${{ steps.ghcr-image.outputs.GHCR_MANIFEST_DIGEST }}"), 1)
+        self.assertEqual(prepare.count("push-to-registry: true"), 3)
+        self.assertIn("subject-digest: ${{ steps.ghcr-image.outputs.IMAGE_MANIFEST_DIGEST_AMD64 }}", prepare)
+        self.assertIn("subject-digest: ${{ steps.ghcr-image.outputs.IMAGE_MANIFEST_DIGEST_ARM64 }}", prepare)
+        self.assertIn("sbom-path: itambox-${{ inputs.version }}-amd64.sbom.spdx.json", prepare)
+        self.assertIn("sbom-path: itambox-${{ inputs.version }}-arm64.sbom.spdx.json", prepare)
         self.assertIn("oci://${REGISTRY}/${IMAGE_NAME}@${GHCR_MANIFEST_DIGEST}", prepare)
         self.assertIn('--predicate-type "$predicate"', prepare)
         self.assertIn('"https://slsa.dev/provenance/v1"', prepare)
@@ -513,9 +530,10 @@ class ReleaseWorkflowHardeningTests(unittest.TestCase):
         verification = verification.split("Retain reviewed image candidate", 1)[0]
 
         for artifact in (
-            "itambox-${RELEASE_VERSION}.tar.gz",
-            "itambox-${RELEASE_VERSION}.tar.gz.sha256",
-            "itambox-${RELEASE_VERSION}.sbom.spdx.json",
+            "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz",
+            "itambox-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256",
+            "itambox-${RELEASE_VERSION}-amd64.sbom.spdx.json",
+            "itambox-${RELEASE_VERSION}-arm64.sbom.spdx.json",
         ):
             with self.subTest(artifact=artifact):
                 self.assertIn(artifact, verification)
