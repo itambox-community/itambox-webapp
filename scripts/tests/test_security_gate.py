@@ -603,7 +603,10 @@ class SecurityAutomationContractTests(unittest.TestCase):
         self.assertIn("id: image-gate", workflow)
         self.assertIn("steps.image-gate.outputs.sarif == 'true'", workflow)
         self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", workflow)
-        self.assertEqual(workflow.count("category: trivy-draft-image"), 2)
+        # The rehearsal upload plus one draft upload per platform all share the
+        # single category that exists on the default branch.
+        self.assertEqual(workflow.count("category: trivy-draft-image"), 3)
+        self.assertNotIn("category: trivy-draft-image-arm64", workflow)
         self.assertNotIn("category: trivy-release-image", workflow)
         upload = workflow.index("category: trivy-draft-image")
         self.assertLess(workflow.index("id: image-gate"), upload)
@@ -614,16 +617,21 @@ class SecurityAutomationContractTests(unittest.TestCase):
         prepare_release = workflow[workflow.index("prepare-release:") :]
         self.assertIn("security-events: write", prepare_release)
         self.assertIn("id: draft-image-gate", prepare_release)
-        self.assertIn("steps.draft-image-gate.outputs.sarif == 'true'", prepare_release)
+        for platform in ("amd64", "arm64"):
+            self.assertIn(f"steps.draft-image-gate.outputs.sarif_{platform} == 'true'", prepare_release)
         # Every image upload in this workflow uses the analysis identity that code
         # scanning already knows on the default branch. A second category for the
         # same image makes code scanning report "configuration not found" instead
         # of comparing the pull request against the branch.
         self.assertIn("category: trivy-draft-image", prepare_release)
+        self.assertNotIn("category: trivy-draft-image-arm64", workflow)
         self.assertNotIn("category: trivy-release-image", workflow)
-        self.assertEqual(workflow.count("category: trivy-draft-image"), 2)
+        self.assertEqual(workflow.count("category: trivy-draft-image"), 3)
+        # Both platform reports must reach code scanning before the archive
+        # step removes the local images.
+        self.assertEqual(prepare_release.count("category: trivy-draft-image"), 2)
         self.assertLess(
-            prepare_release.index("category: trivy-draft-image"),
+            prepare_release.rindex("category: trivy-draft-image"),
             prepare_release.index("docker save"),
         )
 
@@ -631,14 +639,15 @@ class SecurityAutomationContractTests(unittest.TestCase):
         workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         rehearsal = workflow[: workflow.index("prepare-release:")]
         prepare_release = workflow[workflow.index("prepare-release:") :]
-        # A code scanning configuration is the pair (tool, category). Both image
-        # scans therefore have to use the one category that already exists on the
-        # default branch; the rehearsal upload is the one the pull request run
-        # produces, and it is the upload code scanning compares against the branch.
-        self.assertEqual(workflow.count("category: trivy-draft-image"), 2)
+        # A code scanning configuration is the pair (tool, category). Every image
+        # scan therefore uses the one category that already exists on the default
+        # branch: the rehearsal upload, and both platform uploads of the release
+        # draft (which merge into that configuration instead of opening a new one).
+        self.assertEqual(workflow.count("category: trivy-draft-image"), 3)
         self.assertEqual(workflow.count("category: trivy-release-image"), 0)
+        self.assertNotIn("category: trivy-draft-image-arm64", workflow)
         self.assertIn("category: trivy-draft-image", rehearsal)
-        self.assertIn("category: trivy-draft-image", prepare_release)
+        self.assertEqual(prepare_release.count("category: trivy-draft-image"), 2)
 
     def test_installer_pins_tool_versions_and_literal_checksums(self):
         installer = (REPOSITORY_ROOT / "scripts" / "install_security_tools.sh").read_text(encoding="utf-8")

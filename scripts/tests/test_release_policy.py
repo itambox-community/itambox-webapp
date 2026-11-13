@@ -243,7 +243,7 @@ class ReleaseAutomationContractTests(unittest.TestCase):
         self.assertIn("commits/${GITHUB_SHA}/pulls", workflow)
         self.assertIn("contents: write", workflow)
         self.assertIn("pull-requests: read", workflow)
-        self.assertIn("git ls-remote --exit-code --refs origin \"refs/tags/${release_tag}\"", workflow)
+        self.assertIn('git ls-remote --exit-code --refs origin "refs/tags/${release_tag}"', workflow)
         self.assertIn('git push --porcelain origin "$GITHUB_SHA:refs/tags/v${RELEASE_VERSION}"', workflow)
         self.assertIn("verify_release_tag()", workflow)
         self.assertGreaterEqual(workflow.count("verify_release_tag"), 3)
