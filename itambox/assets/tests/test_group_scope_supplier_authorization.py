@@ -44,6 +44,7 @@ class GroupScopeSupplierAuthorizationTests(TestCase):
         self.supplier_root = Supplier.objects.create(
             name="GS Supplier Root", slug="gs-supplier-root", tenant_group=self.root
         )
+        self.supplier_global = Supplier.objects.create(name="GS Supplier Global", slug="gs-supplier-global")
 
         self.client.force_login(self.user)
         session = self.client.session
@@ -99,7 +100,9 @@ class GroupScopeSupplierAuthorizationTests(TestCase):
         # The root-shared supplier is visible from A, but updating it affects
         # tenant B as well -- bulk writes must exclude it.
         self.assertIn(self.supplier_root.pk, read_ids)
+        self.assertIn(self.supplier_global.pk, read_ids)
         self.assertNotIn(self.supplier_root.pk, write_ids)
+        self.assertNotIn(self.supplier_global.pk, write_ids)
         self.assertIn(self.supplier_a.pk, write_ids)
 
 

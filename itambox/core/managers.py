@@ -394,6 +394,8 @@ class TenantScopingQuerySet(models.QuerySet):
             return self
 
         declaration = tenant_scope_declaration(self.model)
+        if group_scope not in ("visible", "all"):
+            raise ValueError("group_scope must be 'visible' or 'all'")
         Tenant = apps.get_model("organization", "Tenant")
         get_descendant_group_ids = _descendant_group_ids
         allowed_tenant_ids = self._resolve_allowed_tenant_ids(scope, get_descendant_group_ids, Tenant)
@@ -408,9 +410,29 @@ class TenantScopingQuerySet(models.QuerySet):
             scope, declaration, allowed_tenant_ids, get_descendant_group_ids, Tenant, group_scope
         )
         if declaration.strategy == TenantScopeDeclaration.FIELD:
-            return self._scope_by_tenant_field(qs, declaration, allowed_tenant_ids)
+            qs = self._scope_by_tenant_field(qs, declaration, allowed_tenant_ids)
+        elif declaration.strategy == TenantScopeDeclaration.LOOKUP:
+            qs = self._scope_by_lookup(qs, declaration, allowed_tenant_ids)
+        if group_scope == "all":
+            qs = self._exclude_global_rows_for_write(qs, declaration)
+        return qs
+
+    @staticmethod
+    def _exclude_global_rows_for_write(qs, declaration):
+        """Strict bulk-write mode: exclude rows with no tenant or group anchor.
+
+        A fully global row is visible to every tenant, so a per-tenant write
+        grant cannot authorize changing it in a multi-tenant scope. The
+        exclusion is fail-closed and applies only to ``group_scope="all"``.
+        """
         if declaration.strategy == TenantScopeDeclaration.LOOKUP:
-            return self._scope_by_lookup(qs, declaration, allowed_tenant_ids)
+            return qs.exclude(**{f"{declaration.lookup}__isnull": True})
+        if declaration.strategy == TenantScopeDeclaration.FIELD:
+            if declaration.has_tenant_group:
+                return qs.exclude(models.Q(tenant__isnull=True) & models.Q(tenant_group__isnull=True))
+            return qs.exclude(tenant__isnull=True)
+        if declaration.has_tenant_group:
+            return qs.exclude(tenant_group__isnull=True)
         return qs
 
     def _scope_tenant_group_rows(self, scope, get_descendant_group_ids):
