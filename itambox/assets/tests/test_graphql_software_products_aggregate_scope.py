@@ -8,12 +8,15 @@ prefetched products by the software permission itself.
 """
 
 import json
+from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from assets.graphql_specifications.integration import SCOPED_SOFTWARE_ATTR
 from assets.models import Asset, AssetType, Manufacturer, StatusLabel
+from assets.schema import ManufacturerNode
 from core.tests.mixins import grant
 from organization.models import Role, Tenant
 from software.models import Software
@@ -88,3 +91,36 @@ class AggregateScopeSoftwareProductsTests(TestCase):
     def test_asset_type_root_prefetch_filters_by_software_permission(self):
         names = self._names("{ assetTypes { edges { node { manufacturer { softwareProducts { name } } } } } }")
         self.assertEqual(names, {"SwAgg A Tool"})
+
+
+class SuperuserSoftwareProductsParityTests(TestCase):
+    """A superuser holds every tenant permission without holding any role grant.
+
+    The prefetched branch must return the already-scoped rows unchanged; an
+    intersection with the (empty) grant map would hide tenant-owned software
+    while the non-prefetched resolver still returns it (#1093 follow-up).
+    """
+
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="SwSuper", slug="sw-super")
+        self.user = User.objects.create_superuser("sw_super", "sw-super@example.com", "pw")
+        self.manufacturer = Manufacturer.objects.create(name="SwSuper Mfr", slug="sw-super-mfr")
+        Software.objects.create(name="SwSuper Tenant Tool", manufacturer=self.manufacturer, tenant=self.tenant)
+        Software.objects.create(name="SwSuper Global Tool", manufacturer=self.manufacturer)
+        self.info = SimpleNamespace(context=SimpleNamespace(user=self.user))
+
+    def _names(self, *, prefetched):
+        if prefetched:
+            setattr(
+                self.manufacturer,
+                SCOPED_SOFTWARE_ATTR,
+                list(Software.objects.filter(manufacturer=self.manufacturer)),
+            )
+        return {software.name for software in ManufacturerNode.software_products(self.manufacturer, self.info)}
+
+    def test_prefetched_and_direct_results_agree_for_superuser(self):
+        direct = self._names(prefetched=False)
+        prefetched = self._names(prefetched=True)
+
+        self.assertEqual(direct, {"SwSuper Tenant Tool", "SwSuper Global Tool"})
+        self.assertEqual(prefetched, direct)

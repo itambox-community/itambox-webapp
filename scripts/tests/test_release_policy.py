@@ -16,6 +16,28 @@ from scripts.release_policy import (
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
+class MaintenanceLineTests(unittest.TestCase):
+    def test_line_is_major_minor_for_stable_and_prerelease_versions(self):
+        cases = {
+            "1.0.1": "1.0",
+            "1.0.0": "1.0",
+            "1.1.0-rc.1": "1.1",
+            "1.0.1-beta.2": "1.0",
+            "2.10.3-alpha.10": "2.10",
+        }
+
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                buffer = io.StringIO()
+                with redirect_stdout(buffer):
+                    self.assertEqual(main(["line", "--version", value]), 0)
+                self.assertEqual(buffer.getvalue().strip(), expected)
+
+    def test_line_rejects_a_version_without_a_patch_component(self):
+        with self.assertRaises(ReleasePolicyError):
+            main(["line", "--version", "1.1"])
+
+
 class VersionPolicyTests(unittest.TestCase):
     def test_dotted_prereleases_parse_and_sort_in_promotion_order(self):
         values = [
@@ -239,6 +261,8 @@ class ReleaseAutomationContractTests(unittest.TestCase):
         self.assertIn("validate-dispatch-ref:", workflow)
         self.assertIn("Release preparation runs from main or release/X.Y", workflow)
         self.assertIn("release/[0-9]", workflow)
+        self.assertIn('python scripts/release_policy.py line --version "$RELEASE_VERSION"', workflow)
+        self.assertNotIn("RELEASE_VERSION%.*}", workflow)
         self.assertNotIn("github.ref == 'refs/heads/main'", workflow)
         self.assertIn("commits/${GITHUB_SHA}/pulls", workflow)
         self.assertIn("contents: write", workflow)

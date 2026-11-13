@@ -122,6 +122,12 @@ class ManufacturerNode:
             # different grants). Filter the prefetched rows against the
             # software permission itself (#1088).
             user = request_from_info(info).user
+            if user.is_superuser:
+                # The prefetch query is already scoped for this request, and a
+                # superuser holds every tenant permission. Intersecting with a
+                # grant map would drop tenant-owned rows because a superuser
+                # needs no role grants (#1093 follow-up).
+                return list(prefetched)
             # Set-based filter against the same per-tenant permission map the
             # scoped managers use: a per-row has_perm() would issue one query
             # per software row and turn the prefetch back into an N+1 (#1088).
