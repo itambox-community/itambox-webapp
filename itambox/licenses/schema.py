@@ -77,7 +77,9 @@ class Query:
         name: str | None = None,
     ) -> list[LicenseNode | None] | None:
         check_permission(info, "licenses.view_license")
-        qs = scoped_queryset(info, License.objects).select_related(*_RELATED)
+        qs = scoped_queryset(info, License.objects, required_permission="licenses.view_license").select_related(
+            *_RELATED
+        )
         if name is not None:
             qs = qs.filter(name=name)
         if sort_by and sort_by in LICENSE_SORTABLE_FIELDS:
@@ -88,6 +90,10 @@ class Query:
     def license(self, info: strawberry.Info, id: strawberry.ID) -> LicenseNode | None:
         check_permission(info, "licenses.view_license")
         try:
-            return scoped_queryset(info, License.objects).select_related(*_RELATED).get(pk=id)
+            return (
+                scoped_queryset(info, License.objects, required_permission="licenses.view_license")
+                .select_related(*_RELATED)
+                .get(pk=id)
+            )
         except License.DoesNotExist:
             return None

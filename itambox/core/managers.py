@@ -31,7 +31,11 @@ from core.context import (  # noqa: F401 -- re-exported for existing importers
     set_current_tenant,
     set_current_tenant_group,
 )
-from core.tenant_scope import accessible_tenant_ids, get_ancestor_tenant_group_ids
+from core.tenant_scope import (
+    accessible_tenant_ids,
+    build_accessible_tenant_permissions_map,
+    get_ancestor_tenant_group_ids,
+)
 
 _AMBIENT = object()
 
@@ -341,11 +345,42 @@ class TenantScopingQuerySet(models.QuerySet):
         """
         return self.for_scope(Scope.current())
 
-    def for_scope(self, scope) -> QuerySet:
+    @staticmethod
+    def _authorized_tenant_ids(user, allowed_tenant_ids, required_permission):
+        """Narrow ``allowed_tenant_ids`` to the ones where ``user`` holds
+        ``required_permission``.
+
+        A tenant-group or "all accessible tenants" scope makes every reachable
+        tenant pass ``_resolve_allowed_tenant_ids``, but the caller may hold the
+        operation's permission in only some of them -- the ambient ``has_perm``
+        gate passes on the union, not the intersection (issue #1088). Reads
+        ``build_accessible_tenant_permissions_map``, the exact per-tenant map
+        ``MembershipBackend._effective_perms_for_tenant`` resolves from, so this
+        narrowing agrees with the gate that already let the request through.
+        Superusers and a missing user (background/system callers, which never
+        pass ``required_permission``) are unaffected.
+        """
+        if not allowed_tenant_ids or user is None or getattr(user, "is_superuser", False):
+            return allowed_tenant_ids
+        permission_map = build_accessible_tenant_permissions_map(user)
+        empty_perms = frozenset()
+        return [
+            tenant_id
+            for tenant_id in allowed_tenant_ids
+            if required_permission in permission_map.get(tenant_id, (empty_perms,))[0]
+        ]
+
+    def for_scope(self, scope, required_permission=None) -> QuerySet:
         """Scope this queryset to an explicit ``Scope`` value.
 
         The per-model behaviour comes from the model's scoping declaration
         (``tenant_scope_declaration``), never from the model's name.
+
+        ``required_permission`` additionally narrows the allowed tenant set to
+        those where ``scope.user`` holds that permission (see
+        ``_authorized_tenant_ids``). Callers that already evaluated the
+        operation's permission per-tenant (or that never widen past a single
+        authorized tenant) can leave it ``None``.
         """
         if scope.kind == Scope.DENIED:
             # Fail closed: an authenticated, non-superuser principal with no
@@ -360,6 +395,8 @@ class TenantScopingQuerySet(models.QuerySet):
         Tenant = apps.get_model("organization", "Tenant")
         get_descendant_group_ids = _descendant_group_ids
         allowed_tenant_ids = self._resolve_allowed_tenant_ids(scope, get_descendant_group_ids, Tenant)
+        if required_permission is not None:
+            allowed_tenant_ids = self._authorized_tenant_ids(scope.user, allowed_tenant_ids, required_permission)
         if declaration.strategy == TenantScopeDeclaration.SELF_TENANT:
             return self.filter(pk__in=allowed_tenant_ids)
         if declaration.strategy == TenantScopeDeclaration.SELF_GROUP:

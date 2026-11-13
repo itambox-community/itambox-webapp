@@ -123,7 +123,7 @@ class Query:
         check_permission(info, "subscriptions.view_subscription")
         # TenantScopingSoftDeleteManager handles tenant scoping and active filtering.
         qs = (
-            scoped_queryset(info, Subscription.objects)
+            scoped_queryset(info, Subscription.objects, required_permission="subscriptions.view_subscription")
             .select_related("supplier", "linked_contract", "tenant", "owner")
             .all()
         )
@@ -139,7 +139,7 @@ class Query:
         check_permission(info, "subscriptions.view_subscription")
         try:
             return (
-                scoped_queryset(info, Subscription.objects)
+                scoped_queryset(info, Subscription.objects, required_permission="subscriptions.view_subscription")
                 .select_related("supplier", "linked_contract", "tenant", "owner")
                 .get(pk=id)
             )
@@ -156,7 +156,9 @@ class Query:
     ) -> list[SubscriptionAssignmentNode | None] | None:
         check_permission(info, "subscriptions.view_subscriptionassignment")
         # SubscriptionAssignment has no direct tenant field, scope via its subscription
-        qs = scoped_queryset(info, SubscriptionAssignment.objects).select_related(*_ASSIGNMENT_RELATED)
+        qs = scoped_queryset(
+            info, SubscriptionAssignment.objects, required_permission="subscriptions.view_subscriptionassignment"
+        ).select_related(*_ASSIGNMENT_RELATED)
         if subscription_id is not None:
             qs = qs.filter(subscription_id=subscription_id)
         return list(paginate_queryset(qs, limit, offset))
@@ -165,6 +167,14 @@ class Query:
     def subscription_assignment(self, info: strawberry.Info, id: strawberry.ID) -> SubscriptionAssignmentNode | None:
         check_permission(info, "subscriptions.view_subscriptionassignment")
         try:
-            return scoped_queryset(info, SubscriptionAssignment.objects).select_related(*_ASSIGNMENT_RELATED).get(pk=id)
+            return (
+                scoped_queryset(
+                    info,
+                    SubscriptionAssignment.objects,
+                    required_permission="subscriptions.view_subscriptionassignment",
+                )
+                .select_related(*_ASSIGNMENT_RELATED)
+                .get(pk=id)
+            )
         except SubscriptionAssignment.DoesNotExist:
             return None

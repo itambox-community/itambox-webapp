@@ -50,9 +50,16 @@ def read_scope_from_info(info):
     return Scope.current()
 
 
-def scoped_queryset(info, queryset):
-    """Narrow ``queryset`` (a manager or queryset) to the request's read scope."""
-    return queryset.for_scope(read_scope_from_info(info))
+def scoped_queryset(info, queryset, required_permission=None):
+    """Narrow ``queryset`` (a manager or queryset) to the request's read scope.
+
+    ``required_permission`` additionally narrows to the tenants where the
+    caller holds that permission: under a tenant-group/all-accessible scope a
+    tenant can be reachable without being authorized for this operation, and
+    ``for_scope`` alone does not know the permission a resolver already
+    checked via ``check_permission`` (issue #1088).
+    """
+    return queryset.for_scope(read_scope_from_info(info), required_permission=required_permission)
 
 
 def requested_selector_from_scope(scope):

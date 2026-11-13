@@ -61,7 +61,11 @@ class Query:
         version: str | None = None,
     ) -> list[SoftwareNode | None] | None:
         check_permission(info, "software.view_software")
-        qs = scoped_queryset(info, Software.objects).select_related("manufacturer").all()
+        qs = (
+            scoped_queryset(info, Software.objects, required_permission="software.view_software")
+            .select_related("manufacturer")
+            .all()
+        )
         for key, val in (("name", name), ("version", version)):
             if val is not None:
                 qs = qs.filter(**{key: val})
@@ -73,6 +77,10 @@ class Query:
     def software(self, info: strawberry.Info, id: strawberry.ID) -> SoftwareNode | None:
         check_permission(info, "software.view_software")
         try:
-            return scoped_queryset(info, Software.objects).select_related("manufacturer").get(pk=id)
+            return (
+                scoped_queryset(info, Software.objects, required_permission="software.view_software")
+                .select_related("manufacturer")
+                .get(pk=id)
+            )
         except Software.DoesNotExist:
             return None
