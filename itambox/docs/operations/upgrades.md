@@ -79,18 +79,30 @@ volumes:
   pgdata18:
 ```
 
+Reference that override for **every** Compose command from this point on. The
+reliable way is to export `COMPOSE_FILE`, which makes a bare `docker compose`
+resolve both files:
+
 ```bash
+export COMPOSE_FILE=docker-compose.yml:compose.pg18-volume.yml
+docker compose config | grep -A1 'source: pgdata18'   # guard: must print pgdata18
 docker compose stop db
-docker compose -f docker-compose.yml -f compose.pg18-volume.yml up -d db
-docker compose -f docker-compose.yml -f compose.pg18-volume.yml ps db
+docker compose up -d db
+docker compose ps db
 ```
+
+Without that reference Compose falls back to the checked-in file, which mounts
+`pgdata`. PostgreSQL 18 then initializes a second, empty cluster on `pgdata`, the
+container reports healthy, and the dump below is restored into a cluster the
+stack is not using. Re-run `docker compose config` before any start and confirm
+that the `db` volume resolves to `pgdata18`.
 
 Wait for the container to report healthy before restoring. The database and role
 exist but hold no application objects yet, so restore without ownership and
 privilege replay:
 
 ```bash
-docker compose -f docker-compose.yml -f compose.pg18-volume.yml exec -T db \
+docker compose exec -T db \
   sh -c 'pg_restore -U "$POSTGRES_USER" --dbname="$POSTGRES_DB" --no-owner --no-privileges' \
   < pre18-app.dump
 ```
@@ -102,65 +114,130 @@ created from `.env`. Restoring that file wholesale is only correct into a cluste
 whose globals were not initialized from the same values.
 
 After the restore, start the application and complete the verification below.
+Keep `COMPOSE_FILE` exported for those commands as well.
 
-### Path B: `pg_upgrade` (faster, needs the 16 binaries)
+### Permanent operation on the 18 volume
 
-`pg_upgrade` rewrites the physical layout instead of replaying SQL, so it is much
-faster on a large database, but it requires the PostgreSQL 16 binaries next to
-the 18 ones and a hard stop of both clusters. It also requires the old cluster to
-be shut down cleanly, so stop the stack first:
+The override is not a one-off for the migration window. Every later `docker
+compose` invocation for this deployment must resolve it, otherwise the stack
+starts on `pgdata` and ignores the migrated cluster. Put the setting in the
+deployment `.env` next to the database credentials, which Compose already reads
+for its own configuration:
+
+```dotenv
+COMPOSE_FILE=docker-compose.yml:compose.pg18-volume.yml
+```
+
+Keep `compose.pg18-volume.yml` beside `docker-compose.yml` for the lifetime of
+the deployment. The checked-in file keeps describing the fresh-install layout;
+the override only names this deployment's volume. If the stack is started by a
+wrapper script, a systemd unit or CI, set `COMPOSE_FILE` there instead of relying
+on an interactive shell. Removing the override later does not migrate anything
+back: the 18 image would initialize an empty cluster on `pgdata` on the next
+start.
+
+### Path B: `pg_upgrade` (faster, needs the 16 binaries and share files)
+
+`pg_upgrade` rewrites the physical layout instead of replaying SQL. It is much
+faster on a large database, but it has more prerequisites than Path A, and it
+stops before writing anything if one of them is wrong:
+
+- the PostgreSQL 16 binaries **and** the matching `/usr/share/postgresql/16`
+  tree; the server does not start without its `.bki` and locale files,
+- a new 18 cluster initialized with the same locale, encoding and data-checksum
+  setting as the 16 cluster,
+- a **writable copy** of the 16 data directory. `pg_upgrade` starts the old
+  server, which writes `postmaster.pid` into its data directory; a read-only
+  mount fails with "could not connect to source postmaster".
+
+The original 16 volume stays untouched and remains the rollback. Adjust every
+volume name below to the deployment's actual names (`docker volume ls`).
+
+Record the old cluster's settings first, while the 16 stack is still running:
+
+```bash
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -Atc \
+  "select datcollate, datctype, pg_encoding_to_char(encoding) from pg_database where datname = current_database()"'
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -Atc "show data_checksums"'
+```
+
+The bundled 16 cluster reports `off` for `data_checksums`, while the 18 image
+enables checksums by default. A mismatch aborts the check with "old cluster does
+not use data checksums but the new one does", so initialize the target with
+`--no-data-checksums` unless the recorded value is `on`.
+
+Stop the stack and extract both 16 trees from the pinned image:
 
 ```bash
 docker compose stop app worker db
+
+docker create --name pg16-tree postgres:16@sha256:<previous-16-index-digest> true
+mkdir -p pg16/lib pg16/share
+docker cp pg16-tree:/usr/lib/postgresql/16/. pg16/lib/
+docker cp pg16-tree:/usr/share/postgresql/16/. pg16/share/
+docker rm pg16-tree
 ```
 
-Extract the 16 binaries from the pinned 16 image and mount the 16 volume at its
-own path, separate from the new 18 volume, so neither cluster writes into the
-other's directory:
+Create and initialize the 18 volume, repeating the recorded locale and encoding:
 
 ```bash
-docker create --name pg16-bins postgres:16@sha256:<previous-16-index-digest> true
-docker cp pg16-bins:/usr/lib/postgresql/16 ./pg16-binaries
-docker rm pg16-bins
-```
-
-Then run the upgrade from the 18 image with the 16 binaries mounted read-only,
-the old volume at `/var/lib/postgresql/16/data` and the new volume at
-`/var/lib/postgresql`:
-
-```bash
-docker run --rm -it \
-  -e PGPASSWORD="${ITAMBOX_DB_PASSWORD:?set ITAMBOX_DB_PASSWORD}" \
-  -e POSTGRES_USER="${ITAMBOX_DB_USER:-itambox}" \
-  -v itambox_pgdata:/var/lib/postgresql/16/data:ro \
-  -v itambox_pgdata18:/var/lib/postgresql \
-  -v "$PWD/pg16-binaries:/usr/lib/postgresql/16:ro" \
+docker volume create itambox_pgdata18
+docker run --rm -v itambox_pgdata18:/var/lib/postgresql \
   postgres:18@sha256:<current-18-index-digest> \
-  bash -c 'pg_upgrade \
+  bash -c 'chown -R postgres:postgres /var/lib/postgresql && gosu postgres initdb \
+    -D /var/lib/postgresql/18/docker -U itambox \
+    --locale=en_US.utf8 --encoding=UTF8 --no-data-checksums \
+    --auth-local=trust --auth-host=scram-sha-256'
+```
+
+Copy the 16 data directory into a writable working volume. Size it like the old
+volume: the copy doubles the space requirement for the duration of the upgrade.
+
+```bash
+docker volume create itambox_pg16work
+docker run --rm -v itambox_pgdata:/old:ro -v itambox_pg16work:/work \
+  postgres:18@sha256:<current-18-index-digest> \
+  bash -c 'cp -a /old/. /work/ && chown -R postgres:postgres /work'
+```
+
+Run the compatibility check first, then the same command without `--check`:
+
+```bash
+docker run --rm -e PGPASSWORD="${ITAMBOX_DB_PASSWORD:?set ITAMBOX_DB_PASSWORD}" \
+  -v itambox_pg16work:/var/lib/postgresql/16/data \
+  -v itambox_pgdata18:/var/lib/postgresql \
+  -v "$PWD/pg16/lib:/usr/lib/postgresql/16:ro" \
+  -v "$PWD/pg16/share:/usr/share/postgresql/16:ro" \
+  postgres:18@sha256:<current-18-index-digest> \
+  bash -c 'cd /tmp && gosu postgres pg_upgrade \
     --old-bindir=/usr/lib/postgresql/16/bin \
     --new-bindir=/usr/lib/postgresql/18/bin \
     --old-datadir=/var/lib/postgresql/16/data \
     --new-datadir=/var/lib/postgresql/18/docker \
     --old-port=5433 --new-port=5434 \
-    --username="$POSTGRES_USER" --check'
+    --username=itambox --check'
 ```
 
-Adjust the volume names to the actual Docker volume names of the deployment
-(`docker volume ls`), and run the same command without `--check` once the check
-passes. `pg_upgrade` starts both clusters itself on the ports given, so nothing
-else may listen there, and it needs the application role's password for the
-connection check, which the environment above supplies from `.env`. The 16 volume
-is mounted read-only on purpose: with `--copy` nothing is written to the old
-cluster. Use `--copy` rather than `--link` unless the old cluster may be
-destroyed: `--link` hard-links the files and leaves the 16 cluster unusable,
-which removes the fast rollback. `pg_upgrade` also prints a list of post-upgrade
-steps; the statistics refresh (`vacuumdb --all --analyze-in-stages`) is optional
-for a correctness check but recommended before normal traffic.
+`pg_upgrade` starts and stops both clusters itself, so nothing else may listen on
+5433 and 5434. It copies by default; `--link` hard-links the files, makes the 16
+cluster unusable and removes the fast rollback. The generated
+`delete_old_cluster.sh` deletes the working copy, so do not run it while the
+original 16 volume is still the rollback.
 
-Because the 16 volume is mounted at `/var/lib/postgresql/16/data`, the default
-Compose file (which mounts it at `/var/lib/postgresql`) must not be used for this
-path. Run the upgrade with an override that mounts both volumes, and only switch
-back to the checked-in file after the 18 cluster has been verified.
+The upgraded cluster lives at `/var/lib/postgresql/18/docker`, which is exactly
+what the `pgdata18:/var/lib/postgresql` mount expects. Start it through the same
+`COMPOSE_FILE` override used by Path A, run the statistics refresh the tool
+printed, and complete the verification below:
+
+```bash
+export COMPOSE_FILE=docker-compose.yml:compose.pg18-volume.yml
+docker compose up -d db
+docker compose exec -T db vacuumdb -U itambox --all --analyze-in-stages
+```
+
+Path B has no Compose-level rollback to the 16 cluster: drop the 18 volume
+(`docker volume rm itambox_pgdata18`) and unset `COMPOSE_FILE` before restarting
+the 16 stack.
 
 ### Verification on the 18 cluster
 
@@ -180,7 +257,9 @@ SELECT count(*) FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::r
 SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 10;
 ```
 
-At the application level, from the checkout that matches the 18 stack:
+At the application level, from the checkout that matches the 18 stack. These
+commands assume `COMPOSE_FILE` still resolves the override (exported in Path A,
+or set in `.env`); confirm with `docker compose config` first:
 
 ```bash
 docker compose run --rm app python manage.py migration_baseline_preflight --format=json
@@ -198,19 +277,36 @@ reservation before you drop the 16 volume.
 
 The 16 volume and the 16 image reference recorded in pre-flight are the rollback
 source. Because Path A and Path B both wrote only to the new 18 volume, rollback
-is a compose file change plus a restart:
+is a second override plus a restart, and it never touches the 18 cluster:
 
 ```bash
+cat > compose.pg16-rollback.yml <<'YAML'
+services:
+  db:
+    image: postgres:16@sha256:<previous-16-index-digest>
+    volumes: !override
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+YAML
+
 docker compose stop app worker db
-git checkout <pre-upgrade-revision> -- docker-compose.yml
+export COMPOSE_FILE=docker-compose.yml:compose.pg16-rollback.yml
 docker compose up -d
 ```
 
+Replace the `COMPOSE_FILE` line in `.env` with the rollback value (or remove it
+and export it in the shell) so later starts do not drift back to the 18 cluster.
+If the upgrade also applied new migrations, restore the pre-upgrade application
+revision as well; a schema that the old application does not know is not rolled
+back by the volume switch.
+
 Do not point the 16 image at the new volume: the 16 image expects its cluster at
 `/var/lib/postgresql/data`, so on the 18 mount it would initialize a second empty
-cluster inside the 18 volume and report healthy. If the old compose file is no
-longer available, restore the pre-upgrade backup instead and treat the 18 cluster
-as lost.
+cluster inside the 18 volume and report healthy. If the 16 volume or image
+reference is lost, restore the pre-upgrade backup instead and treat the 18
+cluster as lost.
 
 Keep the 16 volume until the 18 deployment has served normal traffic for a
 release cycle; deleting it is the point at which the upgrade stops being

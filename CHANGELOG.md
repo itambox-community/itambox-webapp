@@ -6,6 +6,10 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- The PostgreSQL 16 to 18 runbook now keeps `compose.pg18-volume.yml` referenced for every Compose command after the switch, documents `COMPOSE_FILE` for permanent operation, and replaces the `pg_upgrade` steps with a sequence verified on a PostgreSQL 16 cluster: extracted 16 binaries and share files, a target cluster initialized with matching data checksums, and a writable copy of the old data directory.
+
 ## [1.0.0] - 2026-11-12
 
 ITAMbox 1.0.0 is the first stable release. The 1.0 feature scope is complete; the documented stable API surface stays compatible within 1.x, while capabilities marked **Beta** may still change in minor releases. Follow the [upgrade guide](itambox/docs/operations/upgrades.md), keep a tested backup, and run the migrations for your target revision.
