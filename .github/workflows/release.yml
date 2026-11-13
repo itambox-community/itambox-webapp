@@ -465,7 +465,12 @@ jobs:
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           sarif_file: ${{ runner.temp }}/trivy-image-arm64.sarif
-          category: trivy-draft-image-arm64
+          # Code scanning identifies an analysis by tool and category, and only
+          # the categories that exist on the default branch can be compared.
+          # Both platform reports therefore upload under the one existing
+          # configuration instead of opening an architecture-specific one that
+          # would report "configuration not found".
+          category: trivy-draft-image
 
       - name: Enforce draft-image gate
         if: always()
