@@ -1,3 +1,4 @@
+import re
 from datetime import date
 
 from django.test import TestCase
@@ -19,6 +20,12 @@ HEADER = (
     "asset_tag,maintenance_type,status,start_date,completion_date,supplier,performed_by,cost,currency,description,notes"
 )
 IMPORT_PERMISSION = "assets.add_assetmaintenance"
+
+
+def _preview_id(response):
+    match = re.search(rb'name="preview_id" value="([0-9a-f]{32})"', response.content)
+    assert match is not None, "preview response has no preview_id"
+    return match.group(1).decode()
 
 
 class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
@@ -395,7 +402,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         )
         self.assertEqual(preview.status_code, 200)
         self.assertContains(preview, "TAG-A")
-        confirmed = self.client.post(url, {"_confirm": "1"})
+        confirmed = self.client.post(url, {"_confirm": "1", "preview_id": _preview_id(preview)})
         self.assertEqual(confirmed.status_code, 302)
         created = AssetMaintenance.all_objects.get(asset=self.asset)
         self.assertEqual(created.status, "completed")
@@ -417,7 +424,7 @@ class AssetMaintenanceImportTests(TenantTestMixin, TestCase):
         )
         self.assertEqual(duplicate_preview.status_code, 200)
         self.assertContains(duplicate_preview, "Row 2: record already exists; skipped.")
-        self.client.post(url, {"_confirm": "1"})
+        self.client.post(url, {"_confirm": "1", "preview_id": _preview_id(duplicate_preview)})
         jobs = list(Job.objects.order_by("pk"))
         self.assertEqual(len(jobs), 2)
         self.assertEqual(jobs[1].result, {"imported": 0, "failed": 0, "total": 1, "skipped": 1})

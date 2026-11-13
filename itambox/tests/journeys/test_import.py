@@ -1,5 +1,6 @@
 """Import journeys: import never mutates beyond the role's grants and never writes lifecycle rows."""
 
+import re
 from unittest.mock import patch
 
 from django.apps import apps
@@ -36,7 +37,11 @@ class ImportJourneyTests(JourneyMixin, TestCase):
             "delimiter": ",",
         }
         preview = self.client.post(url, {**payload, "_preview": "1"})
-        confirm = self.client.post(url, {"_confirm": "1"})
+        match = re.search(rb'name="preview_id" value="([0-9a-f]{32})"', preview.content)
+        confirm_payload = {"_confirm": "1"}
+        if match:
+            confirm_payload["preview_id"] = match.group(1).decode()
+        confirm = self.client.post(url, confirm_payload)
         return preview, confirm
 
     def test_customer_add_assettype_grant_cannot_preview_or_confirm_csv_or_yaml(self):

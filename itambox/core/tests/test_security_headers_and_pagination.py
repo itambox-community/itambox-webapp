@@ -4,7 +4,7 @@ from pathlib import Path
 
 import django_filters
 from django.http import HttpResponse
-from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from model_bakery import baker
 from rest_framework.test import APIRequestFactory
 
@@ -31,6 +31,16 @@ class EnhancedPaginatorTests(SimpleTestCase):
         paginator = EnhancedPaginator(range(100), 10)
 
         self.assertEqual(paginator.page(5).smart_pages(), [1, False, 3, 4, 5, 6, 7, False, 10])
+
+    @override_settings(ITAMBOX_PAGINATOR_COUNT_CAP=100)
+    def test_last_page_counts_exactly_beyond_the_former_cap(self):
+        paginator = EnhancedPaginator(range(123), 25)
+
+        self.assertEqual(paginator.count, 123)
+        self.assertEqual(paginator.num_pages, 5)
+        page = paginator.page(5)
+        self.assertEqual(page.start_index(), 101)
+        self.assertEqual(page.end_index(), 123)
 
 
 class MitigationsPhase2Tests(TestCase):

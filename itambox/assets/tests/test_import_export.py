@@ -1,3 +1,5 @@
+import re
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -8,6 +10,12 @@ from assets.models import Asset
 from core.models import Job
 
 User = get_user_model()
+
+
+def _preview_id(response):
+    match = re.search(rb'name="preview_id" value="([0-9a-f]{32})"', response.content)
+    assert match is not None, "preview response has no preview_id"
+    return match.group(1).decode()
 
 
 class ImportExportPermissionTestCase(TestCase):
@@ -88,6 +96,11 @@ class ImportExportPermissionTestCase(TestCase):
 
 
 class AdvancedImportExportTestCase(TestCase):
+    def _confirm(self, url):
+        previews = self.client.session.get("import_previews", {})
+        preview_id = next(reversed(previews))
+        return self.client.post(url, {"_confirm": "1", "preview_id": preview_id})
+
     def setUp(self):
         self.admin = User.objects.create_user(
             username="adminuser", password="password123", is_staff=True, is_superuser=True
@@ -169,7 +182,7 @@ class AdvancedImportExportTestCase(TestCase):
         self.assertContains(response, "Asset Gamma")
         self.assertContains(response, "TAG-003")
 
-        response = self.client.post(import_url, {"_confirm": "1"})
+        response = self._confirm(import_url)
         self.assertEqual(response.status_code, 302)
         self.assertIn("/jobs/", response.url)
 
@@ -192,7 +205,7 @@ Asset Delta,TAG-004,{self.status.pk},{self.asset_type.pk}"""
         self.assertContains(response, "Asset Delta")
         self.assertContains(response, "TAG-004")
 
-        response = self.client.post(import_url, {"_confirm": "1"})
+        response = self._confirm(import_url)
         self.assertEqual(response.status_code, 302)
         self.assertIn("/jobs/", response.url)
 
@@ -217,7 +230,7 @@ Asset Delta,TAG-004,{self.status.pk},{self.asset_type.pk}"""
         self.assertContains(response, "Asset Epsilon")
         self.assertContains(response, "TAG-005")
 
-        response = self.client.post(import_url, {"_confirm": "1"})
+        response = self._confirm(import_url)
         self.assertEqual(response.status_code, 302)
         self.assertIn("/jobs/", response.url)
         self.assertTrue(Asset.objects.filter(asset_tag="TAG-005").exists())
@@ -238,11 +251,12 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
             },
         )
         self.assertEqual(response.status_code, 200)
-        rows = self.client.session["import_rows"]
+        preview = next(reversed(self.client.session["import_previews"].values()))
+        rows = preview["rows"]
 
         with patch("itambox.views.generic.import_.async_task") as before_commit:
             with self.captureOnCommitCallbacks(execute=False) as callbacks:
-                response = self.client.post(import_url, {"_confirm": "1"})
+                response = self._confirm(import_url)
             self.assertEqual(response.status_code, 302)
             self.assertEqual(len(callbacks), 1)
             before_commit.assert_not_called()
@@ -261,6 +275,160 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
             tenant_id=None,
         )
 
+    def test_confirm_imports_the_preview_it_names_not_the_latest(self):
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+
+        def preview(tag):
+            response = self.client.post(
+                import_url,
+                {
+                    "active_tab": "editor",
+                    "import_format": "csv",
+                    "delimiter": ",",
+                    "import_text": f"name,asset_tag\nAsset {tag},{tag}",
+                    "_preview": "1",
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            return _preview_id(response)
+
+        first_id = preview("TAG-FIRST")
+        second_id = preview("TAG-SECOND")
+
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": first_id})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Asset.objects.filter(asset_tag="TAG-FIRST").exists())
+        self.assertFalse(Asset.objects.filter(asset_tag="TAG-SECOND").exists())
+
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": second_id})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Asset.objects.filter(asset_tag="TAG-SECOND").exists())
+
+    def test_a_preview_can_be_confirmed_only_once(self):
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        response = self.client.post(
+            import_url,
+            {
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "import_text": "name,asset_tag\nAsset Once,TAG-ONCE",
+                "_preview": "1",
+            },
+        )
+        preview_id = _preview_id(response)
+
+        self.assertEqual(self.client.post(import_url, {"_confirm": "1", "preview_id": preview_id}).status_code, 302)
+        jobs = Job.objects.count()
+
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": preview_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Job.objects.count(), jobs)
+
+    def test_a_preview_bound_to_another_workspace_is_refused(self):
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        response = self.client.post(
+            import_url,
+            {
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "import_text": "name,asset_tag\nAsset Tenant,TAG-TENANT",
+                "_preview": "1",
+            },
+        )
+        preview_id = _preview_id(response)
+
+        # The preview belongs to the workspace that is active while confirming;
+        # switching workspaces in another tab must not import into the new one.
+        with patch(
+            "itambox.views.generic.import_.get_current_tenant",
+            return_value=SimpleNamespace(pk=999_999),
+        ):
+            response = self.client.post(import_url, {"_confirm": "1", "preview_id": preview_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Job.objects.count(), 0)
+        self.assertFalse(Asset.objects.filter(asset_tag="TAG-TENANT").exists())
+
+    def test_a_preview_bound_to_another_user_is_refused(self):
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        stolen = {
+            "rows": [{"name": "Stolen"}],
+            "user_id": 999_999,
+            "tenant_id": None,
+            "app_label": "assets",
+            "model_name": "asset",
+        }
+        with patch("itambox.views.generic.import_._pop_import_preview", return_value=stolen):
+            response = self.client.post(import_url, {"_confirm": "1", "preview_id": "irrelevant"})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Job.objects.count(), 0)
+
+    def test_a_preview_bound_to_another_model_is_refused(self):
+        asset_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        preview = self.client.post(
+            asset_url,
+            {
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "import_text": "name,asset_tag\nAsset Model,TAG-MODEL",
+                "_preview": "1",
+            },
+        )
+        preview_id = _preview_id(preview)
+        other_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "manufacturer"})
+
+        response = self.client.post(other_url, {"_confirm": "1", "preview_id": preview_id})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Job.objects.count(), 0)
+
+    def test_only_the_newest_previews_are_kept(self):
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+
+        def preview(tag):
+            response = self.client.post(
+                import_url,
+                {
+                    "active_tab": "editor",
+                    "import_format": "csv",
+                    "delimiter": ",",
+                    "import_text": f"name,asset_tag\nAsset {tag},{tag}",
+                    "_preview": "1",
+                },
+            )
+            return _preview_id(response)
+
+        ids = [preview(f"TAG-{index}") for index in range(4)]
+
+        # The store keeps three previews; the oldest one has been evicted.
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": ids[0]})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Job.objects.count(), 0)
+
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": ids[-1]})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Job.objects.count(), 1)
+
+    def test_a_broken_preview_store_is_ignored(self):
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        self.client.session["import_previews"] = []
+        self.client.session.save()
+
+        response = self.client.post(
+            import_url,
+            {
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "import_text": "name,asset_tag\nAsset Reset,TAG-RESET",
+                "_preview": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        preview_id = _preview_id(response)
+        self.assertEqual(self.client.post(import_url, {"_confirm": "1", "preview_id": preview_id}).status_code, 302)
+
     def _run_import(self, text, import_format="csv"):
         import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
         payload = {"active_tab": "editor", "import_format": import_format, "import_text": text, "_preview": "1"}
@@ -268,7 +436,7 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
             payload["delimiter"] = ","
         response = self.client.post(import_url, payload)
         self.assertEqual(response.status_code, 200)
-        response = self.client.post(import_url, {"_confirm": "1"})
+        response = self._confirm(import_url)
         self.assertEqual(response.status_code, 302)
         self.assertIn("/jobs/", response.url)
 

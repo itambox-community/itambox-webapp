@@ -9,6 +9,9 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - The PostgreSQL 16 to 18 runbook now keeps `compose.pg18-volume.yml` referenced for every Compose command after the switch, documents `COMPOSE_FILE` for permanent operation, and replaces the `pg_upgrade` steps with a sequence verified on a PostgreSQL 16 cluster: extracted 16 binaries and share files, a target cluster initialized with matching data checksums, and a writable copy of the old data directory.
+- Bulk import: every preview is stored under its own single-use id and bound to the user, the workspace and the target model. Confirming imports the rows of the preview that was named, and only in the workspace that produced it, so two tabs or a workspace switch can no longer import the wrong file or the wrong tenant.
+- Bulk import: a failure while creating the completion notification no longer marks a committed import as failed, so the operator is not prompted to retry a write that already happened.
+- List pagination counts rows exactly, so the last page reports consistent bounds (for example "Showing 101-123 of 123") instead of clamping to a former count cap. The REST paginator keeps `ITAMBOX_PAGINATOR_COUNT_CAP`.
 
 ## [1.0.0] - 2026-11-12
 

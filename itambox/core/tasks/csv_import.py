@@ -70,6 +70,43 @@ def _log_updated(job, form):
     return updated
 
 
+def _safe_notify(*, user, subject, message, level, job):
+    """Create a notification without letting its failure change the job outcome."""
+    try:
+        Notification.objects.create(
+            user=user,
+            subject=subject,
+            message=message,
+            level=level,
+            target_url=reverse_job_detail(job.pk),
+        )
+    except Exception as exc:
+        # broad except: task-isolation: the notification is not part of the import
+        # result. Log the type only; the message may carry customer data.
+        logger.error(
+            "Import notification could not be created job_id=%s exception_type=%s",
+            job.pk,
+            type(exc).__name__,
+        )
+
+
+def _record_task_failure(job, user):
+    """Keep a committed import completed; otherwise mark the job failed."""
+    if job.status == Job.STATUS_COMPLETED:
+        # The data is committed; a later failure must not report the import as
+        # failed and provoke a duplicate retry.
+        logger.error("Import failed after completion; keeping job %s completed", job.pk)
+    else:
+        job.mark_failed(IMPORT_ABORT_MESSAGE)
+    _safe_notify(
+        user=user,
+        subject=_("Bulk Import Error"),
+        message=_("A system error occurred during the import. View job logs for details."),
+        level=Notification.LEVEL_DANGER,
+        job=job,
+    )
+
+
 def _fail_job_after_setup_error(job_id, user_id, tenant_id, exc):
     """Fail the pending job and notify the actor when TaskContext setup was refused."""
     extra = _task_log_extra(
@@ -90,12 +127,12 @@ def _fail_job_after_setup_error(job_id, user_id, tenant_id, exc):
     actor = get_user_model()._base_manager.filter(pk=user_id, is_active=True).first()
     if actor is None:
         return
-    Notification.objects.create(
+    _safe_notify(
         user=actor,
         subject=_("Bulk Import Error"),
         message=_("A system error occurred during the import. View job logs for details."),
         level=Notification.LEVEL_DANGER,
-        target_url=reverse_job_detail(job.pk),
+        job=job,
     )
 
 
@@ -187,13 +224,13 @@ def import_csv_task(
 
                     if imported_count == 0 and not updated:
                         job.mark_failed("All records failed to import due to validation errors.")
-                        Notification.objects.create(
+                        _safe_notify(
                             user=ctx.user,
                             subject=_("Bulk Import Failed"),
                             message=_("Failed to import CSV/YAML data to %(model)s. View job logs for details.")
                             % {"model": model._meta.verbose_name_plural},
                             level=Notification.LEVEL_DANGER,
-                            target_url=reverse_job_detail(job.pk),
+                            job=job,
                         )
                         return
 
@@ -202,7 +239,7 @@ def import_csv_task(
                 result.update({"updated": len(updated)} if updated else {})
                 job.mark_completed(result=result)
 
-                Notification.objects.create(
+                _safe_notify(
                     user=ctx.user,
                     subject=_("Bulk Import Complete"),
                     message=ngettext(
@@ -212,7 +249,7 @@ def import_csv_task(
                     )
                     % {"count": imported_count, "model": model._meta.verbose_name_plural},
                     level=Notification.LEVEL_SUCCESS,
-                    target_url=reverse_job_detail(job.pk),
+                    job=job,
                 )
 
             except Exception as exc:
@@ -224,14 +261,7 @@ def import_csv_task(
                     exception_type=type(exc).__name__,
                 )
                 logger.error("Asynchronous import aborted import_context=%s", extra["import_context"], extra=extra)
-                job.mark_failed(IMPORT_ABORT_MESSAGE)
-                Notification.objects.create(
-                    user=ctx.user,
-                    subject=_("Bulk Import Error"),
-                    message=_("A system error occurred during the import. View job logs for details."),
-                    level=Notification.LEVEL_DANGER,
-                    target_url=reverse_job_detail(job.pk),
-                )
+                _record_task_failure(job, ctx.user)
         except Exception as exc:
             # broad except: cleanup-reraise: record safe task context before worker-level propagation
             extra = _task_log_extra(
