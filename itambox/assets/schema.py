@@ -10,7 +10,7 @@ from graphql import GraphQLError
 from assets.services.specifications._command_support import load_prospective_definition
 from core.graphql_choice_enums import choice_enum
 from core.graphql_scalars import JSONString
-from core.graphql_utils import paginate_queryset, read_scope_from_info, requested_selector_from_scope
+from core.graphql_utils import paginate_queryset, read_scope_from_info, requested_selector_from_scope, scoped_relation
 from core.managers import Scope
 from organization.models import Location, Tenant
 
@@ -251,9 +251,10 @@ class AssetNode:
 
     @strawberry.field
     def supplier(self, info: strawberry.Info) -> SupplierNode | None:
-        if not has_global_permission(info, "assets.view_supplier"):
-            return None
-        return self.supplier
+        # Supplier is tenant-scoped (optionally global); re-check the
+        # permission against ITS tenant, not just ambiently -- an Asset in A
+        # can reference a Supplier in B (#1088).
+        return scoped_relation(info, self.supplier, "assets.view_supplier")
 
     @strawberry.field
     def asset_type(self, info: strawberry.Info) -> AssetTypeNode | None:

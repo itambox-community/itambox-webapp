@@ -60,11 +60,27 @@ def _is_export_value_redacted(field_name, value):
 
 
 def _scoped_export_base(request, model, policy):
-    """Rows the requester may see under the model's declared export scope."""
+    """Rows the requester may see under the model's declared export scope.
+
+    ``view_<model>`` is the permission that governs tenant-readable rows for
+    every scope here: it is always the first (and tenant-scoping-relevant)
+    entry `required_export_permissions` demands, and it is the same codename
+    `ObjectListView` and the REST/GraphQL list paths narrow by. Passing it
+    into `for_scope()` closes the SCOPE_MANAGER gap where `export_scope=all`
+    under a tenant-group/all-accessible session could otherwise include rows
+    from a tenant the requester can reach but holds no view permission in
+    (#1088). It is a no-op for SCOPE_GLOBAL (no tenant field to narrow) and is
+    not consulted for SCOPE_CONTAINER, which already resolves its own
+    permission-authorized container set via `visible_to_containers(request.user,
+    queryset, perm)` below -- not a bare reach check.
+    """
     meta = model._meta
     queryset = model.objects.all()
     if hasattr(queryset, "for_scope"):
-        queryset = queryset.for_scope(Scope.current())
+        queryset = queryset.for_scope(
+            Scope.current(),
+            required_permission=f"{meta.app_label}.view_{meta.model_name}",
+        )
     if policy.scope == SCOPE_CONTAINER:
         return visible_to_containers(request.user, queryset, f"{meta.app_label}.view_{meta.model_name}")
     if policy.scope == SCOPE_OWNER:

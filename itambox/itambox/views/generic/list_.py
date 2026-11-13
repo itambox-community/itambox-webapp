@@ -12,6 +12,7 @@ from django.views.generic import ListView
 from core.data_transfer import policy_for
 from core.features import STABLE
 from core.forms.import_forms import is_model_importable
+from core.managers import Scope
 from itambox.labels import user_label_print_url
 from itambox.registry import registry
 from itambox.utils import get_help_url, get_model_viewname
@@ -145,6 +146,19 @@ class ObjectListView(TenantScopingViewMixin, PermissionRequiredMixin, LoginRequi
             queryset = filter_list_provider_queryset(
                 self._get_list_presentation(model),
                 queryset,
+            )
+
+        # A tenant-group/all-accessible scope can reach a tenant the caller holds
+        # no view permission in; `filter_by_tenant()` above (via
+        # `TenantScopingViewMixin`) narrows only to REACHABLE tenants, same gap as
+        # the REST/GraphQL list paths (#1088). Re-narrow to the tenants actually
+        # authorized for the view permission this list already requires
+        # (`get_permission_required`) -- a no-op in single-tenant scope, where the
+        # ambient `PermissionRequiredMixin` check already anchors the same perm.
+        if model and hasattr(queryset, "for_scope"):
+            queryset = queryset.for_scope(
+                Scope.current(),
+                required_permission=f"{model._meta.app_label}.view_{model._meta.model_name}",
             )
 
         return queryset

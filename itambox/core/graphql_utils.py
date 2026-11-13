@@ -86,6 +86,31 @@ def check_permission(info, perm, obj=None):
     return user
 
 
+def scoped_relation(info, obj, permission):
+    """Return ``obj`` only if the caller holds ``permission`` against it.
+
+    A relation resolver on an already-visible parent (e.g. ``LicenseNode``)
+    must not re-widen access to a related row from a tenant the caller can
+    merely reach but holds no permission in. A foreign-tenant relation can
+    exist through an import, legacy data, or a field the model does not
+    cross-check (for example ``License.supplier``), so the relation resolver
+    is the remaining gate (#1088).
+
+    Delegates to ``user.has_perm(permission, obj=obj)`` -- the same per-object
+    check ``TokenPermissions``/``check_permission`` already use, not a new
+    permission vocabulary. ``MembershipBackend`` resolves a tenant-less
+    (global) ``obj`` through the ambient union check, so a global related row
+    keeps exactly its current visibility; a tenant-bound ``obj`` is checked
+    against its own tenant.
+    """
+    if obj is None:
+        return None
+    user = getattr(request_from_info(info), "user", None)
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    return obj if user.has_perm(permission, obj=obj) else None
+
+
 def generate_slug(instance):
     logger.debug(
         "GENERATE SLUG called for %s with current slug: %r",

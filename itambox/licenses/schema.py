@@ -3,10 +3,9 @@ from __future__ import annotations
 import strawberry
 import strawberry_django
 
-from assets.graphql_specifications.integration import has_global_permission
 from assets.schema import SupplierNode, TenantNode
 from core.graphql_choice_enums import choice_enum
-from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset
+from core.graphql_utils import check_permission, paginate_queryset, scoped_queryset, scoped_relation
 from software.schema import SoftwareNode
 
 from .models import License
@@ -54,15 +53,15 @@ class LicenseNode:
     def software(self, info: strawberry.Info) -> SoftwareNode | None:
         # Decision (#1055): the license entry point does not authorize the
         # software record; the direct software roots require this permission.
-        if not has_global_permission(info, "software.view_software"):
-            return None
-        return self.software
+        # `License.clean()` constrains `software` to the license's own tenant,
+        # but anchor the check on THIS software's own tenant anyway: an import
+        # or legacy row can predate that invariant, and an ambient check would
+        # pass on the caller's union of tenants (#1088).
+        return scoped_relation(info, self.software, "software.view_software")
 
     @strawberry.field
     def supplier(self, info: strawberry.Info) -> SupplierNode | None:
-        if not has_global_permission(info, "assets.view_supplier"):
-            return None
-        return self.supplier
+        return scoped_relation(info, self.supplier, "assets.view_supplier")
 
 
 @strawberry.type

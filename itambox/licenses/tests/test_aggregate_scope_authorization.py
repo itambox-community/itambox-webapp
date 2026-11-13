@@ -14,7 +14,7 @@ from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from assets.models import Manufacturer
+from assets.models import Manufacturer, Supplier
 from core.managers import (
     set_current_all_accessible,
     set_current_membership,
@@ -27,7 +27,7 @@ from core.tests.mixins import grant
 from extras.models import Event
 from itambox.middleware import _current_user
 from licenses.models import License, LicenseSeatAssignment, LicenseTypeChoices
-from organization.models import AssetHolder, Membership, Role, Tenant
+from organization.models import AssetHolder, Membership, Role, Tenant, TenantGroup
 from software.models import Software
 from users.models import Token
 
@@ -38,13 +38,16 @@ A_PERMS = [
     "licenses.add_license",
     "licenses.view_licenseseatassignment",
     "licenses.add_licenseseatassignment",
+    "software.view_software",
+    "assets.view_supplier",
 ]
 
 
 class AggregateScopeAuthorizationTests(TestCase):
     def setUp(self):
-        self.tenant_a = Tenant.objects.create(name="Tenant A", slug="agg-tenant-a")
-        self.tenant_b = Tenant.objects.create(name="Tenant B", slug="agg-tenant-b")
+        self.group = TenantGroup.objects.create(name="Agg Group", slug="agg-group")
+        self.tenant_a = Tenant.objects.create(name="Tenant A", slug="agg-tenant-a", group=self.group)
+        self.tenant_b = Tenant.objects.create(name="Tenant B", slug="agg-tenant-b", group=self.group)
 
         self.user = User.objects.create_user(username="agg_user", password="password123")
 
@@ -70,6 +73,20 @@ class AggregateScopeAuthorizationTests(TestCase):
             license_type=LicenseTypeChoices.PERPETUAL_SEAT,
             seats=10,
             tenant=self.tenant_b,
+        )
+        # Lives in A (view permission held), but its supplier FK points at B.
+        # `License.clean()` constrains `software` and `subscription` to the
+        # license's tenant; `supplier` has no such check, so an import/ORM row
+        # can legitimately reference a foreign supplier.
+        self.supplier_a = Supplier.objects.create(name="Supplier A", slug="agg-supplier-a", tenant=self.tenant_a)
+        self.supplier_b = Supplier.objects.create(name="Supplier B", slug="agg-supplier-b", tenant=self.tenant_b)
+        self.license_a_foreign_supplier = License.objects.create(
+            name="License A (foreign supplier)",
+            software=self.software_a,
+            supplier=self.supplier_b,
+            license_type=LicenseTypeChoices.PERPETUAL_SEAT,
+            seats=1,
+            tenant=self.tenant_a,
         )
 
         self.holder_a = AssetHolder.objects.create(
@@ -106,11 +123,30 @@ class AggregateScopeAuthorizationTests(TestCase):
         session.pop("active_all_accessible", None)
         session.save()
 
+    def _activate_group(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session.pop("active_tenant_id", None)
+        session.pop("active_all_accessible", None)
+        session["active_tenant_group_id"] = self.group.pk
+        session.save()
+
     def _graphql_context(self):
         _current_user.set(self.user)
         set_current_tenant(None)
         set_current_tenant_group(None)
         set_current_all_accessible(True)
+        set_current_membership(None)
+        request = self.factory.post("/graphql")
+        request.user = self.user
+        request.active_tenant = None
+        return request
+
+    def _graphql_context_group(self):
+        _current_user.set(self.user)
+        set_current_tenant(None)
+        set_current_all_accessible(False)
+        set_current_tenant_group(self.group)
         set_current_membership(None)
         request = self.factory.post("/graphql")
         request.user = self.user
@@ -151,6 +187,99 @@ class AggregateScopeAuthorizationTests(TestCase):
         result = schema.execute_sync(f"{{ license(id: {self.license_a.pk}) {{ id }} }}", context_value=ctx)
         self.assertIsNone(result.errors)
         self.assertEqual(int(result.data["license"]["id"]), self.license_a.pk)
+
+    # ---------------------------------------------------- #1088 reads: tenant group
+
+    def test_rest_list_excludes_unauthorized_tenant_under_tenant_group(self):
+        self._activate_group()
+        response = self.client.get(reverse("api:licenses_api:license-list"))
+        self.assertEqual(response.status_code, 200, response.content)
+        ids = {row["id"] for row in self._rows(response)}
+        self.assertIn(self.license_a.pk, ids)
+        self.assertNotIn(self.license_b.pk, ids)
+
+    def test_graphql_list_excludes_unauthorized_tenant_under_tenant_group(self):
+        ctx = self._graphql_context_group()
+        result = schema.execute_sync("{ licenses { id } }", context_value=ctx)
+        self.assertIsNone(result.errors)
+        ids = {int(row["id"]) for row in result.data["licenses"]}
+        self.assertIn(self.license_a.pk, ids)
+        self.assertNotIn(self.license_b.pk, ids)
+
+    def test_graphql_single_object_null_under_tenant_group(self):
+        ctx = self._graphql_context_group()
+        result = schema.execute_sync(f"{{ license(id: {self.license_b.pk}) {{ id }} }}", context_value=ctx)
+        self.assertIsNone(result.errors)
+        self.assertIsNone(result.data["license"])
+
+    def test_create_with_explicit_unauthorized_tenant_rejected_under_tenant_group(self):
+        self._activate_group()
+        before_count = License.all_objects.count()
+        response = self.client.post(
+            reverse("api:licenses_api:license-list"),
+            data={
+                "name": "Group Hostile License",
+                "software_id": self.software_b.pk,
+                "license_type": LicenseTypeChoices.PERPETUAL_SEAT,
+                "seats": 5,
+                "tenant_id": self.tenant_b.pk,
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403, response.content)
+        self.assertEqual(License.all_objects.count(), before_count)
+
+    # ---------------------------------------------------------- #1088 nested relations
+
+    def test_nested_relation_returns_null_for_unauthorized_tenant(self):
+        ctx = self._graphql_context()
+        result = schema.execute_sync(
+            f"{{ license(id: {self.license_a_foreign_supplier.pk}) {{ supplier {{ id }} }} }}",
+            context_value=ctx,
+        )
+        self.assertIsNone(result.errors)
+        self.assertIsNone(result.data["license"]["supplier"])
+
+    def test_nested_relation_returns_object_for_authorized_tenant(self):
+        supplier_role_b = Role.objects.create(
+            tenant=self.tenant_b, name="SupplierViewer", permissions=["assets.view_supplier"]
+        )
+        grant(self.user, self.tenant_b, supplier_role_b)
+
+        ctx = self._graphql_context()
+        result = schema.execute_sync(
+            f"{{ license(id: {self.license_a_foreign_supplier.pk}) {{ supplier {{ id }} }} }}",
+            context_value=ctx,
+        )
+        self.assertIsNone(result.errors)
+        self.assertEqual(int(result.data["license"]["supplier"]["id"]), self.supplier_b.pk)
+
+    # ---------------------------------------------------------- HTML list view
+
+    def test_html_list_view_excludes_unauthorized_tenant_under_all_accessible(self):
+        self._activate_all_accessible()
+        response = self.client.get(reverse("licenses:license_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "License A")
+        self.assertNotContains(response, "License B")
+
+    def test_html_list_view_excludes_unauthorized_tenant_under_tenant_group(self):
+        self._activate_group()
+        response = self.client.get(reverse("licenses:license_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "License A")
+        self.assertNotContains(response, "License B")
+
+    # ---------------------------------------------------------- export
+
+    def test_export_all_scope_excludes_unauthorized_tenant_under_all_accessible(self):
+        self._activate_all_accessible()
+        url = reverse("object_export", kwargs={"app_label": "licenses", "model_name": "license", "template_id": 0})
+        response = self.client.get(url, {"export_scope": "all", "format": "csv"})
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("License A", content)
+        self.assertNotIn("License B", content)
 
     # ---------------------------------------------------------- #1089 creates
 
@@ -267,7 +396,8 @@ class AggregateScopeAuthorizationTests(TestCase):
         response = self.client.get(reverse("api:licenses_api:license-list"))
         self.assertEqual(response.status_code, 200, response.content)
         ids = {row["id"] for row in self._rows(response)}
-        self.assertEqual(ids, {self.license_a.pk})
+        self.assertEqual(ids, {self.license_a.pk, self.license_a_foreign_supplier.pk})
+        self.assertNotIn(self.license_b.pk, ids)
 
         create_response = self.client.post(
             reverse("api:licenses_api:license-list"),
