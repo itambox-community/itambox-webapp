@@ -167,7 +167,7 @@ def validate_repository(root: Path, expected_version: str | None = None) -> Rele
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for command in ("verify", "notes"):
+    for command in ("verify", "notes", "line"):
         subparser = subparsers.add_parser(command)
         subparser.add_argument(
             "--root",
@@ -181,6 +181,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    if args.command == "line":
+        # Derive the maintenance line from the parsed version, not by trimming
+        # the last dot-segment: "1.1.0-rc.1" must yield "1.1", and the string
+        # cut would produce "1.1.0-rc".
+        version = parse_version(args.version)
+        print(f"{version.major}.{version.minor}")
+        return 0
     version = validate_repository(args.root.resolve(), expected_version=args.version)
     if args.command == "verify":
         print(f"release metadata valid: {version.semver} (PEP 440: {version.pep440}, tag: v{version.semver})")

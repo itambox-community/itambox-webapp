@@ -603,9 +603,9 @@ class SecurityAutomationContractTests(unittest.TestCase):
         self.assertIn("id: image-gate", workflow)
         self.assertIn("steps.image-gate.outputs.sarif == 'true'", workflow)
         self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", workflow)
-        # The rehearsal upload plus one draft upload per platform all share the
-        # single category that exists on the default branch.
-        self.assertEqual(workflow.count("category: trivy-draft-image"), 3)
+        # The rehearsal upload plus the one merged draft upload share the single
+        # category that exists on the default branch.
+        self.assertEqual(workflow.count("category: trivy-draft-image"), 2)
         self.assertNotIn("category: trivy-draft-image-arm64", workflow)
         self.assertNotIn("category: trivy-release-image", workflow)
         upload = workflow.index("category: trivy-draft-image")
@@ -626,14 +626,16 @@ class SecurityAutomationContractTests(unittest.TestCase):
         self.assertIn("category: trivy-draft-image", prepare_release)
         self.assertNotIn("category: trivy-draft-image-arm64", workflow)
         self.assertNotIn("category: trivy-release-image", workflow)
-        self.assertEqual(workflow.count("category: trivy-draft-image"), 3)
-        # Both platform reports must reach code scanning before the archive
-        # step removes the local images.
-        self.assertEqual(prepare_release.count("category: trivy-draft-image"), 2)
-        self.assertLess(
-            prepare_release.rindex("category: trivy-draft-image"),
-            prepare_release.index("docker save"),
-        )
+        self.assertEqual(workflow.count("category: trivy-draft-image"), 2)
+        # Code scanning rejects a second upload with the same tool+category in
+        # one run, so both platform reports are merged and uploaded once.
+        self.assertEqual(prepare_release.count("category: trivy-draft-image"), 1)
+        self.assertEqual(prepare_release.count("upload-sarif"), 1)
+        self.assertIn("scripts/merge_sarif.py", prepare_release)
+        for platform in ("amd64", "arm64"):
+            self.assertIn(f"trivy-image-{platform}.sarif", prepare_release)
+        self.assertIn("sarif_file: ${{ runner.temp }}/trivy-image.sarif", prepare_release)
+        self.assertLess(prepare_release.index("merge_sarif.py"), prepare_release.index("docker save"))
 
     def test_image_scan_uploads_share_the_default_branch_configuration(self):
         workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
@@ -641,13 +643,15 @@ class SecurityAutomationContractTests(unittest.TestCase):
         prepare_release = workflow[workflow.index("prepare-release:") :]
         # A code scanning configuration is the pair (tool, category). Every image
         # scan therefore uses the one category that already exists on the default
-        # branch: the rehearsal upload, and both platform uploads of the release
-        # draft (which merge into that configuration instead of opening a new one).
-        self.assertEqual(workflow.count("category: trivy-draft-image"), 3)
+        # branch: the rehearsal upload and the merged draft upload (both platform
+        # reports combined, because a second upload with the same pair in one run
+        # is rejected).
+        self.assertEqual(workflow.count("category: trivy-draft-image"), 2)
         self.assertEqual(workflow.count("category: trivy-release-image"), 0)
         self.assertNotIn("category: trivy-draft-image-arm64", workflow)
         self.assertIn("category: trivy-draft-image", rehearsal)
-        self.assertEqual(prepare_release.count("category: trivy-draft-image"), 2)
+        self.assertEqual(prepare_release.count("category: trivy-draft-image"), 1)
+        self.assertIn("scripts/merge_sarif.py", prepare_release)
 
     def test_installer_pins_tool_versions_and_literal_checksums(self):
         installer = (REPOSITORY_ROOT / "scripts" / "install_security_tools.sh").read_text(encoding="utf-8")
