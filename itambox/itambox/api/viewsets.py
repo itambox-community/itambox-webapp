@@ -1,17 +1,21 @@
 import logging
 from functools import cached_property
 
+from django.apps import apps
 from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist, PermissionDenied
 from django.db import router, transaction
 from django.db.models import ProtectedError, RestrictedError
 from rest_framework import mixins as drf_mixins
 from rest_framework import status
 from rest_framework.exceptions import NotFound
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from core.archive_handlers import archive_object
-from core.managers import Scope, get_current_tenant
+from core.context import get_current_all_accessible, get_current_tenant_group
+from core.managers import Scope, TenantScopeDeclaration, get_current_tenant, tenant_scope_declaration
+from core.tenant_scope import get_descendant_tenant_group_ids
 from itambox.api.mixins import BulkDestroyModelMixin, BulkUpdateModelMixin, ETagMixin, ObjectValidationMixin
 from itambox.api.serializers.features import ChangeLogMessageSerializer
 from itambox.api.utils import get_annotations_for_serializer, get_prefetches_for_serializer
@@ -45,10 +49,38 @@ class BaseViewSet(GenericViewSet):
         qs = super().get_queryset()
 
         # The viewset's `queryset` class attribute is evaluated at import time when no
-        # tenant context is active, so filter_by_tenant() is a no-op then.  Re-apply it
-        # here at request time so the correct tenant scope is enforced on every call.
-        if hasattr(qs, "filter_by_tenant"):
-            qs = qs.filter_by_tenant()
+        # tenant context is active, so for_scope() is a no-op then.  Re-apply it here at
+        # request time so the correct tenant scope is enforced on every call. A collection
+        # list additionally narrows to the tenants where the caller holds the model's view
+        # permission: a tenant-group/all-accessible scope can reach a tenant the caller is
+        # not authorized to read there, and the ambient permission gate passes on the union
+        # across the scope, not this per-tenant intersection (issue #1088). Detail, update
+        # and delete are unaffected -- they keep the existing object-level check.
+        if hasattr(qs, "for_scope"):
+            # Narrow by the permission that governs this request, not only for the
+            # plain list action: a collection read issued through a custom
+            # ``detail=False`` action, and the bulk update/destroy routes (which
+            # filter ``get_queryset()`` by pk and never run a per-object
+            # ``has_object_permission``), would otherwise still operate on rows from
+            # a reachable-but-unauthorized tenant (#1088).
+            scope_action = None
+            action = getattr(self, "action", None)
+            method = getattr(getattr(self, "request", None), "method", None)
+            if action == "list" or (action is not None and method in SAFE_METHODS):
+                scope_action = "view"
+            elif action in ("bulk_update", "bulk_partial_update"):
+                scope_action = "change"
+            elif action == "bulk_destroy":
+                scope_action = "delete"
+            required_permission = (
+                f"{qs.model._meta.app_label}.{scope_action}_{qs.model._meta.model_name}" if scope_action else None
+            )
+            # Bulk update/destroy never run a per-object permission check, so a
+            # group-shared row may only enter their queryset when the caller is
+            # authorized in every tenant that row affects (writes affect the
+            # whole group subtree; reads only need one visible tenant).
+            group_scope = "all" if action in ("bulk_update", "bulk_partial_update", "bulk_destroy") else "visible"
+            qs = qs.for_scope(Scope.current(), required_permission=required_permission, group_scope=group_scope)
 
         serializer_class = self.get_serializer_class()
 
@@ -240,11 +272,121 @@ class ITAMBoxModelViewSet(
             row["tenant"] = active_tenant
         return {}
 
+    @staticmethod
+    def _resolve_lookup_target_tenant(lookup, row):
+        """Walk a ``tenant_lookup`` path (e.g. ``"asset__tenant"``) through
+        ``row`` (a ``validated_data`` dict) to the parent's tenant instance.
+
+        The first segment names a related field on the row itself (already
+        resolved to a model instance by the serializer's relational field);
+        the remaining segments are plain attribute access on that instance.
+        Any missing link (an optional relation left blank, or a parent that is
+        itself global) resolves to ``None`` rather than raising -- the caller
+        then treats the row as having no tenant-scoped target to authorize.
+        """
+        parts = lookup.split("__")
+        value = row.get(parts[0]) if isinstance(row, dict) else None
+        for part in parts[1:]:
+            if value is None:
+                return None
+            value = getattr(value, part, None)
+        return value
+
+    @staticmethod
+    def _group_target_tenants(group):
+        """Every live tenant in ``group``'s own subtree.
+
+        # unscoped: authorization must see the group's full membership regardless
+        # of the caller's own ambient tenant scope.
+        """
+        Tenant = apps.get_model("organization", "Tenant")
+        descendant_group_ids = get_descendant_tenant_group_ids(group.pk, live_only=True)
+        return list(Tenant._base_manager.filter(group_id__in=descendant_group_ids, deleted_at__isnull=True))
+
+    def _effective_create_target(self, row, declaration, save_kwargs, bulk):
+        """The Tenant or TenantGroup a create ``row`` will be visible from."""
+        tenant = row.get("tenant") if isinstance(row, dict) else None
+        tenant_group = row.get("tenant_group") if isinstance(row, dict) else None
+        if tenant is None and not bulk:
+            # A non-bulk row with no explicit tenant was pinned to the active
+            # tenant via `save_kwargs` (`_tenant_create_kwargs`), not mutated
+            # into `validated_data` the way bulk rows are.
+            tenant = save_kwargs.get("tenant")
+        if tenant is not None:
+            return tenant
+        if tenant_group is not None:
+            return tenant_group
+        if declaration.strategy == TenantScopeDeclaration.LOOKUP:
+            return self._resolve_lookup_target_tenant(declaration.lookup, row)
+        return None
+
+    def _user_authorized_for_target(self, user, perm, target):
+        """Authorize ``perm`` against a resolved create target.
+
+        A ``Tenant`` target is the ordinary case: ``has_perm`` resolves it
+        directly. A ``TenantGroup`` target (an explicit group-scoped
+        definition row, e.g. a group-shared Supplier) fans out to every live
+        tenant in that group -- `_scope_by_group_field` makes the saved row
+        visible from each of them -- so the caller must hold the add
+        permission in every one of those tenants, not merely one. This is the
+        deliberately strict reading: a single per-tenant grant must not be
+        enough to write a row the whole group will see (#1089). An empty
+        group authorizes nothing, since there is no tenant to anchor the
+        permission against.
+        """
+        TenantGroup = apps.get_model("organization", "TenantGroup")
+        if isinstance(target, TenantGroup):
+            tenants = self._group_target_tenants(target)
+            return bool(tenants) and all(user.has_perm(perm, obj=tenant) for tenant in tenants)
+        return user.has_perm(perm, obj=target)
+
+    def _authorize_create(self, serializer, model, save_kwargs):
+        """Authorize every create row against its effective target tenant
+        before anything is written (#1089).
+
+        The ambient create gate (`TokenPermissions.has_permission`) passes an
+        object-less `add_<model>` check that, under a tenant-group or
+        all-accessible scope, is satisfied by holding the permission in ANY
+        tenant in scope. That gate never re-checks the permission against the
+        row's actual target once the client supplies an explicit `tenant` (or
+        `tenant_group`, or a parent-derived tenant). This closes that gap by
+        resolving each row's effective target and re-checking the add
+        permission against it directly, before `serializer.save()`.
+
+        Bulk create is all-or-nothing: the whole request is rejected (not
+        just the offending rows) so a client cannot discover which rows would
+        have succeeded, and nothing is written for a request that is
+        partially unauthorized.
+        """
+        user = self.request.user
+        if user.is_superuser:
+            return
+        bulk = getattr(serializer, "many", False)
+        validated = serializer.validated_data
+        rows = validated if bulk else [validated]
+        declaration = tenant_scope_declaration(model)
+        perm = f"{model._meta.app_label}.add_{model._meta.model_name}"
+        for row in rows:
+            target = self._effective_create_target(row, declaration, save_kwargs, bulk)
+            if target is None:
+                # Fail closed when a tenant-scoped model's target cannot be
+                # resolved under an aggregate scope. Skipping would write a row
+                # whose visibility no per-tenant check ever covered; a model with
+                # no tenant concept (declaration NONE) legitimately has no target.
+                if declaration.strategy != TenantScopeDeclaration.NONE and (
+                    get_current_all_accessible() or get_current_tenant_group() is not None
+                ):
+                    raise PermissionDenied()
+                continue
+            if not self._user_authorized_for_target(user, perm, target):
+                raise PermissionDenied()
+
     def perform_create(self, serializer):
         model = self._get_model(serializer=serializer)
         logger.info(f"Creating new {model._meta.verbose_name}")
 
         save_kwargs = self._tenant_create_kwargs(serializer, model)
+        self._authorize_create(serializer, model, save_kwargs)
 
         try:
             with transaction.atomic(using=router.db_for_write(model)):

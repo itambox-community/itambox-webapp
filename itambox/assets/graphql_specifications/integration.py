@@ -174,7 +174,9 @@ def scoped_software_prefetch(scope: ScopeReadView) -> Prefetch:
     software = apps.get_model("software", "Software")
     return Prefetch(
         "asset_type__manufacturer__software_products",
-        queryset=software.objects.filter(Q(tenant_id__in=scope.tenant_ids) | Q(tenant__isnull=True)),
+        queryset=software.objects.filter(Q(tenant_id__in=scope.tenant_ids) | Q(tenant__isnull=True)).select_related(
+            "tenant"
+        ),
         to_attr=SCOPED_SOFTWARE_ATTR,
     )
 
@@ -184,7 +186,9 @@ def scoped_asset_type_software_prefetch() -> Prefetch:
     software = apps.get_model("software", "Software")
     return Prefetch(
         "manufacturer__software_products",
-        queryset=software.objects.for_scope(Scope.current()),
+        queryset=software.objects.for_scope(
+            Scope.current(), required_permission="software.view_software"
+        ).select_related("tenant"),
         to_attr=SCOPED_SOFTWARE_ATTR,
     )
 

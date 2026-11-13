@@ -50,9 +50,16 @@ def read_scope_from_info(info):
     return Scope.current()
 
 
-def scoped_queryset(info, queryset):
-    """Narrow ``queryset`` (a manager or queryset) to the request's read scope."""
-    return queryset.for_scope(read_scope_from_info(info))
+def scoped_queryset(info, queryset, required_permission=None):
+    """Narrow ``queryset`` (a manager or queryset) to the request's read scope.
+
+    ``required_permission`` additionally narrows to the tenants where the
+    caller holds that permission: under a tenant-group/all-accessible scope a
+    tenant can be reachable without being authorized for this operation, and
+    ``for_scope`` alone does not know the permission a resolver already
+    checked via ``check_permission`` (issue #1088).
+    """
+    return queryset.for_scope(read_scope_from_info(info), required_permission=required_permission)
 
 
 def requested_selector_from_scope(scope):
@@ -77,6 +84,31 @@ def check_permission(info, perm, obj=None):
     if not user.has_perm(perm, obj=obj):
         raise PermissionDenied(_("Permission denied."))
     return user
+
+
+def scoped_relation(info, obj, permission):
+    """Return ``obj`` only if the caller holds ``permission`` against it.
+
+    A relation resolver on an already-visible parent (e.g. ``LicenseNode``)
+    must not re-widen access to a related row from a tenant the caller can
+    merely reach but holds no permission in. A foreign-tenant relation can
+    exist through an import, legacy data, or a field the model does not
+    cross-check (for example ``License.supplier``), so the relation resolver
+    is the remaining gate (#1088).
+
+    Delegates to ``user.has_perm(permission, obj=obj)`` -- the same per-object
+    check ``TokenPermissions``/``check_permission`` already use, not a new
+    permission vocabulary. ``MembershipBackend`` resolves a tenant-less
+    (global) ``obj`` through the ambient union check, so a global related row
+    keeps exactly its current visibility; a tenant-bound ``obj`` is checked
+    against its own tenant.
+    """
+    if obj is None:
+        return None
+    user = getattr(request_from_info(info), "user", None)
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    return obj if user.has_perm(permission, obj=obj) else None
 
 
 def generate_slug(instance):

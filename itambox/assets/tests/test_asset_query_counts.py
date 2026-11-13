@@ -44,7 +44,10 @@ PERMISSIONS = [
 
 # Measured on the realistic fixture below for a role-granted (non-superuser)
 # member. Before #882 the same pages cost 33 (list) and 93 (detail) queries.
-LIST_QUERY_BUDGET = 32
+# The list budget gained one constant query for the per-tenant permission
+# intersection of the aggregate-scope fix (#1088); it still does not grow with
+# the number of assets.
+LIST_QUERY_BUDGET = 33
 DETAIL_QUERY_BUDGET = 73
 # Global search for one asset term, rendered by the same role-granted member.
 # Before #882 it cost 56 queries with one matching asset and 156 with ten.

@@ -10,9 +10,16 @@ from graphql import GraphQLError
 from assets.services.specifications._command_support import load_prospective_definition
 from core.graphql_choice_enums import choice_enum
 from core.graphql_scalars import JSONString
-from core.graphql_utils import paginate_queryset, read_scope_from_info, requested_selector_from_scope
+from core.graphql_utils import (
+    paginate_queryset,
+    read_scope_from_info,
+    request_from_info,
+    requested_selector_from_scope,
+    scoped_relation,
+)
 from core.managers import Scope
 from organization.models import Location, Tenant
+from organization.rbac import build_accessible_tenant_permissions_map
 
 from .graphql_specifications.inputs import RequestedScopeSelectorInput
 from .graphql_specifications.integration import (
@@ -103,12 +110,30 @@ class ManufacturerNode:
             return []
         # The related manager applies no ambient scope (Software uses an
         # explicit-scope manager), so scope here exactly like the flat
-        # ``softwareList`` resolver does. A request-scoped prefetch (see
-        # ``scoped_software_prefetch``) is reused when present.
+        # ``softwareList`` resolver does -- including the permission
+        # intersection, or a global Manufacturer would re-expose software from
+        # a reachable-but-unauthorized tenant (#1088). A request-scoped prefetch
+        # (see ``scoped_software_prefetch``) is reused when present.
         prefetched = getattr(self, SCOPED_SOFTWARE_ATTR, None)
         if prefetched is not None:
-            return prefetched
-        return list(self.software_products.for_scope(Scope.current()))
+            # A prefetch built from an asset-scoped tenant set can still carry
+            # software from a tenant where the caller holds no software view
+            # permission (the asset scope and the software permission are
+            # different grants). Filter the prefetched rows against the
+            # software permission itself (#1088).
+            user = request_from_info(info).user
+            # Set-based filter against the same per-tenant permission map the
+            # scoped managers use: a per-row has_perm() would issue one query
+            # per software row and turn the prefetch back into an N+1 (#1088).
+            permitted = {
+                tenant_id
+                for tenant_id, (permissions, _valid_until) in build_accessible_tenant_permissions_map(user).items()
+                if "software.view_software" in permissions
+            }
+            return [
+                software for software in prefetched if software.tenant_id is None or software.tenant_id in permitted
+            ]
+        return list(self.software_products.for_scope(Scope.current(), required_permission="software.view_software"))
 
 
 @strawberry_django.type(
@@ -251,9 +276,10 @@ class AssetNode:
 
     @strawberry.field
     def supplier(self, info: strawberry.Info) -> SupplierNode | None:
-        if not has_global_permission(info, "assets.view_supplier"):
-            return None
-        return self.supplier
+        # Supplier is tenant-scoped (optionally global); re-check the
+        # permission against ITS tenant, not just ambiently -- an Asset in A
+        # can reference a Supplier in B (#1088).
+        return scoped_relation(info, self.supplier, "assets.view_supplier")
 
     @strawberry.field
     def asset_type(self, info: strawberry.Info) -> AssetTypeNode | None:
