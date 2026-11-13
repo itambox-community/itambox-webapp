@@ -30,8 +30,12 @@ carries one PostgreSQL 16 compatibility job, pinned to the previous major
 version's digest, so the version existing installations run stays under test; it
 runs on dispatch only and is not part of the pull-request path.
 
-The release workflow builds both platforms, scans the release image with its
-existing Trivy gate (`--fail-on any`), and promotes the exact built digest. The
+The release workflow builds both platforms, resolves each platform manifest from
+the built index, and scans both with the existing Trivy gate (`--fail-on any`).
+Each platform gets its own SPDX SBOM, attested to that platform's manifest
+digest; the multi-platform index carries the provenance attestation. The
+download archive is the amd64 image and is named
+`itambox-<version>-linux-amd64.tar.gz` accordingly. The
 weekly image-drift workflow continues to rebuild and scan `main`. The Docker
 Compose smoke workflow boots the production Compose stack on pull requests
 touching an image input, as well as on its existing `main` push and manual

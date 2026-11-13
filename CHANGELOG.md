@@ -15,6 +15,8 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
+- The release workflow accepts protected `release/X.Y` maintenance branches, rejects a version that does not belong to the branch's line or is already published, and verifies provenance against the actual release ref. It scans both platform manifests and attests one SPDX SBOM per platform manifest digest. The download archive is now named `itambox-<version>-linux-amd64.tar.gz` and the release ships both platform SBOMs.
+- The support policy describes the current and previous minor lines instead of a single-latest-line rule, and the upgrade policy declares supported origins per target release instead of deriving them from tag order.
 - `v1.0.0-rc.2` is the declared supported upgrade origin for `v1.0.0`. A restored rc.2 database was qualified against the published 1.0.0 image, covering preflight, migration, system check, health, login, the asset list and the worker cluster; the record is in the [upgrade qualification page](itambox/docs/operations/upgrade-qualification.md).
 
 ## [1.0.0] - 2026-11-12
