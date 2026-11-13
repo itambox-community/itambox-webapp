@@ -62,6 +62,7 @@ nav:
   - Operations:
       - Capability Maturity: 'operations/capability-maturity.md'
       - Upgrades: 'operations/upgrades.md'
+      - Upgrade Qualification: 'operations/upgrade-qualification.md'
       - Release Image Policy: 'operations/release-image-policy.md'
       - Backup & Restore: 'operations/backup-restore.md'
       - Data Retention: 'operations/data-retention.md'
