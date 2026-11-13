@@ -23,11 +23,12 @@ fix is scheduled, dated, or guaranteed.
 
 ## Which versions receive fixes
 
-- **Only the latest published `1.x` release line receives fixes.** A fix ships
-  as a patch release of the latest minor release.
-- Older minor releases are superseded by the latest one. Move to the latest
-  release through the supported path in the [upgrade policy](upgrade.md).
-- Security fixes target the latest release line. There is no backport.
+- **The current stable minor line receives fixes.** A fix ships as a patch
+  release of that line.
+- **A previous minor line may receive a time-boxed window for critical fixes.**
+  The window is announced when it opens and does not cover regular defects.
+- **Fixes on a maintained line ship as patch releases**; the changelog records
+  what each patch contains.
 - `main` is the development state, not a release, and is not supported for
   production use. Reports against it are welcome as feedback.
 - Prereleases (`alpha`, `beta`, `rc`) are superseded by `v1.0.0` and receive no

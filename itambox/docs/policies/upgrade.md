@@ -7,20 +7,24 @@ those procedures serve.
 
 ## Supported upgrade origin
 
-- **The supported origin of a release is the previously tagged release.** Each
-  release declares its origin in its changelog section, and that declaration is
-  authoritative.
+- **Each release declares its supported origin**, and that declaration is
+  authoritative. The origin belongs to the target release, not to tag order: a
+  `1.0.x` patch can be published after `1.1.0` and keeps its own origin.
 - **The upgrade from the declared origin is verified** on the qualification
-  stack before the release is published.
-- **Version skipping is not supported.** An upgrade from any revision other than
-  the declared origin is untested. It may fail, and it may fail after changing
-  the database. If you are further behind, upgrade through each tagged release in
-  order.
+  stack before the release is published. The
+  [qualification record](../operations/upgrade-qualification.md) lists the runs.
+- **For a new minor release, the current patch of the previous line is the
+  natural origin.** `1.1.0` declares the latest `1.0.x`, not `1.0.0`.
+- **Skipping patch releases within one line is supported only when the
+  qualification checks the oldest still-supported patch against the target.**
+  Until that run exists, upgrade through each declared origin.
+- **A jump across minor lines is not supported** unless the target release names
+  the revision it was qualified from.
 - **Arbitrary revisions are not supported origins**, including development
   snapshots of `main`. The migration preflight fails closed on a database state
   it does not recognize instead of rewriting its history.
-- Prereleases before `v1.0.0` are not supported origins for `v1.0.0`, except
-  where the `v1.0.0` changelog names one.
+- **Prereleases are not supported origins** except where the target release
+  names one; `v1.0.0` names `v1.0.0-rc.2`.
 
 Migrations are written and rehearsed against one predecessor. A migration may
 assume the data shape its predecessor left, may be irreversible, and may be
