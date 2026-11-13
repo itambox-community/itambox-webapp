@@ -347,7 +347,7 @@ class TenantScopingQuerySet(models.QuerySet):
         return self.for_scope(Scope.current())
 
     @staticmethod
-    def _authorized_tenant_ids(user, allowed_tenant_ids, required_permission):
+    def _authorized_tenant_ids(user, allowed_tenant_ids, required_permission, mode="all"):
         """Narrow ``allowed_tenant_ids`` to the ones where ``user`` holds
         ``required_permission``.
 
@@ -366,13 +366,19 @@ class TenantScopingQuerySet(models.QuerySet):
         permissions = (required_permission,) if isinstance(required_permission, str) else tuple(required_permission)
         permission_map = build_accessible_tenant_permissions_map(user)
         empty_perms = frozenset()
+        if mode == "any":
+            return [
+                tenant_id
+                for tenant_id in allowed_tenant_ids
+                if any(permission in permission_map.get(tenant_id, (empty_perms,))[0] for permission in permissions)
+            ]
         return [
             tenant_id
             for tenant_id in allowed_tenant_ids
             if all(permission in permission_map.get(tenant_id, (empty_perms,))[0] for permission in permissions)
         ]
 
-    def for_scope(self, scope, required_permission=None, group_scope="visible") -> QuerySet:
+    def for_scope(self, scope, required_permission=None, group_scope="visible", permission_mode="all") -> QuerySet:
         """Scope this queryset to an explicit ``Scope`` value.
 
         The per-model behaviour comes from the model's scoping declaration
@@ -400,7 +406,9 @@ class TenantScopingQuerySet(models.QuerySet):
         get_descendant_group_ids = _descendant_group_ids
         allowed_tenant_ids = self._resolve_allowed_tenant_ids(scope, get_descendant_group_ids, Tenant)
         if required_permission is not None:
-            allowed_tenant_ids = self._authorized_tenant_ids(scope.user, allowed_tenant_ids, required_permission)
+            allowed_tenant_ids = self._authorized_tenant_ids(
+                scope.user, allowed_tenant_ids, required_permission, mode=permission_mode
+            )
         if declaration.strategy == TenantScopeDeclaration.SELF_TENANT:
             return self.filter(pk__in=allowed_tenant_ids)
         if declaration.strategy == TenantScopeDeclaration.SELF_GROUP:

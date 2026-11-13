@@ -170,6 +170,15 @@ class RequestListView(ObjectListView):
         self._has_model_view_permission = super().has_permission()
         return self._has_model_view_permission or bool(_request_action_tenant_ids(self.request.user))
 
+    def get_scope_permissions(self, model):
+        # Approvers and fulfillers reach this list without the model view
+        # permission, so their tenants must survive the scope intersection.
+        return (
+            f"{model._meta.app_label}.view_{model._meta.model_name}",
+            "assets.approve_assetrequest",
+            "assets.fulfill_assetrequest",
+        )
+
     def get_queryset(self):
         qs = super().get_queryset().filter(parent__isnull=True)
         user = self.request.user

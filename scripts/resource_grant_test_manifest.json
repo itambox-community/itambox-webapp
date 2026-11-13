@@ -250,7 +250,10 @@
     "itambox/assets/tests/test_specification_graphql_readers.py",
     "itambox/itambox/tests/test_pagination_page_size.py",
     "itambox/core/tests/test_prod_settings.py",
-    "scripts/tests/test_third_party_notices.py"
+    "scripts/tests/test_third_party_notices.py",
+    "itambox/licenses/tests/test_aggregate_scope_authorization.py",
+    "itambox/assets/tests/test_graphql_software_products_aggregate_scope.py",
+    "itambox/assets/tests/test_group_scope_supplier_authorization.py"
   ],
   "baseline_tests": [
     "itambox/assets/api/tests/test_specification_api_adapters.py",
@@ -1097,7 +1100,10 @@
     "itambox/organization/tests/test_list_count_scope.py",
     "itambox/core/tests/test_hardware_inventory_scope.py",
     "itambox/itambox/tests/test_pagination_page_size.py",
-    "scripts/tests/test_third_party_notices.py"
+    "scripts/tests/test_third_party_notices.py",
+    "itambox/licenses/tests/test_aggregate_scope_authorization.py",
+    "itambox/assets/tests/test_graphql_software_products_aggregate_scope.py",
+    "itambox/assets/tests/test_group_scope_supplier_authorization.py"
   ],
   "supporting_files": [
     "itambox/assets/tests/data/graphql_schema_text.graphql",

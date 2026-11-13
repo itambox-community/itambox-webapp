@@ -19,6 +19,7 @@ from core.graphql_utils import (
 )
 from core.managers import Scope
 from organization.models import Location, Tenant
+from organization.rbac import build_accessible_tenant_permissions_map
 
 from .graphql_specifications.inputs import RequestedScopeSelectorInput
 from .graphql_specifications.integration import (
@@ -121,7 +122,17 @@ class ManufacturerNode:
             # different grants). Filter the prefetched rows against the
             # software permission itself (#1088).
             user = request_from_info(info).user
-            return [software for software in prefetched if user.has_perm("software.view_software", obj=software)]
+            # Set-based filter against the same per-tenant permission map the
+            # scoped managers use: a per-row has_perm() would issue one query
+            # per software row and turn the prefetch back into an N+1 (#1088).
+            permitted = {
+                tenant_id
+                for tenant_id, (permissions, _valid_until) in build_accessible_tenant_permissions_map(user).items()
+                if "software.view_software" in permissions
+            }
+            return [
+                software for software in prefetched if software.tenant_id is None or software.tenant_id in permitted
+            ]
         return list(self.software_products.for_scope(Scope.current(), required_permission="software.view_software"))
 
 

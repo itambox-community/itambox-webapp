@@ -110,6 +110,16 @@ class ObjectListView(TenantScopingViewMixin, PermissionRequiredMixin, LoginRequi
             return self.request.GET
         return self._get_list_presentation(model).params
 
+    def get_scope_permissions(self, model):
+        """Permissions whose per-tenant grant makes a row visible in this list.
+
+        Defaults to the model view permission. A list that is intentionally
+        reachable through an action permission (and overrides ``has_permission``
+        accordingly) must add that permission here, or the per-tenant scope
+        intersection would empty the page (#1088).
+        """
+        return (f"{model._meta.app_label}.view_{model._meta.model_name}",)
+
     def get_queryset(self):
         model = resolve_view_model(self)
 
@@ -158,7 +168,8 @@ class ObjectListView(TenantScopingViewMixin, PermissionRequiredMixin, LoginRequi
         if model and hasattr(queryset, "for_scope"):
             queryset = queryset.for_scope(
                 Scope.current(),
-                required_permission=f"{model._meta.app_label}.view_{model._meta.model_name}",
+                required_permission=self.get_scope_permissions(model),
+                permission_mode="any",
             )
 
         return queryset
