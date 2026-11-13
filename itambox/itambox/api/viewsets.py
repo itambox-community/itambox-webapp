@@ -8,10 +8,12 @@ from django.db.models import ProtectedError, RestrictedError
 from rest_framework import mixins as drf_mixins
 from rest_framework import status
 from rest_framework.exceptions import NotFound
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from core.archive_handlers import archive_object
+from core.context import get_current_all_accessible, get_current_tenant_group
 from core.managers import Scope, TenantScopeDeclaration, get_current_tenant, tenant_scope_declaration
 from core.tenant_scope import get_descendant_tenant_group_ids
 from itambox.api.mixins import BulkDestroyModelMixin, BulkUpdateModelMixin, ETagMixin, ObjectValidationMixin
@@ -55,10 +57,24 @@ class BaseViewSet(GenericViewSet):
         # across the scope, not this per-tenant intersection (issue #1088). Detail, update
         # and delete are unaffected -- they keep the existing object-level check.
         if hasattr(qs, "for_scope"):
-            required_permission = None
-            if self.action == "list":
-                model = qs.model
-                required_permission = f"{model._meta.app_label}.view_{model._meta.model_name}"
+            # Narrow by the permission that governs this request, not only for the
+            # plain list action: a collection read issued through a custom
+            # ``detail=False`` action, and the bulk update/destroy routes (which
+            # filter ``get_queryset()`` by pk and never run a per-object
+            # ``has_object_permission``), would otherwise still operate on rows from
+            # a reachable-but-unauthorized tenant (#1088).
+            scope_action = None
+            action = getattr(self, "action", None)
+            method = getattr(getattr(self, "request", None), "method", None)
+            if action == "list" or (action is not None and method in SAFE_METHODS):
+                scope_action = "view"
+            elif action in ("bulk_update", "bulk_partial_update"):
+                scope_action = "change"
+            elif action == "bulk_destroy":
+                scope_action = "delete"
+            required_permission = (
+                f"{qs.model._meta.app_label}.{scope_action}_{qs.model._meta.model_name}" if scope_action else None
+            )
             qs = qs.for_scope(Scope.current(), required_permission=required_permission)
 
         serializer_class = self.get_serializer_class()
@@ -348,6 +364,14 @@ class ITAMBoxModelViewSet(
         for row in rows:
             target = self._effective_create_target(row, declaration, save_kwargs, bulk)
             if target is None:
+                # Fail closed when a tenant-scoped model's target cannot be
+                # resolved under an aggregate scope. Skipping would write a row
+                # whose visibility no per-tenant check ever covered; a model with
+                # no tenant concept (declaration NONE) legitimately has no target.
+                if declaration.strategy != TenantScopeDeclaration.NONE and (
+                    get_current_all_accessible() or get_current_tenant_group() is not None
+                ):
+                    raise PermissionDenied()
                 continue
             if not self._user_authorized_for_target(user, perm, target):
                 raise PermissionDenied()

@@ -8,6 +8,8 @@ in Tenant A only. Tenant B is reachable but never authorized. All tests run
 under the "all accessible tenants" aggregate session scope unless noted.
 """
 
+import json
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import RequestFactory, TestCase
@@ -36,6 +38,7 @@ User = get_user_model()
 A_PERMS = [
     "licenses.view_license",
     "licenses.add_license",
+    "licenses.delete_license",
     "licenses.view_licenseseatassignment",
     "licenses.add_licenseseatassignment",
     "software.view_software",
@@ -254,6 +257,23 @@ class AggregateScopeAuthorizationTests(TestCase):
         self.assertIsNone(result.errors)
         self.assertEqual(int(result.data["license"]["supplier"]["id"]), self.supplier_b.pk)
 
+    def test_nested_manufacturer_products_exclude_unauthorized_tenant(self):
+        # A global Manufacturer is shared by software in both tenants; its
+        # product list must not re-expose B's software to a caller authorized
+        # only in A (#1088).
+        ctx = self._graphql_context()
+        result = schema.execute_sync(
+            "{ softwareList { name manufacturer { softwareProducts { name } } } }",
+            context_value=ctx,
+        )
+        self.assertIsNone(result.errors)
+        products = {
+            node["name"]
+            for row in result.data["softwareList"]
+            for node in (row["manufacturer"]["softwareProducts"] or [])
+        }
+        self.assertEqual(products, {"Office A"})
+
     # ---------------------------------------------------------- HTML list view
 
     def test_html_list_view_excludes_unauthorized_tenant_under_all_accessible(self):
@@ -388,6 +408,22 @@ class AggregateScopeAuthorizationTests(TestCase):
         self.assertTrue(
             LicenseSeatAssignment.all_objects.filter(license=self.license_a, assigned_holder=self.holder_a).exists()
         )
+
+    def test_bulk_destroy_leaves_unauthorized_tenant_rows(self):
+        # All-accessible already rejects objectless delete at the gate; the
+        # group scope passes it on the union and is the case this test covers.
+        self._activate_group()
+        detail_url = reverse("api:licenses_api:license-detail", args=[self.license_a.pk])
+        etag = self.client.get(detail_url).headers["ETag"]
+        response = self.client.delete(
+            reverse("api:licenses_api:license-list"),
+            data=json.dumps([{"id": self.license_a.pk}, {"id": self.license_b.pk}]),
+            content_type="application/json",
+            HTTP_IF_MATCH=etag,
+        )
+        self.assertIn(response.status_code, (200, 204), response.content)
+        self.assertFalse(License.all_objects.filter(pk=self.license_a.pk, deleted_at__isnull=True).exists())
+        self.assertTrue(License.all_objects.filter(pk=self.license_b.pk, deleted_at__isnull=True).exists())
 
     # ---------------------------------------------------------- unaffected paths
 

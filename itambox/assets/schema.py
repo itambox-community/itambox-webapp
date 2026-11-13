@@ -103,12 +103,14 @@ class ManufacturerNode:
             return []
         # The related manager applies no ambient scope (Software uses an
         # explicit-scope manager), so scope here exactly like the flat
-        # ``softwareList`` resolver does. A request-scoped prefetch (see
-        # ``scoped_software_prefetch``) is reused when present.
+        # ``softwareList`` resolver does -- including the permission
+        # intersection, or a global Manufacturer would re-expose software from
+        # a reachable-but-unauthorized tenant (#1088). A request-scoped prefetch
+        # (see ``scoped_software_prefetch``) is reused when present.
         prefetched = getattr(self, SCOPED_SOFTWARE_ATTR, None)
         if prefetched is not None:
             return prefetched
-        return list(self.software_products.for_scope(Scope.current()))
+        return list(self.software_products.for_scope(Scope.current(), required_permission="software.view_software"))
 
 
 @strawberry_django.type(
