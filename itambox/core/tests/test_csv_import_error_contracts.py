@@ -12,7 +12,7 @@ from assets.models import Manufacturer
 from core.forms.import_forms import BulkImportForm, ImportResult
 from core.importers.bulk_forms import _import_log_extra, _model_has_concrete_field
 from core.models import Job, Notification
-from core.tasks.csv_import import _task_log_extra, import_csv_task
+from core.tasks.csv_import import _record_task_failure, _task_log_extra, import_csv_task
 from core.tests.mixins import TenantTestMixin
 from itambox.views.generic import ObjectImportView
 
@@ -221,16 +221,58 @@ class TestImportTaskAbortContract(TenantTestMixin):
 
     @patch("core.tasks.csv_import.Notification.objects.create", side_effect=RuntimeError(SECRET))
     @patch("core.tasks.csv_import.Job.objects.get")
-    def test_cleanup_failure_is_logged_safely_and_reraised(self, get_job, _create_notification, caplog):
+    def test_notification_failure_does_not_change_the_job_outcome(self, get_job, _create_notification, caplog):
         job = MagicMock()
         job.mark_running.return_value = True
         get_job.return_value = job
 
-        with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError, match=SECRET):
+        with caplog.at_level(logging.ERROR):
             import_csv_task(99, [], "missing", "model", user_id=None, tenant_id=None)
 
-        cleanup = next(record for record in caplog.records if record.import_context["operation"] == "task.cleanup")
-        assert cleanup.import_context["exception_type"] == "RuntimeError"
+        job.mark_failed.assert_called_once()
+        assert "Import notification could not be created" in caplog.text
+        assert "exception_type=RuntimeError" in caplog.text
+        assert SECRET not in caplog.text
+
+    def test_failure_after_completion_keeps_the_job_completed(self, caplog):
+        self.setup_tenant_context(name="Task Tenant", slug="task-tenant")
+        job = Job.objects.create(name="Done", tenant=self.tenant, status=Job.STATUS_PENDING)
+        job.mark_completed(result={"imported": 1, "failed": 0, "total": 1})
+
+        with patch("core.tasks.csv_import._safe_notify") as notify, caplog.at_level(logging.ERROR):
+            _record_task_failure(job, self.tenant_user)
+
+        job.refresh_from_db()
+        assert job.status == Job.STATUS_COMPLETED
+        assert "keeping job" in caplog.text
+        notify.assert_called_once()
+
+    @patch("core.tasks.csv_import.Notification.objects.create", side_effect=RuntimeError(SECRET))
+    @patch("core.tasks.csv_import.get_import_form_class")
+    def test_notification_failure_keeps_a_completed_import_completed(self, get_import_form_class, _create, caplog):
+        self.setup_tenant_context(name="Task Tenant", slug="task-tenant")
+        user = self.tenant_user
+        job = Job.objects.create(name="Import Job", tenant=self.tenant, status=Job.STATUS_PENDING)
+        form = MagicMock()
+        form.import_data.return_value = (1, [])
+        form.skipped_list = []
+        form.updated_list = []
+        get_import_form_class.return_value = MagicMock(return_value=form)
+
+        with caplog.at_level(logging.ERROR), override("en"):
+            import_csv_task(
+                job_id=job.pk,
+                rows_data=[{"name": "Maker"}],
+                app_label="assets",
+                model_name="manufacturer",
+                user_id=user.pk,
+                tenant_id=self.tenant.pk,
+            )
+
+        job.refresh_from_db()
+        assert job.status == Job.STATUS_COMPLETED
+        assert job.result == {"imported": 1, "failed": 0, "total": 1}
+        assert "Import notification could not be created" in caplog.text
         assert SECRET not in caplog.text
 
 

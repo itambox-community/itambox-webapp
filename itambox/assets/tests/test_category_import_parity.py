@@ -2,6 +2,7 @@
 
 import csv
 import io
+import re
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -17,6 +18,12 @@ from core.tests.mixins import TenantTestMixin
 from organization.models import Role
 
 ALL_FALSE = {"asset": False, "accessory": False, "consumable": False, "component": False}
+
+
+def _preview_id(response):
+    match = re.search(rb'name="preview_id" value="([0-9a-f]{32})"', response.content)
+    assert match is not None, "preview response has no preview_id"
+    return match.group(1).decode()
 
 
 class CategoryRowMappingTests(SimpleTestCase):
@@ -97,7 +104,9 @@ class CategoryImportRouteTests(TenantTestMixin, TestCase):
         preview = self.client.post(self.url, {**data, "_preview": "1"})
         if preview.context["form"].errors:
             return preview, None
-        return preview, self.client.post(self.url, {"active_tab": "editor", "_confirm": "1"})
+        return preview, self.client.post(
+            self.url, {"active_tab": "editor", "_confirm": "1", "preview_id": _preview_id(preview)}
+        )
 
     def _csv(self, **extra):
         values = {

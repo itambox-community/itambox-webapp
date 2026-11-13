@@ -531,7 +531,7 @@ A fully-wired model touches every layer below. Skipping one leaves a half-wired 
 | `ITAMBOX_REQUIRE_CUSTODY_SIGNIN` | Require digital signature on custody receipt sign-off | `True` |
 | `ITAMBOX_ALLOW_GLOBAL_CUSTODY_TEMPLATES` | Allow custody templates not scoped to a tenant | `True` |
 | `ITAMBOX_SERVER_EMAIL` | From-address for error emails (prod only) | `DEFAULT_FROM_EMAIL` |
-| `ITAMBOX_PAGINATOR_COUNT_CAP` | Upper bound for the list-page row counter (`EnhancedPaginator`). A plain `SELECT COUNT(*)` scans the whole filtered table on every list view (slow at NetBox scale); the paginator counts only up to this many rows. At or below the cap the total is exact (small tables and tests are unaffected); above it the UI shows "<cap>+". Set `0` to disable capping (stock unbounded count). | `100000` |
+| `ITAMBOX_PAGINATOR_COUNT_CAP` | Upper bound for REST list counts (`ITAMBoxPagination`, exposed as `count_capped`). The HTML list paginator (`EnhancedPaginator`) always counts exactly so its "Showing X-Y of Z" line matches the pages it navigates. Set `0` to disable capping in the REST paginator. | `100000` |
 
 Reads `.env` from `BASE_DIR` or `BASE_DIR/../` at startup (hand-rolled parser; no `python-dotenv`).
 

@@ -218,7 +218,7 @@ In development, the app uses a local SMTP catcher automatically. In production, 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `ITAMBOX_DEFAULT_CURRENCY` | Optional | `EUR` | ISO 4217 currency code used as the fallback for money display. Each tenant can override its own currency. |
-| `ITAMBOX_PAGINATOR_COUNT_CAP` | Optional | `100000` | Upper bound for list-view row counters. Below the cap, exact counts are shown; above, displays `100000+`. Set to `0` for unbounded `COUNT(*)` on every list view — slow at large scale. |
+| `ITAMBOX_PAGINATOR_COUNT_CAP` | Optional | `100000` | Upper bound for REST list counts (`count_capped`). The HTML list paginator always counts exactly so its page bounds stay consistent. Set to `0` for unbounded `COUNT(*)` in the REST paginator. |
 | `ITAMBOX_SESSION_COOKIE_AGE` | Optional | `28800` (8 h) in prod; `1209600` (2 weeks) in dev | Interactive session lifetime in seconds. Production overrides the Django default to 8 hours; after this duration of inactivity, users must re-authenticate. |
 | `ITAMBOX_DOCS_ROOT` | Optional | `BASE_DIR/docs` | Accepted setting for the documentation root. It is currently read into `DOCS_ROOT` only; the in-app help links resolve against the compiled MkDocs output under `BASE_DIR/static/docs`, so changing this variable does not relocate the served help pages. |
 | `ITAMBOX_REQUIRE_MFA` | Optional | `True` (in prod) | Enforce TOTP multi-factor authentication for local-password logins by superusers and owner-admin roles. SSO/LDAP/SAML/OIDC logins always delegate MFA to the identity provider regardless of this setting. Set to `False` to disable for local accounts. |

@@ -1,12 +1,13 @@
 import logging
 from typing import cast
+from uuid import uuid4
 
 from django.apps import apps
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
+from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured, PermissionDenied
 from django.db import models, transaction
 from django.http import Http404
 from django.shortcuts import redirect
@@ -28,6 +29,42 @@ from itambox.views.generic.mixins import user_can_mutate_model
 from itambox.views.htmx import BaseHTMXView
 
 logger = logging.getLogger(__name__)
+
+
+IMPORT_PREVIEWS_SESSION_KEY = "import_previews"
+MAX_IMPORT_PREVIEWS = 3
+
+
+def _store_import_preview(request, *, rows, model):
+    """Store one preview under its own id, bound to user, tenant and target model."""
+    previews = request.session.get(IMPORT_PREVIEWS_SESSION_KEY, {})
+    if not isinstance(previews, dict):
+        previews = {}
+    # Keep the newest previews only (two tabs plus slack); an abandoned tab
+    # must not grow the session without bound.
+    while len(previews) >= MAX_IMPORT_PREVIEWS:
+        previews.pop(next(iter(previews)))
+    preview_id = uuid4().hex
+    current_tenant = get_current_tenant()
+    previews[preview_id] = {
+        "rows": rows,
+        "user_id": request.user.pk,
+        "tenant_id": current_tenant.pk if current_tenant else None,
+        "app_label": model._meta.app_label,
+        "model_name": model._meta.model_name,
+    }
+    request.session[IMPORT_PREVIEWS_SESSION_KEY] = previews
+    return preview_id
+
+
+def _pop_import_preview(request, preview_id):
+    """Return and consume one preview. A preview can be confirmed once."""
+    previews = request.session.get(IMPORT_PREVIEWS_SESSION_KEY, {})
+    if not isinstance(previews, dict) or not preview_id:
+        return None
+    preview = previews.pop(preview_id, None)
+    request.session[IMPORT_PREVIEWS_SESSION_KEY] = previews
+    return preview
 
 
 def _relation_description(form_cls, name, related_model):
@@ -81,6 +118,40 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
         form = self.get_form_class()()
         return self._render_response(request, form)
 
+    def _consume_preview(self, request, form, model):
+        """Validate and consume the posted preview; return (preview, tenant, error)."""
+        preview = _pop_import_preview(request, request.POST.get("preview_id", ""))
+        if preview is None:
+            # Unknown, already confirmed or evicted preview: the rows are gone,
+            # so the only safe answer is to ask for a fresh upload.
+            return (
+                None,
+                None,
+                self._render_response(request, form, errors=[_("No import data found. Please upload a file first.")]),
+            )
+        if preview.get("user_id") != request.user.pk:
+            raise PermissionDenied("This import preview belongs to another user.")
+        current_tenant = get_current_tenant()
+        tenant_id = current_tenant.pk if current_tenant else None
+        if preview.get("tenant_id") != tenant_id:
+            return (
+                None,
+                None,
+                self._render_response(request, form, errors=[_("Referenced object belongs to another tenant.")]),
+            )
+        if (preview.get("app_label"), preview.get("model_name")) != (
+            model._meta.app_label,
+            model._meta.model_name,
+        ):
+            raise PermissionDenied("This import preview belongs to another model.")
+        if not preview.get("rows"):
+            return (
+                None,
+                None,
+                self._render_response(request, form, errors=[_("No import data found. Please upload a file first.")]),
+            )
+        return preview, current_tenant, None
+
     def post(self, request, *args, **kwargs):
         form = self.get_form_class()(request.POST, request.FILES)
         # Preview-time checks (e.g. permission to create related objects) run as the importing user.
@@ -89,11 +160,12 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
         if "_preview" in request.POST:
             if form.is_valid():
                 rows = form._rows_data
-                request.session["import_rows"] = rows
-                request.session["import_delimiter"] = form.cleaned_data.get("delimiter", ",")
+                model = cast(type[models.Model], self._get_model())
+                preview_id = _store_import_preview(request, rows=rows, model=model)
                 context = {
                     "form": form,
                     "preview_rows": rows,
+                    "preview_id": preview_id,
                     "preview_headers": form.field_names if rows else [],
                     "preview_notes": form.row_notes,
                     "title": self._get_title(),
@@ -103,58 +175,55 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
             return self._render_response(request, form, errors=[str(e) for e in form.errors.values()])
 
         if "_confirm" in request.POST:
-            rows = request.session.get("import_rows", [])
-            if rows:
-                model = cast(type[models.Model], self._get_model())
-                ct = ContentType.objects.get_for_model(model)
+            model = cast(type[models.Model], self._get_model())
+            preview, current_tenant, error = self._consume_preview(request, form, model)
+            if error is not None:
+                return error
+            tenant_id = current_tenant.pk if current_tenant else None
+            rows = preview["rows"]
 
-                current_tenant = get_current_tenant()
-                tenant_id = current_tenant.pk if current_tenant else None
+            ct = ContentType.objects.get_for_model(model)
 
-                # Create background Job tracker instance
-                job = Job.objects.create(
-                    name=f"Bulk Import: {str(model._meta.verbose_name_plural).title()}",
-                    tenant=current_tenant,
-                    model=ct,
-                    status=Job.STATUS_PENDING,
+            # Create background Job tracker instance for the preview's tenant.
+            job = Job.objects.create(
+                name=f"Bulk Import: {str(model._meta.verbose_name_plural).title()}",
+                tenant=current_tenant,
+                model=ct,
+                status=Job.STATUS_PENDING,
+            )
+
+            if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
+                async_task(
+                    "core.tasks.import_csv_task",
+                    job.pk,
+                    rows,
+                    model._meta.app_label,
+                    model._meta.model_name,
+                    request.user.pk,
+                    tenant_id=tenant_id,
                 )
-
-                if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
-                    async_task(
-                        "core.tasks.import_csv_task",
-                        job.pk,
-                        rows,
-                        model._meta.app_label,
-                        model._meta.model_name,
-                        request.user.pk,
-                        tenant_id=tenant_id,
-                    )
-                else:
-                    task_args = (
-                        "core.tasks.import_csv_task",
-                        job.pk,
-                        rows,
-                        model._meta.app_label,
-                        model._meta.model_name,
-                        request.user.pk,
-                    )
-                    task_kwargs = {"tenant_id": tenant_id}
-                    transaction.on_commit(lambda args=task_args, kwargs=task_kwargs: async_task(*args, **kwargs))
-
-                messages.success(
-                    request,
-                    _("Asynchronous import job '%(name)s' enqueued successfully! Tracking progress in real-time.")
-                    % {"name": job.name},
+            else:
+                task_args = (
+                    "core.tasks.import_csv_task",
+                    job.pk,
+                    rows,
+                    model._meta.app_label,
+                    model._meta.model_name,
+                    request.user.pk,
                 )
+                task_kwargs = {"tenant_id": tenant_id}
+                transaction.on_commit(lambda args=task_args, kwargs=task_kwargs: async_task(*args, **kwargs))
 
-                request.session.pop("import_rows", None)
-                request.session.pop("import_delimiter", None)
+            messages.success(
+                request,
+                _("Asynchronous import job '%(name)s' enqueued successfully! Tracking progress in real-time.")
+                % {"name": job.name},
+            )
 
-                try:
-                    return redirect("job_detail", pk=job.pk)
-                except NoReverseMatch:
-                    return redirect(f"/jobs/{job.pk}/")
-            return self._render_response(request, form, errors=[_("No import data found. Please upload a file first.")])
+            try:
+                return redirect("job_detail", pk=job.pk)
+            except NoReverseMatch:
+                return redirect(f"/jobs/{job.pk}/")
 
         return self._render_response(request, form)
 

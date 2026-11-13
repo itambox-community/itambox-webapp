@@ -1,5 +1,6 @@
 """Contract: every installed model carries an explicit import and export declaration."""
 
+import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -345,11 +346,11 @@ class ReferenceDataImportRouteTests(TenantTestMixin, TestCase):
         )
         if preview.context["form"].errors:
             return preview, None
-        confirmed = self.client.post(
-            url,
-            {"active_tab": "editor", "_confirm": "1"},
-            headers=headers,
-        )
+        match = re.search(rb'name="preview_id" value="([0-9a-f]{32})"', preview.content)
+        confirm_payload = {"active_tab": "editor", "_confirm": "1"}
+        if match:
+            confirm_payload["preview_id"] = match.group(1).decode()
+        confirmed = self.client.post(url, confirm_payload, headers=headers)
         return preview, confirmed
 
     def test_each_admitted_reference_form_creates_skips_without_change_and_updates_with_change(self):

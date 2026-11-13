@@ -87,6 +87,7 @@
               </div>
               <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
+                <input type="hidden" name="preview_id" value="{{ preview_id }}">
                 <div class="d-flex gap-2">
                   <button type="submit" name="_confirm" class="btn btn-success">
                     <i class="mdi mdi-check"></i>
