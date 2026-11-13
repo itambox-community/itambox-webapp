@@ -32,6 +32,7 @@ from assets.models.catalog import AssetTypeFieldset
 from core.tests.mixins import grant
 from extras.models import CustomField, CustomFieldChoice, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField
 from organization.models import Role, Tenant
+from organization.rbac import build_accessible_tenant_permissions_map
 from software.models import Software
 
 pytestmark = pytest.mark.django_db
@@ -444,6 +445,10 @@ def test_asset_type_nested_query_counts_do_not_grow_with_page_size(asset_type_qu
     # Warm authorization before measuring so Django's per-user permission cache
     # does not make the first page look more expensive than later pages.
     assert world.user.has_perm("assets.view_assettype")
+    # The scoped reads resolve the per-tenant permission map once per user;
+    # warm it here for the same reason, so the first page is not charged for
+    # the one-time cache fill (#1088).
+    build_accessible_tenant_permissions_map(world.user)
     selections = {
         "bare": "id",
         "fieldsets": "fieldsets { identity }",
