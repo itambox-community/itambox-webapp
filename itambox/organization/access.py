@@ -579,6 +579,24 @@ def managed_accessible_tenant_ids(user: object | None) -> set[int]:
     return tenant_ids
 
 
+def tenant_notification_recipients(tenant: object, user_ids: Iterable[int] | None = None) -> list[object]:
+    """Active users a live grant lets read ``tenant``'s data (issue #1090).
+
+    A bare membership is not enough: every candidate is confirmed per recipient with
+    ``role_grant_covers_tenant``, the evidence the actor-bound tasks use. ``user_ids``
+    narrows the candidates (explicit recipient lists).
+    """
+    wanted = None if user_ids is None else set(user_ids)
+    users = []
+    for entry in tenant_access_report(tenant):
+        user = entry["user"]
+        if wanted is not None and user.pk not in wanted:
+            continue
+        if user.is_active and _tenant_scope.role_grant_covers_tenant(user, tenant):
+            users.append(user)
+    return users
+
+
 def tenant_access_report(tenant: object, external_only: bool = False) -> list[dict[str, object]]:
     """Return users who can access ``tenant`` with native grant provenance."""
     # inline import: app-registry: organization models are not loadable while

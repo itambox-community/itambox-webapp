@@ -34,6 +34,7 @@ class OrganizationConfig(AppConfig):
         from organization.access import (
             accessible_tenant_ids_with_expiry,
             managed_accessible_tenant_ids,
+            tenant_notification_recipients,
         )
         from organization.models import AssetHolder, Location, Tenant
         from organization.rbac import (
@@ -171,6 +172,7 @@ class OrganizationConfig(AppConfig):
             accessible_tenant_ids_with_expiry=accessible_tenant_ids_with_expiry,
             managed_accessible_tenant_ids=managed_accessible_tenant_ids,
             applicable_grants=applicable_grants,
+            tenant_notification_recipients=tenant_notification_recipients,
             build_accessible_tenant_permissions_map=build_accessible_tenant_permissions_map,
             resolve_effective_permissions_with_expiry=effective_permissions_with_expiry,
         )

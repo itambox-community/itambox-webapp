@@ -18,10 +18,10 @@ def notifications_processor(request):
     if request.user.is_authenticated:
 
         def get_unread_count():
-            return Notification.objects.filter(user=request.user, is_read=False).count()
+            return Notification.objects.visible_to(request.user).filter(is_read=False).count()
 
         def get_recent_unread():
-            return Notification.objects.filter(user=request.user, is_read=False).order_by("-created_at")[:5]
+            return Notification.objects.visible_to(request.user).filter(is_read=False).order_by("-created_at")[:5]
 
         return {
             "unread_notifications_count": SimpleLazyObject(get_unread_count),

@@ -17,6 +17,7 @@ from typing import Final, Literal, Protocol
 from urllib.parse import urlsplit
 
 import requests
+from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.mail import BadHeaderError, EmailMessage, get_connection
@@ -24,6 +25,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.context import get_current_request_id, get_current_tenant, get_current_user
 from core.models import EmailSettings, Notification
+from core.tenant_scope import tenant_notification_recipients
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +271,14 @@ def _send_email_notification(channel, subject, body):
     )
 
 
+def _channel_tenant(channel):
+    return (
+        apps.get_model("organization", "Tenant")
+        ._base_manager.filter(pk=channel.tenant_id, deleted_at__isnull=True)
+        .first()
+    )
+
+
 def _resolve_in_app_recipients(channel):
     """Resolve the in-app target users inside the channel's scope.
 
@@ -282,12 +292,10 @@ def _resolve_in_app_recipients(channel):
     User = get_user_model()
     user_ids = channel.config.get("recipient_users", [])
     if user_ids:
-        recipients = User.objects.filter(pk__in=user_ids, is_active=True)
         if channel.tenant_id:
-            recipients = recipients.filter(memberships__tenant_id=channel.tenant_id).distinct()
+            users = tenant_notification_recipients(_channel_tenant(channel), user_ids)
         else:
-            recipients = recipients.filter(is_staff=True)
-        users = list(recipients)
+            users = list(User.objects.filter(pk__in=user_ids, is_active=True, is_staff=True))
         if len(users) < len(set(user_ids)):
             logger.warning(
                 "In-App channel '%s': %s configured recipient(s) did not resolve inside the channel scope.",
@@ -299,12 +307,7 @@ def _resolve_in_app_recipients(channel):
         # Members of the channel's tenant (via Membership) — covers
         # users with no AssetHolder profile, unlike the old
         # asset_holder_profiles join.
-        return list(
-            User.objects.filter(
-                memberships__tenant_id=channel.tenant_id,
-                is_active=True,
-            ).distinct()
-        )
+        return tenant_notification_recipients(_channel_tenant(channel))
     return list(User.objects.filter(is_staff=True, is_active=True))
 
 
@@ -348,7 +351,13 @@ def send_notification_to_channel(channel: NotificationChannelRef, subject, body)
                 "in_app.deliver", DeliveryDisposition.TERMINAL, True, str(_("No notification recipients were found."))
             )
 
-        Notification.objects.bulk_create([Notification(user=user, subject=subject, message=body) for user in users])
+        kind = Notification.KIND_TENANT if channel.tenant_id else Notification.KIND_GLOBAL
+        Notification.objects.bulk_create(
+            [
+                Notification(user=user, subject=subject, message=body, kind=kind, tenant_id=channel.tenant_id)
+                for user in users
+            ]
+        )
         return DeliveryResult("in_app.deliver", DeliveryDisposition.SUCCESS)
 
     # Unreachable while the closed vocabulary above and these branches agree;

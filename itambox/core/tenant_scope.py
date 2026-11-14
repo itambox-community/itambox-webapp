@@ -105,6 +105,11 @@ def applicable_grants(user):
     return _call("applicable_grants", user)
 
 
+def tenant_notification_recipients(tenant, user_ids=None):
+    """Active users with a live grant covering ``tenant`` (see organization.access)."""
+    return _call("tenant_notification_recipients", tenant, user_ids)
+
+
 def role_grant_covers_tenant(user, tenant) -> bool:
     """Return whether a live direct or group grant covers ``tenant``.
 

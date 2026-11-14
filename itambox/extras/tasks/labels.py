@@ -42,7 +42,14 @@ def _try_create_notification(user, *, subject, message, level, target_url=None, 
     (completed job + persisted attachment) nor mask the original task error.
     """
     try:
-        Notification.objects.create(user=user, subject=subject, message=message, level=level, target_url=target_url)
+        Notification.objects.create(
+            user=user,
+            subject=subject,
+            message=message,
+            level=level,
+            target_url=target_url,
+            kind=Notification.KIND_PERSONAL,
+        )
     # broad except: availability-tradeoff: notification delivery is best-effort and must
     # never reverse a durable task outcome (completed job + persisted attachment) nor mask
     # the original task error, so creation failures are logged with safe metadata only.

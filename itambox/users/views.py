@@ -278,14 +278,14 @@ class UserNotificationsView(UserGenericTabView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        context["notifications"] = Notification.objects.filter(user=self.request.user).order_by("-created_at")
+        context["notifications"] = Notification.objects.visible_to(self.request.user).order_by("-created_at")
         return context
 
 
 class MarkNotificationReadView(LoginRequiredMixin, View):
     def post(self, request, pk):
 
-        notification = get_object_or_404(Notification, pk=pk, user=request.user)
+        notification = get_object_or_404(Notification.objects.visible_to(request.user), pk=pk)
         notification.is_read = True
         notification.save()
         return redirect("users:user_notifications")
@@ -298,7 +298,7 @@ class ViewNotificationView(LoginRequiredMixin, View):
         # Q(user__isnull=True) clause let ANY authenticated user (any tenant) open a global
         # broadcast row by pk and follow its target_url — a cross-tenant info leak. Tenant
         # EventRule notifications now fan out per-user instead of creating user=None rows.
-        notification = get_object_or_404(Notification, pk=pk, user=request.user)
+        notification = get_object_or_404(Notification.objects.visible_to(request.user), pk=pk)
 
         notification.is_read = True
         notification.save()
@@ -311,7 +311,7 @@ class ViewNotificationView(LoginRequiredMixin, View):
 class MarkAllNotificationsReadView(LoginRequiredMixin, View):
     def post(self, request):
 
-        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        Notification.objects.visible_to(request.user).filter(is_read=False).update(is_read=True)
         return redirect("users:user_notifications")
 
 
@@ -335,7 +335,7 @@ def notification_poll(request):
     if not getattr(request, "htmx", False):
         return HttpResponse(status=204)
 
-    unread_qs = Notification.objects.filter(user=request.user, is_read=False)
+    unread_qs = Notification.objects.visible_to(request.user).filter(is_read=False)
     context = {
         "unread_notifications_count": unread_qs.count(),
         "recent_unread_notifications": unread_qs.order_by("-created_at")[:5],
