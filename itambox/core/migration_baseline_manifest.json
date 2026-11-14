@@ -66,7 +66,7 @@
   "current_leaf_ids": [
     "assets.0008_asset_search_trigram_indexes",
     "compliance.0004_signature_provider_configs",
-    "core.0003_cross_app_relations_late",
+    "core.0004_notification_tenant_kind",
     "extras.0005_label_template_object_types",
     "inventory.0002_cross_app_relations",
     "licenses.0003_cross_app_relations_late",
@@ -394,6 +394,7 @@
     "core.0001_baseline",
     "core.0002_cross_app_relations",
     "core.0003_cross_app_relations_late",
+    "core.0004_notification_tenant_kind",
     "core.0101_plugin_diagnostics_permission",
     "extras.0001_baseline",
     "extras.0002_cross_app_relations",
@@ -466,7 +467,7 @@
   "post_transition_leaf_ids": [
     "assets.0008_asset_search_trigram_indexes",
     "compliance.0004_signature_provider_configs",
-    "core.0003_cross_app_relations_late",
+    "core.0004_notification_tenant_kind",
     "extras.0005_label_template_object_types",
     "inventory.0002_cross_app_relations",
     "licenses.0003_cross_app_relations_late",

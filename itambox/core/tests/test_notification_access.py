@@ -21,11 +21,18 @@ class NotificationAccessMixin:
     def setUp(self):
         self.tenant_a = Tenant.objects.create(name="Alpha", slug="notif-alpha")
         self.tenant_b = Tenant.objects.create(name="Beta", slug="notif-beta")
-        self.role_a = Role.objects.create(tenant=self.tenant_a, name="A", permissions=[])
-        self.role_b = Role.objects.create(tenant=self.tenant_b, name="B", permissions=[])
+        self.role_a = Role.objects.create(tenant=self.tenant_a, name="A", permissions=["assets.view_asset"])
+        self.role_b = Role.objects.create(tenant=self.tenant_b, name="B", permissions=["assets.view_asset"])
         self.user = User.objects.create_user(username="multi", password="pw")
         self.grant_a = grant(self.user, self.tenant_a, self.role_a)
         self.grant_b = grant(self.user, self.tenant_b, self.role_b)
+
+    def make_provider(self):
+        """Tenant B becomes a provider managing tenant A, so a B grant can reach A."""
+        Tenant.objects.filter(pk=self.tenant_b.pk).update(is_provider=True)
+        Tenant.objects.filter(pk=self.tenant_a.pk).update(managed_by=self.tenant_b)
+        self.tenant_a.refresh_from_db()
+        self.tenant_b.refresh_from_db()
 
     def row(self, user=None, kind="tenant", tenant=None, **extra):
         return Notification.objects.create(
@@ -69,7 +76,8 @@ class SenderTests(NotificationAccessMixin, TestCase):
 
     def test_delegated_grant_without_direct_membership_still_receives(self):
         delegate = User.objects.create_user(username="delegate", password="pw")
-        manager_role = Role.objects.create(tenant=self.tenant_b, name="Mgr", permissions=[])
+        self.make_provider()
+        manager_role = Role.objects.create(tenant=self.tenant_b, name="Mgr", permissions=["assets.view_asset"])
         delegated = grant(delegate, self.tenant_b, manager_role, reach="assigned", assigned_tenants=[self.tenant_a])
         self.assertIsNotNone(delegated)
         self.assertFalse(Membership.objects.filter(user=delegate, tenant=self.tenant_a).exists())
@@ -101,7 +109,8 @@ class ReadPredicateTests(NotificationAccessMixin, TestCase):
 
     def test_delegated_access_reads_rows(self):
         delegate = User.objects.create_user(username="delegate2", password="pw")
-        manager_role = Role.objects.create(tenant=self.tenant_b, name="Mgr", permissions=[])
+        self.make_provider()
+        manager_role = Role.objects.create(tenant=self.tenant_b, name="Mgr", permissions=["assets.view_asset"])
         grant(delegate, self.tenant_b, manager_role, reach="assigned", assigned_tenants=[self.tenant_a])
         self.row(user=delegate, tenant=self.tenant_a)
         self.assertBadgeMatchesList(delegate, 1)

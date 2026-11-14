@@ -579,11 +579,18 @@ def managed_accessible_tenant_ids(user: object | None) -> set[int]:
     return tenant_ids
 
 
+def _tenant_has_live_permission_entry(user: object, tenant: object) -> bool:
+    """Same evidence the inbox read uses, so a row is sent only if it can be read."""
+    now = timezone.now()
+    entry = _tenant_scope.build_accessible_tenant_permissions_map(user).get(tenant.pk)
+    return entry is not None and (entry[1] is None or entry[1] > now)
+
+
 def tenant_notification_recipients(tenant: object, user_ids: Iterable[int] | None = None) -> list[object]:
     """Active users a live grant lets read ``tenant``'s data (issue #1090).
 
-    A bare membership is not enough: every candidate is confirmed per recipient with
-    ``role_grant_covers_tenant``, the evidence the actor-bound tasks use. ``user_ids``
+    A bare membership is not enough: every candidate is confirmed per recipient against
+    ``build_accessible_tenant_permissions_map``, the evidence ``Notification.visible_to`` reads. ``user_ids``
     narrows the candidates (explicit recipient lists).
     """
     wanted = None if user_ids is None else set(user_ids)
@@ -592,7 +599,7 @@ def tenant_notification_recipients(tenant: object, user_ids: Iterable[int] | Non
         user = entry["user"]
         if wanted is not None and user.pk not in wanted:
             continue
-        if user.is_active and _tenant_scope.role_grant_covers_tenant(user, tenant):
+        if user.is_active and _tenant_has_live_permission_entry(user, tenant):
             users.append(user)
     return users
 

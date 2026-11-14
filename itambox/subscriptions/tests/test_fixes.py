@@ -67,7 +67,7 @@ class SubscriptionFixesTests(TestCase):
                 "subscriptions.add_subscriptionassignment",
             ],
         )
-        self.role_b = Role.objects.create(tenant=self.tenant_b, name="Role B", permissions=[])
+        self.role_b = Role.objects.create(tenant=self.tenant_b, name="Role B", permissions=["assets.view_asset"])
 
         # Create memberships
         grant(self.user_a, self.tenant_a, self.role_a)
@@ -442,7 +442,7 @@ class TestSubscriptionReminderConcurrency(TransactionTestCase):
         group = TenantGroup.objects.create(name="Reminder group", slug="reminder-group")
         tenant = Tenant.objects.create(name="Reminder tenant", slug="reminder-tenant", group=group)
         staff_user = User.objects.create_user(username="reminder-staff", is_staff=True)
-        role = Role.objects.create(tenant=tenant, name="Reminder role", permissions=[])
+        role = Role.objects.create(tenant=tenant, name="Reminder role", permissions=["assets.view_asset"])
         grant(staff_user, tenant, role)
         supplier = Supplier.objects.create(name="Reminder supplier", tenant=tenant)
         subscription = Subscription.objects.create(

@@ -30,7 +30,7 @@ User = get_user_model()
 def _tenant_member(tenant, username):
     """Create an active user who is a member of ``tenant`` (in-app delivery scope)."""
     user = User.objects.create_user(username=username, password="x")
-    role = Role.objects.create(tenant=tenant, name=f"{username} role", permissions=[])
+    role = Role.objects.create(tenant=tenant, name=f"{username} role", permissions=["assets.view_asset"])
     grant(user, tenant, role)
     return user
 

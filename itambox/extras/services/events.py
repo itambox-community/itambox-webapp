@@ -450,6 +450,7 @@ def _send_notification(rule, event, instance_tenant_id=None):
     # only, as a ``global`` row. Never a user=None broadcast (issue #1090).
     tenant_id = rule.tenant_id or instance_tenant_id
     if tenant_id:
+        # unscoped: the worker has no ambient tenant; the id comes from the rule or the event's own object
         tenant = (
             apps.get_model("organization", "Tenant")._base_manager.filter(pk=tenant_id, deleted_at__isnull=True).first()
         )

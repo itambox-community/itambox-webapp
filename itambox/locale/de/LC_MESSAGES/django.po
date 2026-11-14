@@ -555,6 +555,9 @@ msgstr "Slug"
 msgid "Type"
 msgstr "Typ"
 
+msgid "Kind"
+msgstr "Art"
+
 msgid "Description"
 msgstr "Beschreibung"
 
