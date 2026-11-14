@@ -861,6 +861,7 @@ class SubscriptionConcurrencyTests(TransactionTestCase):
         from subscriptions.tasks import _notify_once
 
         user = User.objects.create_user(username="notification-race")
+        tenant_id = Tenant.objects.create(name="Notification race", slug="notification-race").pk
         barrier = threading.Barrier(2)
         errors = []
 
@@ -871,6 +872,7 @@ class SubscriptionConcurrencyTests(TransactionTestCase):
                 barrier.wait(timeout=10)
                 _notify_once(
                     user=thread_user,
+                    tenant_id=tenant_id,
                     subject="Renewal reminder",
                     message="Same daily effect",
                     target_url="/subscriptions/1/",
