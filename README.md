@@ -86,7 +86,7 @@ REST/OpenAPI, scoped GraphQL, SCIM, identity-provider integrations, imports, exp
 ITAMbox is licensed under Apache 2.0 and designed to run on infrastructure you control. Your deployment, data, integrations, retention policies, and upgrade decisions remain under your administration.
 
 > [!IMPORTANT]
-> The current release is `1.0.0`. The 1.0 feature scope is complete; capabilities marked **Beta** may still change in minor releases. Review the [capability maturity guide](itambox/docs/operations/capability-maturity.md) for public grades and known limitations, keep tested backups, and read the changelog before upgrading.
+> The current release is `1.0.1`. The 1.0 feature scope is complete; capabilities marked **Beta** may still change in minor releases. Review the [capability maturity guide](itambox/docs/operations/capability-maturity.md) for public grades and known limitations, keep tested backups, and read the changelog before upgrading.
 
 The Report Designer is Stable and available in every deployment. CSV exports use each template's selected columns, and custom HTML/Jinja templates remain supported in a restricted sandbox. All templates use the same canonical schema and rendering path.
 
