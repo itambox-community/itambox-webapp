@@ -4,7 +4,7 @@
       "assets.0008_asset_search_trigram_indexes",
       "compliance.0004_signature_provider_configs",
       "core.0004_notification_tenant_kind",
-      "extras.0005_label_template_object_types",
+      "extras.0006_event_outbox",
       "inventory.0002_cross_app_relations",
       "licenses.0003_cross_app_relations_late",
       "organization.0002_cross_app_relations",
@@ -171,6 +171,10 @@
         "extras.0005_label_template_object_types"
       ],
       [
+        "extras.0005_label_template_object_types",
+        "extras.0006_event_outbox"
+      ],
+      [
         "inventory.0001_baseline",
         "inventory.0002_cross_app_relations"
       ],
@@ -335,7 +339,7 @@
       "assets.0008_asset_search_trigram_indexes",
       "compliance.0004_signature_provider_configs",
       "core.0004_notification_tenant_kind",
-      "extras.0005_label_template_object_types",
+      "extras.0006_event_outbox",
       "procurement.0002_cross_app_relations",
       "subscriptions.0002_cross_app_relations",
       "users.0002_unique_constraint_names"
@@ -362,6 +366,7 @@
       "extras.0003_definition_guards",
       "extras.0004_drop_legacy_column_default",
       "extras.0005_label_template_object_types",
+      "extras.0006_event_outbox",
       "inventory.0001_baseline",
       "inventory.0002_cross_app_relations",
       "licenses.0001_baseline",
@@ -1050,6 +1055,37 @@
       "path": "itambox/extras/migrations/0005_label_template_object_types.py",
       "replaces_count": 0,
       "reviewed_semantics": "Binds every existing label template to assets.asset, the only object type the former engine printed, and moves the never-rendered Data Matrix format to QR; idempotent, schema reverse is the field removal.",
+      "run_before": []
+    },
+    {
+      "dependencies": [
+        "extras.0005_label_template_object_types"
+      ],
+      "id": "extras.0006_event_outbox",
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 1,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
+        }
+      },
+      "path": "itambox/extras/migrations/0006_event_outbox.py",
+      "replaces_count": 0,
+      "reviewed_semantics": "Replaces Event.processed with the pending/processed/dead status: unprocessed events younger than 24 hours become pending, older ones dead (outbox.backfill_expired); the reverse refuses while events are pending.",
       "run_before": []
     },
     {
@@ -1917,9 +1953,9 @@
   "schema_version": 5,
   "summary": {
     "apps": 11,
-    "migrations": 35,
+    "migrations": 36,
     "replaced_identities": 397,
     "replacing_migrations": 28,
-    "reviewed_custom_migrations": 10
+    "reviewed_custom_migrations": 11
   }
 }
