@@ -48,10 +48,13 @@ PERMISSIONS = [
 # intersection of the aggregate-scope fix (#1088); it still does not grow with
 # the number of assets.
 LIST_QUERY_BUDGET = 33
-DETAIL_QUERY_BUDGET = 73
+# The detail page gained one constant query: the unread-notification badge resolves the
+# user's live tenant grants (#1090). It does not grow with the number of assets.
+DETAIL_QUERY_BUDGET = 74
 # Global search for one asset term, rendered by the same role-granted member.
 # Before #882 it cost 56 queries with one matching asset and 156 with ten.
-SEARCH_QUERY_BUDGET = 48
+# One constant query more for the same unread-badge grant lookup (#1090).
+SEARCH_QUERY_BUDGET = 49
 
 
 class _LinkedAssetFixture(TenantTestMixin, TestCase):
