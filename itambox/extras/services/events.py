@@ -6,6 +6,7 @@ The reusable delivery contracts and transports stay in ``core.events``.
 """
 
 import logging
+from datetime import timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -17,6 +18,7 @@ from django.core.cache import cache
 from django.db import connection, transaction
 from django.db.models import Q
 from django.urls import NoReverseMatch
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_q.tasks import async_task
 
@@ -120,12 +122,44 @@ def has_eligible_rules(content_type_id, tenant_id, action):
     return (content_type_id, tenant_id, action) in index or (content_type_id, None, action) in index
 
 
-def dispatch_event(sender, instance, action, created=None, *, object_id=None):
-    """Dispatch an event when a ChangeLoggingMixin model is created, updated, or deleted.
+EVENT_MAX_ATTEMPTS = 10
+EVENT_MAX_AGE = timedelta(hours=24)
+EVENT_CLAIM_BATCH = 100
+EVENT_BACKOFF_BASE_SECONDS = 30
+EVENT_BACKOFF_CAP_SECONDS = 3600
+EVENT_PROCESS_TASK_PATH = "extras.tasks.events.process_event_task"
 
-    No ``Event`` row is written (and no rule transaction opened) unless at least one
-    eligible rule exists for the model, the object's own tenant and the action.
+
+class EventOutsideTransactionError(RuntimeError):
+    """Raised when an outbox event is emitted outside the business transaction."""
+
+
+def event_backoff_seconds(attempts):
+    """Exponential backoff before the next processing attempt."""
+    return min(EVENT_BACKOFF_BASE_SECONDS * (2 ** max(attempts - 1, 0)), EVENT_BACKOFF_CAP_SECONDS)
+
+
+def _publish_hint(event_id):
+    """Best-effort post-commit hint; the coordinator recovers a lost one."""
+    try:
+        async_task(EVENT_PROCESS_TASK_PATH, event_id)
+    # broad except: availability-tradeoff: a lost hint is recovered by the coordinator
+    except Exception as error:
+        logger.warning(
+            "operation=events.hint disposition=lost event_id=%s error_class=%s", event_id, type(error).__name__
+        )
+
+
+def dispatch_event(sender, instance, action, created=None, *, object_id=None):
+    """Write the outbox ``Event`` row inside the business transaction.
+
+    No row is written unless at least one eligible rule exists for the model, the
+    object's own tenant and the action (E2). The row is the durable commitment;
+    rules are evaluated after commit by ``process_event``. Emission outside a
+    transaction is rejected, and a failed insert propagates (E7: fail closed).
     """
+    if not connection.in_atomic_block:
+        raise EventOutsideTransactionError("Events must be emitted inside the business transaction.")
 
     if not issubclass(sender, ChangeLoggingMixin):
         return
@@ -145,9 +179,68 @@ def dispatch_event(sender, instance, action, created=None, *, object_id=None):
         object_id=event_object_id,
         action=action,
         data={"app_label": ct.app_label, "model_name": ct.model},
+        tenant_id=instance_tenant_id,
+        actor_id=getattr(get_current_user(), "pk", None),
     )
+    transaction.on_commit(lambda: _publish_hint(event.pk), robust=True)
+    return event
 
-    process_event_rules(event, instance_tenant_id)
+
+def _record_failure(event_pk, error):
+    """Count a failed processing attempt; back off or dead-letter the event."""
+    now = timezone.now()
+    with transaction.atomic():
+        # unscoped: outbox bookkeeping by pk in the worker, which has no ambient scope
+        event = (
+            Event._base_manager.select_for_update(of=("self",)).filter(pk=event_pk, status=Event.STATUS_PENDING).first()
+        )
+        if event is None:
+            return
+        event.attempts += 1
+        event.last_error_class = type(error).__name__[:64]
+        if event.attempts >= EVENT_MAX_ATTEMPTS or now - event.timestamp >= EVENT_MAX_AGE:
+            event.status = Event.STATUS_DEAD
+            event.save(update_fields=["attempts", "last_error_class", "status"])
+            logger.error("operation=events.process disposition=dead event_id=%s attempts=%s", event_pk, event.attempts)
+            return
+        event.available_at = now + timedelta(seconds=event_backoff_seconds(event.attempts))
+        event.save(update_fields=["attempts", "last_error_class", "available_at"])
+
+
+def process_event(event_id):
+    """Process one due pending event; returns True when it reached ``processed``."""
+    try:
+        with transaction.atomic():
+            # unscoped: outbox claim by pk in the worker, which has no ambient scope
+            event = (
+                Event._base_manager.select_for_update(of=("self",), skip_locked=True)
+                .select_related("model")
+                .filter(pk=event_id, status=Event.STATUS_PENDING, available_at__lte=timezone.now())
+                .first()
+            )
+            if event is None:
+                return False
+            process_event_rules(event)
+            return True
+    # broad except: task-isolation: a failed attempt is counted, backed off and retried by the coordinator
+    except Exception as error:
+        logger.error(
+            "operation=events.process disposition=retry event_id=%s error_class=%s", event_id, type(error).__name__
+        )
+        _record_failure(event_id, error)
+        return False
+
+
+def recover_pending_events(limit=EVENT_CLAIM_BATCH):
+    """Coordinator: process due pending events whose hint or worker was lost."""
+    # unscoped: the coordinator spans every tenant by design
+    due = list(
+        Event._base_manager.filter(status=Event.STATUS_PENDING, available_at__lte=timezone.now())
+        .order_by("available_at", "pk")
+        .values_list("pk", flat=True)[:limit]
+    )
+    processed = sum(1 for pk in due if process_event(pk))
+    return {"due": len(due), "processed": processed}
 
 
 def _eligible_rules(event, instance_tenant_id):
@@ -209,8 +302,10 @@ def process_event_rules(event, instance_tenant_id=None):
     with transaction.atomic():
         # unscoped: event row lock by pk in the worker, which has no ambient scope
         locked_event = Event._base_manager.select_for_update(of=("self",)).get(pk=event.pk)
-        if locked_event.processed:
+        if locked_event.status != Event.STATUS_PENDING:
             return
+        if instance_tenant_id is None:
+            instance_tenant_id = locked_event.tenant_id
 
         for rule in _eligible_rules(locked_event, instance_tenant_id):
             # Per-rule isolation: one rule's action raising must not abort the remaining
@@ -230,9 +325,11 @@ def process_event_rules(event, instance_tenant_id=None):
                     rule.pk,
                     type(error).__name__,
                 )
+                locked_event.rule_errors += 1
 
-        locked_event.processed = True
-        locked_event.save(update_fields=["processed"])
+        locked_event.status = Event.STATUS_PROCESSED
+        locked_event.processed_at = timezone.now()
+        locked_event.save(update_fields=["status", "processed_at", "rule_errors"])
 
 
 def _check_conditions(conditions, event):

@@ -73,7 +73,7 @@ class Issue445EventSemanticsTests(TestCase):
         self.event.refresh_from_db()
         self.assertCountEqual(attempts, [self.failing_rule.pk, self.success_rule.pk])
         self.assertEqual(Notification.objects.filter(subject="issue445-success").count(), 1)
-        self.assertTrue(self.event.processed)
+        self.assertEqual(self.event.status, Event.STATUS_PROCESSED)
 
     def test_database_failure_uses_savepoint_and_does_not_block_sibling(self):
         service = _event_service()
@@ -90,7 +90,7 @@ class Issue445EventSemanticsTests(TestCase):
                 service.process_event_rules(self.event)
 
         self.event.refresh_from_db()
-        self.assertTrue(self.event.processed)
+        self.assertEqual(self.event.status, Event.STATUS_PROCESSED)
         self.assertCountEqual(attempts, [self.failing_rule.pk, self.success_rule.pk])
         self.assertEqual(Notification.objects.filter(subject="issue445-db-sibling").count(), 1)
 
@@ -102,7 +102,7 @@ class Issue445EventSemanticsTests(TestCase):
         self.success_rule.save(update_fields=["enabled"])
         service.process_event_rules(self.event)
         self.event.refresh_from_db()
-        self.assertTrue(self.event.processed, "missing issue445 no-eligible-rule terminal event contract")
+        self.assertEqual(self.event.status, Event.STATUS_PROCESSED)
 
     def test_caught_failure_is_terminal_and_second_dispatch_does_not_replay(self):
         service, attempts, execute = self._dispatch_with_canary()
@@ -111,7 +111,7 @@ class Issue445EventSemanticsTests(TestCase):
             service.process_event_rules(self.event)
             service.process_event_rules(self.event)
         self.event.refresh_from_db()
-        self.assertTrue(self.event.processed, "missing issue445 caught-failure terminal event contract")
+        self.assertEqual(self.event.status, Event.STATUS_PROCESSED)
         self.assertEqual(
             attempts.count(self.failing_rule.pk),
             1,
@@ -197,7 +197,7 @@ class Issue445EventConcurrencyTests(TransactionTestCase):
                 duplicate.result(timeout=10)
 
         self.event.refresh_from_db()
-        self.assertTrue(self.event.processed)
+        self.assertEqual(self.event.status, Event.STATUS_PROCESSED)
         self.assertEqual(calls, [(self.rule.pk, self.event.pk)])
         self.assertEqual(Notification.objects.filter(subject="issue445-race").count(), 1)
 
@@ -210,7 +210,7 @@ class Issue445EventConcurrencyTests(TransactionTestCase):
         original_save = Event.save
 
         def fail_terminal_save(instance, *args, **kwargs):
-            if kwargs.get("update_fields") == ["processed"]:
+            if "status" in (kwargs.get("update_fields") or []):
                 raise DatabaseError("issue445 terminal save canary")
             return original_save(instance, *args, **kwargs)
 
@@ -222,11 +222,11 @@ class Issue445EventConcurrencyTests(TransactionTestCase):
             service.process_event_rules(self.event)
 
         self.event.refresh_from_db()
-        self.assertFalse(self.event.processed)
+        self.assertEqual(self.event.status, Event.STATUS_PENDING)
         self.assertFalse(Notification.objects.filter(subject="issue445-rollback").exists())
 
         with patch.object(service, "_execute_event_action", side_effect=execute):
             service.process_event_rules(self.event)
         self.event.refresh_from_db()
-        self.assertTrue(self.event.processed)
+        self.assertEqual(self.event.status, Event.STATUS_PROCESSED)
         self.assertEqual(Notification.objects.filter(subject="issue445-rollback").count(), 1)

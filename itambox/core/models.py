@@ -477,6 +477,12 @@ class ChangeLoggingMixin:
         return True
 
     def save(self, *args, **kwargs):
+        # The audited write, its change log and the outbox event row commit or roll back
+        # together, also for autocommit callers (plain form saves, management commands).
+        with transaction.atomic(savepoint=False):
+            self._save_logged(*args, **kwargs)
+
+    def _save_logged(self, *args, **kwargs):
         if not get_current_request_id():
             super().save(*args, **kwargs)
             return
@@ -513,6 +519,10 @@ class ChangeLoggingMixin:
         )
 
     def delete(self, *args, **kwargs):
+        with transaction.atomic(savepoint=False):
+            return self._delete_logged(*args, **kwargs)
+
+    def _delete_logged(self, *args, **kwargs):
         # Resolve force_hard_delete from EITHER the kwarg (a direct
         # delete(force_hard_delete=True) call) OR a flag stashed on the instance
         # by SoftDeleteMixin earlier in the MRO. Re-stash it for the partner mixin

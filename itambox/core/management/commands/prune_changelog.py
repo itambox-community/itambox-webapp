@@ -266,7 +266,8 @@ class Command(SystemTaskCommand):
                 run_stamp,
                 dry_run,
                 prune_fn=lambda writer: self._prune_simple(
-                    Event._base_manager,
+                    # Retention never prunes pending work: only settled (processed/dead) rows age out.
+                    Event._base_manager.exclude(status=Event.STATUS_PENDING),
                     "timestamp",
                     now,
                     event_days,

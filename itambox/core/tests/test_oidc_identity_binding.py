@@ -185,7 +185,7 @@ class OIDCPhaseBPortContractTests(TestCase):
             tuple(
                 AuditEvent.objects.filter(model_id__in=organization_content_types)
                 .order_by("pk")
-                .values_list("pk", "model_id", "object_id", "action", "data", "processed")
+                .values_list("pk", "model_id", "object_id", "action", "data", "status")
             ),
         )
         with patch.object(
@@ -234,7 +234,7 @@ class OIDCPhaseBPortContractTests(TestCase):
                 tuple(
                     AuditEvent.objects.filter(model_id__in=organization_content_types)
                     .order_by("pk")
-                    .values_list("pk", "model_id", "object_id", "action", "data", "processed")
+                    .values_list("pk", "model_id", "object_id", "action", "data", "status")
                 ),
             ),
             before_organization_audit,

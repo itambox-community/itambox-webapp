@@ -27,7 +27,6 @@ from core.events import DeliveryDisposition, DeliveryResult
 from core.managers import Scope
 from core.models import EmailSettings
 from extras.models import JournalEntry
-from extras.services.events import dispatch_event
 from organization.models import Tenant
 
 from .models import CustodyHandoffDelivery, CustodyReceipt, CustodySigningSession, SignatureProviderConfig
@@ -682,20 +681,6 @@ def receipt_period_is_active(receipt):
     ).exists()
 
 
-def _dispatch_custody_event(receipt, *, actor_id=None, tenant_id=None):
-    try:
-        dispatch_event(CustodyReceipt, receipt, action="update")
-    # broad except: boundary-isolation: event delivery failure must not invalidate a recorded custody decision
-    except Exception as exc:
-        logger.error(
-            "Custody event dispatch failed for receipt_id=%s tenant_id=%s actor_id=%s exception_type=%s",
-            receipt.pk,
-            tenant_id,
-            actor_id,
-            type(exc).__name__,
-        )
-
-
 def record_custody_decision(
     receipt,
     outcome: SignatureOutcome,
@@ -751,8 +736,7 @@ def record_custody_decision(
         signing_session.save(update_fields=["consumed_at", "outcome", "updated_at"])
 
     asset = receipt.asset
-    tenant_id = asset.tenant_id
-    transaction.on_commit(lambda: _dispatch_custody_event(receipt, actor_id=actor_id, tenant_id=tenant_id))
+    # The receipt save above emits the single outbox event through the audited-write signal (E6).
     if receipt.acceptance_status == CustodyReceipt.STATUS_ACCEPTED:
         # Journal-style audit write: no asset save, so tag allocation and model
         # validation never re-run and a stale in-request copy of the asset row
