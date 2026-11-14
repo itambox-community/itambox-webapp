@@ -6,6 +6,10 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-14
+
+Patch release with two schema changes — notification tenant scoping and the event outbox — plus release-workflow hardening and import/pagination fixes. Apply the migrations for this revision; the notification visibility rule for existing rows is described below.
+
 ### Fixed
 
 - In-app notifications are now scoped to tenants. Each notification carries a kind (`tenant`, `personal`, `global`) and tenants receive and read tenant notifications only while a live role grant covers the tenant. A bare or deactivated membership no longer receives or reads them, system-wide event rules on a tenant object notify that tenant only, and the inbox list, unread badge, dropdown and detail view share one visibility rule. Upgrade note: notifications created before the upgrade become hidden (`legacy`) and expire with the retention window (90 days by default); during a rolling deploy, in-app messages written by workers still on the old version are hidden in the same way.
@@ -537,7 +541,8 @@ ITAMbox 1.0.0 is the first stable release. The 1.0 feature scope is complete; th
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.1
 [1.0.0]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0
 [1.0.0-rc.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.1
