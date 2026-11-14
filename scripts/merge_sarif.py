@@ -174,8 +174,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sarif merge error: {exc}", file=sys.stderr)
         return 2
 
-    if not merged["runs"] or not merged["runs"][0]["results"]:
-        print("sarif merge: no report carried results; nothing written")
+    if not merged["runs"]:
+        print("sarif merge: no input report; nothing written")
         return 0
 
     args.output.write_text(json.dumps(merged, separators=(",", ":")), encoding="utf-8")

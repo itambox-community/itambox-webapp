@@ -136,7 +136,32 @@ class MergeSarifTests(unittest.TestCase):
         self.assertEqual(len(payload["runs"]), 1)
         self.assertEqual(len(payload["runs"][0]["results"]), 2)
 
-    def test_main_writes_nothing_when_no_report_has_results(self):
+    def test_reports_with_no_findings_still_produce_one_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            amd64 = _write(root / "amd64.sarif", [_run([_rule("A")], [])])
+            arm64 = _write(root / "arm64.sarif", [_run([_rule("A")], [])])
+
+            merged = merge_documents([amd64, arm64])
+
+        self.assertEqual(len(merged["runs"]), 1)
+        self.assertEqual(merged["runs"][0]["results"], [])
+
+    def test_main_writes_a_clean_run_for_zero_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = _write(root / "one.sarif", [_run([_rule("A")], [])])
+            second = _write(root / "two.sarif", [_run([_rule("A")], [])])
+            output = root / "combined.sarif"
+
+            self.assertEqual(main(["--output", str(output), str(first), str(second)]), 0)
+
+            self.assertTrue(output.exists())
+            payload = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(len(payload["runs"]), 1)
+        self.assertEqual(payload["runs"][0]["results"], [])
+
+    def test_main_writes_nothing_when_no_report_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             output = root / "combined.sarif"
