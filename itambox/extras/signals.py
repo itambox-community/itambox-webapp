@@ -131,7 +131,7 @@ def event_on_save(sender, instance, created, **kwargs):
         return
 
     action, watch_action = _resolve_save_action(instance, created)
-    transaction.on_commit(lambda: _safe_dispatch(sender, instance, action, created))
+    _emit_event(sender, instance, action, created)
 
     # Notify watchers (ObjectWatch subscribers only — bookmarks no longer notify).
     # Deferred to on_commit so a rolled-back save spends no has_perm work and writes
@@ -154,7 +154,7 @@ def event_on_delete(sender, instance, **kwargs):
     if sender.__name__ in _SIGNAL_SKIP_MODELS:
         return
     object_id = instance.pk
-    transaction.on_commit(lambda: _safe_dispatch(sender, instance, "delete", object_id=object_id))
+    _emit_event(sender, instance, "delete", object_id=object_id)
 
     # Notify watchers (deferred to on_commit — see event_on_save).
     _defer_notify_watchers(sender, instance, "deleted")
@@ -167,21 +167,11 @@ def _defer_notify_watchers(sender, instance, action):
     transaction.on_commit(lambda: _notify_watchers(sender, instance, action), robust=True)
 
 
-def _safe_dispatch(sender, instance, action, created=None, *, object_id=None):
-    event_object_id = object_id if object_id is not None else getattr(instance, "pk", None)
-    try:
-        if not _table_exists("extras_event"):
-            return
-        dispatch_event(sender, instance, action=action, created=created, object_id=object_id)
-    # broad except: boundary-isolation: a failed event dispatch must never invalidate the audited write that triggered it
-    except Exception as error:
-        logger.error(
-            "Event dispatch failed model=%s object_id=%s action=%s error_class=%s",
-            sender.__name__,
-            event_object_id,
-            action,
-            type(error).__name__,
-        )
+def _emit_event(sender, instance, action, created=None, *, object_id=None):
+    """Insert the outbox row in the audited write's own transaction (E7: failures propagate)."""
+    if not _table_exists("extras_event"):
+        return
+    dispatch_event(sender, instance, action=action, created=created, object_id=object_id)
 
 
 def _notify_watchers(sender, instance, action):

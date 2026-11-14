@@ -17162,3 +17162,24 @@ msgstr "Einige Standorte werden außerhalb Ihres Geltungsbereichs referenziert."
 
 msgid "Some assets are referenced outside your scope."
 msgstr "Einige Assets werden außerhalb Ihres Geltungsbereichs referenziert."
+
+msgid "Available At"
+msgstr "Verfügbar ab"
+
+msgid "Earliest time the coordinator may claim this event; also the claim lease."
+msgstr "Frühester Zeitpunkt, zu dem der Koordinator dieses Ereignis übernehmen darf; zugleich die Übernahme-Frist."
+
+msgid "Last Error Class"
+msgstr "Letzte Fehlerklasse"
+
+msgid "Processed At"
+msgstr "Verarbeitet am"
+
+msgid "Rule Errors"
+msgstr "Regelfehler"
+
+msgid "Rule actions that failed terminally."
+msgstr "Regelaktionen, die endgültig fehlgeschlagen sind."
+
+msgid "Tenant ID"
+msgstr "Mandanten-ID"

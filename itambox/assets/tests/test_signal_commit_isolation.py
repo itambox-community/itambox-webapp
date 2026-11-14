@@ -12,6 +12,7 @@ the same robust handling and logs through the ``django.test`` logger.
 
 from unittest import mock
 
+from django.db import transaction
 from django.test import TestCase
 from model_bakery import baker
 
@@ -35,19 +36,21 @@ class AssetRequestCommitCallbackTests(TenantTestMixin, TestCase):
         request_obj.save()
         return request_obj
 
-    def test_failed_event_dispatch_neither_fails_the_save_nor_skips_the_notification(self):
+    def test_failed_event_dispatch_fails_the_save_and_enqueues_nothing(self):
+        # The event row is part of the business transaction (outbox): a failing insert
+        # rolls the save back, so no notification may be queued for it.
+        before = AssetRequest.objects.count()
         with (
             mock.patch("assets.signals.dispatch_event", side_effect=RuntimeError("event bus down")) as dispatch,
             mock.patch("assets.signals.async_task") as enqueue,
-            self.assertLogs("django.test", level="ERROR") as logs,
-            self.captureOnCommitCallbacks(execute=True),
+            self.assertRaises(RuntimeError),
+            transaction.atomic(),
         ):
-            request_obj = self._make_request(parent=None)
+            self._make_request(parent=None)
 
-        self.assertTrue(AssetRequest.objects.filter(pk=request_obj.pk).exists())
-        dispatch.assert_called_once_with(AssetRequest, request_obj, action="create")
-        enqueue.assert_called_once_with(NOTIFY_TASK, request_obj.pk)
-        self.assertIn("event bus down", "\n".join(logs.output))
+        self.assertEqual(dispatch.call_count, 1)
+        self.assertEqual(AssetRequest.objects.count(), before)
+        enqueue.assert_not_called()
 
     def test_child_requests_do_not_notify(self):
         parent = self._make_request(parent=None)

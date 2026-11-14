@@ -641,7 +641,36 @@ class Event(BaseModel):
     action = models.CharField(max_length=20, choices=ACTION_CHOICES, db_index=True, verbose_name=_("Action"))
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
     data = models.JSONField(default=dict, blank=True, verbose_name=_("Data"))
-    processed = models.BooleanField(default=False, db_index=True, verbose_name=_("Processed"))
+    # Transactional outbox state. The row is written in the business transaction;
+    # ``pending`` rows are processed after commit and recovered by the coordinator.
+    STATUS_PENDING = "pending"
+    STATUS_PROCESSED = "processed"
+    STATUS_DEAD = "dead"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, _("Pending")),
+        (STATUS_PROCESSED, _("Processed")),
+        (STATUS_DEAD, _("Dead")),
+    ]
+
+    status = models.CharField(
+        max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True, verbose_name=_("Status")
+    )
+    tenant_id = models.PositiveBigIntegerField(
+        null=True, blank=True, db_index=True, editable=False, verbose_name=_("Tenant ID")
+    )
+    actor_id = models.PositiveBigIntegerField(null=True, blank=True, editable=False, verbose_name=_("Actor ID"))
+    attempts = models.PositiveSmallIntegerField(default=0, editable=False, verbose_name=_("Attempts"))
+    available_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        verbose_name=_("Available At"),
+        help_text=_("Earliest time the coordinator may claim this event; also the claim lease."),
+    )
+    rule_errors = models.PositiveSmallIntegerField(
+        default=0, editable=False, verbose_name=_("Rule Errors"), help_text=_("Rule actions that failed terminally.")
+    )
+    last_error_class = models.CharField(max_length=64, blank=True, editable=False, verbose_name=_("Last Error Class"))
+    processed_at = models.DateTimeField(null=True, blank=True, editable=False, verbose_name=_("Processed At"))
 
     class Meta:
         ordering = ["-timestamp"]
@@ -649,7 +678,7 @@ class Event(BaseModel):
         verbose_name_plural = _("Events")
         indexes = [
             models.Index(fields=["model", "object_id"], name="core_event_model_i_6d722d_idx"),
-            models.Index(fields=["processed", "timestamp"], name="core_event_process_17ef77_idx"),
+            models.Index(fields=["status", "available_at"], name="extras_event_outbox_due_idx"),
         ]
 
     def __str__(self):
@@ -976,6 +1005,14 @@ class WebhookDelivery(BaseModel):
         indexes = [
             models.Index(fields=["endpoint", "status"]),
             models.Index(fields=["tenant", "status", "created_at"]),
+        ]
+        constraints = [
+            # One original delivery per (event, rule); redeliveries and test sends are separate identities.
+            models.UniqueConstraint(
+                fields=["event", "event_rule_id"],
+                condition=models.Q(event__isnull=False, event_rule_id__isnull=False, redelivered_from__isnull=True),
+                name="unique_original_delivery_per_event_rule",
+            ),
         ]
 
     def __str__(self):

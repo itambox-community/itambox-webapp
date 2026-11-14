@@ -27,6 +27,7 @@ SCHEDULE_PREREQUISITE = ("extras", "0002_cross_app_relations")
 ALERT_DISPATCH_UID = "extras.issue445.register_daily_alert_schedule.v1"
 ALERT_TASK_PATH = "extras.tasks.alerts.evaluate_alert_rules_task"
 WEBHOOK_RECOVERY_TASK_PATH = "extras.tasks.webhooks.recover_pending_webhook_deliveries"
+EVENT_RECOVERY_TASK_PATH = "extras.tasks.events.recover_pending_events_task"
 
 
 class ExtrasConfig(AppConfig):
@@ -87,6 +88,16 @@ class ExtrasConfig(AppConfig):
             defaults={
                 "name": "Daily Alert Rule Evaluation",
                 "schedule_type": Schedule.DAILY,
+                "repeats": -1,
+            },
+            using=using,
+        )
+        register_schedule(
+            EVENT_RECOVERY_TASK_PATH,
+            defaults={
+                "name": "Event Outbox Recovery",
+                "schedule_type": Schedule.MINUTES,
+                "minutes": 1,
                 "repeats": -1,
             },
             using=using,

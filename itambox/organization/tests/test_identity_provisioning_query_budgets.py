@@ -21,7 +21,7 @@ from users.models import GroupMembership, User, UserGroup
 # measured shape while allowing PostgreSQL savepoint syntax to differ between
 # Django patch releases. Growth requires an explicit service/test review.
 FROZEN_QUERY_CEILINGS = {
-    "customer_first": 30,
+    "customer_first": 32,
     "customer_established_repeat": 12,
     "provider_transition": 35,
     "ldap_first": 35,

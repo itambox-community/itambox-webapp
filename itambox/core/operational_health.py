@@ -227,6 +227,29 @@ def check_failures(now, max_24h):
     }
 
 
+def check_event_outbox(now):
+    """Pending/dead event counts and the age of the oldest due pending event (issue #1091)."""
+    Event = apps.get_model("extras", "Event")
+
+    try:
+        # unscoped: operational diagnostics span every tenant
+        events = Event._base_manager  # unscoped: see above
+        pending = events.filter(status=Event.STATUS_PENDING)
+        pending_count = pending.count()
+        dead_count = events.filter(status=Event.STATUS_DEAD).count()
+        oldest_due = pending.filter(available_at__lte=now).aggregate(m=Min("available_at"))["m"]
+    except Exception:  # broad except: boundary-isolation: a failing probe is reported as a reason code, never raised
+        logger.exception("operational_health: event outbox probe failed")
+        return {"state": "error", "reason": "event_outbox_read_failed"}
+    oldest_age = _seconds(now - oldest_due) if oldest_due else 0
+    state = "ok"
+    if dead_count:
+        state = "dead_events"
+    if oldest_age > 600:
+        state = "backed_up"
+    return {"state": state, "pending": pending_count, "dead": dead_count, "oldest_due_age_seconds": oldest_age}
+
+
 _SECTION_REASONS = (
     ("database", "error", "database_unreachable"),
     ("cache", "error", "cache_unavailable"),
@@ -240,6 +263,9 @@ _SECTION_REASONS = (
     ("jobs", "error", "jobs_unreadable"),
     ("failures", "elevated", "failures_elevated"),
     ("failures", "error", "failures_unreadable"),
+    ("event_outbox", "backed_up", "event_outbox_backed_up"),
+    ("event_outbox", "dead_events", "event_outbox_dead_events"),
+    ("event_outbox", "error", "event_outbox_unreadable"),
 )
 
 
@@ -260,6 +286,7 @@ def collect(now=None):
         "queue": check_queue(now, settings.ITAMBOX_HEALTH_QUEUE_BACKLOG_MAX, settings.ITAMBOX_HEALTH_QUEUE_AGE_SECONDS),
         "jobs": check_jobs(now, settings.ITAMBOX_HEALTH_JOB_STUCK_SECONDS),
         "failures": check_failures(now, settings.ITAMBOX_HEALTH_FAILURES_24H_MAX),
+        "event_outbox": check_event_outbox(now),
     }
     reasons = degraded_reasons(report)
     return {

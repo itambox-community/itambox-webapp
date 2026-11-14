@@ -15,8 +15,15 @@ from assets.models import Manufacturer
 from core.events import send_notification_to_channel
 from core.models import Notification
 from extras.models import Event, EventRule, NotificationChannel, WebhookDelivery, WebhookEndpoint
-from extras.services.events import _check_conditions, _enqueue_delivery, dispatch_event
+from extras.services import events as event_service
+from extras.services.events import _check_conditions, _enqueue_delivery
 from organization.models import Location, Tenant
+
+
+def dispatch_event(sender, instance, action, **kwargs):
+    """Emit inside a business transaction, then process like the post-commit hint."""
+    with transaction.atomic():
+        return event_service.dispatch_event(sender, instance, action, **kwargs)
 
 
 class EventsSystemTestCase(TransactionTestCase):
@@ -74,14 +81,14 @@ class EventsSystemTestCase(TransactionTestCase):
         event_delete = Event.objects.filter(model=self.manufacturer_ct, object_id=mfr_pk, action="delete").first()
         self.assertIsNotNone(event_delete)
 
-    def test_delete_event_preserves_original_object_id_until_commit(self):
+    def test_delete_event_row_is_written_in_the_business_transaction(self):
         self._subscribe(["delete"])
         mfr = Manufacturer.objects.create(name="Commit Identity Mfr", slug="commit-identity-mfr")
         object_id = mfr.pk
 
         with transaction.atomic():
             mfr.delete()
-            self.assertFalse(
+            self.assertTrue(
                 Event.objects.filter(model=self.manufacturer_ct, object_id=object_id, action="delete").exists()
             )
 
@@ -788,14 +795,18 @@ class LeanEventPipelineTests(TransactionTestCase):
 
     def test_per_save_event_overhead_is_bounded(self):
         Manufacturer.objects.create(name="Lean Warm", slug="lean-warm")  # warm ContentType + index caches
-        with CaptureQueriesContext(connection) as queries:
-            dispatch_event(Manufacturer, Manufacturer(pk=1), "create")
-        # Index served from cache: no Event insert, no select_for_update, no rule query.
-        self.assertEqual(len(queries), 0, [q["sql"] for q in queries.captured_queries])
+        with transaction.atomic():
+            with CaptureQueriesContext(connection) as queries:
+                event_service.dispatch_event(Manufacturer, Manufacturer(pk=1), "create")
+        # Inside a transaction the rule index is read uncached (uncommitted rules may roll back):
+        # one read, and no Event insert or row lock when no rule is eligible.
+        sqls = [q["sql"] for q in queries.captured_queries]
+        self.assertLessEqual(len(sqls), 1, sqls)
+        self.assertFalse([s for s in sqls if "INSERT" in s or "FOR UPDATE" in s], sqls)
 
     def test_eligible_save_keeps_the_event_pipeline(self):
         self._rule()
         mfr = Manufacturer.objects.create(name="Lean Eligible", slug="lean-eligible")
         event = Event.objects.get(model=self.ct, object_id=mfr.pk, action="create")
-        self.assertTrue(event.processed)
+        self.assertEqual(event.status, Event.STATUS_PROCESSED)
         self.assertEqual(event.data, {"app_label": "assets", "model_name": "manufacturer"})

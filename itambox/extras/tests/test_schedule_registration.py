@@ -12,7 +12,7 @@ from unittest import mock
 import pytest
 from django.apps import apps
 
-from extras.apps import ALERT_TASK_PATH, WEBHOOK_RECOVERY_TASK_PATH
+from extras.apps import ALERT_TASK_PATH, EVENT_RECOVERY_TASK_PATH, WEBHOOK_RECOVERY_TASK_PATH
 
 
 @pytest.fixture()
@@ -63,5 +63,6 @@ def test_registration_creates_both_canonical_schedules(extras_config):
 
     assert [call.args[0] for call in register_schedule.call_args_list] == [
         ALERT_TASK_PATH,
+        EVENT_RECOVERY_TASK_PATH,
         WEBHOOK_RECOVERY_TASK_PATH,
     ]

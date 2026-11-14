@@ -35,16 +35,16 @@ def ensure_canonical_missing_status(sender, using, **kwargs):
 @receiver(post_save, sender=AssetAssignment)
 def on_asset_assignment_save(sender, instance, created, **kwargs):
     if created:
-        transaction.on_commit(lambda: dispatch_event(sender, instance, action="checkout"), robust=True)
+        dispatch_event(sender, instance, action="checkout")
     elif not instance.is_active and instance.checked_in_at:
-        transaction.on_commit(lambda: dispatch_event(sender, instance, action="checkin"), robust=True)
+        dispatch_event(sender, instance, action="checkin")
 
 
 @receiver(post_save, sender=AssetRequest)
 def on_asset_request_save(sender, instance, created, **kwargs):
     if not created:
         return
-    transaction.on_commit(lambda: dispatch_event(sender, instance, action="create"), robust=True)
+    dispatch_event(sender, instance, action="create")
     # Only notify admins for parent requests or standalone requests, avoiding N+1 queries
     if instance.parent_id is None:
         request_id = instance.pk

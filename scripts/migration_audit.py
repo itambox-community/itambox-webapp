@@ -63,6 +63,10 @@ REVIEWED_SEMANTICS = {
         "Binds every existing label template to assets.asset, the only object type the former engine printed, "
         "and moves the never-rendered Data Matrix format to QR; idempotent, schema reverse is the field removal."
     ),
+    "extras.0006_event_outbox": (
+        "Replaces Event.processed with the pending/processed/dead status: unprocessed events younger than 24 hours "
+        "become pending, older ones dead (outbox.backfill_expired); the reverse refuses while events are pending."
+    ),
     "extras.0004_drop_legacy_column_default": (
         "Drops a database default that only databases created by earlier prereleases carry, so both histories "
         "converge on one schema; idempotent."

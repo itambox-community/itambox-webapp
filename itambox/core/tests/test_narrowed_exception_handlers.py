@@ -474,13 +474,21 @@ class TestAnnotatedBestEffortHandlers(TestCase):
         from itambox.views.generic import ObjectEditView
 
         view = AssetRequestEditView()
-        view.object = SimpleNamespace(pk=5)
+        view.object = SimpleNamespace(
+            pk=5,
+            requester=object(),
+            tenant_id=None,
+            get_status_display=lambda: "Pending",
+            get_absolute_url=lambda: "/",
+        )
         view.request = RequestFactory().post("/")
         form = SimpleNamespace(instance=SimpleNamespace(status="pending", is_group=False))
         saved = HttpResponse("saved")
         with (
             patch.object(ObjectEditView, "form_valid", return_value=saved),
-            patch("assets.views.asset_request_views.dispatch_event", side_effect=RuntimeError("queue down")),
+            patch(
+                "assets.views.asset_request_views.Notification.objects.create", side_effect=RuntimeError("queue down")
+            ),
             self.assertLogs("assets.views.asset_request_views", level="ERROR") as logs,
         ):
             self.assertIs(view.form_valid(form), saved)

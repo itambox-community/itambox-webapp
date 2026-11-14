@@ -6,7 +6,6 @@ from django.utils.translation import gettext_lazy as _
 
 from assets.choices import RequestStatusChoices
 from core.models import Notification
-from extras.services.events import dispatch_event
 from itambox.panels import Panel
 from itambox.views.generic import (
     ObjectDeleteView,
@@ -108,7 +107,6 @@ class AssetRequestEditView(ObjectEditView):
                     child.save()
 
         try:
-            dispatch_event(AssetRequest, self.object, action="update")
             Notification.objects.create(
                 user=self.object.requester,
                 subject=_("Asset Request %(status)s") % {"status": self.object.get_status_display()},
@@ -119,10 +117,10 @@ class AssetRequestEditView(ObjectEditView):
                 kind=Notification.KIND_TENANT,
                 tenant_id=self.object.tenant_id,
             )
-        # broad except: boundary-isolation: event dispatch and the requester notification are
+        # broad except: boundary-isolation: the requester notification is
         # best-effort side effects of a request that is already saved; they must not fail the edit
         except Exception:
-            logger.exception("Asset request %s: event dispatch or requester notification failed", self.object.pk)
+            logger.exception("Asset request %s: requester notification failed", self.object.pk)
         return response
 
     def get_success_url(self):
