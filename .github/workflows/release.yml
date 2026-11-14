@@ -467,9 +467,9 @@ jobs:
           sarif_file: ${{ runner.temp }}/trivy-image.sarif
           # Code scanning identifies an analysis by tool and category, and only
           # the categories that exist on the default branch can be compared.
-          # GitHub also rejects a second upload with the same pair in one run,
-          # so both platform reports are merged into this single upload under
-          # the one existing configuration.
+          # GitHub also rejects a second analysis with the same pair in one run,
+          # so both platform reports are merged into ONE run (shared rule list,
+          # merged results) and uploaded once under the existing configuration.
           category: trivy-draft-image
 
       - name: Enforce draft-image gate
