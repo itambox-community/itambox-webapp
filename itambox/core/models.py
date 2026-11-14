@@ -1,6 +1,7 @@
 # Standard library
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import logging
 from collections import Counter
@@ -479,8 +480,20 @@ class ChangeLoggingMixin:
     def save(self, *args, **kwargs):
         # The audited write, its change log and the outbox event row commit or roll back
         # together, also for autocommit callers (plain form saves, management commands).
-        with transaction.atomic(savepoint=False):
+        with self._audited_write_transaction():
             self._save_logged(*args, **kwargs)
+
+    def _audited_write_transaction(self):
+        """Open a transaction only when the caller has none.
+
+        Inside a caller's transaction the audited write already commits or rolls back with it;
+        wrapping again (without a savepoint) would poison that transaction whenever the caller
+        catches a validation or protection error raised by the write.
+        """
+        using = router.db_for_write(type(self), instance=self)
+        if transaction.get_connection(using).in_atomic_block:
+            return contextlib.nullcontext()
+        return transaction.atomic(using=using)
 
     def _save_logged(self, *args, **kwargs):
         if not get_current_request_id():
@@ -519,7 +532,7 @@ class ChangeLoggingMixin:
         )
 
     def delete(self, *args, **kwargs):
-        with transaction.atomic(savepoint=False):
+        with self._audited_write_transaction():
             return self._delete_logged(*args, **kwargs)
 
     def _delete_logged(self, *args, **kwargs):

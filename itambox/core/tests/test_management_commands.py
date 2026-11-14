@@ -35,10 +35,9 @@ from core.management.commands._seed.consistency import check_seed_operational_in
 from core.management.commands._seed.maintenance import link_repair_records
 from core.management.commands.seed_data import Command as SeedDataCommand
 from core.management.commands.sync_tenant_ldap import Command as SyncTenantLDAPCommand
-from core.models import ChangeLoggingMixin, Job, ObjectChange
+from core.models import Job, ObjectChange
 from core.tasks.management import SystemTaskCommand
 from extras.models import CustomField, CustomFieldChoice, CustomFieldChoiceSet, CustomFieldset, CustomFieldsetField
-from extras.signals import _safe_dispatch
 from inventory.models import Accessory
 from licenses.models import License
 from organization.models import AssetHolder, Location, Membership, Site, Tenant
@@ -1087,19 +1086,3 @@ class SyncTenantLDAPDependencyTest(SimpleTestCase):
             command._run_sync(SimpleNamespace(pk=1, slug="test", name="Test"))
         self.assertNotIn("Connecting to LDAP server", stdout.getvalue())
         mock_ldap_init.assert_not_called()
-
-
-class EventDispatchFailureTests(SimpleTestCase):
-    @patch("extras.signals._table_exists", return_value=True)
-    @patch("extras.signals.dispatch_event", side_effect=RuntimeError("sensitive backend detail"))
-    def test_dispatch_failure_logs_error_with_identifiers_only(self, dispatch, _table_exists):
-        with self.assertLogs("extras.signals", level="ERROR") as captured:
-            _safe_dispatch(ChangeLoggingMixin, SimpleNamespace(pk=123), "delete")
-
-        self.assertEqual(dispatch.call_count, 1)
-        log = captured.output[0]
-        self.assertIn("model=ChangeLoggingMixin", log)
-        self.assertIn("object_id=123", log)
-        self.assertIn("action=delete", log)
-        self.assertIn("error_class=RuntimeError", log)
-        self.assertNotIn("sensitive backend detail", log)

@@ -3,19 +3,14 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from compliance.services import _dispatch_custody_event
+from extras.signals import _emit_event
 
 
-class CustodyEventBoundaryTests(SimpleTestCase):
-    @patch("compliance.services.dispatch_event", side_effect=RuntimeError("event backend offline"))
-    def test_dispatch_failure_is_logged_with_non_secret_context(self, dispatch):
-        receipt = SimpleNamespace(pk=31)
-
-        with self.assertLogs("compliance.services", level="ERROR") as logs:
-            _dispatch_custody_event(receipt, actor_id=41, tenant_id=59)
-
+class EventEmissionBoundaryTests(SimpleTestCase):
+    @patch("extras.signals._table_exists", return_value=True)
+    @patch("extras.signals.dispatch_event", side_effect=RuntimeError("event backend offline"))
+    def test_emission_failure_propagates_to_the_business_transaction(self, dispatch, _table_exists):
+        # E7: a missing event row is a business error, never a silently dropped event.
+        with self.assertRaises(RuntimeError):
+            _emit_event(SimpleNamespace, SimpleNamespace(pk=31), "update")
         self.assertEqual(dispatch.call_count, 1)
-        output = "\n".join(logs.output)
-        self.assertIn("receipt_id=31", output)
-        self.assertIn("tenant_id=59", output)
-        self.assertIn("actor_id=41", output)

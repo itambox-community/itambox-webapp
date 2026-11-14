@@ -160,6 +160,7 @@
     "itambox/extras/tests/test_definition_translation_admin.py",
     "itambox/extras/tests/test_definition_translations.py",
     "itambox/extras/tests/test_error_text_not_rendered.py",
+    "itambox/extras/tests/test_event_dispatch.py",
     "itambox/extras/tests/test_event_outbox.py",
     "itambox/extras/tests/test_eventrule_withdrawn_guards.py",
     "itambox/extras/tests/test_events.py",

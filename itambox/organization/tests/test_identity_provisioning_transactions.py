@@ -79,7 +79,7 @@ class IdentityServiceRollbackTests(TestCase):
             ),
             "events": list(
                 Event._base_manager.order_by("pk").values_list(
-                    "pk", "model_id", "object_id", "action", "data", "processed"
+                    "pk", "model_id", "object_id", "action", "data", "status"
                 )
             ),
             "groups": list(User.objects.order_by("pk").values_list("pk", "username", "email")),
