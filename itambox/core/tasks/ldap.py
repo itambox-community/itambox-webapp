@@ -59,6 +59,7 @@ def sync_tenant_ldap_task(job_id: int, tenant_slug: str, user_id: int | None, te
             job.mark_completed(result={"status": "success"})
             Notification.objects.create(
                 user=ctx.user,
+                kind=Notification.KIND_PERSONAL,
                 subject=_("LDAP Sync Complete"),
                 message=_("LDAP directory sync for tenant '%(tenant)s' completed successfully.")
                 % {"tenant": tenant_slug},
@@ -102,6 +103,7 @@ def _record_failure(job, user, tenant_slug, error, log_stream):
     job.mark_failed(safe_message)
     Notification.objects.create(
         user=user,
+        kind=Notification.KIND_PERSONAL,
         subject=_("LDAP Sync Failed"),
         message=_("LDAP directory sync for tenant '%(tenant)s' failed: %(error)s")
         % {"tenant": tenant_slug, "error": safe_message},

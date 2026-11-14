@@ -394,6 +394,9 @@ class TestEventNotificationTargetUrl(TestCase):
         from extras.services.events import _send_notification
 
         tenant = Tenant.objects.create(name="Notified", slug="notified")
+        from django.contrib.auth import get_user_model
+
+        get_user_model().objects.create_superuser("notified-root", "root@example.com", "pw")
         event = SimpleNamespace(
             action="update",
             model=ContentType.objects.get_for_model(Tenant),

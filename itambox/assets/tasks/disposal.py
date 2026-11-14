@@ -90,6 +90,7 @@ def _finish_disposal(
         job.mark_failed("All asset disposals failed.")
         Notification.objects.create(
             user=ctx.user,
+            kind=Notification.KIND_PERSONAL,
             subject=_("Bulk Disposal Failed"),
             message=_("All hardware disposals failed. View logs for details."),
             level=Notification.LEVEL_DANGER,
@@ -106,6 +107,7 @@ def _finish_disposal(
     )
     Notification.objects.create(
         user=ctx.user,
+        kind=Notification.KIND_PERSONAL,
         subject=_("Bulk Disposal Complete"),
         message=ngettext("Disposed %(count)s asset.", "Disposed %(count)s assets.", success_count)
         % {"count": success_count},
@@ -267,6 +269,7 @@ def bulk_dispose_task(
                 job.mark_failed(f"[{status.value}] disposal.boundary_failed")
                 Notification.objects.create(
                     user=ctx.user,
+                    kind=Notification.KIND_PERSONAL,
                     subject=_("Bulk Disposal Error"),
                     message=_("The bulk disposal could not be completed. Code: disposal.boundary_failed"),
                     level=Notification.LEVEL_DANGER,

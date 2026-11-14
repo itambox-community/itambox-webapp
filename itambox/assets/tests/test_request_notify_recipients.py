@@ -20,13 +20,13 @@ User = get_user_model()
 
 class NewRequestNotifyRecipientTests(TenantTestMixin, TestCase):
     def setUp(self):
-        self.setup_tenant_context(name="Tenant A", slug="req-tenant-a")
+        self.setup_tenant_context(name="Tenant A", slug="req-tenant-a", permissions=["assets.view_asset"])
         self.tenant_b = Tenant.objects.create(name="Tenant B", slug="req-tenant-b")
 
         self.staff_a = User.objects.create_user(username="req_staff_a", password="x", is_staff=True)
         grant(self.staff_a, self.tenant, self.tenant_role)
         self.staff_b = User.objects.create_user(username="req_staff_b", password="x", is_staff=True)
-        role_b = Role.objects.create(tenant=self.tenant_b, name="B role", permissions=[])
+        role_b = Role.objects.create(tenant=self.tenant_b, name="B role", permissions=["assets.view_asset"])
         grant(self.staff_b, self.tenant_b, role_b)
 
         self.set_active_tenant(self.tenant)

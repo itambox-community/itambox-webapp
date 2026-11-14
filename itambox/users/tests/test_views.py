@@ -69,7 +69,11 @@ class UserViewTests(TestCase):
         from core.models import Notification
 
         notif = Notification.objects.create(
-            user=self.user, subject="Test User URL Notif", message="Test message", target_url="/assets/assets/"
+            user=self.user,
+            subject="Test User URL Notif",
+            message="Test message",
+            target_url="/assets/assets/",
+            kind="personal",
         )
         self.client.force_login(self.user)
         url = reverse("users:view_notification", kwargs={"pk": notif.pk})
@@ -81,7 +85,9 @@ class UserViewTests(TestCase):
     def test_view_notification_user_owned_without_url(self):
         from core.models import Notification
 
-        notif = Notification.objects.create(user=self.user, subject="Test User No URL Notif", message="Test message")
+        notif = Notification.objects.create(
+            user=self.user, subject="Test User No URL Notif", message="Test message", kind="personal"
+        )
         self.client.force_login(self.user)
         url = reverse("users:view_notification", kwargs={"pk": notif.pk})
         response = self.client.get(url)

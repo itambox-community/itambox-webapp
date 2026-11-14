@@ -22,7 +22,7 @@ class InAppChannelRecipientTests(TestCase):
     def setUp(self):
         self.tenant = Tenant.objects.create(name="Acme", slug="acme")
         self.other_tenant = Tenant.objects.create(name="Globex", slug="globex")
-        role = Role.objects.create(tenant=self.tenant, name="R", permissions=[])
+        role = Role.objects.create(tenant=self.tenant, name="R", permissions=["assets.view_asset"])
 
         # A member of `tenant` with NO AssetHolder profile — the case the old
         # asset_holder_profiles join dropped.
@@ -30,7 +30,7 @@ class InAppChannelRecipientTests(TestCase):
         grant(self.member, self.tenant, role)
 
         # A member of a DIFFERENT tenant — must NOT receive this channel's notice.
-        other_role = Role.objects.create(tenant=self.other_tenant, name="R", permissions=[])
+        other_role = Role.objects.create(tenant=self.other_tenant, name="R", permissions=["assets.view_asset"])
         self.outsider = User.objects.create_user(username="outsider", password="pw", is_active=True)
         grant(self.outsider, self.other_tenant, other_role)
 

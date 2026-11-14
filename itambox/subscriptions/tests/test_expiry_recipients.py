@@ -22,7 +22,7 @@ User = get_user_model()
 
 class SubscriptionExpiryRecipientTests(TenantTestMixin, TestCase):
     def setUp(self):
-        self.setup_tenant_context(name="Tenant A", slug="sub-tenant-a")
+        self.setup_tenant_context(name="Tenant A", slug="sub-tenant-a", permissions=["assets.view_asset"])
         self.tenant_b = Tenant.objects.create(name="Tenant B", slug="sub-tenant-b")
 
         # A staff user in each tenant.

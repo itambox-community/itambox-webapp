@@ -214,6 +214,7 @@ def _notify_watchers(sender, instance, action):
     model_name = ct.model
     perm = f"{app_label}.view_{model_name}"
 
+    tenant_id = getattr(instance, "tenant_id", None)
     notifications = []
     for watch in watches:
         # Re-verify the watcher still has view access before sending — watches outlive
@@ -227,6 +228,8 @@ def _notify_watchers(sender, instance, action):
                 message=message,
                 level=level,
                 target_url=target_url,
+                kind=Notification.KIND_TENANT if tenant_id else Notification.KIND_PERSONAL,
+                tenant_id=tenant_id,
             )
         )
 

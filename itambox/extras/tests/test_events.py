@@ -190,6 +190,10 @@ class EventsSystemTestCase(TransactionTestCase):
         self.assertFalse(_check_conditions([], event))
 
     def test_empty_conditions_continue_to_match(self):
+        # A system-wide rule on an object with no single tenant reaches superusers only (#1090).
+        from django.contrib.auth import get_user_model
+
+        root = get_user_model().objects.create_superuser(username="empty-cond-root", password="pw", email="r@x.test")
         for index, conditions in enumerate(({}, {"rules": []})):
             with self.subTest(conditions=conditions):
                 rule = EventRule.objects.create(
@@ -211,7 +215,11 @@ class EventsSystemTestCase(TransactionTestCase):
                 self.assertTrue(_check_conditions(conditions, event))
                 dispatch_event(Manufacturer, event, "create")
 
-                self.assertTrue(Notification.objects.filter(subject=rule.action_config["subject"]).exists())
+                self.assertTrue(
+                    Notification.objects.filter(
+                        subject=rule.action_config["subject"], user=root, kind=Notification.KIND_GLOBAL
+                    ).exists()
+                )
 
         # ``None`` cannot be persisted (the column is NOT NULL); the fail-open
         # evaluation path for a missing payload is exercised directly instead.
@@ -300,7 +308,7 @@ class EventsSystemTestCase(TransactionTestCase):
         tenant_a = Tenant.objects.create(name="Tenant A", slug="tenant-a")
         tenant_b = Tenant.objects.create(name="Tenant B", slug="tenant-b")
         member_a = get_user_model().objects.create_user(username="member_a", password="pw")
-        grant(member_a, tenant_a, Role.objects.create(tenant=tenant_a, name="R", permissions=[]))
+        grant(member_a, tenant_a, Role.objects.create(tenant=tenant_a, name="R", permissions=["assets.view_asset"]))
         loc_ct = ContentType.objects.get_for_model(Location)
 
         EventRule.objects.create(
@@ -341,8 +349,13 @@ class EventsSystemTestCase(TransactionTestCase):
         # WS5-2: tenant-A rule fans out to tenant-A members (not a global user=None row).
         self.assertTrue(Notification.objects.filter(subject="A-FIRED", user=member_a).exists())
         self.assertFalse(Notification.objects.filter(subject="A-FIRED", user__isnull=True).exists())
-        # A truly global (tenant=None) rule still broadcasts as user=None.
-        self.assertTrue(Notification.objects.filter(subject="GLOBAL-FIRED", user__isnull=True).exists())
+        # A system-wide rule firing on a tenant-A object yields a tenant row for A's members, never a broadcast (#1090).
+        self.assertTrue(
+            Notification.objects.filter(
+                subject="GLOBAL-FIRED", user=member_a, kind=Notification.KIND_TENANT, tenant=tenant_a
+            ).exists()
+        )
+        self.assertFalse(Notification.objects.filter(subject="GLOBAL-FIRED", user__isnull=True).exists())
         self.assertFalse(
             Notification.objects.filter(subject="B-FIRED").exists(),
             "Tenant B's event rule must NOT fire for a tenant-A object in a system context.",

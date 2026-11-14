@@ -39,7 +39,7 @@ from core.mixins import (
 )
 from core.oidc_identity import oidc_audit_excluded_fields, oidc_audit_object_repr
 from core.serialization import serialize_object
-from core.tenant_scope import get_descendant_tenant_group_ids
+from core.tenant_scope import build_accessible_tenant_permissions_map, get_descendant_tenant_group_ids
 from core.validators import CustomValidator
 
 # Local application
@@ -571,7 +571,47 @@ class ChangeLoggingMixin:
         )
 
 
+class NotificationQuerySet(models.QuerySet):
+    def visible_to(self, user):
+        """Rows ``user`` may see right now: the single read predicate (issue #1090).
+
+        Tenant rows need a live grant covering a non-deleted tenant (superusers
+        see every non-deleted tenant); personal rows only their recipient; global
+        rows only while the recipient is staff or superuser. ``legacy`` rows and
+        rows of other users never match.
+        """
+        if user is None or not getattr(user, "is_authenticated", False) or not user.is_active:
+            return self.none()
+        mine = self.filter(user=user)
+        if user.is_superuser:
+            live_ids = apps.get_model("organization", "Tenant")._base_manager.filter(deleted_at__isnull=True)
+            tenant_q = models.Q(kind=Notification.KIND_TENANT, tenant_id__in=live_ids.values("pk"))
+        else:
+            now = timezone.now()
+            covered = [
+                tenant_id
+                for tenant_id, (_perms, until) in build_accessible_tenant_permissions_map(user).items()
+                if until is None or until > now
+            ]
+            tenant_q = models.Q(kind=Notification.KIND_TENANT, tenant_id__in=covered)
+        personal_q = models.Q(kind=Notification.KIND_PERSONAL)
+        if user.is_staff or user.is_superuser:
+            personal_q |= models.Q(kind=Notification.KIND_GLOBAL)
+        return mine.filter(tenant_q | personal_q)
+
+
 class Notification(models.Model):
+    KIND_TENANT = "tenant"
+    KIND_PERSONAL = "personal"
+    KIND_GLOBAL = "global"
+    KIND_LEGACY = "legacy"
+    KIND_CHOICES = [
+        (KIND_TENANT, "Tenant"),
+        (KIND_PERSONAL, "Personal"),
+        (KIND_GLOBAL, "Global"),
+        (KIND_LEGACY, "Legacy"),
+    ]
+
     LEVEL_INFO = "info"
     LEVEL_WARNING = "warning"
     LEVEL_SUCCESS = "success"
@@ -601,6 +641,25 @@ class Notification(models.Model):
         max_length=500, blank=True, help_text=_("Optional destination URL when clicked."), verbose_name=_("Target URL")
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # Tenant that owns the content. CASCADE, never SET_NULL: a tenant row must not
+    # turn into a tenantless (possibly visible) row when its tenant is hard-deleted.
+    tenant = models.ForeignKey(
+        "organization.Tenant",
+        on_delete=models.CASCADE,
+        related_name="+",
+        null=True,
+        blank=True,
+        verbose_name=_("Tenant"),
+    )
+    kind = models.CharField(
+        max_length=16,
+        choices=KIND_CHOICES,
+        db_default=KIND_LEGACY,
+        default=KIND_LEGACY,
+        verbose_name=_("Kind"),
+    )
+
+    objects = NotificationQuerySet.as_manager()
 
     class Meta:
         ordering = ("-created_at",)
@@ -608,6 +667,17 @@ class Notification(models.Model):
         verbose_name_plural = "Notifications"
         indexes = [
             models.Index(fields=["user", "is_read"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                name="core_notification_kind_tenant_consistent",
+                condition=models.Q(kind="tenant", tenant__isnull=False)
+                | (~models.Q(kind="tenant") & models.Q(tenant__isnull=True)),
+            ),
+            models.CheckConstraint(
+                name="core_notification_user_required_unless_legacy",
+                condition=models.Q(user__isnull=False) | models.Q(kind="legacy"),
+            ),
         ]
 
     def __str__(self):

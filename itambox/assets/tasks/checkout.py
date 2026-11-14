@@ -86,6 +86,7 @@ def _finish_checkout(
         job.mark_failed("All asset checkouts failed.")
         Notification.objects.create(
             user=ctx.user,
+            kind=Notification.KIND_PERSONAL,
             subject=_("Bulk Checkout Failed"),
             message=_("All hardware checkouts failed. View logs for error tracebacks."),
             level=Notification.LEVEL_DANGER,
@@ -95,6 +96,7 @@ def _finish_checkout(
     job.mark_completed(result={"checked_out": success_count, "failed": failure_count, "total": total})
     Notification.objects.create(
         user=ctx.user,
+        kind=Notification.KIND_PERSONAL,
         subject=_("Bulk Checkout Complete"),
         message=ngettext(
             "Successfully checked out %(count)s asset.",
@@ -279,6 +281,7 @@ def bulk_checkout_task(
                 job.mark_failed(f"[{status.value}] checkout.boundary_failed")
                 Notification.objects.create(
                     user=ctx.user,
+                    kind=Notification.KIND_PERSONAL,
                     subject=_("Bulk Checkout Error"),
                     message=_("The bulk checkout could not be completed. Check the job details for more information."),
                     level=Notification.LEVEL_DANGER,

@@ -9,6 +9,7 @@ import logging
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -22,6 +23,7 @@ from django_q.tasks import async_task
 from core.context import get_current_request_id, get_current_user
 from core.crypto import encrypt_string
 from core.models import ChangeLoggingMixin, Notification
+from core.tenant_scope import tenant_notification_recipients
 from extras.models import Event, EventRule, WebhookDelivery, WebhookEndpoint, has_authored_conditions
 from extras.tasks.webhooks import WEBHOOK_TASK_PATH, WebhookDeliveryAssertions
 
@@ -256,7 +258,7 @@ def _execute_event_action(rule, event, instance_tenant_id=None):
     if rule.action_type == EventRule.ACTION_WEBHOOK:
         _send_webhook(rule, event, instance_tenant_id)
     elif rule.action_type == EventRule.ACTION_NOTIFICATION:
-        _send_notification(rule, event)
+        _send_notification(rule, event, instance_tenant_id)
     # 'script' action_type was removed; existing rows are silently skipped.
     # Scripts may return as a proper plugin hook post-1.0.
 
@@ -411,7 +413,7 @@ def _render_template(template, event):
         return template
 
 
-def _send_notification(rule, event):
+def _send_notification(rule, event, instance_tenant_id=None):
     """Create an in-app notification based on the rule's action_config."""
 
     config = rule.action_config or {}
@@ -443,21 +445,31 @@ def _send_notification(rule, event):
         # view, leaves the notification without a link rather than failing the dispatch.
         target_url = ""
 
-    if rule.tenant_id:
-        # A tenant-scoped rule must fan out to the rule's tenant members, NOT create a global
-        # user=None row that any authenticated user could open by pk (cross-tenant leak of the
-        # rule's subject/body + the target object's URL). Mirrors the IN_APP channel branch.
-        User = get_user_model()
-        users = User.objects.filter(memberships__tenant_id=rule.tenant_id, is_active=True).distinct()
-        Notification.objects.bulk_create(
-            [Notification(user=u, subject=subject, message=body, level=level, target_url=target_url) for u in users]
+    # The row's tenant is the rule's tenant, or, for a system-wide rule, the tenant that owns the
+    # triggering object. A system-wide rule on an object without a single tenant reaches superusers
+    # only, as a ``global`` row. Never a user=None broadcast (issue #1090).
+    tenant_id = rule.tenant_id or instance_tenant_id
+    if tenant_id:
+        # unscoped: the worker has no ambient tenant; the id comes from the rule or the event's own object
+        tenant = (
+            apps.get_model("organization", "Tenant")._base_manager.filter(pk=tenant_id, deleted_at__isnull=True).first()
         )
+        users = tenant_notification_recipients(tenant) if tenant else []
+        kind = Notification.KIND_TENANT
     else:
-        # Truly system-wide (tenant=None) rule may broadcast.
-        Notification.objects.create(
-            user=None,
-            subject=subject,
-            message=body,
-            level=level,
-            target_url=target_url,
-        )
+        users = list(get_user_model().objects.filter(is_superuser=True, is_active=True))
+        kind = Notification.KIND_GLOBAL
+    Notification.objects.bulk_create(
+        [
+            Notification(
+                user=u,
+                subject=subject,
+                message=body,
+                level=level,
+                target_url=target_url,
+                kind=kind,
+                tenant_id=tenant_id,
+            )
+            for u in users
+        ]
+    )

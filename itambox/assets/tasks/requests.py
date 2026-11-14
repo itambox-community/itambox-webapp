@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from assets.models import AssetRequest
 from core.models import Notification
 from core.tasks.context import TaskContext
+from core.tenant_scope import tenant_notification_recipients
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -26,9 +27,7 @@ def notify_new_request_task(request_id):
         if instance is None or instance.parent is not None:
             return
 
-        admins = User.objects.filter(
-            is_staff=True, is_active=True, memberships__tenant_id=instance.tenant_id
-        ).distinct()
+        admins = [user for user in tenant_notification_recipients(instance.tenant) if user.is_staff]
         notifications = [
             Notification(
                 user=admin,
@@ -37,6 +36,8 @@ def notify_new_request_task(request_id):
                 % {"requester": instance.requester, "item": instance},
                 level=Notification.LEVEL_INFO,
                 target_url=instance.get_absolute_url(),
+                kind=Notification.KIND_TENANT,
+                tenant_id=instance.tenant_id,
             )
             for admin in admins
         ]

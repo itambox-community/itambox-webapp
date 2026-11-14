@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.models import Notification
 from core.tasks.context import TaskContext
+from core.tenant_scope import tenant_notification_recipients
 
 from .models import Subscription, SubscriptionStatusChoices
 
@@ -16,9 +17,9 @@ User = get_user_model()
 RENEWAL_REMINDER_THRESHOLDS = (30, 14, 7)
 
 
-def _notify_once(*, user, subject, message, target_url):
+def _notify_once(*, user, tenant_id, subject, message, target_url):
     identity = json.dumps(
-        [user.pk, str(subject), str(message), Notification.LEVEL_WARNING, target_url],
+        [user.pk, tenant_id, str(subject), str(message), Notification.LEVEL_WARNING, target_url],
         separators=(",", ":"),
     )
     with transaction.atomic():
@@ -30,22 +31,16 @@ def _notify_once(*, user, subject, message, target_url):
             message=message,
             level=Notification.LEVEL_WARNING,
             target_url=target_url,
+            kind=Notification.KIND_TENANT,
+            tenant_id=tenant_id,
         )
 
 
 def _tenant_recipients(subscription):
-    recipients = set(
-        User.objects.filter(
-            is_staff=True,
-            is_active=True,
-            memberships__tenant_id=subscription.tenant_id,
-        ).distinct()
-    )
-    if (
-        subscription.owner
-        and subscription.owner.is_active
-        and subscription.owner.memberships.filter(tenant_id=subscription.tenant_id).exists()
-    ):
+    # Confirmed per recipient with a live grant covering the tenant (issue #1090).
+    covered = tenant_notification_recipients(subscription.tenant)
+    recipients = {user for user in covered if user.is_staff}
+    if subscription.owner and any(user.pk == subscription.owner_id for user in covered):
         recipients.add(subscription.owner)
     return recipients
 
@@ -54,6 +49,7 @@ def _notify_expired(subscription):
     for user in _tenant_recipients(subscription):
         _notify_once(
             user=user,
+            tenant_id=subscription.tenant_id,
             subject=_("Subscription Expired: %(name)s") % {"name": subscription.name},
             message=_("The subscription '%(name)s' from supplier '%(supplier)s' has expired as of %(date)s.")
             % {
@@ -69,6 +65,7 @@ def _notify_renewal_warning(subscription, days):
     for user in _tenant_recipients(subscription):
         _notify_once(
             user=user,
+            tenant_id=subscription.tenant_id,
             subject=_("Subscription Renewal Warning: %(name)s in %(days)s Days")
             % {"name": subscription.name, "days": days},
             message=_(

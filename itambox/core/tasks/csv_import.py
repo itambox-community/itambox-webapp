@@ -75,6 +75,7 @@ def _safe_notify(*, user, subject, message, level, job):
     try:
         Notification.objects.create(
             user=user,
+            kind=Notification.KIND_PERSONAL,
             subject=subject,
             message=message,
             level=level,

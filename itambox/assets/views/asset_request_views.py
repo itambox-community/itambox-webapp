@@ -116,6 +116,8 @@ class AssetRequestEditView(ObjectEditView):
                 % {"item": self.object, "status": self.object.get_status_display().lower()},
                 level=Notification.LEVEL_INFO,
                 target_url=self.object.get_absolute_url(),
+                kind=Notification.KIND_TENANT,
+                tenant_id=self.object.tenant_id,
             )
         # broad except: boundary-isolation: event dispatch and the requester notification are
         # best-effort side effects of a request that is already saved; they must not fail the edit

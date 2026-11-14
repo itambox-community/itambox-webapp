@@ -88,6 +88,7 @@ def _finish_checkin(
         job.mark_failed("All asset check-ins failed.")
         Notification.objects.create(
             user=ctx.user,
+            kind=Notification.KIND_PERSONAL,
             subject=_("Bulk Check-in Failed"),
             message=_("All hardware check-ins failed. View logs for details."),
             level=Notification.LEVEL_DANGER,
@@ -110,6 +111,7 @@ def _finish_checkin(
     )
     Notification.objects.create(
         user=ctx.user,
+        kind=Notification.KIND_PERSONAL,
         subject=_("Bulk Check-in Complete"),
         message=ngettext("Checked in %(count)s asset.", "Checked in %(count)s assets.", success_count)
         % {"count": success_count},
@@ -266,6 +268,7 @@ def bulk_checkin_task(
                 job.mark_failed(f"[{status.value}] checkin.boundary_failed")
                 Notification.objects.create(
                     user=ctx.user,
+                    kind=Notification.KIND_PERSONAL,
                     subject=_("Bulk Check-in Error"),
                     message=_("The bulk check-in could not be completed. Code: checkin.boundary_failed"),
                     level=Notification.LEVEL_DANGER,
