@@ -24,6 +24,11 @@ GUIDANCE = {
     "jobs_unreadable": "The Job table could not be read.",
     "failures_elevated": "Run list_failed_tasks to inspect recent failures.",
     "failures_unreadable": "The failure table could not be read.",
+    "event_outbox_backed_up": "Due outbox events are not being processed; check the worker and its logs.",
+    "event_outbox_dead_events": "Events exhausted their retries or were unassignable; inspect the event rows and worker logs.",
+    "event_outbox_unreadable": "The event outbox table could not be read.",
+    "event_rule_errors_recent": "Rule actions failed on recently processed events; inspect the rule and worker logs.",
+    "event_rule_errors_read_failed": "The event table could not be read for rule-error diagnostics.",
 }
 
 
@@ -49,7 +54,17 @@ class Command(BaseCommand):
 
     def _write_text(self, report):
         self.stdout.write(f"status: {report['status']}")
-        for section in ("database", "cache", "worker", "scheduler", "queue", "jobs", "failures"):
+        for section in (
+            "database",
+            "cache",
+            "worker",
+            "scheduler",
+            "queue",
+            "jobs",
+            "failures",
+            "event_outbox",
+            "event_rule_errors",
+        ):
             data = report[section]
             detail = data.get("reason", "")
             self.stdout.write(f"{section}: {data['state']}" + (f" ({detail})" if detail else ""))

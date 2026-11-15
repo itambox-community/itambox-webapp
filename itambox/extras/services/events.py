@@ -512,10 +512,13 @@ def process_event_rules(event, instance_tenant_id=None):
                     type(error).__name__,
                 )
                 locked_event.rule_errors += 1
+                # Keep the terminal failure diagnosable after the event is marked
+                # processed; only the exception class is recorded, never its text.
+                locked_event.last_error_class = type(error).__name__[:64]
 
         locked_event.status = Event.STATUS_PROCESSED
         locked_event.processed_at = timezone.now()
-        locked_event.save(update_fields=["status", "processed_at", "rule_errors"])
+        locked_event.save(update_fields=["status", "processed_at", "rule_errors", "last_error_class"])
 
 
 def _check_conditions(conditions, event):
