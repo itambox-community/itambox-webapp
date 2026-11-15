@@ -64,7 +64,9 @@ def _resolve_instance_tenant_id(instance):
 
 _RULE_INDEX_CACHE_KEY = "extras:event_rule_index:v1"
 _RULE_INDEX_GENERATION_KEY = "extras:event_rule_index:generation:v1"
-_RULE_INDEX_TTL = 300
+# Short by design: if a cache outage swallows both the generation bump and the
+# delete, an old payload becomes readable again after recovery and is bounded here.
+_RULE_INDEX_TTL = 60
 
 
 def _actionable(rule):
@@ -106,9 +108,11 @@ def _bump_rule_index_generation():
         pass
 
 
-def _store_rule_index(index):
+def _store_rule_index(index, generation=None):
     try:
-        cache.set(_RULE_INDEX_CACHE_KEY, (_rule_index_generation(), index), timeout=_RULE_INDEX_TTL)
+        if generation is None:
+            generation = _rule_index_generation()
+        cache.set(_RULE_INDEX_CACHE_KEY, (generation, index), timeout=_RULE_INDEX_TTL)
     # broad except: availability-tradeoff: an unwritable cache only costs one query per transaction
     except Exception:
         logger.warning("Could not cache the event rule index")
@@ -122,13 +126,14 @@ def _cached_rule_index():
         return None
     if payload is None:
         return None
-    if isinstance(payload, tuple) and len(payload) == 2:
-        generation, index = payload
-        if generation != _rule_index_generation():
-            # An invalidation happened after this snapshot was written; reject it.
-            return None
-        return index
-    return payload
+    if not isinstance(payload, tuple) or len(payload) != 2:
+        # Unversioned payloads cannot be checked against invalidations; rebuild.
+        return None
+    generation, index = payload
+    if generation != _rule_index_generation():
+        # An invalidation happened after this snapshot was written; reject it.
+        return None
+    return index
 
 
 def _pending_callback(conn, callback):
@@ -191,8 +196,13 @@ def _rule_index():
     cached = _cached_rule_index()
     if cached is not None:
         return cached
+    generation = _rule_index_generation()
     index = _build_rule_index()
-    _store_rule_index(index)
+    if _rule_index_generation() != generation:
+        # An invalidation raced the rebuild; never tag an old snapshot as current.
+        generation = _rule_index_generation()
+        index = _build_rule_index()
+    _store_rule_index(index, generation)
     return index
 
 

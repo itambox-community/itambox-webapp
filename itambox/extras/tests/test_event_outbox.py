@@ -649,3 +649,25 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
         # Build once for the transaction plus one committed rebuild on publish;
         # a leaked memo would have produced zero builds.
         self.assertEqual(build.call_count, 2)
+
+    def test_unversioned_cache_payload_is_rejected(self):
+        cache.set(svc._RULE_INDEX_CACHE_KEY, frozenset({(self.ct.pk, None, "create")}))
+
+        self.assertIsNone(svc._cached_rule_index())
+
+    def test_nontransactional_build_rechecks_generation(self):
+        original = svc._build_rule_index
+        calls = {"count": 0}
+
+        def build():
+            calls["count"] += 1
+            if calls["count"] == 1:
+                svc._bump_rule_index_generation()
+            return original()
+
+        with patch.object(svc, "_build_rule_index", side_effect=build):
+            svc._rule_index()
+
+        payload = cache.get(svc._RULE_INDEX_CACHE_KEY)
+        self.assertEqual(calls["count"], 2)
+        self.assertEqual(payload[0], svc._rule_index_generation())
