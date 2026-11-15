@@ -279,7 +279,10 @@ def check_event_rule_errors(now, window_hours):
                 "events": row["events"],
                 "rule_errors": row["rule_errors"],
             }
-            for row in recent.values("last_error_class")
+            # Clear the model's default timestamp ordering before grouping, or
+            # Django adds it to GROUP BY and emits one row per event.
+            for row in recent.order_by()
+            .values("last_error_class")
             .annotate(events=Count("pk"), rule_errors=Sum("rule_errors"))
             .order_by("-events", "last_error_class")
         ]

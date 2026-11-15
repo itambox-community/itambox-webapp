@@ -239,16 +239,17 @@ class EventRuleErrorHealthTests(TestCase):
     def test_recent_failures_report_event_and_rule_counts_by_class(self):
         self._event(rule_errors=2, processed_at=self.now - timedelta(hours=1), error_class="RuntimeError")
         self._event(rule_errors=1, processed_at=self.now - timedelta(hours=2), error_class="ValueError")
+        self._event(rule_errors=1, processed_at=self.now - timedelta(hours=3), error_class="RuntimeError")
 
         result = oh.check_event_rule_errors(self.now, 24)
 
         self.assertEqual(result["state"], "elevated")
-        self.assertEqual(result["events"], 2)
-        self.assertEqual(result["rule_errors"], 3)
+        self.assertEqual(result["events"], 3)
+        self.assertEqual(result["rule_errors"], 4)
         self.assertEqual(
             result["by_error_class"],
             [
-                {"error_class": "RuntimeError", "events": 1, "rule_errors": 2},
+                {"error_class": "RuntimeError", "events": 2, "rule_errors": 3},
                 {"error_class": "ValueError", "events": 1, "rule_errors": 1},
             ],
         )
