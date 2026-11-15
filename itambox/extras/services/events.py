@@ -96,24 +96,57 @@ def _rule_index():
         index = None
     if index is not None:
         return index
+
+    conn = connection
+    if conn.in_atomic_block:
+        # Transaction-local memo: a rollback must never publish anything, but the
+        # same transaction should build the index once, not once per dispatch.
+        memo = getattr(conn, "_event_rule_index_memo", None)
+        publisher = getattr(conn, "_event_rule_index_publisher", None)
+        if memo is not None and publisher is not None and any(cb is publisher for cb, _robust in conn.run_on_commit):
+            return memo
+
+        index = _build_rule_index()
+        conn._event_rule_index_memo = index
+        marker = object()
+        conn._event_rule_index_marker = marker
+
+        def _publish_after_commit():
+            # Invalidation or a newer build supersedes this callback; only the
+            # current generation may write committed state to the shared cache.
+            if getattr(conn, "_event_rule_index_marker", None) is marker:
+                try:
+                    cache.set(_RULE_INDEX_CACHE_KEY, index, timeout=_RULE_INDEX_TTL)
+                # broad except: availability-tradeoff: an unwritable cache only costs one query per dispatch
+                except Exception:
+                    logger.warning("Could not cache the event rule index")
+            conn._event_rule_index_memo = None
+            conn._event_rule_index_marker = None
+            conn._event_rule_index_publisher = None
+
+        conn._event_rule_index_publisher = _publish_after_commit
+        transaction.on_commit(_publish_after_commit)
+        return index
+
     index = _build_rule_index()
-    # Inside an open transaction the rows read may still roll back; cache only committed state.
-    if not connection.in_atomic_block:
-        try:
-            cache.set(_RULE_INDEX_CACHE_KEY, index, timeout=_RULE_INDEX_TTL)
-        # broad except: availability-tradeoff: an unwritable cache only costs one query per dispatch
-        except Exception:
-            logger.warning("Could not cache the event rule index")
+    try:
+        cache.set(_RULE_INDEX_CACHE_KEY, index, timeout=_RULE_INDEX_TTL)
+    # broad except: availability-tradeoff: an unwritable cache only costs one query per dispatch
+    except Exception:
+        logger.warning("Could not cache the event rule index")
     return index
 
 
 def invalidate_rule_index():
-    """Drop the cached rule index; called on every EventRule write (and again at commit)."""
+    """Drop the cached rule index and any transaction-local build (EventRule writes)."""
     try:
         cache.delete(_RULE_INDEX_CACHE_KEY)
     # broad except: availability-tradeoff: the short TTL bounds staleness if the cache is unreachable
     except Exception:
         logger.warning("Could not invalidate the event rule index")
+    conn = connection
+    conn._event_rule_index_memo = None
+    conn._event_rule_index_marker = None
 
 
 def has_eligible_rules(content_type_id, tenant_id, action):
