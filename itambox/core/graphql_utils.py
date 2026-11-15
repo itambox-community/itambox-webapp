@@ -1,4 +1,5 @@
 import logging
+from collections.abc import MutableMapping
 
 from django.core.exceptions import PermissionDenied
 from django.utils.translation import gettext_lazy as _
@@ -86,8 +87,42 @@ def check_permission(info, perm, obj=None):
     return user
 
 
+def _scoped_relation_cache(info):
+    """A per-request store that memoizes ``scoped_relation`` decisions.
+
+    Strawberry resolves a relation field once per rendered row, so a list of
+    N rows pointing at the same related object would otherwise repeat the
+    authorization query N times. The cache key is the related object's
+    model, permission and primary key; the value is only that object's
+    decision. Nothing is materialized per table, so memory stays bounded by
+    the number of distinct related objects actually rendered in this request
+    (the same way ``request_loader_for_info`` attaches a request-scoped
+    loader to ``info.context``).
+    """
+    context = info.context
+    key = "_itambox_scoped_relation_decisions"
+    if isinstance(context, MutableMapping):
+        store = context.get(key)
+        if store is None:
+            store = {}
+            context[key] = store
+        return store
+    store = getattr(context, key, None)
+    if store is not None:
+        return store
+    try:
+        store = {}
+        setattr(context, key, store)
+    except (AttributeError, TypeError):
+        # A frozen/immutable context still resolves correctly, just without
+        # the per-request memoization.
+        return None
+    return store
+
+
 def scoped_relation(info, obj, permission):
-    """Return ``obj`` only if the caller holds ``permission`` against it.
+    """Return ``obj`` only if it is reachable through the scope- and
+    permission-narrowed queryset that governs the corresponding list.
 
     A relation resolver on an already-visible parent (e.g. ``LicenseNode``)
     must not re-widen access to a related row from a tenant the caller can
@@ -96,19 +131,59 @@ def scoped_relation(info, obj, permission):
     cross-check (for example ``License.supplier``), so the relation resolver
     is the remaining gate (#1088).
 
-    Delegates to ``user.has_perm(permission, obj=obj)`` -- the same per-object
-    check ``TokenPermissions``/``check_permission`` already use, not a new
-    permission vocabulary. ``MembershipBackend`` resolves a tenant-less
-    (global) ``obj`` through the ambient union check, so a global related row
-    keeps exactly its current visibility; a tenant-bound ``obj`` is checked
-    against its own tenant.
+    Checks membership in ``type(obj).objects.for_scope(scope,
+    required_permission=permission)`` -- the exact queryset
+    ``scoped_queryset`` narrows the matching list to (#1100) -- rather than
+    the ambient ``user.has_perm(permission, obj=obj)`` check. The permission
+    backend's ambient branch evaluates the union of permissions across the
+    active group scope for any tenant-less object, so a group-scoped object
+    (``tenant`` null, ``tenant_group`` set) was wrongly treated like a fully
+    global one and could leak across groups. ``for_scope`` already resolves
+    a group-scoped row against its own group's reachable tenants, so
+    checking membership there closes that gap while leaving a fully global
+    row (``tenant`` and ``tenant_group`` both null) exactly as reachable as
+    the list makes it. Because ``for_scope`` keeps those global catalogue
+    rows reachable for every scope, the decision also requires the
+    object-level permission; that check is ANDed with scope membership, so
+    it can only narrow access, never widen it back across groups.
+
+    Results are memoized per request per (model, permission, primary key),
+    so repeated rows pointing at the same related object reuse the first
+    decision. The check never materializes a table's primary keys: it costs
+    at most one indexed ``EXISTS`` query per distinct related object, which
+    keeps worker memory bounded on large tables. A related model whose
+    default manager does not implement ``for_scope`` fails closed, because
+    no scoped queryset exists to prove the row is list-visible.
     """
     if obj is None:
         return None
     user = getattr(request_from_info(info), "user", None)
     if user is None or not getattr(user, "is_authenticated", False):
         return None
-    return obj if user.has_perm(permission, obj=obj) else None
+    scope = read_scope_from_info(info)
+    model = type(obj)
+    manager = model._default_manager
+    for_scope = getattr(manager, "for_scope", None)
+    if for_scope is None:
+        # Fail closed: without the tenant-scope contract there is no way to
+        # prove the related row is in the same queryset the list uses, and the
+        # ambient object check is exactly the widening this helper closes.
+        return None
+    cache = _scoped_relation_cache(info)
+    cache_key = (model._meta.label, permission, obj.pk)
+    if cache is not None and cache_key in cache:
+        return obj if cache[cache_key] else None
+    allowed = for_scope(scope, required_permission=permission).filter(pk=obj.pk).exists()
+    if allowed:
+        # Scope membership alone is not sufficient for fully global rows:
+        # ``for_scope`` keeps tenant-less catalogue rows reachable for every
+        # scope, while the list gate still requires the operation permission.
+        # The object check can only narrow here, never widen, because it is
+        # ANDed with the scoped membership above.
+        allowed = user.has_perm(permission, obj=obj)
+    if cache is not None:
+        cache[cache_key] = allowed
+    return obj if allowed else None
 
 
 def generate_slug(instance):
