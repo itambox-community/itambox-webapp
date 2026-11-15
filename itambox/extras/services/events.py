@@ -126,9 +126,9 @@ def _rule_index():
                 # broad except: availability-tradeoff: an unwritable cache only costs one query per dispatch
                 except Exception:
                     logger.warning("Could not cache the event rule index")
-            conn._event_rule_index_memo = None
-            conn._event_rule_index_marker = None
-            conn._event_rule_index_publisher = None
+                conn._event_rule_index_memo = None
+                conn._event_rule_index_marker = None
+                conn._event_rule_index_publisher = None
 
         conn._event_rule_index_publisher = _publish_after_commit
         transaction.on_commit(_publish_after_commit)
