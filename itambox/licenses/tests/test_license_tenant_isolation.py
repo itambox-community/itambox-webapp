@@ -7,7 +7,7 @@ from django.urls import reverse
 from assets.models import Manufacturer
 from core.tests.mixins import grant
 from licenses.models import License, LicenseSeatAssignment, LicenseTypeChoices
-from organization.models import AssetHolder, Role, Tenant
+from organization.models import AssetHolder, Role, Tenant, TenantGroup
 from software.models import Software
 
 User = get_user_model()
@@ -280,6 +280,13 @@ class NestedLicensePermissionTests(TestCase):
         nested = response.json()["license"]
         self.assertIsNone(nested, "seat-only reader received the nested license object")
 
+        list_url = reverse("api:licenses_api:licenseseatassignment-list")
+        list_response = self.client.get(list_url)
+        self.assertEqual(list_response.status_code, 200)
+        rows = list_response.json()
+        results = rows["results"] if isinstance(rows, dict) and "results" in rows else rows
+        self.assertEqual(results[0]["license"], None, "seat-only reader received the nested license on the list")
+
     def test_assignment_detail_keeps_license_fields_with_view_license(self):
         self._activate(self.license_user)
 
@@ -292,3 +299,89 @@ class NestedLicensePermissionTests(TestCase):
         self.assertEqual(nested["purchase_cost"], "1234.56")
         self.assertEqual(nested["order_number"], "PO-SECRET-42")
         self.assertEqual(nested["notes"], "confidential renewal note")
+
+
+class NestedLicenseGroupScopeTests(TestCase):
+    """A group scope must not carry a licence grant into a tenant that lacks it.
+
+    The user holds ``licenses.view_license`` in A and only seat permissions in
+    B. Under one tenant-group scope both seats are reachable; only A's nested
+    licence may be rendered.
+    """
+
+    def setUp(self):
+        self.group = TenantGroup.objects.create(name="Nested Group", slug="nested-group")
+        self.tenant_a = Tenant.objects.create(name="Nested A", slug="nested-a", group=self.group)
+        self.tenant_b = Tenant.objects.create(name="Nested B", slug="nested-b", group=self.group)
+        self.user = User.objects.create_user(username="group-seat", password="password123")
+
+        seat_perms = [
+            "licenses.view_licenseseatassignment",
+            "licenses.change_licenseseatassignment",
+            "licenses.delete_licenseseatassignment",
+        ]
+        grant(
+            self.user,
+            self.tenant_a,
+            Role.objects.create(
+                tenant=self.tenant_a,
+                name="Seat And License A",
+                permissions=[*seat_perms, "licenses.view_license"],
+            ),
+        )
+        grant(
+            self.user,
+            self.tenant_b,
+            Role.objects.create(tenant=self.tenant_b, name="Seat Only B", permissions=seat_perms),
+        )
+
+        manufacturer = Manufacturer.objects.create(name="Group Maker", slug="group-maker")
+        self.seat_a = self._seat("Group App A", "Group License A", self.tenant_a, manufacturer, "111.11")
+        self.seat_b = self._seat("Group App B", "Group License B", self.tenant_b, manufacturer, "222.22")
+
+    @staticmethod
+    def _seat(software_name, license_name, tenant, manufacturer, cost):
+        software = Software.objects.create(name=software_name, manufacturer=manufacturer, tenant=tenant)
+        lic = License.objects.create(
+            name=license_name,
+            software=software,
+            license_type=LicenseTypeChoices.PERPETUAL_SEAT,
+            seats=5,
+            tenant=tenant,
+            purchase_cost=Decimal(cost),
+            notes=f"{license_name} notes",
+        )
+        holder = AssetHolder.objects.create(
+            first_name=license_name,
+            last_name="Holder",
+            upn=f"{license_name.lower().replace(' ', '.')}@example.com",
+            tenant=tenant,
+        )
+        return LicenseSeatAssignment.objects.create(license=lic, assigned_holder=holder)
+
+    def _activate_group(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session.pop("active_tenant_id", None)
+        session["active_tenant_group_id"] = self.group.pk
+        session.save()
+
+    def test_group_list_hides_only_the_unauthorized_nested_license(self):
+        self._activate_group()
+
+        response = self.client.get(reverse("api:licenses_api:licenseseatassignment-list"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        rows = payload["results"] if isinstance(payload, dict) and "results" in payload else payload
+        by_id = {row["id"]: row for row in rows}
+
+        self.assertEqual(by_id[self.seat_a.pk]["license"]["purchase_cost"], "111.11")
+        self.assertIsNone(by_id[self.seat_b.pk]["license"])
+
+    def test_group_detail_hides_the_unauthorized_nested_license(self):
+        self._activate_group()
+
+        detail_url = reverse("api:licenses_api:licenseseatassignment-detail", kwargs={"pk": self.seat_b.pk})
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["license"])
