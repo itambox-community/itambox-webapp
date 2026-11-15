@@ -1,6 +1,7 @@
 import logging
+import uuid
+from datetime import timedelta
 from typing import cast
-from uuid import uuid4
 
 from django.apps import apps
 from django.conf import settings
@@ -12,6 +13,7 @@ from django.db import models, transaction
 from django.http import Http404
 from django.shortcuts import redirect
 from django.urls import NoReverseMatch, reverse
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.generic import TemplateView
 from django_q.tasks import async_task
@@ -23,7 +25,7 @@ from core.importers.bulk_forms import (
     is_model_importable,
 )
 from core.managers import get_current_tenant
-from core.models import Job
+from core.models import ImportPreview, Job
 from itambox.utils import model_view_url
 from itambox.views.generic.mixins import user_can_mutate_model
 from itambox.views.htmx import BaseHTMXView
@@ -31,40 +33,56 @@ from itambox.views.htmx import BaseHTMXView
 logger = logging.getLogger(__name__)
 
 
-IMPORT_PREVIEWS_SESSION_KEY = "import_previews"
 MAX_IMPORT_PREVIEWS = 3
+# Unconfirmed previews are scratch state: evict them (and any consumed row)
+# opportunistically once older than this, so the table never accumulates.
+IMPORT_PREVIEW_TTL = timedelta(hours=24)
+
+
+class _PreviewAlreadyConsumed(Exception):
+    """A confirmation lost the atomic claim: another request consumed the preview first."""
+
+
+# Test-only seam: called immediately before the conditional claim update so a
+# concurrency test can force both confirmations past validation before either
+# claims. Production leaves this ``None``.
+_BEFORE_PREVIEW_CLAIM = None
 
 
 def _store_import_preview(request, *, rows, model):
-    """Store one preview under its own id, bound to user, tenant and target model."""
-    previews = request.session.get(IMPORT_PREVIEWS_SESSION_KEY, {})
-    if not isinstance(previews, dict):
-        previews = {}
-    # Keep the newest previews only (two tabs plus slack); an abandoned tab
-    # must not grow the session without bound.
-    while len(previews) >= MAX_IMPORT_PREVIEWS:
-        previews.pop(next(iter(previews)))
-    preview_id = uuid4().hex
+    """Persist one preview row bound to user, tenant and target model; return its id.
+
+    The preview is stored server-side (not only in the session) so confirmation
+    can claim it atomically. Storing is also when cleanup happens: this user's
+    consumed previews and anything past the TTL are dropped, then the per-user,
+    per-tenant set is bounded to the newest ``MAX_IMPORT_PREVIEWS``.
+    """
+    user = request.user
     current_tenant = get_current_tenant()
-    previews[preview_id] = {
-        "rows": rows,
-        "user_id": request.user.pk,
-        "tenant_id": current_tenant.pk if current_tenant else None,
-        "app_label": model._meta.app_label,
-        "model_name": model._meta.model_name,
-    }
-    request.session[IMPORT_PREVIEWS_SESSION_KEY] = previews
-    return preview_id
+    tenant_id = current_tenant.pk if current_tenant else None
 
+    # Opportunistic, bounded cleanup for this user: consumed rows are spent and
+    # anything older than the TTL is an abandoned tab.
+    cutoff = timezone.now() - IMPORT_PREVIEW_TTL
+    ImportPreview.objects.filter(user=user).filter(
+        models.Q(consumed_at__isnull=False) | models.Q(created_at__lt=cutoff)
+    ).delete()
 
-def _pop_import_preview(request, preview_id):
-    """Return and consume one preview. A preview can be confirmed once."""
-    previews = request.session.get(IMPORT_PREVIEWS_SESSION_KEY, {})
-    if not isinstance(previews, dict) or not preview_id:
-        return None
-    preview = previews.pop(preview_id, None)
-    request.session[IMPORT_PREVIEWS_SESSION_KEY] = previews
-    return preview
+    preview = ImportPreview.objects.create(
+        user=user,
+        tenant_id=tenant_id,
+        app_label=model._meta.app_label,
+        model_name=model._meta.model_name,
+        payload=rows,
+    )
+
+    # Keep the newest previews only (two tabs plus slack) for this scope; an
+    # abandoned tab must not grow the table without bound.
+    scoped = ImportPreview.objects.filter(user=user, tenant_id=tenant_id, consumed_at__isnull=True)
+    keep = list(scoped.order_by("-created_at").values_list("pk", flat=True)[:MAX_IMPORT_PREVIEWS])
+    scoped.exclude(pk__in=keep).delete()
+
+    return preview.pk.hex
 
 
 def _relation_description(form_cls, name, related_model):
@@ -118,39 +136,94 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
         form = self.get_form_class()()
         return self._render_response(request, form)
 
+    def _no_data_response(self, request, form):
+        return self._render_response(request, form, errors=[_("No import data found. Please upload a file first.")])
+
     def _consume_preview(self, request, form, model):
-        """Validate and consume the posted preview; return (preview, tenant, error)."""
-        preview = _pop_import_preview(request, request.POST.get("preview_id", ""))
+        """Load and validate the posted preview; return (preview, tenant, error).
+
+        This only *reads* the row — the single-use claim happens atomically in
+        ``_claim_and_create_job`` so a confirmation that fails validation leaves
+        the preview confirmable. Binding is checked here, before any claim:
+        a foreign user or model raises ``PermissionDenied`` (403); a foreign
+        tenant or missing/spent rows return the existing rendered error.
+        """
+        raw_id = request.POST.get("preview_id", "")
+        try:
+            preview_id = uuid.UUID(raw_id)
+        except (ValueError, TypeError, AttributeError):
+            # Malformed id: treat like an unknown preview rather than a crash.
+            return None, None, self._no_data_response(request, form)
+
+        preview = ImportPreview.objects.filter(pk=preview_id, consumed_at__isnull=True).first()
         if preview is None:
             # Unknown, already confirmed or evicted preview: the rows are gone,
             # so the only safe answer is to ask for a fresh upload.
-            return (
-                None,
-                None,
-                self._render_response(request, form, errors=[_("No import data found. Please upload a file first.")]),
-            )
-        if preview.get("user_id") != request.user.pk:
+            return None, None, self._no_data_response(request, form)
+        if preview.user_id != request.user.pk:
             raise PermissionDenied("This import preview belongs to another user.")
         current_tenant = get_current_tenant()
         tenant_id = current_tenant.pk if current_tenant else None
-        if preview.get("tenant_id") != tenant_id:
+        if preview.tenant_id != tenant_id:
             return (
                 None,
                 None,
                 self._render_response(request, form, errors=[_("Referenced object belongs to another tenant.")]),
             )
-        if (preview.get("app_label"), preview.get("model_name")) != (
-            model._meta.app_label,
-            model._meta.model_name,
-        ):
+        if (preview.app_label, preview.model_name) != (model._meta.app_label, model._meta.model_name):
             raise PermissionDenied("This import preview belongs to another model.")
-        if not preview.get("rows"):
-            return (
-                None,
-                None,
-                self._render_response(request, form, errors=[_("No import data found. Please upload a file first.")]),
-            )
+        if not preview.payload:
+            return None, None, self._no_data_response(request, form)
         return preview, current_tenant, None
+
+    def _claim_and_create_job(self, request, preview, model, ct, current_tenant, tenant_id, rows):
+        """Atomically claim the preview and create its job in one transaction.
+
+        The conditional update claims the preview only while it is still
+        unconsumed and owned by the requester; a racing confirmation matches
+        zero rows and raises ``_PreviewAlreadyConsumed``. Because the claim and
+        ``Job.objects.create`` share the transaction, a failed job creation
+        rolls the claim back so the preview can be retried. Scheduling is
+        registered on commit, after the claim is durable.
+        """
+        with transaction.atomic():
+            if _BEFORE_PREVIEW_CLAIM is not None:
+                _BEFORE_PREVIEW_CLAIM(preview.pk)
+            claimed = ImportPreview.objects.filter(pk=preview.pk, user=request.user, consumed_at__isnull=True).update(
+                consumed_at=timezone.now()
+            )
+            if not claimed:
+                raise _PreviewAlreadyConsumed
+
+            job = Job.objects.create(
+                name=f"Bulk Import: {str(model._meta.verbose_name_plural).title()}",
+                tenant=current_tenant,
+                model=ct,
+                status=Job.STATUS_PENDING,
+            )
+
+            if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
+                async_task(
+                    "core.tasks.import_csv_task",
+                    job.pk,
+                    rows,
+                    model._meta.app_label,
+                    model._meta.model_name,
+                    request.user.pk,
+                    tenant_id=tenant_id,
+                )
+            else:
+                task_args = (
+                    "core.tasks.import_csv_task",
+                    job.pk,
+                    rows,
+                    model._meta.app_label,
+                    model._meta.model_name,
+                    request.user.pk,
+                )
+                task_kwargs = {"tenant_id": tenant_id}
+                transaction.on_commit(lambda args=task_args, kwargs=task_kwargs: async_task(*args, **kwargs))
+        return job
 
     def post(self, request, *args, **kwargs):
         form = self.get_form_class()(request.POST, request.FILES)
@@ -180,39 +253,16 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
             if error is not None:
                 return error
             tenant_id = current_tenant.pk if current_tenant else None
-            rows = preview["rows"]
+            rows = preview.payload
 
             ct = ContentType.objects.get_for_model(model)
 
-            # Create background Job tracker instance for the preview's tenant.
-            job = Job.objects.create(
-                name=f"Bulk Import: {str(model._meta.verbose_name_plural).title()}",
-                tenant=current_tenant,
-                model=ct,
-                status=Job.STATUS_PENDING,
-            )
-
-            if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
-                async_task(
-                    "core.tasks.import_csv_task",
-                    job.pk,
-                    rows,
-                    model._meta.app_label,
-                    model._meta.model_name,
-                    request.user.pk,
-                    tenant_id=tenant_id,
-                )
-            else:
-                task_args = (
-                    "core.tasks.import_csv_task",
-                    job.pk,
-                    rows,
-                    model._meta.app_label,
-                    model._meta.model_name,
-                    request.user.pk,
-                )
-                task_kwargs = {"tenant_id": tenant_id}
-                transaction.on_commit(lambda args=task_args, kwargs=task_kwargs: async_task(*args, **kwargs))
+            try:
+                job = self._claim_and_create_job(request, preview, model, ct, current_tenant, tenant_id, rows)
+            except _PreviewAlreadyConsumed:
+                # Lost the race (or confirmed twice): no job, object or event was
+                # created; ask for a fresh upload exactly as for a spent preview.
+                return self._no_data_response(request, form)
 
             messages.success(
                 request,

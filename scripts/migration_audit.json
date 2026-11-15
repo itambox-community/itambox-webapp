@@ -3,7 +3,7 @@
     "app_leaves": [
       "assets.0008_asset_search_trigram_indexes",
       "compliance.0004_signature_provider_configs",
-      "core.0004_notification_tenant_kind",
+      "core.0005_import_preview",
       "extras.0006_event_outbox",
       "inventory.0002_cross_app_relations",
       "licenses.0003_cross_app_relations_late",
@@ -109,6 +109,10 @@
       [
         "core.0003_cross_app_relations_late",
         "organization.0002_cross_app_relations"
+      ],
+      [
+        "core.0004_notification_tenant_kind",
+        "core.0005_import_preview"
       ],
       [
         "extras.0001_baseline",
@@ -272,6 +276,10 @@
       ],
       [
         "organization.0002_cross_app_relations",
+        "core.0005_import_preview"
+      ],
+      [
+        "organization.0002_cross_app_relations",
         "subscriptions.0002_cross_app_relations"
       ],
       [
@@ -316,6 +324,10 @@
       ],
       [
         "users.0001_baseline",
+        "core.0005_import_preview"
+      ],
+      [
+        "users.0001_baseline",
         "extras.0002_cross_app_relations"
       ],
       [
@@ -338,7 +350,7 @@
     "leaves": [
       "assets.0008_asset_search_trigram_indexes",
       "compliance.0004_signature_provider_configs",
-      "core.0004_notification_tenant_kind",
+      "core.0005_import_preview",
       "extras.0006_event_outbox",
       "procurement.0002_cross_app_relations",
       "subscriptions.0002_cross_app_relations",
@@ -361,6 +373,7 @@
       "core.0002_cross_app_relations",
       "core.0003_cross_app_relations_late",
       "core.0004_notification_tenant_kind",
+      "core.0005_import_preview",
       "extras.0001_baseline",
       "extras.0002_cross_app_relations",
       "extras.0003_definition_guards",
@@ -896,6 +909,38 @@
         }
       },
       "path": "itambox/core/migrations/0004_notification_tenant_kind.py",
+      "replaces_count": 0,
+      "reviewed_semantics": null,
+      "run_before": []
+    },
+    {
+      "dependencies": [
+        "core.0004_notification_tenant_kind",
+        "organization.0002_cross_app_relations"
+      ],
+      "id": "core.0005_import_preview",
+      "operations": {
+        "BtreeGistExtension": {
+          "count": 0
+        },
+        "RunPython": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "RunSQL": {
+          "with_noop_reverse": 0,
+          "with_reverse": 0,
+          "without_reverse": 0
+        },
+        "SeparateDatabaseAndState": {
+          "count": 0
+        },
+        "TrigramExtension": {
+          "count": 0
+        }
+      },
+      "path": "itambox/core/migrations/0005_import_preview.py",
       "replaces_count": 0,
       "reviewed_semantics": null,
       "run_before": []
@@ -1953,7 +1998,7 @@
   "schema_version": 5,
   "summary": {
     "apps": 11,
-    "migrations": 36,
+    "migrations": 37,
     "replaced_identities": 397,
     "replacing_migrations": 28,
     "reviewed_custom_migrations": 11

@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import logging
+import uuid
 from collections import Counter
 from operator import attrgetter
 
@@ -812,6 +813,62 @@ class Job(ChangeLoggingMixin, BaseModel):
         entry = f"[{timestamp}] {message}"
         self.logs = f"{self.logs}\n{entry}" if self.logs else entry
         self.save(update_fields=["logs"])
+
+
+class ImportPreview(models.Model):
+    """A server-side, single-use import preview.
+
+    The parsed preview rows are persisted here (not only in the request
+    session) so a confirmation can *atomically* claim the preview inside the
+    same transaction that creates the import ``Job``. Two confirmations racing
+    on the same preview then resolve to exactly one claim and one job: the
+    conditional ``consumed_at IS NULL`` update matches a single row, the loser
+    matches none and is rejected without a job, object or event.
+
+    Not a ``ChangeLoggingMixin``: previews are transient scratch state, so their
+    creation and cleanup deliberately emit no ``ObjectChange``/``Event``.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # The owning user; a preview is confirmable only by the user who built it.
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="import_previews",
+        verbose_name=_("User"),
+    )
+    # Tenant the preview is bound to; null means a system/global scope. A
+    # confirmation into a different active tenant is refused.
+    tenant = models.ForeignKey(
+        "organization.Tenant",
+        on_delete=models.CASCADE,
+        related_name="+",
+        null=True,
+        blank=True,
+        verbose_name=_("Tenant"),
+    )
+    app_label = models.CharField(max_length=100)
+    model_name = models.CharField(max_length=100)
+    payload = models.JSONField(default=list, blank=True, verbose_name=_("Rows"))
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("Import Preview")
+        verbose_name_plural = _("Import Previews")
+        indexes = [
+            # Newest-first per-user (and tenant) listing + eviction bound.
+            models.Index(
+                fields=["user", "tenant", "consumed_at", "created_at"],
+                name="core_import_user_id_4e2c6f_idx",
+            ),
+            # Opportunistic cleanup of consumed / expired rows.
+            models.Index(fields=["user", "created_at"], name="core_import_user_id_9a1b3d_idx"),
+        ]
+
+    def __str__(self):
+        return f"ImportPreview {self.pk} ({self.app_label}.{self.model_name})"
 
 
 class EmailSettings(ChangeLoggingMixin, BaseModel):

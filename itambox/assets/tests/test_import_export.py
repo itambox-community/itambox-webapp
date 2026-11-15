@@ -1,13 +1,18 @@
 import re
+import threading
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.db import connection, connections
+from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from assets.models import Asset
-from core.models import Job
+from core.models import ImportPreview, Job
 
 User = get_user_model()
 
@@ -16,6 +21,13 @@ def _preview_id(response):
     match = re.search(rb'name="preview_id" value="([0-9a-f]{32})"', response.content)
     assert match is not None, "preview response has no preview_id"
     return match.group(1).decode()
+
+
+def _latest_preview_id():
+    """The newest unconfirmed preview id (hex), mirroring the view's own lookup."""
+    preview = ImportPreview.objects.filter(consumed_at__isnull=True).order_by("-created_at").first()
+    assert preview is not None, "no unconfirmed preview was stored"
+    return preview.pk.hex
 
 
 class ImportExportPermissionTestCase(TestCase):
@@ -97,9 +109,7 @@ class ImportExportPermissionTestCase(TestCase):
 
 class AdvancedImportExportTestCase(TestCase):
     def _confirm(self, url):
-        previews = self.client.session.get("import_previews", {})
-        preview_id = next(reversed(previews))
-        return self.client.post(url, {"_confirm": "1", "preview_id": preview_id})
+        return self.client.post(url, {"_confirm": "1", "preview_id": _latest_preview_id()})
 
     def setUp(self):
         self.admin = User.objects.create_user(
@@ -251,8 +261,8 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
             },
         )
         self.assertEqual(response.status_code, 200)
-        preview = next(reversed(self.client.session["import_previews"].values()))
-        rows = preview["rows"]
+        preview = ImportPreview.objects.filter(consumed_at__isnull=True).latest("created_at")
+        rows = preview.payload
 
         with patch("itambox.views.generic.import_.async_task") as before_commit:
             with self.captureOnCommitCallbacks(execute=False) as callbacks:
@@ -352,17 +362,20 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
 
     def test_a_preview_bound_to_another_user_is_refused(self):
         import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
-        stolen = {
-            "rows": [{"name": "Stolen"}],
-            "user_id": 999_999,
-            "tenant_id": None,
-            "app_label": "assets",
-            "model_name": "asset",
-        }
-        with patch("itambox.views.generic.import_._pop_import_preview", return_value=stolen):
-            response = self.client.post(import_url, {"_confirm": "1", "preview_id": "irrelevant"})
+        other = User.objects.create_user(username="owner", password="password123")
+        stolen = ImportPreview.objects.create(
+            user=other,
+            tenant=None,
+            app_label="assets",
+            model_name="asset",
+            payload=[{"name": "Stolen"}],
+        )
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": stolen.pk.hex})
         self.assertEqual(response.status_code, 403)
         self.assertEqual(Job.objects.count(), 0)
+        # The foreign preview stays unconsumed: a rejected claim writes nothing.
+        stolen.refresh_from_db()
+        self.assertIsNone(stolen.consumed_at)
 
     def test_a_preview_bound_to_another_model_is_refused(self):
         asset_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
@@ -410,24 +423,69 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
         self.assertEqual(response.status_code, 302)
         self.assertEqual(Job.objects.count(), 1)
 
-    def test_a_broken_preview_store_is_ignored(self):
+    def test_a_malformed_preview_id_is_rejected_without_a_job(self):
         import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
-        self.client.session["import_previews"] = []
-        self.client.session.save()
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": "not-a-uuid"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Job.objects.count(), 0)
 
+    def test_expired_and_consumed_previews_are_cleaned_up(self):
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        consumed = ImportPreview.objects.create(
+            user=self.admin, app_label="assets", model_name="asset", payload=[{"n": 1}], consumed_at=timezone.now()
+        )
+        expired = ImportPreview.objects.create(
+            user=self.admin, app_label="assets", model_name="asset", payload=[{"n": 2}]
+        )
+        ImportPreview.objects.filter(pk=expired.pk).update(created_at=timezone.now() - timedelta(hours=25))
+        fresh = ImportPreview.objects.create(
+            user=self.admin, app_label="assets", model_name="asset", payload=[{"n": 3}]
+        )
+
+        # Storing a preview runs the opportunistic cleanup.
         response = self.client.post(
             import_url,
             {
                 "active_tab": "editor",
                 "import_format": "csv",
                 "delimiter": ",",
-                "import_text": "name,asset_tag\nAsset Reset,TAG-RESET",
+                "import_text": "name,asset_tag\nAsset Clean,TAG-CLEAN",
                 "_preview": "1",
             },
         )
         self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(ImportPreview.objects.filter(pk=consumed.pk).exists())
+        self.assertFalse(ImportPreview.objects.filter(pk=expired.pk).exists())
+        self.assertTrue(ImportPreview.objects.filter(pk=fresh.pk).exists())
+
+    def test_a_rejected_confirmation_creates_no_job_object_or_event(self):
+        from extras.models import Event
+
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        response = self.client.post(
+            import_url,
+            {
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "import_text": f"name,asset_tag,status,asset_type\nAsset Reject,TAG-REJECT,{self.status.pk},{self.asset_type.pk}",
+                "_preview": "1",
+            },
+        )
         preview_id = _preview_id(response)
         self.assertEqual(self.client.post(import_url, {"_confirm": "1", "preview_id": preview_id}).status_code, 302)
+
+        jobs = Job.objects.count()
+        assets = Asset.objects.count()
+        events = Event.objects.count()
+
+        # The second confirmation is rejected: no new job, object or event.
+        response = self.client.post(import_url, {"_confirm": "1", "preview_id": preview_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Job.objects.count(), jobs)
+        self.assertEqual(Asset.objects.count(), assets)
+        self.assertEqual(Event.objects.count(), events)
 
     def _run_import(self, text, import_format="csv"):
         import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
@@ -467,3 +525,80 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
         created = Asset.objects.get(asset_tag="TAG-NEW")
         self.assertNotEqual(created.pk, self.asset1.pk)
         self.assertEqual(created.name, "Asset Hijack")
+
+
+@pytest.mark.serial_only
+class ImportPreviewConcurrencyTestCase(TransactionTestCase):
+    """Two real connections confirming the same preview must claim it once.
+
+    Uses ``TransactionTestCase`` (so writes commit and the threads see each
+    other) and a barrier so both confirmations reach the atomic claim together.
+    """
+
+    def setUp(self):
+        from assets.models import AssetType, Manufacturer, StatusLabel
+
+        self.admin = User.objects.create_user(
+            username="raceadmin", password="password123", is_staff=True, is_superuser=True
+        )
+        self.status = StatusLabel.objects.create(name="Active", slug="active")
+        self.manufacturer = Manufacturer.objects.create(name="Dell", slug="dell")
+        self.asset_type = AssetType.objects.create(manufacturer=self.manufacturer, model="Laptop", slug="laptop")
+
+    def test_two_concurrent_confirmations_create_exactly_one_job(self):
+        if connection.vendor == "sqlite":
+            self.skipTest("Row-level claim contention needs PostgreSQL; SQLite serialises writes.")
+
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+
+        builder = Client()
+        builder.login(username="raceadmin", password="password123")
+        response = builder.post(
+            import_url,
+            {
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "import_text": f"name,asset_tag,status,asset_type\nAsset Race,TAG-RACE,{self.status.pk},{self.asset_type.pk}",
+                "_preview": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        preview_id = _preview_id(response)
+
+        import itambox.views.generic.import_ as import_views
+
+        barrier = threading.Barrier(2)
+        statuses = []
+        lock = threading.Lock()
+
+        def confirm():
+            client = Client()
+            client.login(username="raceadmin", password="password123")
+            try:
+                result = client.post(import_url, {"_confirm": "1", "preview_id": preview_id})
+                with lock:
+                    statuses.append(result.status_code)
+            finally:
+                connections.close_all()
+
+        def before_claim(preview_pk):
+            # Both requests have read and validated the same preview here; only
+            # now do they race on the conditional claim update.
+            barrier.wait(timeout=10)
+
+        import_views._BEFORE_PREVIEW_CLAIM = before_claim
+        threads = [threading.Thread(target=confirm) for _ in range(2)]
+        try:
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+        finally:
+            import_views._BEFORE_PREVIEW_CLAIM = None
+
+        # Exactly one confirmation redirects to its job; the other is rejected.
+        self.assertEqual(sorted(statuses), [200, 302])
+        self.assertEqual(Job.objects.count(), 1)
+        self.assertEqual(Asset.objects.filter(asset_tag="TAG-RACE").count(), 1)
+        self.assertEqual(ImportPreview.objects.filter(consumed_at__isnull=False).count(), 1)

@@ -17183,3 +17183,12 @@ msgstr "Regelaktionen, die endgültig fehlgeschlagen sind."
 
 msgid "Tenant ID"
 msgstr "Mandanten-ID"
+
+msgid "Import Preview"
+msgstr "Importvorschau"
+
+msgid "Import Previews"
+msgstr "Importvorschauen"
+
+msgid "Rows"
+msgstr "Zeilen"
