@@ -62,8 +62,6 @@ proceed before considering manual execution; an ad hoc invocation can duplicate
 the effect. Catch-up does not replay arbitrary queued tasks or work that was
 never registered as a schedule. For an unscheduled operation, first verify its
 own idempotency and current state, then use its documented recovery procedure.
-Do not use `run_jobs` to drain work; its current missing-handler path can mark
-jobs successful without executing a handler (see [Management Commands](management-commands.md#run_jobs)).
 
 ## 3. A capability is "off" or a Beta/Experimental badge is missing
 

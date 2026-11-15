@@ -20,6 +20,10 @@ Patch release with two schema changes and four fixes. Apply the migrations for t
 - Legacy outbox events without a tenant are repaired from the referenced object during the upgrade. Direct and indirect tenant anchors are reconstructed; events whose owning tenant cannot be proven from the current row or from recorded `tenant_scope` provenance become `dead` with `last_error_class="outbox.backfill_unassigned"` instead of running global rules. Models with no tenant anchor remain legitimate global events, and new events record their scope at emission.
 - The event rule index is built once per transaction and published only from committed data, with generation-checked cache values. Rule writes still invalidate immediately and at commit, a rollback publishes nothing, and a cache outage falls back to reading the rules from the database.
 
+### Removed
+
+- The unsafe `run_jobs` management command was removed. It could mark a job successful without running a handler and was documented as unusable for queue recovery; the django-q2 worker and `operational_health` remain the supported path.
+
 ### Upgrade
 
 - Apply `core.0005_import_preview` and `extras.0007_backfill_event_tenant`.

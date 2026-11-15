@@ -54,7 +54,8 @@ docker-compose.override.yml
 .coverage
 htmlcov/
 coverage_report*.txt
-coverage.json
+coverage*.json
+cov-*.json
 coverage.xml
 junit.xml
 
