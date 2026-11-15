@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from assets.models import Manufacturer
@@ -301,10 +301,11 @@ class NestedLicensePermissionTests(TestCase):
         self.assertEqual(nested["order_number"], "PO-SECRET-42")
         self.assertEqual(nested["notes"], "confidential renewal note")
 
-    def test_serializer_without_a_request_fails_closed(self):
-        # Internal callers that serialize without a request context must not
-        # fall back to the full licence representation.
-        data = LicenseSeatAssignmentSerializer(self.seat).data
+    def test_serializer_without_a_user_fails_closed(self):
+        # Internal callers that serialize with a request but no authenticated
+        # user must not fall back to the full licence representation.
+        request = RequestFactory().get("/")
+        data = LicenseSeatAssignmentSerializer(self.seat, context={"request": request}).data
         self.assertIsNone(data["license"])
 
 
