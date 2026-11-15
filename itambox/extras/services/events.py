@@ -103,7 +103,7 @@ def _rule_index():
         # same transaction should build the index once, not once per dispatch.
         memo = getattr(conn, "_event_rule_index_memo", None)
         publisher = getattr(conn, "_event_rule_index_publisher", None)
-        if memo is not None and publisher is not None and any(cb is publisher for cb, _robust in conn.run_on_commit):
+        if memo is not None and publisher is not None and any(entry[0] is publisher for entry in conn.run_on_commit):
             return memo
 
         index = _build_rule_index()
