@@ -119,6 +119,7 @@ DECLARATIONS = {
     # core
     "core.emailsettings": _deny(R_SECRET, "mail credentials"),
     "core.job": _deny(R_NO_SCOPE, "visibility is governed by visible_jobs_for_user"),
+    "core.importpreview": _deny(R_SYSTEM, "transient import scratch state; never exported or imported"),
     "core.notification": _deny(R_PERSONAL, "personal notifications"),
     "core.objectchange": _deny(R_SYSTEM, "audit log"),
     "core.recyclebin": _deny(R_SYSTEM, "system recycle-bin projection"),
