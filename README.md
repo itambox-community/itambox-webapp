@@ -22,7 +22,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6f42c1.svg" alt="Apache-2.0 license"></a>
   <a href="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml"><img src="https://github.com/itambox-community/itambox-webapp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
   <img src="https://img.shields.io/badge/status-stable-2ea44f.svg" alt="Stable release">
-  <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12; 3.13 is not yet supported">
+  <img src="https://img.shields.io/badge/python-3.12-3776ab.svg" alt="Python 3.12 only; 3.13 is not supported">
   <img src="https://img.shields.io/badge/database-PostgreSQL%2016%2B-4169e1.svg" alt="PostgreSQL 16 or newer">
 </p>
 
@@ -86,11 +86,11 @@ REST/OpenAPI, scoped GraphQL, SCIM, identity-provider integrations, imports, exp
 ITAMbox is licensed under Apache 2.0 and designed to run on infrastructure you control. Your deployment, data, integrations, retention policies, and upgrade decisions remain under your administration.
 
 > [!IMPORTANT]
-> The current release is `1.0.1`. The 1.0 feature scope is complete; capabilities marked **Beta** may still change in minor releases. Review the [capability maturity guide](itambox/docs/operations/capability-maturity.md) for public grades and known limitations, keep tested backups, and read the changelog before upgrading.
+> ITAMbox 1.0 is the stable release line, maintained through patch releases; the current release is `1.0.2`. Capabilities marked **Beta** may change in minor releases. Keep tested backups and read the changelog before upgrading.
 
-The Report Designer is Stable and available in every deployment. CSV exports use each template's selected columns, and custom HTML/Jinja templates remain supported in a restricted sandbox. All templates use the same canonical schema and rendering path.
+The Report Designer is Stable and available in every deployment. CSV exports use each template's selected columns, and custom HTML/Jinja templates run in a restricted sandbox. All templates share one canonical schema and rendering path.
 
-Maturity is declared per capability rather than per module — see the [capability maturity guide](itambox/docs/operations/capability-maturity.md) for the public grades, activation modes, and known limitations. Tenant Resource Grants are a Stable, security-critical capability whose expiry and recovery behavior is documented in the [resource grant expiry runbook](itambox/docs/operations/resource-grant-expiry.md). SCIM is Stable, and the plugin system is Experimental.
+Maturity is declared per capability rather than per module; the [capability maturity guide](itambox/docs/operations/capability-maturity.md) lists the public grades, activation modes, and known limitations. Tenant Resource Grants are a Stable, security-critical capability whose expiry and recovery behavior is documented in the [resource grant expiry runbook](itambox/docs/operations/resource-grant-expiry.md). SCIM is Stable, and the plugin system is Experimental.
 
 ## Try the live demo
 
@@ -112,7 +112,7 @@ A public demo is available at [demo.itambox.dev](https://demo.itambox.dev). It c
 - **Evaluate maturity:** read the [capability maturity guide](itambox/docs/operations/capability-maturity.md).
 
 > [!NOTE]
-> ITAMbox can be deployed from a repository checkout or a locally built container image. Starting with `v1.0.0-beta.2`, tagged releases also publish an official container image to the GitHub Container Registry (`ghcr.io/itambox-community/itambox-webapp:<version>`; `1.0.0-beta.2` and `1.0.0-beta.3` remain at `ghcr.io/itambox/itambox-webapp`), with build-provenance and SPDX-SBOM attestations bound to its registry digest. No Python package is published yet, and `main` does not publish images.
+> Every tagged release publishes an official container image to the GitHub Container Registry (`ghcr.io/itambox-community/itambox-webapp:<version>`), with build-provenance and SPDX-SBOM attestations bound to its registry digest. ITAMbox can also run from a repository checkout or a locally built image; it is not distributed as a Python package, and `main` does not publish images. Each release declares its supported upgrade origin, the previous tagged release (`1.0.2` upgrades from `1.0.1`); skipping releases is not supported.
 
 ## Integrations and extensibility
 
@@ -129,7 +129,7 @@ The [integration guide](itambox/docs/integration/developer_guide.md) documents R
 
 ## Architecture at a glance
 
-ITAMbox is built with Django 5.2 and Python 3.12 (3.13 is not yet supported), requires PostgreSQL 16 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Strawberry (with strawberry-graphql-django) provides the scoped, read-only GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
+ITAMbox is built with Django 5.2 and Python 3.12 only (3.13 is not supported), requires PostgreSQL 16 or newer, and uses a server-rendered Tabler interface enhanced with HTMX, TypeScript, and SCSS. Django REST Framework provides REST/OpenAPI, Strawberry (with strawberry-graphql-django) provides the scoped, read-only GraphQL schema, django-q2 handles background work through the PostgreSQL ORM broker, and Valkey or Redis provides shared production cache, rate-limit state, and SAML replay protection.
 
 Architecture boundaries, implementation conventions, test lanes, and contributor quality gates are documented in [DEVELOPMENT.md](DEVELOPMENT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md).
 
@@ -177,7 +177,7 @@ Useful starting points:
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 - Use [DEVELOPMENT.md](DEVELOPMENT.md) for architecture and implementation conventions.
 
-The feature scope for 1.0 is frozen. New ideas are still welcome for discussion, but stabilization, security, operability, documentation, and release readiness take priority until the stable release.
+Feature ideas are welcome in GitHub Discussions. Patch releases on the 1.0.x line carry defect, security, and operability fixes.
 
 ## Security
 

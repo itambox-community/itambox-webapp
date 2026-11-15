@@ -6,6 +6,26 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-15
+
+Patch release with two schema changes and four fixes. Apply the migrations for this revision; the upgrade note below names both new migrations and the event rows that intentionally end up dead.
+
+### Security
+
+- GraphQL relations are authorized against the scoped queryset of the requested object, so a group-bound supplier, contact, or other catalog row is no longer exposed through a related field when the user lacks the object permission. The relation check combines scope membership with the object permission and fails closed when the scope cannot be resolved.
+
+### Fixed
+
+- Import confirmation claims a server-side preview atomically in the same transaction that creates the import job. Two concurrent confirmations of the same preview can no longer import it twice; the preview is bound to the user, model, and tenant that produced it.
+- Legacy outbox events without a tenant are repaired from the referenced object during the upgrade. Direct and indirect tenant anchors are reconstructed; events whose owning tenant cannot be proven from the current row or from recorded `tenant_scope` provenance become `dead` with `last_error_class="outbox.backfill_unassigned"` instead of running global rules. Models with no tenant anchor remain legitimate global events, and new events record their scope at emission.
+- The event rule index is built once per transaction and published only from committed data, with generation-checked cache values. Rule writes still invalidate immediately and at commit, a rollback publishes nothing, and a cache outage falls back to reading the rules from the database.
+
+### Upgrade
+
+- Apply `core.0005_import_preview` and `extras.0007_backfill_event_tenant`.
+- After the upgrade, review rows with `status = 'dead' AND last_error_class = 'outbox.backfill_unassigned'`: they are legacy events whose owning tenant could not be reconstructed. They fire no rules and are not retried. Review them before enabling rule-heavy automation.
+- `v1.0.1` is the declared upgrade origin for `v1.0.2`; the run is recorded in the [upgrade qualification page](itambox/docs/operations/upgrade-qualification.md).
+
 ## [1.0.1] - 2026-11-14
 
 Patch release with two schema changes — notification tenant scoping and the event outbox — plus release-workflow hardening and import/pagination fixes. Apply the migrations for this revision; the notification visibility rule for existing rows is described below.
@@ -541,7 +561,8 @@ ITAMbox 1.0.0 is the first stable release. The 1.0 feature scope is complete; th
 - The full pytest suite is not safe to run with `pytest-xdist`; use the default serial configuration.
 - SQLite is not supported. PostgreSQL 15 or newer is required for development, tests, and production.
 
-[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/itambox-community/itambox-webapp/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.2
 [1.0.1]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.1
 [1.0.0]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0
 [1.0.0-rc.2]: https://github.com/itambox-community/itambox-webapp/releases/tag/v1.0.0-rc.2
