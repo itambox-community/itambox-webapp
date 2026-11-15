@@ -44367,6 +44367,7 @@ components:
         license:
           allOf:
           - $ref: '#/components/schemas/License'
+          nullable: true
           readOnly: true
         asset:
           allOf:
