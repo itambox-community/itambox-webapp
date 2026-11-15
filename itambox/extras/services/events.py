@@ -178,7 +178,11 @@ def dispatch_event(sender, instance, action, created=None, *, object_id=None):
         model=ct,
         object_id=event_object_id,
         action=action,
-        data={"app_label": ct.app_label, "model_name": ct.model},
+        data={
+            "app_label": ct.app_label,
+            "model_name": ct.model,
+            "tenant_scope": "global" if instance_tenant_id is None else "tenant",
+        },
         tenant_id=instance_tenant_id,
         actor_id=getattr(get_current_user(), "pk", None),
     )
@@ -207,6 +211,53 @@ def _record_failure(event_pk, error):
         event.save(update_fields=["attempts", "last_error_class", "available_at"])
 
 
+def _event_declares_global(event):
+    """Whether the emitter recorded this event as global at creation time.
+
+    Durable provenance is required for tenantless events: the current row cannot
+    prove that a row which is now missing or tenant-less was global when the
+    event fired. Legacy rows are stamped by migration 0007.
+    """
+    data = event.data if isinstance(event.data, dict) else {}
+    return data.get("tenant_scope") == "global"
+
+
+def _resolved_event_tenant(event):
+    """Resolve the tenant of an event's referenced object for the live fail-closed guard.
+
+    Returns a tenant pk, ``_GLOBAL_EVENT`` only when the event itself declares a
+    global scope, or ``None`` for anything ambiguous. A tenantless row or a
+    deleted row cannot prove its scope after the fact, so unmarked events fail
+    closed instead of running global rules under an assumed tenant.
+    """
+    model = event.model.model_class()
+    if model is None:
+        return None
+
+    fields = {field.name for field in model._meta.fields}
+    lookup = getattr(model, "tenant_lookup", None) or getattr(model, "changelog_tenant_lookup", None)
+    if "tenant" not in fields and not lookup:
+        # No tenant anchor at all: the model contract is proof enough.
+        return _GLOBAL_EVENT
+
+    # Soft-deleted rows still carry the tenant; the default manager would hide them.
+    instance = model._base_manager.filter(pk=event.object_id).first()  # unscoped: resolve tenant across soft delete
+    if instance is None:
+        return _GLOBAL_EVENT if _event_declares_global(event) else None
+
+    tenant_id = getattr(instance, "tenant_id", None)
+    if tenant_id is not None:
+        return _resolve_instance_tenant_id(instance)
+    if lookup:
+        resolved = _resolve_instance_tenant_id(instance)
+        if resolved is not None:
+            return resolved
+    return _GLOBAL_EVENT if _event_declares_global(event) else None
+
+
+_GLOBAL_EVENT = object()
+
+
 def process_event(event_id):
     """Process one due pending event; returns True when it reached ``processed``."""
     try:
@@ -220,6 +271,20 @@ def process_event(event_id):
             )
             if event is None:
                 return False
+            if event.tenant_id is None:
+                # A tenant-anchored model with no tenant is an unresolved legacy
+                # row (#1102): repair it, or fail closed instead of running the
+                # global rules under the wrong (absent) tenant context.
+                resolved = _resolved_event_tenant(event)
+                if resolved is None:
+                    event.status = Event.STATUS_DEAD
+                    event.last_error_class = "outbox.backfill_unassigned"
+                    event.save(update_fields=["status", "last_error_class"])
+                    logger.error("operation=events.process disposition=dead_unassigned event_id=%s", event_id)
+                    return False
+                if resolved is not _GLOBAL_EVENT:
+                    event.tenant_id = resolved
+                    event.save(update_fields=["tenant_id"])
             process_event_rules(event)
             return True
     # broad except: task-isolation: a failed attempt is counted, backed off and retried by the coordinator

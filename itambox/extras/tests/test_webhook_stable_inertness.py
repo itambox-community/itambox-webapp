@@ -10,13 +10,15 @@ from extras.models import Event, EventRule, WebhookDelivery, WebhookEndpoint
 from extras.services.events import dispatch_event
 from extras.tasks.webhooks import recover_pending_webhook_deliveries
 from itambox.capabilities import ALWAYS_ON, SOURCE_ALWAYS, registry
-from organization.models import Location
+from organization.models import Location, Site, Tenant
 
 
 class WebhookStableInertnessTests(TransactionTestCase):
     def setUp(self):
         super().setUp()
         self.location_ct = ContentType.objects.get_for_model(Location)
+        self.tenant = Tenant.objects.create(name="Webhook Tenant", slug="webhook-tenant")
+        self.site = Site.objects.create(name="Webhook Site", slug="webhook-site", tenant=self.tenant)
 
     def test_stable_webhook_capability_is_active_without_configuration_rows(self):
         self.assertEqual(EventRule._base_manager.count(), 0)
@@ -74,6 +76,12 @@ class WebhookStableInertnessTests(TransactionTestCase):
             name="Action-filter endpoint",
             url="https://example.com/action-filter",
         )
+        location = Location.objects.create(
+            name="Action-filter location",
+            slug="action-filter-location",
+            tenant=self.tenant,
+            site=self.site,
+        )
         EventRule.objects.create(
             name="Create-only webhook rule",
             model=self.location_ct,
@@ -82,8 +90,6 @@ class WebhookStableInertnessTests(TransactionTestCase):
             webhook=endpoint,
             enabled=True,
         )
-        location = Location(name="Action-filter location")
-        location.pk = 987652
 
         with transaction.atomic():
             dispatch_event(Location, location, Event.ACTION_UPDATE)
@@ -107,6 +113,12 @@ class WebhookStableInertnessTests(TransactionTestCase):
             url="https://example.com/disable-after-send",
             enabled=True,
         )
+        location = Location.objects.create(
+            name="Disable-after-send location",
+            slug="disable-after-send-location",
+            tenant=self.tenant,
+            site=self.site,
+        )
         EventRule.objects.create(
             name="Disable-after-send rule",
             model=self.location_ct,
@@ -115,8 +127,6 @@ class WebhookStableInertnessTests(TransactionTestCase):
             webhook=endpoint,
             enabled=True,
         )
-        location = Location(name="Disable-after-send location")
-        location.pk = 987653
 
         with transaction.atomic():
             dispatch_event(Location, location, Event.ACTION_CREATE)

@@ -67,7 +67,10 @@ class EventsSystemTestCase(TransactionTestCase):
         # Verify event was dispatched (should have created an Event)
         event_create = Event.objects.filter(model=self.manufacturer_ct, object_id=mfr.pk, action="create").first()
         self.assertIsNotNone(event_create)
-        self.assertEqual(event_create.data, {"app_label": "assets", "model_name": "manufacturer"})
+        self.assertEqual(
+            event_create.data,
+            {"app_label": "assets", "model_name": "manufacturer", "tenant_scope": "global"},
+        )
 
         # Update
         mfr.name = "Lenovo Inc"
@@ -433,7 +436,10 @@ class EventsSystemTestCase(TransactionTestCase):
         self.assertEqual(payload["event"], "create")
         self.assertEqual(payload["model"], "assets.manufacturer")
         self.assertEqual(payload["object_id"], event.pk)
-        self.assertEqual(payload["data"], {"app_label": "assets", "model_name": "manufacturer"})
+        self.assertEqual(
+            payload["data"],
+            {"app_label": "assets", "model_name": "manufacturer", "tenant_scope": "global"},
+        )
         self.assertNotIn("mysecretkey", body)
         uuid.UUID(payload["delivery_id"])
 
@@ -809,4 +815,7 @@ class LeanEventPipelineTests(TransactionTestCase):
         mfr = Manufacturer.objects.create(name="Lean Eligible", slug="lean-eligible")
         event = Event.objects.get(model=self.ct, object_id=mfr.pk, action="create")
         self.assertEqual(event.status, Event.STATUS_PROCESSED)
-        self.assertEqual(event.data, {"app_label": "assets", "model_name": "manufacturer"})
+        self.assertEqual(
+            event.data,
+            {"app_label": "assets", "model_name": "manufacturer", "tenant_scope": "global"},
+        )

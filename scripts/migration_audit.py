@@ -67,6 +67,11 @@ REVIEWED_SEMANTICS = {
         "Replaces Event.processed with the pending/processed/dead status: unprocessed events younger than 24 hours "
         "become pending, older ones dead (outbox.backfill_expired); the reverse refuses while events are pending."
     ),
+    "extras.0007_backfill_event_tenant": (
+        "Repairs the tenant of pending events that 0006 left with a NULL tenant_id: reconstructs the owning tenant from "
+        "the referenced object (tenant_id, then tenant_lookup/changelog_tenant_lookup) and marks unassignable events dead "
+        "with outbox.backfill_unassigned so they never run global rules; idempotent, reverse is a documented no-op."
+    ),
     "extras.0004_drop_legacy_column_default": (
         "Drops a database default that only databases created by earlier prereleases carry, so both histories "
         "converge on one schema; idempotent."
