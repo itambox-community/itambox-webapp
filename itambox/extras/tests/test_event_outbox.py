@@ -564,8 +564,19 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
             with transaction.atomic():
                 for _ in range(100):
                     self.assertTrue(svc.has_eligible_rules(self.ct.pk, None, "create"))
+                self.assertEqual(build.call_count, 1)
 
-        self.assertEqual(build.call_count, 1)
+        # One post-commit refresh from committed data publishes the shared cache.
+        self.assertEqual(build.call_count, 2)
+
+    def test_hundred_dispatch_events_in_one_transaction_emit_every_event(self):
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build:
+            with transaction.atomic():
+                for index in range(100):
+                    svc.dispatch_event(Manufacturer, Manufacturer(pk=index + 1, name="Bulk"), "create")
+                self.assertEqual(build.call_count, 1)
+
+        self.assertEqual(Event._base_manager.filter(model=self.ct).count(), 100)
 
     def test_committed_transaction_publishes_the_index(self):
         with transaction.atomic():
@@ -589,14 +600,8 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
                 _rule(self.ct, name="late rule", events=["update"], tenant=None)
                 self.assertTrue(svc.has_eligible_rules(self.ct.pk, None, "update"))
 
-        self.assertEqual(build.call_count, 2)
-        # The rule write's commit invalidation wins: nothing stale may stay cached.
-        self.assertIsNone(cache.get(svc._RULE_INDEX_CACHE_KEY))
-
-        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build_after:
-            svc._rule_index()
-
-        self.assertEqual(build_after.call_count, 1)
+        # initial build + rebuild after invalidation + post-commit refresh
+        self.assertEqual(build.call_count, 3)
         cached = cache.get(svc._RULE_INDEX_CACHE_KEY)
         self.assertIn((self.ct.pk, None, "update"), cached)
 
@@ -605,4 +610,8 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
             patch.object(svc.cache, "get", side_effect=RuntimeError("down")),
             patch.object(svc.cache, "set", side_effect=RuntimeError("down")),
         ):
-            self.assertTrue(svc.has_eligible_rules(self.ct.pk, None, "create"))
+            with transaction.atomic():
+                event = svc.dispatch_event(Manufacturer, Manufacturer(pk=999, name="Outage"), "create")
+
+            self.assertIsNotNone(event)
+            self.assertTrue(Event._base_manager.filter(pk=event.pk).exists())

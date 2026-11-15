@@ -88,42 +88,49 @@ def _build_rule_index():
     return frozenset(index)
 
 
-def _rule_index():
+def _cached_rule_index():
     try:
-        index = cache.get(_RULE_INDEX_CACHE_KEY)
+        return cache.get(_RULE_INDEX_CACHE_KEY)
     # broad except: availability-tradeoff: a cache outage falls back to reading the rules from the database
     except Exception:
-        index = None
-    if index is not None:
-        return index
+        return None
 
+
+def _rule_index():
     conn = connection
     if conn.in_atomic_block:
-        # Transaction-local memo: a rollback must never publish anything, but the
-        # same transaction should build the index once, not once per dispatch.
+        # Transaction-local memo first: after a rule write in this transaction the
+        # shared cache can only hold another process's pre-write view.
         memo = getattr(conn, "_event_rule_index_memo", None)
         publisher = getattr(conn, "_event_rule_index_publisher", None)
-        if (
-            memo is not None
-            and publisher is not None
-            and any(
+        if memo is not None and (
+            publisher is None
+            or any(
                 publisher in entry if isinstance(entry, tuple) else entry is publisher for entry in conn.run_on_commit
             )
         ):
             return memo
 
+        if not getattr(conn, "_event_rule_index_invalidated", False):
+            cached = _cached_rule_index()
+            if cached is not None:
+                conn._event_rule_index_memo = cached
+                conn._event_rule_index_publisher = None
+                return cached
+
         index = _build_rule_index()
         conn._event_rule_index_memo = index
+        conn._event_rule_index_invalidated = False
         marker = object()
         conn._event_rule_index_marker = marker
 
         def _publish_after_commit():
-            # Invalidation or a newer build supersedes this callback; only the
-            # current generation may write committed state to the shared cache.
+            # Rebuild from committed data: the rows read inside the transaction may
+            # have rolled back, and another process may have changed rules since.
             if getattr(conn, "_event_rule_index_marker", None) is marker:
                 try:
-                    cache.set(_RULE_INDEX_CACHE_KEY, index, timeout=_RULE_INDEX_TTL)
-                # broad except: availability-tradeoff: an unwritable cache only costs one query per dispatch
+                    cache.set(_RULE_INDEX_CACHE_KEY, _build_rule_index(), timeout=_RULE_INDEX_TTL)
+                # broad except: availability-tradeoff: an unwritable cache only costs one query per transaction
                 except Exception:
                     logger.warning("Could not cache the event rule index")
                 conn._event_rule_index_memo = None
@@ -134,6 +141,9 @@ def _rule_index():
         transaction.on_commit(_publish_after_commit)
         return index
 
+    cached = _cached_rule_index()
+    if cached is not None:
+        return cached
     index = _build_rule_index()
     try:
         cache.set(_RULE_INDEX_CACHE_KEY, index, timeout=_RULE_INDEX_TTL)
@@ -144,7 +154,7 @@ def _rule_index():
 
 
 def invalidate_rule_index():
-    """Drop the cached rule index and any transaction-local build (EventRule writes)."""
+    """Drop the cached index and any transaction-local view (EventRule writes)."""
     try:
         cache.delete(_RULE_INDEX_CACHE_KEY)
     # broad except: availability-tradeoff: the short TTL bounds staleness if the cache is unreachable
@@ -153,6 +163,8 @@ def invalidate_rule_index():
     conn = connection
     conn._event_rule_index_memo = None
     conn._event_rule_index_marker = None
+    conn._event_rule_index_publisher = None
+    conn._event_rule_index_invalidated = True
 
 
 def has_eligible_rules(content_type_id, tenant_id, action):
