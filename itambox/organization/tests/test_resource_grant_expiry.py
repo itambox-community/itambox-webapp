@@ -166,7 +166,11 @@ class ResourceGrantExpiryTests(TestCase):
         grant_type = ContentType.objects.get_for_model(TenantResourceGrant)
         events = Event._base_manager.filter(model=grant_type, object_id=grant.pk, action=Event.ACTION_DELETE)
         assert events.count() == 1
-        assert events.get().data == {"app_label": "organization", "model_name": "tenantresourcegrant"}
+        assert events.get().data == {
+            "app_label": "organization",
+            "model_name": "tenantresourcegrant",
+            "tenant_scope": "tenant",
+        }
 
     def test_s5_deleted_grant_is_not_eligible(self):
         cutoff = timezone.now()
