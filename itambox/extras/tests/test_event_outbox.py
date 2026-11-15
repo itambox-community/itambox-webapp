@@ -646,4 +646,6 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
             with transaction.atomic():
                 svc.has_eligible_rules(self.ct.pk, None, "create")
 
-        self.assertEqual(build.call_count, 1)
+        # Build once for the transaction plus one committed rebuild on publish;
+        # a leaked memo would have produced zero builds.
+        self.assertEqual(build.call_count, 2)
