@@ -7,6 +7,7 @@ The reusable delivery contracts and transports stay in ``core.events``.
 
 import logging
 from datetime import timedelta
+from functools import partial
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -140,57 +141,72 @@ def _pending_callback(conn, callback):
     return any(callback in entry if isinstance(entry, tuple) else entry is callback for entry in conn.run_on_commit)
 
 
+def _transaction_memo(conn):
+    memo = getattr(conn, "_event_rule_index_memo", None)
+    publisher = getattr(conn, "_event_rule_index_publisher", None)
+    if memo is not None and publisher is not None and _pending_callback(conn, publisher):
+        return memo
+    return None
+
+
+def _memoize_cache_hit(conn, cached):
+    def _clear_memo_after_transaction():
+        if getattr(conn, "_event_rule_index_memo", None) is cached:
+            conn._event_rule_index_memo = None
+            conn._event_rule_index_publisher = None
+
+    conn._event_rule_index_memo = cached
+    conn._event_rule_index_publisher = _clear_memo_after_transaction
+    transaction.on_commit(_clear_memo_after_transaction)
+
+
+def _publish_rule_index(conn, marker):
+    """Rebuild from committed data and publish it for the current generation."""
+    if getattr(conn, "_event_rule_index_marker", None) is not marker:
+        return
+    try:
+        generation = _rule_index_generation()
+        committed = _build_rule_index()
+        if _rule_index_generation() != generation:
+            # An invalidation raced the rebuild; capture the newer view.
+            generation = _rule_index_generation()
+            committed = _build_rule_index()
+        cache.set(_RULE_INDEX_CACHE_KEY, (generation, committed), timeout=_RULE_INDEX_TTL)
+    # broad except: availability-tradeoff: an unwritable cache only costs one query per transaction
+    except Exception:
+        logger.warning("Could not cache the event rule index")
+    conn._event_rule_index_memo = None
+    conn._event_rule_index_marker = None
+    conn._event_rule_index_publisher = None
+
+
+def _schedule_publish(conn, index):
+    marker = object()
+    conn._event_rule_index_memo = index
+    conn._event_rule_index_invalidated = False
+    conn._event_rule_index_marker = marker
+    publisher = partial(_publish_rule_index, conn, marker)
+    conn._event_rule_index_publisher = publisher
+    transaction.on_commit(publisher)
+
+
 def _rule_index():
     conn = connection
     if conn.in_atomic_block:
         # Transaction-local memo first: after a rule write in this transaction the
         # shared cache can only hold another process's pre-write view.
-        memo = getattr(conn, "_event_rule_index_memo", None)
-        publisher = getattr(conn, "_event_rule_index_publisher", None)
-        if memo is not None and publisher is not None and _pending_callback(conn, publisher):
+        memo = _transaction_memo(conn)
+        if memo is not None:
             return memo
 
         if not getattr(conn, "_event_rule_index_invalidated", False):
             cached = _cached_rule_index()
             if cached is not None:
-
-                def _clear_memo_after_transaction():
-                    if getattr(conn, "_event_rule_index_memo", None) is cached:
-                        conn._event_rule_index_memo = None
-                        conn._event_rule_index_publisher = None
-
-                conn._event_rule_index_memo = cached
-                conn._event_rule_index_publisher = _clear_memo_after_transaction
-                transaction.on_commit(_clear_memo_after_transaction)
+                _memoize_cache_hit(conn, cached)
                 return cached
 
         index = _build_rule_index()
-        conn._event_rule_index_memo = index
-        conn._event_rule_index_invalidated = False
-        marker = object()
-        conn._event_rule_index_marker = marker
-
-        def _publish_after_commit():
-            # Rebuild from committed data: the rows read inside the transaction may
-            # have rolled back, and another process may have changed rules since.
-            if getattr(conn, "_event_rule_index_marker", None) is marker:
-                try:
-                    generation = _rule_index_generation()
-                    committed = _build_rule_index()
-                    if _rule_index_generation() != generation:
-                        # An invalidation raced the rebuild; capture the newer view.
-                        generation = _rule_index_generation()
-                        committed = _build_rule_index()
-                    cache.set(_RULE_INDEX_CACHE_KEY, (generation, committed), timeout=_RULE_INDEX_TTL)
-                # broad except: availability-tradeoff: an unwritable cache only costs one query per transaction
-                except Exception:
-                    logger.warning("Could not cache the event rule index")
-                conn._event_rule_index_memo = None
-                conn._event_rule_index_marker = None
-                conn._event_rule_index_publisher = None
-
-        conn._event_rule_index_publisher = _publish_after_commit
-        transaction.on_commit(_publish_after_commit)
+        _schedule_publish(conn, index)
         return index
 
     cached = _cached_rule_index()
