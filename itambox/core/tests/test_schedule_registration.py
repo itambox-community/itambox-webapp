@@ -16,6 +16,7 @@ from core.schedules import register_schedule, remove_schedule
 CORE_FUNC = "extras.tasks.alerts.evaluate_alert_rules_task"
 WEBHOOK_RECOVERY_FUNC = "extras.tasks.webhooks.recover_pending_webhook_deliveries"
 SUBSCRIPTION_FUNC = "subscriptions.tasks.check_subscription_expiries_and_reminders"
+IMPORT_PREVIEW_CLEANUP_FUNC = "core.tasks.cleanup_import_previews_task"
 
 
 class RegisterScheduleHelperTests(TestCase):
@@ -91,6 +92,15 @@ class AppConfigScheduleRegistrationTests(TestCase):
         self._run_handler("subscriptions", "_register_subscription_tasks")
         self._run_handler("subscriptions", "_register_subscription_tasks")
         self.assertEqual(Schedule.objects.filter(func=SUBSCRIPTION_FUNC).count(), 1)
+
+    def test_core_handler_registers_retention_and_preview_cleanup_once(self):
+        self._run_handler("core", "_register_prune_schedule")
+        self._run_handler("core", "_register_prune_schedule")
+
+        self.assertEqual(Schedule.objects.filter(func="core.tasks.prune_changelog_task").count(), 1)
+        cleanup = Schedule.objects.get(func=IMPORT_PREVIEW_CLEANUP_FUNC)
+        self.assertEqual(cleanup.schedule_type, Schedule.HOURLY)
+        self.assertEqual(cleanup.repeats, -1)
 
     def test_no_duplicate_schedules_across_funcs(self):
         # Run every registering handler twice; each func must end with one row.
