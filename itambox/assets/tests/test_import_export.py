@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.db import connection, connections
+from django.db import OperationalError, connection, connections
+from django.db.models import QuerySet
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -14,7 +15,7 @@ from django.utils import timezone
 from assets.models import Asset
 from core.models import IMPORT_PREVIEW_TTL, ImportPreview, Job
 from core.tasks.import_previews import cleanup_import_previews, cleanup_import_previews_task
-from core.tasks.utils import TaskStatus
+from core.tasks.utils import RetryableTaskError, TaskStatus, TerminalTaskError
 
 User = get_user_model()
 
@@ -604,6 +605,31 @@ class ImportPreviewScheduledCleanupTests(TestCase):
 
         self.assertEqual(result.status, TaskStatus.SUCCESS)
         self.assertEqual(result.counts["deleted"], 1)
+
+    def test_zero_row_delete_stops_the_batch_loop(self):
+        # A concurrent cleanup can remove the selected batch first. The delete
+        # then reports zero rows and the loop must stop instead of spinning.
+        expired = self._preview()
+        self._age(expired, IMPORT_PREVIEW_TTL + timedelta(hours=1))
+
+        with patch.object(QuerySet, "delete", return_value=(0, {})):
+            self.assertEqual(cleanup_import_previews(), 0)
+
+        self.assertTrue(ImportPreview.objects.filter(pk=expired.pk).exists())
+
+    def test_task_wraps_a_terminal_failure(self):
+        with patch("core.tasks.import_previews.cleanup_import_previews", side_effect=RuntimeError("boom")):
+            with self.assertRaises(TerminalTaskError) as caught:
+                cleanup_import_previews_task()
+
+        self.assertEqual(caught.exception.code, "import_previews.cleanup_failed")
+
+    def test_task_wraps_a_retryable_failure(self):
+        with patch("core.tasks.import_previews.cleanup_import_previews", side_effect=OperationalError("down")):
+            with self.assertRaises(RetryableTaskError) as caught:
+                cleanup_import_previews_task()
+
+        self.assertEqual(caught.exception.code, "import_previews.cleanup_failed")
 
     def test_fresh_preview_can_still_be_confirmed_after_cleanup(self):
         preview = self._preview(tag="TAG-AFTER-CLEAN")
