@@ -6,6 +6,7 @@ from django.urls import reverse
 
 from assets.models import Manufacturer
 from core.tests.mixins import grant
+from licenses.api.serializers import LicenseSeatAssignmentSerializer
 from licenses.models import License, LicenseSeatAssignment, LicenseTypeChoices
 from organization.models import AssetHolder, Role, Tenant, TenantGroup
 from software.models import Software
@@ -299,6 +300,12 @@ class NestedLicensePermissionTests(TestCase):
         self.assertEqual(nested["purchase_cost"], "1234.56")
         self.assertEqual(nested["order_number"], "PO-SECRET-42")
         self.assertEqual(nested["notes"], "confidential renewal note")
+
+    def test_serializer_without_a_request_fails_closed(self):
+        # Internal callers that serialize without a request context must not
+        # fall back to the full licence representation.
+        data = LicenseSeatAssignmentSerializer(self.seat).data
+        self.assertIsNone(data["license"])
 
 
 class NestedLicenseGroupScopeTests(TestCase):
