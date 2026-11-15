@@ -590,6 +590,13 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
                 self.assertTrue(svc.has_eligible_rules(self.ct.pk, None, "update"))
 
         self.assertEqual(build.call_count, 2)
+        # The rule write's commit invalidation wins: nothing stale may stay cached.
+        self.assertIsNone(cache.get(svc._RULE_INDEX_CACHE_KEY))
+
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build_after:
+            svc._rule_index()
+
+        self.assertEqual(build_after.call_count, 1)
         cached = cache.get(svc._RULE_INDEX_CACHE_KEY)
         self.assertIn((self.ct.pk, None, "update"), cached)
 
