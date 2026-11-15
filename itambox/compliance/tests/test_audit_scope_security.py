@@ -1012,6 +1012,9 @@ class AuditScopeSecurityTests(TenantTestMixin, TestCase):
         # the unrelated Asset Tag Sequence (two queries per operation). The
         # resulting 17/14/17/14 values remain exact counts, not ceilings, so
         # restoring those unrelated queries or growing the audit plan fails.
+        # Close/rehome/flag each emit more than one event; the transaction-local
+        # rule-index memo builds that index once instead of once per event, so
+        # those probes cost one query less than before (#1103).
         self.assertEqual(
             (
                 expected_cold,
@@ -1025,7 +1028,7 @@ class AuditScopeSecurityTests(TenantTestMixin, TestCase):
                 flag_cold,
                 flag_warm,
             ),
-            (4, 1, 6, 3, 14, 14, 18, 15, 19, 16),
+            (4, 1, 6, 3, 13, 13, 17, 14, 18, 15),
         )
 
 

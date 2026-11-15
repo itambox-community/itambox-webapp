@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import connection, connections, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
@@ -545,3 +546,128 @@ class OutboxTenantBackfillMigrationTests(TransactionTestCase):
         global_event = RevEvent.objects.get(pk=self.global_model_event.pk)
         self.assertEqual(global_event.status, "pending")
         self.assertIsNone(global_event.tenant_id)
+
+
+class OutboxRuleIndexCacheTests(TransactionTestCase):
+    """#1103: the transactional write path must build the rule index once, not per dispatch."""
+
+    def setUp(self):
+        cache.delete(svc._RULE_INDEX_CACHE_KEY)
+        self.ct = ContentType.objects.get_for_model(Manufacturer)
+        _rule(self.ct, name="cached rule", tenant=None)
+
+    def tearDown(self):
+        cache.delete(svc._RULE_INDEX_CACHE_KEY)
+        cache.delete(svc._RULE_INDEX_GENERATION_KEY)
+
+    def test_hundred_dispatches_in_one_transaction_build_once(self):
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build:
+            with transaction.atomic():
+                for _ in range(100):
+                    self.assertTrue(svc.has_eligible_rules(self.ct.pk, None, "create"))
+                self.assertEqual(build.call_count, 1)
+
+        # One post-commit refresh from committed data publishes the shared cache.
+        self.assertEqual(build.call_count, 2)
+
+    def test_hundred_dispatch_events_in_one_transaction_emit_every_event(self):
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build:
+            with transaction.atomic():
+                for index in range(100):
+                    svc.dispatch_event(Manufacturer, Manufacturer(pk=index + 1, name="Bulk"), "create")
+                self.assertEqual(build.call_count, 1)
+
+        self.assertEqual(Event._base_manager.filter(model=self.ct).count(), 100)
+
+    def test_committed_transaction_publishes_the_index(self):
+        with transaction.atomic():
+            svc.has_eligible_rules(self.ct.pk, None, "create")
+
+        cached = svc._cached_rule_index()
+        self.assertIn((self.ct.pk, None, "create"), cached)
+
+    def test_rollback_publishes_nothing(self):
+        with self.assertRaises(RuntimeError):
+            with transaction.atomic():
+                svc.has_eligible_rules(self.ct.pk, None, "create")
+                raise RuntimeError("rollback")
+
+        self.assertIsNone(cache.get(svc._RULE_INDEX_CACHE_KEY))
+
+    def test_rule_write_inside_transaction_rebuilds_before_publishing(self):
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build:
+            with transaction.atomic():
+                svc.has_eligible_rules(self.ct.pk, None, "create")
+                _rule(self.ct, name="late rule", events=["update"], tenant=None)
+                self.assertTrue(svc.has_eligible_rules(self.ct.pk, None, "update"))
+
+        # initial build + rebuild after invalidation; the rule write's own commit
+        # invalidation then wins over publishing.
+        self.assertEqual(build.call_count, 2)
+        self.assertIsNone(cache.get(svc._RULE_INDEX_CACHE_KEY))
+
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build_after:
+            svc._rule_index()
+
+        self.assertEqual(build_after.call_count, 1)
+        cached = svc._cached_rule_index()
+        self.assertIn((self.ct.pk, None, "update"), cached)
+
+    def test_cache_outage_falls_back_to_the_database(self):
+        with (
+            patch.object(svc.cache, "get", side_effect=RuntimeError("down")),
+            patch.object(svc.cache, "set", side_effect=RuntimeError("down")),
+        ):
+            with transaction.atomic():
+                event = svc.dispatch_event(Manufacturer, Manufacturer(pk=999, name="Outage"), "create")
+
+            self.assertIsNotNone(event)
+            self.assertTrue(Event._base_manager.filter(pk=event.pk).exists())
+
+    def test_stale_cache_payload_is_rejected_after_generation_bump(self):
+        svc._rule_index()
+        self.assertIsNotNone(svc._cached_rule_index())
+
+        svc._bump_rule_index_generation()
+
+        self.assertIsNone(svc._cached_rule_index())
+
+    def test_cache_hit_memo_does_not_outlive_its_transaction(self):
+        svc._rule_index()  # prime the shared cache outside a transaction
+
+        with transaction.atomic():
+            svc.has_eligible_rules(self.ct.pk, None, "create")
+
+        # Another process invalidates after that transaction committed.
+        cache.delete(svc._RULE_INDEX_CACHE_KEY)
+        svc._bump_rule_index_generation()
+
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build:
+            with transaction.atomic():
+                svc.has_eligible_rules(self.ct.pk, None, "create")
+
+        # Build once for the transaction plus one committed rebuild on publish;
+        # a leaked memo would have produced zero builds.
+        self.assertEqual(build.call_count, 2)
+
+    def test_unversioned_cache_payload_is_rejected(self):
+        cache.set(svc._RULE_INDEX_CACHE_KEY, frozenset({(self.ct.pk, None, "create")}))
+
+        self.assertIsNone(svc._cached_rule_index())
+
+    def test_nontransactional_build_rechecks_generation(self):
+        original = svc._build_rule_index
+        calls = {"count": 0}
+
+        def build():
+            calls["count"] += 1
+            if calls["count"] == 1:
+                svc._bump_rule_index_generation()
+            return original()
+
+        with patch.object(svc, "_build_rule_index", side_effect=build):
+            svc._rule_index()
+
+        payload = cache.get(svc._RULE_INDEX_CACHE_KEY)
+        self.assertEqual(calls["count"], 2)
+        self.assertEqual(payload[0], svc._rule_index_generation())
