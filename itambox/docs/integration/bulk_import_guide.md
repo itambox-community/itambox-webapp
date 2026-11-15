@@ -112,6 +112,12 @@ The import process follows a two-phase UI flow to ensure data integrity and prov
 4. Any **validation errors** (e.g., missing required fields, unresolved references) are highlighted.
 5. You can review the data and make corrections before proceeding.
 
+> **Retention**: The preview is stored server-side and expires 24 hours after
+> upload. An hourly cleanup removes expired previews even when their owner never
+> returns to the import page. Confirm or upload again within that window; a
+> confirmation claims its preview atomically, so a preview can create only one
+> import job.
+
 ### Phase 2: Confirm & Process
 
 1. Click **Confirm Import** to submit the data.

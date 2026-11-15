@@ -41,7 +41,7 @@ class CoreConfig(AppConfig):
         post_migrate.connect(self._register_prune_schedule, sender=self)
 
     def _register_prune_schedule(self, sender, **kwargs):
-        """Ensure the daily changelog/operational-data retention prune schedule exists."""
+        """Ensure the core retention and import-preview cleanup schedules exist."""
         # inline import: app-registry: avoid AppRegistryNotReady at app-load time
         from django_q.models import Schedule
 
@@ -50,6 +50,16 @@ class CoreConfig(AppConfig):
             defaults={
                 "name": "Daily Changelog & Operational-Data Retention Prune",
                 "schedule_type": Schedule.DAILY,
+                "repeats": -1,
+            },
+        )
+        # Import previews expire after 24 hours; an hourly sweep bounds the
+        # leftover rows for users who never upload again.
+        register_schedule(
+            "core.tasks.cleanup_import_previews_task",
+            defaults={
+                "name": "Hourly Import Preview Cleanup",
+                "schedule_type": Schedule.HOURLY,
                 "repeats": -1,
             },
         )

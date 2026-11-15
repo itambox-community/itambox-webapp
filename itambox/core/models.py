@@ -6,6 +6,7 @@ import contextvars
 import logging
 import uuid
 from collections import Counter
+from datetime import timedelta
 from operator import attrgetter
 
 # Third-party / Django
@@ -813,6 +814,11 @@ class Job(ChangeLoggingMixin, BaseModel):
         entry = f"[{timestamp}] {message}"
         self.logs = f"{self.logs}\n{entry}" if self.logs else entry
         self.save(update_fields=["logs"])
+
+
+#: Abandoned, unconsumed import previews expire after this window. Shared by
+#: the opportunistic cleanup on upload and the scheduled cleanup task.
+IMPORT_PREVIEW_TTL = timedelta(hours=24)
 
 
 class ImportPreview(models.Model):

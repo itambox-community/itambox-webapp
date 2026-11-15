@@ -1,6 +1,5 @@
 import logging
 import uuid
-from datetime import timedelta
 from typing import cast
 
 from django.apps import apps
@@ -25,7 +24,7 @@ from core.importers.bulk_forms import (
     is_model_importable,
 )
 from core.managers import get_current_tenant
-from core.models import ImportPreview, Job
+from core.models import IMPORT_PREVIEW_TTL, ImportPreview, Job
 from itambox.utils import model_view_url
 from itambox.views.generic.mixins import user_can_mutate_model
 from itambox.views.htmx import BaseHTMXView
@@ -34,9 +33,6 @@ logger = logging.getLogger(__name__)
 
 
 MAX_IMPORT_PREVIEWS = 3
-# Unconfirmed previews are scratch state: evict them (and any consumed row)
-# opportunistically once older than this, so the table never accumulates.
-IMPORT_PREVIEW_TTL = timedelta(hours=24)
 
 
 class _PreviewAlreadyConsumed(Exception):

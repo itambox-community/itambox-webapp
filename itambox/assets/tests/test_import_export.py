@@ -12,7 +12,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from assets.models import Asset
-from core.models import ImportPreview, Job
+from core.models import IMPORT_PREVIEW_TTL, ImportPreview, Job
+from core.tasks.import_previews import cleanup_import_previews, cleanup_import_previews_task
+from core.tasks.utils import TaskStatus
 
 User = get_user_model()
 
@@ -525,6 +527,210 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
         created = Asset.objects.get(asset_tag="TAG-NEW")
         self.assertNotEqual(created.pk, self.asset1.pk)
         self.assertEqual(created.name, "Asset Hijack")
+
+
+class ImportPreviewScheduledCleanupTests(TestCase):
+    """The periodic sweep expires abandoned previews for every owner."""
+
+    def setUp(self):
+        from assets.models import AssetType, Manufacturer, StatusLabel
+
+        self.admin = User.objects.create_user(
+            username="cleanupadmin", password="password123", is_staff=True, is_superuser=True
+        )
+        self.client.login(username="cleanupadmin", password="password123")
+        self.status = StatusLabel.objects.create(name="Active", slug="active")
+        self.manufacturer = Manufacturer.objects.create(name="Dell", slug="dell")
+        self.asset_type = AssetType.objects.create(manufacturer=self.manufacturer, model="Laptop", slug="laptop")
+        self.import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+
+    def _preview(self, *, consumed_at=None, tag="TAG-CLEANUP"):
+        return ImportPreview.objects.create(
+            user=self.admin,
+            tenant=None,
+            app_label="assets",
+            model_name="asset",
+            payload=[
+                {
+                    "name": "Asset Cleanup",
+                    "asset_tag": tag,
+                    "status": self.status.pk,
+                    "asset_type": self.asset_type.pk,
+                }
+            ],
+            consumed_at=consumed_at,
+        )
+
+    def _age(self, preview, delta):
+        ImportPreview.objects.filter(pk=preview.pk).update(created_at=timezone.now() - delta)
+
+    def test_expiry_boundary_is_strict_and_fresh_rows_survive(self):
+        now = timezone.now()
+        fresh = self._preview()
+        boundary = self._preview()
+        expired = self._preview()
+        ImportPreview.objects.filter(pk=boundary.pk).update(created_at=now - IMPORT_PREVIEW_TTL)
+        ImportPreview.objects.filter(pk=expired.pk).update(
+            created_at=now - IMPORT_PREVIEW_TTL - timedelta(microseconds=1)
+        )
+
+        deleted = cleanup_import_previews(now=now)
+
+        self.assertEqual(deleted, 1)
+        self.assertTrue(ImportPreview.objects.filter(pk=fresh.pk).exists())
+        self.assertTrue(ImportPreview.objects.filter(pk=boundary.pk).exists())
+        self.assertFalse(ImportPreview.objects.filter(pk=expired.pk).exists())
+
+    def test_consumed_rows_are_removed_regardless_of_age(self):
+        consumed = self._preview(consumed_at=timezone.now())
+
+        self.assertEqual(cleanup_import_previews(), 1)
+        self.assertFalse(ImportPreview.objects.filter(pk=consumed.pk).exists())
+
+    def test_repeated_execution_is_idempotent(self):
+        expired = self._preview()
+        self._age(expired, IMPORT_PREVIEW_TTL + timedelta(hours=1))
+        fresh = self._preview()
+
+        self.assertEqual(cleanup_import_previews(), 1)
+        self.assertEqual(cleanup_import_previews(), 0)
+        self.assertTrue(ImportPreview.objects.filter(pk=fresh.pk).exists())
+
+    def test_task_reports_the_deleted_count(self):
+        expired = self._preview()
+        self._age(expired, IMPORT_PREVIEW_TTL + timedelta(hours=1))
+
+        result = cleanup_import_previews_task()
+
+        self.assertEqual(result.status, TaskStatus.SUCCESS)
+        self.assertEqual(result.counts["deleted"], 1)
+
+    def test_fresh_preview_can_still_be_confirmed_after_cleanup(self):
+        preview = self._preview(tag="TAG-AFTER-CLEAN")
+
+        cleanup_import_previews()
+
+        response = self.client.post(self.import_url, {"_confirm": "1", "preview_id": preview.pk.hex})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Job.objects.count(), 1)
+        self.assertTrue(Asset.objects.filter(asset_tag="TAG-AFTER-CLEAN").exists())
+        preview.refresh_from_db()
+        self.assertIsNotNone(preview.consumed_at)
+
+    def test_expired_preview_cannot_be_confirmed_after_cleanup(self):
+        preview = self._preview(tag="TAG-EXPIRED-CLEAN")
+        self._age(preview, IMPORT_PREVIEW_TTL + timedelta(hours=1))
+
+        cleanup_import_previews()
+
+        response = self.client.post(self.import_url, {"_confirm": "1", "preview_id": preview.pk.hex})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Job.objects.count(), 0)
+        self.assertFalse(Asset.objects.filter(asset_tag="TAG-EXPIRED-CLEAN").exists())
+
+
+@pytest.mark.serial_only
+class ImportPreviewCleanupConcurrencyTestCase(TransactionTestCase):
+    """Cleanup and a confirmation contend on the preview row without corruption.
+
+    The confirmation reads and validates the preview before its atomic claim.
+    Running the cleanup in that window proves the two paths serialize on the
+    row: a fresh preview is untouched and still confirmed once; an expired
+    preview that the cleanup removes first yields no job and no object.
+    """
+
+    def setUp(self):
+        from assets.models import AssetType, Manufacturer, StatusLabel
+
+        self.admin = User.objects.create_user(
+            username="cleanuprace", password="password123", is_staff=True, is_superuser=True
+        )
+        self.status = StatusLabel.objects.create(name="Active", slug="active")
+        self.manufacturer = Manufacturer.objects.create(name="Dell", slug="dell")
+        self.asset_type = AssetType.objects.create(manufacturer=self.manufacturer, model="Laptop", slug="laptop")
+        self.import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+
+    def _preview(self, tag):
+        return ImportPreview.objects.create(
+            user=self.admin,
+            tenant=None,
+            app_label="assets",
+            model_name="asset",
+            payload=[
+                {
+                    "name": f"Asset {tag}",
+                    "asset_tag": tag,
+                    "status": self.status.pk,
+                    "asset_type": self.asset_type.pk,
+                }
+            ],
+        )
+
+    def _confirm_while_cleanup_runs(self, preview_id, cleanup):
+        import itambox.views.generic.import_ as import_views
+
+        claim_reached = threading.Event()
+        cleanup_done = threading.Event()
+        statuses = []
+        deleted = []
+
+        def confirm():
+            client = Client()
+            client.login(username="cleanuprace", password="password123")
+            try:
+                response = client.post(self.import_url, {"_confirm": "1", "preview_id": preview_id})
+                statuses.append(response.status_code)
+            finally:
+                connections.close_all()
+
+        def before_claim(preview_pk):
+            claim_reached.set()
+            self.assertTrue(cleanup_done.wait(timeout=10))
+
+        import_views._BEFORE_PREVIEW_CLAIM = before_claim
+        thread = threading.Thread(target=confirm)
+        try:
+            thread.start()
+            self.assertTrue(claim_reached.wait(timeout=10))
+            deleted.append(cleanup())
+            cleanup_done.set()
+            thread.join(20)
+        finally:
+            import_views._BEFORE_PREVIEW_CLAIM = None
+            cleanup_done.set()
+
+        self.assertFalse(thread.is_alive())
+        return statuses, deleted
+
+    def test_fresh_preview_survives_cleanup_and_is_confirmed_once(self):
+        if connection.vendor == "sqlite":
+            self.skipTest("Row-level contention needs PostgreSQL; SQLite serialises writes.")
+        preview = self._preview("TAG-FRESH-RACE")
+
+        statuses, deleted = self._confirm_while_cleanup_runs(preview.pk.hex, cleanup_import_previews)
+
+        self.assertEqual(deleted, [0])
+        self.assertEqual(statuses, [302])
+        self.assertEqual(Job.objects.count(), 1)
+        self.assertEqual(Asset.objects.filter(asset_tag="TAG-FRESH-RACE").count(), 1)
+        preview.refresh_from_db()
+        self.assertIsNotNone(preview.consumed_at)
+
+    def test_expired_preview_removed_mid_confirmation_creates_no_job(self):
+        if connection.vendor == "sqlite":
+            self.skipTest("Row-level contention needs PostgreSQL; SQLite serialises writes.")
+        preview = self._preview("TAG-EXPIRED-RACE")
+        ImportPreview.objects.filter(pk=preview.pk).update(
+            created_at=timezone.now() - IMPORT_PREVIEW_TTL - timedelta(hours=1)
+        )
+
+        statuses, deleted = self._confirm_while_cleanup_runs(preview.pk.hex, cleanup_import_previews)
+
+        self.assertEqual(deleted, [1])
+        self.assertEqual(statuses, [200])
+        self.assertEqual(Job.objects.count(), 0)
+        self.assertFalse(Asset.objects.filter(asset_tag="TAG-EXPIRED-RACE").exists())
+        self.assertFalse(ImportPreview.objects.filter(pk=preview.pk).exists())
 
 
 @pytest.mark.serial_only
