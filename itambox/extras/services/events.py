@@ -63,6 +63,7 @@ def _resolve_instance_tenant_id(instance):
 
 
 _RULE_INDEX_CACHE_KEY = "extras:event_rule_index:v1"
+_RULE_INDEX_GENERATION_KEY = "extras:event_rule_index:generation:v1"
 _RULE_INDEX_TTL = 300
 
 
@@ -88,12 +89,50 @@ def _build_rule_index():
     return frozenset(index)
 
 
+def _rule_index_generation():
+    try:
+        return cache.get(_RULE_INDEX_GENERATION_KEY, 0) or 0
+    # broad except: availability-tradeoff: an unavailable generation counter means "assume fresh"
+    except Exception:
+        return 0
+
+
+def _bump_rule_index_generation():
+    try:
+        if not cache.add(_RULE_INDEX_GENERATION_KEY, 1):
+            cache.incr(_RULE_INDEX_GENERATION_KEY)
+    # broad except: availability-tradeoff: the deleted index cannot be trusted anyway
+    except Exception:
+        pass
+
+
+def _store_rule_index(index):
+    try:
+        cache.set(_RULE_INDEX_CACHE_KEY, (_rule_index_generation(), index), timeout=_RULE_INDEX_TTL)
+    # broad except: availability-tradeoff: an unwritable cache only costs one query per transaction
+    except Exception:
+        logger.warning("Could not cache the event rule index")
+
+
 def _cached_rule_index():
     try:
-        return cache.get(_RULE_INDEX_CACHE_KEY)
+        payload = cache.get(_RULE_INDEX_CACHE_KEY)
     # broad except: availability-tradeoff: a cache outage falls back to reading the rules from the database
     except Exception:
         return None
+    if payload is None:
+        return None
+    if isinstance(payload, tuple) and len(payload) == 2:
+        generation, index = payload
+        if generation != _rule_index_generation():
+            # An invalidation happened after this snapshot was written; reject it.
+            return None
+        return index
+    return payload
+
+
+def _pending_callback(conn, callback):
+    return any(callback in entry if isinstance(entry, tuple) else entry is callback for entry in conn.run_on_commit)
 
 
 def _rule_index():
@@ -103,19 +142,21 @@ def _rule_index():
         # shared cache can only hold another process's pre-write view.
         memo = getattr(conn, "_event_rule_index_memo", None)
         publisher = getattr(conn, "_event_rule_index_publisher", None)
-        if memo is not None and (
-            publisher is None
-            or any(
-                publisher in entry if isinstance(entry, tuple) else entry is publisher for entry in conn.run_on_commit
-            )
-        ):
+        if memo is not None and publisher is not None and _pending_callback(conn, publisher):
             return memo
 
         if not getattr(conn, "_event_rule_index_invalidated", False):
             cached = _cached_rule_index()
             if cached is not None:
+
+                def _clear_memo_after_transaction():
+                    if getattr(conn, "_event_rule_index_memo", None) is cached:
+                        conn._event_rule_index_memo = None
+                        conn._event_rule_index_publisher = None
+
                 conn._event_rule_index_memo = cached
-                conn._event_rule_index_publisher = None
+                conn._event_rule_index_publisher = _clear_memo_after_transaction
+                transaction.on_commit(_clear_memo_after_transaction)
                 return cached
 
         index = _build_rule_index()
@@ -129,7 +170,13 @@ def _rule_index():
             # have rolled back, and another process may have changed rules since.
             if getattr(conn, "_event_rule_index_marker", None) is marker:
                 try:
-                    cache.set(_RULE_INDEX_CACHE_KEY, _build_rule_index(), timeout=_RULE_INDEX_TTL)
+                    generation = _rule_index_generation()
+                    committed = _build_rule_index()
+                    if _rule_index_generation() != generation:
+                        # An invalidation raced the rebuild; capture the newer view.
+                        generation = _rule_index_generation()
+                        committed = _build_rule_index()
+                    cache.set(_RULE_INDEX_CACHE_KEY, (generation, committed), timeout=_RULE_INDEX_TTL)
                 # broad except: availability-tradeoff: an unwritable cache only costs one query per transaction
                 except Exception:
                     logger.warning("Could not cache the event rule index")
@@ -145,16 +192,13 @@ def _rule_index():
     if cached is not None:
         return cached
     index = _build_rule_index()
-    try:
-        cache.set(_RULE_INDEX_CACHE_KEY, index, timeout=_RULE_INDEX_TTL)
-    # broad except: availability-tradeoff: an unwritable cache only costs one query per dispatch
-    except Exception:
-        logger.warning("Could not cache the event rule index")
+    _store_rule_index(index)
     return index
 
 
 def invalidate_rule_index():
     """Drop the cached index and any transaction-local view (EventRule writes)."""
+    _bump_rule_index_generation()
     try:
         cache.delete(_RULE_INDEX_CACHE_KEY)
     # broad except: availability-tradeoff: the short TTL bounds staleness if the cache is unreachable

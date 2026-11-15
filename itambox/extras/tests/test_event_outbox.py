@@ -558,6 +558,7 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
 
     def tearDown(self):
         cache.delete(svc._RULE_INDEX_CACHE_KEY)
+        cache.delete(svc._RULE_INDEX_GENERATION_KEY)
 
     def test_hundred_dispatches_in_one_transaction_build_once(self):
         with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build:
@@ -582,7 +583,7 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
         with transaction.atomic():
             svc.has_eligible_rules(self.ct.pk, None, "create")
 
-        cached = cache.get(svc._RULE_INDEX_CACHE_KEY)
+        cached = svc._cached_rule_index()
         self.assertIn((self.ct.pk, None, "create"), cached)
 
     def test_rollback_publishes_nothing(self):
@@ -609,7 +610,7 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
             svc._rule_index()
 
         self.assertEqual(build_after.call_count, 1)
-        cached = cache.get(svc._RULE_INDEX_CACHE_KEY)
+        cached = svc._cached_rule_index()
         self.assertIn((self.ct.pk, None, "update"), cached)
 
     def test_cache_outage_falls_back_to_the_database(self):
@@ -622,3 +623,27 @@ class OutboxRuleIndexCacheTests(TransactionTestCase):
 
             self.assertIsNotNone(event)
             self.assertTrue(Event._base_manager.filter(pk=event.pk).exists())
+
+    def test_stale_cache_payload_is_rejected_after_generation_bump(self):
+        svc._rule_index()
+        self.assertIsNotNone(svc._cached_rule_index())
+
+        svc._bump_rule_index_generation()
+
+        self.assertIsNone(svc._cached_rule_index())
+
+    def test_cache_hit_memo_does_not_outlive_its_transaction(self):
+        svc._rule_index()  # prime the shared cache outside a transaction
+
+        with transaction.atomic():
+            svc.has_eligible_rules(self.ct.pk, None, "create")
+
+        # Another process invalidates after that transaction committed.
+        cache.delete(svc._RULE_INDEX_CACHE_KEY)
+        svc._bump_rule_index_generation()
+
+        with patch.object(svc, "_build_rule_index", wraps=svc._build_rule_index) as build:
+            with transaction.atomic():
+                svc.has_eligible_rules(self.ct.pk, None, "create")
+
+        self.assertEqual(build.call_count, 1)
