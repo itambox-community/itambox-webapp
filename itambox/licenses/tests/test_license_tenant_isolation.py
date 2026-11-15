@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -207,3 +209,86 @@ class GlobalLicenseSeatResidualTests(TestCase):
         self.assertTrue(
             LicenseSeatAssignment.all_objects.filter(pk=self.seat_global.pk, deleted_at__isnull=True).exists()
         )
+
+
+class NestedLicensePermissionTests(TestCase):
+    """A seat assignment must not disclose license fields its reader cannot view.
+
+    ``LicenseSeatAssignmentSerializer`` nests the full ``LicenseSerializer``.
+    The assignment endpoint is gated by ``licenses.view_licenseseatassignment``,
+    so without a nested-object check a seat-only role reads the licence's
+    purchase cost, order number and notes even though the licence list, the
+    licence detail page and the GraphQL licence roots all require
+    ``licenses.view_license``.
+    """
+
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="Nested Tenant", slug="nested-tenant")
+        self.seat_user = User.objects.create_user(username="seat-only", password="password123")
+        self.license_user = User.objects.create_user(username="seat-and-license", password="password123")
+
+        seat_perms = [
+            "licenses.view_licenseseatassignment",
+            "licenses.change_licenseseatassignment",
+            "licenses.delete_licenseseatassignment",
+        ]
+        grant(
+            self.seat_user,
+            self.tenant,
+            Role.objects.create(tenant=self.tenant, name="Seat Only", permissions=seat_perms),
+        )
+        grant(
+            self.license_user,
+            self.tenant,
+            Role.objects.create(
+                tenant=self.tenant,
+                name="Seat And License",
+                permissions=[*seat_perms, "licenses.view_license"],
+            ),
+        )
+
+        manufacturer = Manufacturer.objects.create(name="Nested Maker", slug="nested-maker")
+        software = Software.objects.create(name="Nested App", manufacturer=manufacturer, tenant=self.tenant)
+        self.license = License.objects.create(
+            name="Nested Confidential License",
+            software=software,
+            license_type=LicenseTypeChoices.PERPETUAL_SEAT,
+            seats=10,
+            tenant=self.tenant,
+            purchase_cost=Decimal("1234.56"),
+            order_number="PO-SECRET-42",
+            notes="confidential renewal note",
+        )
+        holder = AssetHolder.objects.create(
+            first_name="Nia", last_name="Nested", upn="nia@nested.example.com", tenant=self.tenant
+        )
+        self.seat = LicenseSeatAssignment.objects.create(license=self.license, assigned_holder=holder)
+
+    def _activate(self, user):
+        self.client.force_login(user)
+        session = self.client.session
+        session["active_tenant_id"] = self.tenant.pk
+        session.save()
+
+    def test_assignment_detail_hides_license_fields_without_view_license(self):
+        self._activate(self.seat_user)
+
+        detail_url = reverse("api:licenses_api:licenseseatassignment-detail", kwargs={"pk": self.seat.pk})
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, 200)
+
+        nested = response.json()["license"]
+        self.assertIsNone(nested, "seat-only reader received the nested license object")
+
+    def test_assignment_detail_keeps_license_fields_with_view_license(self):
+        self._activate(self.license_user)
+
+        detail_url = reverse("api:licenses_api:licenseseatassignment-detail", kwargs={"pk": self.seat.pk})
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, 200)
+
+        nested = response.json()["license"]
+        self.assertIsNotNone(nested)
+        self.assertEqual(nested["purchase_cost"], "1234.56")
+        self.assertEqual(nested["order_number"], "PO-SECRET-42")
+        self.assertEqual(nested["notes"], "confidential renewal note")
