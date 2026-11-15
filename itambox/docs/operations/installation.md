@@ -251,6 +251,7 @@ Set to `0` to keep records forever. See [data-retention.md](data-retention.md) f
 | `ITAMBOX_HEALTH_QUEUE_AGE_SECONDS` | Optional | `1800` | Age in seconds of the oldest pending queued task above which (together with the backlog threshold) the queue is reported as backed up. See [Operational health](operational-health.md). |
 | `ITAMBOX_HEALTH_JOB_STUCK_SECONDS` | Optional | `3600` | Seconds a first-party `Job` may stay pending or running before it is reported as stuck. See [Operational health](operational-health.md). |
 | `ITAMBOX_HEALTH_FAILURES_24H_MAX` | Optional | `10` | Failed background tasks in the last 24 hours above which failures are reported as degraded. See [Operational health](operational-health.md). |
+| `ITAMBOX_HEALTH_EVENT_RULE_ERROR_WINDOW_HOURS` | Optional | `24` | Hours of processed events whose terminal `rule_errors` counters are treated as a live health signal. Older counters remain stored but do not degrade the report. See [Operational health](operational-health.md). |
 
 ---
 

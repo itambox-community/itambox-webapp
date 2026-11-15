@@ -643,6 +643,10 @@ ITAMBOX_HEALTH_QUEUE_BACKLOG_MAX = int(os.environ.get("ITAMBOX_HEALTH_QUEUE_BACK
 ITAMBOX_HEALTH_QUEUE_AGE_SECONDS = int(os.environ.get("ITAMBOX_HEALTH_QUEUE_AGE_SECONDS", "1800"))
 ITAMBOX_HEALTH_JOB_STUCK_SECONDS = int(os.environ.get("ITAMBOX_HEALTH_JOB_STUCK_SECONDS", "3600"))
 ITAMBOX_HEALTH_FAILURES_24H_MAX = int(os.environ.get("ITAMBOX_HEALTH_FAILURES_24H_MAX", "10"))
+# Processed events keep their terminal rule_errors counter forever. Only the
+# recent window is a live operational signal; older failures are history and
+# must not keep the health check degraded indefinitely.
+ITAMBOX_HEALTH_EVENT_RULE_ERROR_WINDOW_HOURS = int(os.environ.get("ITAMBOX_HEALTH_EVENT_RULE_ERROR_WINDOW_HOURS", "24"))
 
 ALLOW_GLOBAL_CUSTODY_TEMPLATES = os.environ.get("ITAMBOX_ALLOW_GLOBAL_CUSTODY_TEMPLATES", "True") == "True"
 REQUIRE_CUSTODY_SIGNIN = os.environ.get("ITAMBOX_REQUIRE_CUSTODY_SIGNIN", "True") == "True"
