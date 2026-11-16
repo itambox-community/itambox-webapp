@@ -388,14 +388,6 @@
       "count": 1
     },
     {
-      "path": "itambox/core/tasks/csv_import.py",
-      "code": "C901",
-      "message": "'import_csv_task' is too complex (12)",
-      "source": "def import_csv_task(",
-      "context": "Module:body/FunctionDef:import_csv_task:self",
-      "count": 1
-    },
-    {
       "path": "itambox/core/validators.py",
       "code": "C901",
       "message": "'validate_external_url' is too complex (12)",

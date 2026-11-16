@@ -93,9 +93,14 @@ def _safe_notify(*, user, subject, message, level, job):
 
 def _record_task_failure(job, user):
     """Keep a committed import completed; otherwise mark the job failed."""
+    try:
+        job.refresh_from_db()
+    except Job.DoesNotExist:
+        logger.error("Import job %s disappeared while recording a failure", job.pk)
+        return
     if job.status == Job.STATUS_COMPLETED:
-        # The data is committed; a later failure must not report the import as
-        # failed and provoke a duplicate retry.
+        # The data and the completed status are committed; a later failure must
+        # not report the import as failed and provoke a duplicate retry.
         logger.error("Import failed after completion; keeping job %s completed", job.pk)
     else:
         job.mark_failed(IMPORT_ABORT_MESSAGE)
@@ -133,6 +138,71 @@ def _fail_job_after_setup_error(job_id, user_id, tenant_id, exc):
         subject=_("Bulk Import Error"),
         message=_("A system error occurred during the import. View job logs for details."),
         level=Notification.LEVEL_DANGER,
+        job=job,
+    )
+
+
+def _import_and_finalize(*, job, form, rows_data, user, model):
+    """Commit imported rows, logs, and the terminal Job status as one outcome."""
+    all_rows_failed = False
+    with transaction.atomic():
+        imported_count, errors = form.import_data()
+
+        job.append_log(
+            ngettext(
+                "Import finished. Successfully imported %(count)s record.",
+                "Import finished. Successfully imported %(count)s records.",
+                imported_count,
+            )
+            % {"count": imported_count}
+        )
+
+        skipped = _log_skipped(job, form)
+        updated = _log_updated(job, form)
+
+        if errors:
+            job.append_log(
+                ngettext(
+                    "Encountered %(count)s error during processing:",
+                    "Encountered %(count)s errors during processing:",
+                    len(errors),
+                )
+                % {"count": len(errors)}
+            )
+            for err in errors:
+                job.append_log(f" - {err}")
+
+            if imported_count == 0 and not updated:
+                job.mark_failed("All records failed to import due to validation errors.")
+                all_rows_failed = True
+
+        if not all_rows_failed:
+            result = {"imported": imported_count, "failed": len(errors), "total": len(rows_data)}
+            result.update({"skipped": len(skipped)} if skipped else {})
+            result.update({"updated": len(updated)} if updated else {})
+            job.mark_completed(result=result)
+
+    if all_rows_failed:
+        _safe_notify(
+            user=user,
+            subject=_("Bulk Import Failed"),
+            message=_("Failed to import CSV/YAML data to %(model)s. View job logs for details.")
+            % {"model": model._meta.verbose_name_plural},
+            level=Notification.LEVEL_DANGER,
+            job=job,
+        )
+        return
+
+    _safe_notify(
+        user=user,
+        subject=_("Bulk Import Complete"),
+        message=ngettext(
+            "Successfully imported %(count)s record to %(model)s.",
+            "Successfully imported %(count)s records to %(model)s.",
+            imported_count,
+        )
+        % {"count": imported_count, "model": model._meta.verbose_name_plural},
+        level=Notification.LEVEL_SUCCESS,
         job=job,
     )
 
@@ -196,62 +266,7 @@ def import_csv_task(
 
                 job.append_log("Validating and importing records inside transaction...")
 
-                with transaction.atomic():
-                    imported_count, errors = form.import_data()
-
-                job.append_log(
-                    ngettext(
-                        "Import finished. Successfully imported %(count)s record.",
-                        "Import finished. Successfully imported %(count)s records.",
-                        imported_count,
-                    )
-                    % {"count": imported_count}
-                )
-
-                skipped = _log_skipped(job, form)
-                updated = _log_updated(job, form)
-
-                if errors:
-                    job.append_log(
-                        ngettext(
-                            "Encountered %(count)s error during processing:",
-                            "Encountered %(count)s errors during processing:",
-                            len(errors),
-                        )
-                        % {"count": len(errors)}
-                    )
-                    for err in errors:
-                        job.append_log(f" - {err}")
-
-                    if imported_count == 0 and not updated:
-                        job.mark_failed("All records failed to import due to validation errors.")
-                        _safe_notify(
-                            user=ctx.user,
-                            subject=_("Bulk Import Failed"),
-                            message=_("Failed to import CSV/YAML data to %(model)s. View job logs for details.")
-                            % {"model": model._meta.verbose_name_plural},
-                            level=Notification.LEVEL_DANGER,
-                            job=job,
-                        )
-                        return
-
-                result = {"imported": imported_count, "failed": len(errors), "total": len(rows_data)}
-                result.update({"skipped": len(skipped)} if skipped else {})
-                result.update({"updated": len(updated)} if updated else {})
-                job.mark_completed(result=result)
-
-                _safe_notify(
-                    user=ctx.user,
-                    subject=_("Bulk Import Complete"),
-                    message=ngettext(
-                        "Successfully imported %(count)s record to %(model)s.",
-                        "Successfully imported %(count)s records to %(model)s.",
-                        imported_count,
-                    )
-                    % {"count": imported_count, "model": model._meta.verbose_name_plural},
-                    level=Notification.LEVEL_SUCCESS,
-                    job=job,
-                )
+                _import_and_finalize(job=job, form=form, rows_data=rows_data, user=ctx.user, model=model)
 
             except Exception as exc:
                 # broad except: task-isolation: task aborts must leave a safe job result and notification
