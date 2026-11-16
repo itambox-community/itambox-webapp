@@ -935,7 +935,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31,<3.0" },
     { name = "segno", specifier = ">=1.6,<2.0" },
     { name = "sqlparse", specifier = ">=0.6.0,<0.7.0" },
-    { name = "strawberry-graphql", specifier = ">=0.328,<0.329" },
+    { name = "strawberry-graphql", specifier = ">=0.328,<0.342" },
     { name = "strawberry-graphql-django", specifier = ">=0.92,<0.93" },
     { name = "svglib", specifier = ">=2.0.2,<2.4" },
     { name = "tinycss2", specifier = ">=1.5,<2.0" },
@@ -1860,7 +1860,7 @@ wheels = [
 
 [[package]]
 name = "strawberry-graphql"
-version = "0.328.3"
+version = "0.341.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cross-web" },
@@ -1869,9 +1869,9 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/60/4b59d8a6f3f6500e361f82af3573312c08a6306930b1d5d1a751d18ec502/strawberry_graphql-0.328.3.tar.gz", hash = "sha256:8bc2a6415db4f69d5dc2d9d45062608ae94ba92b01f9c41f750aca83c96e44a8", size = 245706, upload-time = "2026-10-02T18:42:46.762Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/91/4c9344b92f3a8b24b6b34394de0bc32a96c2cfec08a89612e8ad15e63885/strawberry_graphql-0.341.2.tar.gz", hash = "sha256:8073fae26510fb25394a6ea9dd0f4e23da6bc303312fff684f6a884d59eedb72", size = 299246, upload-time = "2026-11-07T16:26:56.992Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/50/96/e4b3a220ecb771e84f26ee22e0b15e411f44c0b4ae994d6bdd2edeef0c8d/strawberry_graphql-0.328.3-py3-none-any.whl", hash = "sha256:8d4fd7138319b65921a94b94b481c555c6f0fae49fbb52d497d6b4a76fd77a57", size = 349676, upload-time = "2026-10-02T18:42:45.026Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/a8/46312ba316ff70cda1fb8052572f2b488d117a96fa74c3ab29f58cd570c0/strawberry_graphql-0.341.2-py3-none-any.whl", hash = "sha256:73e9c4cf5e2fddd522d2741491a6fbba70f940d945ab0a40152b2fadf26d9a89", size = 396061, upload-time = "2026-11-07T16:26:54.835Z" },
 ]
 
 [[package]]

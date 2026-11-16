@@ -27,7 +27,7 @@ dependencies = [
     "sqlparse>=0.6.0,<0.7.0",
     "croniter>=6.0,<7.0",
     "python-dateutil>=2.9,<3.0",
-    "strawberry-graphql>=0.328,<0.329",
+    "strawberry-graphql>=0.328,<0.342",
     "strawberry-graphql-django>=0.92,<0.93",
     "django-otp>=1.4,<1.8",
     # Excluded on native Windows: pulls python-ldap, which has no Windows binary
