@@ -8,7 +8,7 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [1.0.2] - 2026-11-15
 
-Patch release with two schema changes and four fixes. Apply the migrations for this revision; the upgrade note below names both new migrations and the event rows that intentionally end up dead.
+Patch release with two database migrations and seven fixes. Apply the migrations for this revision; the upgrade note below names both new migrations and the event rows that intentionally end up dead.
 
 ### Security
 
@@ -16,9 +16,12 @@ Patch release with two schema changes and four fixes. Apply the migrations for t
 
 ### Fixed
 
+- Nested license data is serialized only when the caller holds `licenses.view_license` for the license. List and group scope both fail closed, so seat assignments no longer disclose a license through a related object.
 - Import confirmation claims a server-side preview atomically in the same transaction that creates the import job. Two concurrent confirmations of the same preview can no longer import it twice; the preview is bound to the user, model, and tenant that produced it.
 - Legacy outbox events without a tenant are repaired from the referenced object during the upgrade. Direct and indirect tenant anchors are reconstructed; events whose owning tenant cannot be proven from the current row or from recorded `tenant_scope` provenance become `dead` with `last_error_class="outbox.backfill_unassigned"` instead of running global rules. Models with no tenant anchor remain legitimate global events, and new events record their scope at emission.
 - The event rule index is built once per transaction and published only from committed data, with generation-checked cache values. Rule writes still invalidate immediately and at commit, a rollback publishes nothing, and a cache outage falls back to reading the rules from the database.
+- Operational health reports recent event rule errors instead of keeping the check degraded forever. The window is configurable with `ITAMBOX_HEALTH_EVENT_RULE_ERROR_WINDOW_HOURS` (default 24 hours), and failures are grouped by exception class.
+- Abandoned import previews are removed by a scheduled, idempotent cleanup task. Spent or expired rows are deleted in bounded batches; a fresh, unconsumed preview is never touched, so the atomic confirmation path is preserved.
 
 ### Removed
 
