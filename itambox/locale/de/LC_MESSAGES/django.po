@@ -11290,6 +11290,12 @@ msgstr ""
 msgid "Label generation failed. Code: labels.pdf_failed"
 msgstr "Die Etikettenerstellung ist fehlgeschlagen. Code: labels.pdf_failed"
 
+#: itambox/extras/tasks/labels.py
+msgid "Label generation could not start because the task context could not be established."
+msgstr ""
+"Die Etikettenerstellung konnte nicht gestartet werden, weil der Task-Kontext "
+"nicht aufgebaut werden konnte."
+
 #: itambox/assets/views/bulk_scan_views.py:245
 msgid "Select a target tenant first."
 msgstr "Wählen Sie zuerst einen Ziel-Mandanten aus."

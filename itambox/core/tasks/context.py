@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from contextlib import contextmanager
 from types import TracebackType
 from typing import Protocol, Self
 
@@ -28,6 +29,48 @@ from core.context import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def task_failure_audit_context():
+    """Audit a task-failure mutation without attributing it to the caller.
+
+    A failed ``TaskContext`` restores the surrounding request context before the
+    task can record its failure. Running the failure write under that restored
+    context would either skip the audit entry or attribute it to the enclosing
+    request. This context installs a fresh request id and clears the actor and
+    tenant scope for the duration of the failure write, then restores every
+    captured value exactly.
+    """
+    previous = (
+        _request_id.get(),
+        _current_user.get(),
+        get_current_tenant(),
+        get_current_membership(),
+        get_current_tenant_group(),
+        get_current_all_accessible(),
+        _system_authorization_scope.get(),
+        _issued_system_authorizations.get(),
+    )
+    _request_id.set(uuid.uuid4())
+    _current_user.set(None)
+    set_current_tenant(None)
+    set_current_membership(None)
+    set_current_tenant_group(None)
+    set_current_all_accessible(False)
+    _system_authorization_scope.set(None)
+    _issued_system_authorizations.set(())
+    try:
+        yield
+    finally:
+        _request_id.set(previous[0])
+        _current_user.set(previous[1])
+        set_current_tenant(previous[2])
+        set_current_membership(previous[3])
+        set_current_tenant_group(previous[4])
+        set_current_all_accessible(previous[5])
+        _system_authorization_scope.set(previous[6])
+        _issued_system_authorizations.set(previous[7])
 
 
 class TaskContext:
