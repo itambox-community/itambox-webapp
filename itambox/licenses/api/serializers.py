@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from assets.api.nested_serializers import NestedAssetSerializer
@@ -95,7 +96,12 @@ class LicenseSerializer(BaseModelSerializer):
 
 
 class LicenseSeatAssignmentSerializer(BaseModelSerializer):
-    license = LicenseSerializer(read_only=True)
+    # A seat's licence is a separate authorization surface: the assignment gate
+    # is licenses.view_licenseseatassignment, while the licence's own fields
+    # (purchase cost, order number, notes) belong to licenses.view_license.
+    # Nesting the full LicenseSerializer here handed those fields to a seat-only
+    # role, unlike the licence list/detail and the GraphQL licence roots.
+    license = serializers.SerializerMethodField()
     license_id: serializers.PrimaryKeyRelatedField[License] = serializers.PrimaryKeyRelatedField(
         queryset=License.objects, source="license", write_only=True
     )
@@ -138,6 +144,22 @@ class LicenseSeatAssignmentSerializer(BaseModelSerializer):
             "updated_at",
         )
         brief_fields = ["id", "license", "asset"]
+
+    @extend_schema_field(LicenseSerializer(allow_null=True))
+    def get_license(self, obj: LicenseSeatAssignment) -> dict[str, object] | None:
+        """Return the nested licence only to a caller who may view licences.
+
+        Fail closed when no request is available (internal callers) and for an
+        anonymous request: the assignment itself is already visible, but the
+        licence's own commercial fields are not part of that grant.
+        """
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return None
+        if not user.has_perm("licenses.view_license", obj=obj.license):
+            return None
+        return LicenseSerializer(obj.license, context=self.context).data
 
     def create(self, validated_data: dict[str, object]) -> LicenseSeatAssignment:
         # Delegate to checkout_license() so the parent-License changelog entry
