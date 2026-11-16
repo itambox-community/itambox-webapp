@@ -82,7 +82,7 @@ dev = [
     "PyYAML>=6.0,<7.0",
     # Exact version: formatting/import-sort output must be reproducible across
     # contributors, pre-commit, and CI (see pyproject.toml [tool.ruff]).
-    "ruff==0.15.20",
+    "ruff==0.17.5",
     # Backend static typing (issue #93). Exact versions on purpose: what "clean"
     # means for a checked module is decided by the checker and its stubs, so the
     # triple below is part of the typing policy fingerprint recorded in
