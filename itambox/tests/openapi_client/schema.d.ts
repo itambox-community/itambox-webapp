@@ -3815,7 +3815,7 @@ export interface components {
     };
     LicenseSeatAssignment: {
       id: number;
-      license: components["schemas"]["License"];
+      license: components["schemas"]["License"] | null;
       asset: components["schemas"]["NestedAsset"];
       assigned_holder: components["schemas"]["AssetHolder"];
       installed_software: string;
