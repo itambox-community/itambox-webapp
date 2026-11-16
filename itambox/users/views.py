@@ -98,10 +98,8 @@ class UserProfileView(LoginRequiredMixin, BaseHTMXView, UpdateView):
         context["activity_table"] = activity_table
         context["title"] = _("User Profile")
         context["breadcrumbs"] = [(reverse_lazy("dashboard"), _("Dashboard")), (None, context["title"])]
-        context["page_pretitle"] = _("User Account")  # Add pretitle for wrapper
+        context["page_pretitle"] = _("User Account")
         return context
-
-    # render_to_response handled by BaseHTMXView
 
 
 class UserPasswordView(LoginRequiredMixin, BaseHTMXView, DjangoPasswordChangeView):
@@ -122,10 +120,8 @@ class UserPasswordView(LoginRequiredMixin, BaseHTMXView, DjangoPasswordChangeVie
             (reverse_lazy("users:user_profile"), _("User Profile")),
             (None, context["title"]),
         ]
-        context["page_pretitle"] = _("User Account")  # Add pretitle for wrapper
+        context["page_pretitle"] = _("User Account")
         return context
-
-    # render_to_response handled by BaseHTMXView
 
 
 class UserPreferencesView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixin, View):
@@ -200,32 +196,24 @@ class UserPreferencesView(LoginRequiredMixin, BaseHTMXView, TemplateResponseMixi
         # BaseHTMXView will call TemplateResponseMixin.render_to_response via super()
         return self.render_to_response(context)
 
-    # REMOVED custom render_to_response method
 
-
-# Dummy Views for other tabs
 class UserGenericTabView(LoginRequiredMixin, BaseHTMXView, TemplateView):
-    template_name = "users/dummy_tab.html"
     active_tab = ""
-    tab_title = _("User Tab")  # Add a default title
+    tab_title = _("User Tab")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["active_tab"] = self.active_tab
-        context["user"] = self.request.user  # Ensure user is in context
+        context["user"] = self.request.user
 
-        # --- Add Breadcrumbs & Title for BaseHTMXView ---
-        context["title"] = self.tab_title  # Use the specific tab title
+        context["title"] = self.tab_title
         context["breadcrumbs"] = [
             (reverse_lazy("dashboard"), _("Dashboard")),
             (reverse_lazy("users:user_profile"), _("User Profile")),  # Link back to profile
             (None, context["title"]),
         ]
-        # --- End Breadcrumbs & Title ---
-        context["page_pretitle"] = _("User Account")  # Add pretitle for wrapper
+        context["page_pretitle"] = _("User Account")
         return context
-
-    # render_to_response handled by BaseHTMXView
 
 
 class UserApiTokensView(UserGenericTabView):

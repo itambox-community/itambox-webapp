@@ -22,7 +22,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core.cache import caches
 from django.db import connection
-from django.db.models import Count, Min
+from django.db.models import Count, Max, Min, Sum
 from django.utils import timezone
 from django_q.conf import Conf
 from django_q.models import Failure, OrmQ, Schedule
@@ -250,6 +250,56 @@ def check_event_outbox(now):
     return {"state": state, "pending": pending_count, "dead": dead_count, "oldest_due_age_seconds": oldest_age}
 
 
+def check_event_rule_errors(now, window_hours):
+    """Recent terminal rule-action failures on otherwise processed events.
+
+    ``Event.rule_errors`` is a lifetime counter on a terminal (``processed``)
+    row: the event itself succeeded, but one or more of its rule actions raised
+    and was not retried. Counting only rows processed inside the window keeps
+    the signal actionable and stops historical failures from degrading health
+    permanently.
+    """
+    Event = apps.get_model("extras", "Event")
+
+    try:
+        # unscoped: operational diagnostics span every tenant
+        events = Event._base_manager  # unscoped: see above
+        cutoff = now - timedelta(hours=window_hours)
+        recent = events.filter(
+            status=Event.STATUS_PROCESSED,
+            rule_errors__gt=0,
+            processed_at__gte=cutoff,
+        )
+        event_count = recent.count()
+        error_count = recent.aggregate(total=Sum("rule_errors"))["total"] or 0
+        latest = recent.aggregate(latest=Max("processed_at"))["latest"]
+        by_class = [
+            {
+                "error_class": row["last_error_class"] or "unknown",
+                "events": row["events"],
+                "rule_errors": row["rule_errors"],
+            }
+            # Clear the model's default timestamp ordering before grouping, or
+            # Django adds it to GROUP BY and emits one row per event.
+            for row in recent.order_by()
+            .values("last_error_class")
+            .annotate(events=Count("pk"), rule_errors=Sum("rule_errors"))
+            .order_by("-events", "last_error_class")
+        ]
+    except Exception:  # broad except: boundary-isolation: a failing probe is reported as a reason code, never raised
+        logger.exception("operational_health: event rule error probe failed")
+        return {"state": "error", "reason": "event_rule_errors_read_failed"}
+
+    return {
+        "state": "elevated" if event_count else "ok",
+        "window_hours": window_hours,
+        "events": event_count,
+        "rule_errors": error_count,
+        "by_error_class": by_class,
+        "latest_processed_at": latest.isoformat() if latest else None,
+    }
+
+
 _SECTION_REASONS = (
     ("database", "error", "database_unreachable"),
     ("cache", "error", "cache_unavailable"),
@@ -266,6 +316,8 @@ _SECTION_REASONS = (
     ("event_outbox", "backed_up", "event_outbox_backed_up"),
     ("event_outbox", "dead_events", "event_outbox_dead_events"),
     ("event_outbox", "error", "event_outbox_unreadable"),
+    ("event_rule_errors", "elevated", "event_rule_errors_recent"),
+    ("event_rule_errors", "error", "event_rule_errors_read_failed"),
 )
 
 
@@ -287,6 +339,7 @@ def collect(now=None):
         "jobs": check_jobs(now, settings.ITAMBOX_HEALTH_JOB_STUCK_SECONDS),
         "failures": check_failures(now, settings.ITAMBOX_HEALTH_FAILURES_24H_MAX),
         "event_outbox": check_event_outbox(now),
+        "event_rule_errors": check_event_rule_errors(now, settings.ITAMBOX_HEALTH_EVENT_RULE_ERROR_WINDOW_HOURS),
     }
     reasons = degraded_reasons(report)
     return {

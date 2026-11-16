@@ -14,6 +14,47 @@ against a copy of a specific production database.
 | Target | Origin | Qualified on | Result |
 |---|---|---|---|
 | `v1.0.0` | `v1.0.0-rc.2` | 2026-11-13 | Passed |
+| `v1.0.2` | `v1.0.1` | 2026-11-15 | Passed (migration-state rehearsal) |
+
+## `v1.0.2` from `v1.0.1`
+
+- **Target:** the `1.0.2` candidate at `ea4d3854` (main after #1100–#1103),
+  before the release tag.
+- **Origin:** a disposable database built by running the `v1.0.1`
+  (`16aa796d`) migrations and seeding synthetic rows, not a `pg_dump` of a
+  production database.
+- **Environment:** development host `tyr`, PostgreSQL 18 container
+  `itambox-dev-pg`, database `itambox_upgrade_rehearsal` (dropped afterwards).
+
+Five `pending` events with `tenant_id IS NULL` and no `tenant_scope` provenance
+were created with the 1.0.1 ORM: an asset with a tenant, a tenant-owned
+supplier, a global supplier, a manufacturer without a tenant anchor, and an
+asset whose row was missing.
+
+| Step | Command | Result |
+|---|---|---|
+| 1.0.1 schema | `manage.py migrate --noinput` at `16aa796d` | applied |
+| Seed | five NULL-tenant events | `pending`, `tenant_id NULL` |
+| Migrate | `manage.py migrate --noinput` at `ea4d3854` | `core.0005_import_preview`, `extras.0007_backfill_event_tenant` applied |
+| System check | `manage.py check` | no issues |
+| Model drift | `makemigrations --check --dry-run` | `No changes detected` |
+
+State after the upgrade:
+
+| Object | Status | Tenant | Interpretation |
+|---|---|---|---|
+| asset with tenant | `pending` | reconstructed | direct anchor repaired |
+| tenant-owned supplier | `pending` | reconstructed | direct anchor repaired |
+| global supplier, unproven | `dead` | NULL | `outbox.backfill_unassigned` |
+| manufacturer, no anchor | `pending` | NULL | legitimate global event |
+| asset row missing | `dead` | NULL | `outbox.backfill_unassigned` |
+
+**Scope.** Synthetic dataset only. The run exercised the predecessor schema, the
+two new migrations, post-upgrade system checks, and the resulting outbox state.
+It did not exercise rule or webhook fan-out after the upgrade, media files, or a
+restored production dump. Treat it as the migration-state qualification for
+1.0.1 → 1.0.2; a restored-dump run remains the stronger evidence class.
+
 
 ## `v1.0.0` from `v1.0.0-rc.2`
 

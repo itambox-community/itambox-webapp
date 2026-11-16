@@ -9674,9 +9674,6 @@ msgid "Use the star icon on any object details page to pin it here."
 msgstr ""
 "Nutze das Stern-Symbol auf einer Detailseite, um Objekte hier anzuheften."
 
-msgid "This feature is not yet implemented."
-msgstr "Diese Funktion ist noch nicht implementiert."
-
 msgid "Notification Inbox"
 msgstr "Benachrichtigungs-Posteingang"
 

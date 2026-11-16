@@ -66,23 +66,6 @@ class ManagementCommandsTestCase(TransactionTestCase):
         call_command("rotate_encryption_keys", dry_run=True, stdout=self.stdout, stderr=self.stderr)
         self.assertIn("Scanning for encrypted fields", self.stdout.getvalue())
 
-    def test_run_jobs_command(self):
-        Job.objects.create(name="Script: my_script.py", status=Job.STATUS_PENDING)
-        call_command("run_jobs", stdout=self.stdout, stderr=self.stderr)
-        self.assertIn("Job processing complete", self.stdout.getvalue())
-
-    def test_run_jobs_reports_job_failure(self):
-        job = Job.objects.create(name="Failing script", status=Job.STATUS_PENDING)
-        with patch(
-            "core.management.commands.run_jobs.Command._execute_job",
-            side_effect=RuntimeError("backend unavailable"),
-        ):
-            call_command("run_jobs", stdout=self.stdout, stderr=self.stderr)
-
-        job.refresh_from_db()
-        self.assertEqual(job.status, Job.STATUS_FAILED)
-        self.assertEqual(self.stderr.getvalue(), 'Job "Failing script" failed: backend unavailable\n')
-
     def test_seed_data_reports_explicit_superuser_password_source(self):
         env = {
             "DJANGO_SUPERUSER_USERNAME": "seed-output-admin",
@@ -136,7 +119,6 @@ class ManagementCommandsTestCase(TransactionTestCase):
             "purge_deleted",
             "restore_resource_grant",
             "rotate_encryption_keys",
-            "run_jobs",
             "seed_data",
             "sync_intune",
             "sync_tenant_ldap",

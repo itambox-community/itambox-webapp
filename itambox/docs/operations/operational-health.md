@@ -39,12 +39,16 @@ support issue.
 | `queue` | `queue_backed_up` | Pending tasks exceed `ITAMBOX_HEALTH_QUEUE_BACKLOG_MAX` (1000) **and** the oldest pending task is older than `ITAMBOX_HEALTH_QUEUE_AGE_SECONDS` (1800). Leased (in-flight) rows are counted separately. | Check worker capacity and failures. |
 | `jobs` | `jobs_stuck` | First-party jobs pending or running longer than `ITAMBOX_HEALTH_JOB_STUCK_SECONDS` (3600). | Check the worker; inspect the job. |
 | `failures` | `failures_elevated` | More than `ITAMBOX_HEALTH_FAILURES_24H_MAX` (10) failed tasks in 24 hours. 24 h / 7 d counts and the latest failure time are reported. | Run `list_failed_tasks`. |
+| `event_outbox` | `event_outbox_backed_up` | A due event has waited more than 600 seconds for processing. | Check the worker and its logs. |
+| `event_outbox` | `event_outbox_dead_events` | At least one event exhausted its retries or could not be assigned to a tenant. | Inspect the event rows and worker logs. |
+| `event_rule_errors` | `event_rule_errors_recent` | A processed event inside the last `ITAMBOX_HEALTH_EVENT_RULE_ERROR_WINDOW_HOURS` (24) has `rule_errors > 0`: one or more rule actions failed terminally. The report includes affected event and rule-action counts plus the last error classes. Older counters are history and do not degrade the report. | Inspect the named rule and its worker logs. Failed actions are terminal and are not retried automatically. |
 
 A queue entry whose lease expired becomes pending again, so a task stuck beyond
 the django-q `retry` window shows up as growing oldest pending age.
 
 Each `*_unreadable` reason (`queue_unreadable`, `scheduler_unreadable`,
-`jobs_unreadable`, `failures_unreadable`) means the table could not be read,
+`jobs_unreadable`, `failures_unreadable`, `event_outbox_unreadable`,
+`event_rule_errors_read_failed`) means the table could not be read,
 which is distinct from an empty or healthy state.
 
 ## Catch-up versus a stall

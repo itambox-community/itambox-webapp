@@ -100,6 +100,22 @@ class OutboxProcessingTests(TransactionTestCase):
         self.assertEqual(self.event.deliveries.count() if hasattr(self.event, "deliveries") else 0, 0)
         self.assertEqual(svc.recover_pending_events()["due"], 1)
 
+    def test_rule_action_failure_is_terminal_and_not_retried(self):
+        with patch.object(svc, "_execute_event_action", side_effect=RuntimeError("boom")):
+            self.assertTrue(svc.process_event(self.event.pk))
+
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.status, Event.STATUS_PROCESSED)
+        self.assertEqual(self.event.rule_errors, 1)
+        self.assertEqual(self.event.last_error_class, "RuntimeError")
+        self.assertIsNotNone(self.event.processed_at)
+
+        # A terminal event is never re-run by the coordinator, so an action that
+        # already succeeded cannot fire twice.
+        self.assertFalse(svc.process_event(self.event.pk))
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.rule_errors, 1)
+
 
 class OutboxTenantSelectionTests(TransactionTestCase):
     """The #1102 defect itself: a repaired (``tenant_id`` set) event must select

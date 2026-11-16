@@ -453,25 +453,6 @@ python manage.py rotate_encryption_keys
 
 ---
 
-### `run_jobs`
-
-This command attempts to process pending background jobs from the database job queue (`core.Job` model). It is distinct from the django-q2 task cluster. **Do not use it for production recovery or to drain the queue:** the current implementation may mark a job successful even when no handler ran.
-
-| | |
-|---|---|
-| **Usage** | `python manage.py run_jobs` |
-| **Production-safe** | No — unsafe for queue recovery while the missing-handler behaviour remains. |
-| **When to use** | None recommended until the missing-handler behaviour is fixed and verified. |
-
-**Options**
-
-This command takes no arguments or options.
-
-!!! danger "Known unsafe behaviour — not fixed by this documentation"
-    The command looks for `_run_<job_name>` on the command class (normalising `:` and spaces to underscores and lowercasing). If no handler exists, `_execute_job()` does nothing, but the caller still marks the job completed with a success result. Do not invoke this command to recover pending work or treat its output as proof of execution. Reconcile affected work using the owning feature's documented recovery procedure; there is no safe generic dispatch recommendation here until the application behaviour is fixed and verified. This warning documents the current behaviour and does not claim the application defect has been fixed.
-
----
-
 ### `sync_tenant_ldap`
 
 Synchronise users from an LDAP directory into a specific tenant. Creates or updates local Django `User` records, establishes `Membership` entries, and grants a default "Member" role.

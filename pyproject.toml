@@ -1,6 +1,6 @@
 [project]
 name = "itambox"
-version = "1.0.1"
+version = "1.0.2"
 description = "IT Asset Management System inspired by NetBox"
 license = "Apache-2.0"
 license-files = ["LICENSE"]

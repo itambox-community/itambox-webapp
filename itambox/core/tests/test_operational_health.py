@@ -6,6 +6,7 @@ from io import StringIO
 from unittest import mock
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import OperationalError
@@ -16,6 +17,7 @@ from django_q.models import OrmQ, Schedule, Task
 
 from core import operational_health as oh
 from core.models import Job
+from extras.models import Event
 
 # Checks here assert on global operational state (scheduler/queue/cache/worker rows)
 # and wall-clock timings; keep them out of the parallel xdist lane (issue #750).
@@ -207,6 +209,102 @@ class FailureTests(TestCase):
         self.assertEqual(oh.check_failures(now, 0)["state"], "elevated")
         result = oh.check_failures(now, 1)
         self.assertEqual((result["last_24h"], result["last_7d"]), (1, 2))
+
+
+class EventRuleErrorHealthTests(TestCase):
+    """Recent terminal rule-action failures on processed events are visible.
+
+    ``rule_errors`` is a lifetime counter on a terminal event. The probe must
+    report recent failures with a count and a distinct reason, while an old
+    counter that no longer describes current behaviour must not keep the report
+    degraded forever.
+    """
+
+    def setUp(self):
+        self.now = timezone.now()
+        self.ct = ContentType.objects.get_for_model(Job)
+
+    def _event(self, *, status=Event.STATUS_PROCESSED, rule_errors=1, processed_at=None, error_class=""):
+        return Event._base_manager.create(
+            model=self.ct,
+            object_id=1,
+            action="create",
+            data={},
+            status=status,
+            rule_errors=rule_errors,
+            processed_at=processed_at,
+            last_error_class=error_class,
+        )
+
+    def test_recent_failures_report_event_and_rule_counts_by_class(self):
+        self._event(rule_errors=2, processed_at=self.now - timedelta(hours=1), error_class="RuntimeError")
+        self._event(rule_errors=1, processed_at=self.now - timedelta(hours=2), error_class="ValueError")
+        self._event(rule_errors=1, processed_at=self.now - timedelta(hours=3), error_class="RuntimeError")
+
+        result = oh.check_event_rule_errors(self.now, 24)
+
+        self.assertEqual(result["state"], "elevated")
+        self.assertEqual(result["events"], 3)
+        self.assertEqual(result["rule_errors"], 4)
+        self.assertEqual(
+            result["by_error_class"],
+            [
+                {"error_class": "RuntimeError", "events": 2, "rule_errors": 3},
+                {"error_class": "ValueError", "events": 1, "rule_errors": 1},
+            ],
+        )
+
+    def test_window_boundary_is_inclusive_and_older_history_is_ignored(self):
+        cutoff = self.now - timedelta(hours=24)
+        self._event(rule_errors=1, processed_at=cutoff, error_class="RuntimeError")
+        self._event(rule_errors=1, processed_at=cutoff - timedelta(microseconds=1), error_class="RuntimeError")
+
+        result = oh.check_event_rule_errors(self.now, 24)
+
+        self.assertEqual(result["events"], 1)
+        self.assertEqual(result["rule_errors"], 1)
+
+    def test_historical_failures_do_not_degrade_health(self):
+        self._event(rule_errors=5, processed_at=self.now - timedelta(days=7), error_class="RuntimeError")
+
+        result = oh.check_event_rule_errors(self.now, 24)
+
+        self.assertEqual(result["state"], "ok")
+        self.assertEqual(result["events"], 0)
+
+    def test_only_processed_events_count(self):
+        self._event(status=Event.STATUS_PENDING, rule_errors=4, processed_at=None)
+        self._event(status=Event.STATUS_DEAD, rule_errors=4, processed_at=None)
+
+        result = oh.check_event_rule_errors(self.now, 24)
+
+        self.assertEqual(result["state"], "ok")
+        self.assertEqual(result["events"], 0)
+
+    def test_probe_is_read_only_and_repeatable(self):
+        event = self._event(rule_errors=1, processed_at=self.now, error_class="RuntimeError")
+        processed_at = event.processed_at
+
+        first = oh.check_event_rule_errors(self.now, 24)
+        second = oh.check_event_rule_errors(self.now, 24)
+
+        self.assertEqual(first, second)
+        event.refresh_from_db()
+        self.assertEqual(event.status, Event.STATUS_PROCESSED)
+        self.assertEqual(event.rule_errors, 1)
+        self.assertEqual(event.processed_at, processed_at)
+
+    def test_collect_reports_distinct_reason_and_command_check_fails(self):
+        self._event(rule_errors=1, processed_at=self.now, error_class="RuntimeError")
+        with mock.patch.object(oh, "check_cache", return_value=_ok_cache()), override_settings(CACHES=SHARED):
+            with mock.patch("django_q.status.Stat.get_all", return_value=[object()]):
+                report = oh.collect(self.now)
+        self.assertIn("event_rule_errors_recent", report["reasons"])
+        self.assertEqual(report["event_rule_errors"]["events"], 1)
+
+        with mock.patch.object(oh, "check_worker", return_value={"state": "online", "cluster_count": 1}):
+            with self.assertRaises(CommandError):
+                call_command("operational_health", "--check", stdout=StringIO())
 
 
 class CommandTests(TestCase):
