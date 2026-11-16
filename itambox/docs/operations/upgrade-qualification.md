@@ -14,47 +14,76 @@ against a copy of a specific production database.
 | Target | Origin | Qualified on | Result |
 |---|---|---|---|
 | `v1.0.0` | `v1.0.0-rc.2` | 2026-11-13 | Passed |
-| `v1.0.2` | `v1.0.1` | 2026-11-15 | Passed (migration-state rehearsal) |
+| `v1.0.2` | `v1.0.1` | 2026-11-16 | Passed (restored-dump drill) |
 
 ## `v1.0.2` from `v1.0.1`
 
-- **Target:** the `1.0.2` candidate at `ea4d3854` (main after #1100–#1103),
-  before the release tag.
-- **Origin:** a disposable database built by running the `v1.0.1`
-  (`16aa796d`) migrations and seeding synthetic rows, not a `pg_dump` of a
-  production database.
-- **Environment:** development host `tyr`, PostgreSQL 18 container
-  `itambox-dev-pg`, database `itambox_upgrade_rehearsal` (dropped afterwards).
+- **Target:** the published `v1.0.2` image
+  `ghcr.io/itambox-community/itambox-webapp@sha256:3a4836a6bf17c4bc100d4d18397865ffd22e4cb1758a517c7830929a34188a80`
+  (tag `v1.0.2`, revision `0ab2fe6159afd9584c124418d1dab16b5697d5bd`).
+- **Origin:** the published `v1.0.1` image
+  `ghcr.io/itambox-community/itambox-webapp@sha256:b7ed967fe9958d4d3e1e6b6eb285b4837bcfb065dcedc7cd5e8dd32b350eb171`
+  (tag `v1.0.1`, revision `16aa796d261f008408307e103b0f9223e1cdc0f0`), seeded
+  with the full demo dataset and dumped with `pg_dump --format=custom`.
+  Dump sha256 `e3efee1e4d910f16d26395077f594fae8f9975d813e2907792ab1b7048d845e9`,
+  2.0 MiB. This is a synthetic test installation, not a production dump.
+- **Environment:** development host `tyr`, isolated Compose project
+  `itambox-drill-103`, PostgreSQL 18 image
+  `postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336`,
+  Valkey and a local controlled HTTP receiver. The application was published
+  only on `127.0.0.1:18082`; no external recipient was used.
 
-Five `pending` events with `tenant_id IS NULL` and no `tenant_scope` provenance
-were created with the 1.0.1 ORM: an asset with a tenant, a tenant-owned
-supplier, a global supplier, a manufacturer without a tenant anchor, and an
-asset whose row was missing.
+The restored dataset contained 825 assets and 13 tenants. Four legacy events
+with `tenant_id IS NULL` and no `tenant_scope` provenance were created on the
+1.0.1 installation: one direct asset anchor, one indirect assignment anchor,
+one global manufacturer event, and one event whose asset row was missing.
 
 | Step | Command | Result |
 |---|---|---|
-| 1.0.1 schema | `manage.py migrate --noinput` at `16aa796d` | applied |
-| Seed | five NULL-tenant events | `pending`, `tenant_id NULL` |
-| Migrate | `manage.py migrate --noinput` at `ea4d3854` | `core.0005_import_preview`, `extras.0007_backfill_event_tenant` applied |
+| Preflight (predecessor) | `manage.py migration_baseline_preflight --format=json` | `partial-post-transition-state`, exit 1; missing `core.0005_import_preview`, `extras.0007_backfill_event_tenant` (expected) |
+| Migrate | `manage.py migrate --noinput` | both migrations applied |
+| Preflight (candidate) | `manage.py migration_baseline_preflight --format=json` | `current-normalized-baseline`, exit 0 |
 | System check | `manage.py check` | no issues |
 | Model drift | `makemigrations --check --dry-run` | `No changes detected` |
+| Login | restored `drill-admin`, HTTP POST | `302` |
+| Asset list | `GET /assets/assets/` with the session | `200` |
+| Worker | `manage.py qcluster` | cluster running; event processing observed |
 
-State after the upgrade:
+After migration (and after the worker processed the queue), the legacy events
+had the following state:
 
 | Object | Status | Tenant | Interpretation |
 |---|---|---|---|
-| asset with tenant | `pending` | reconstructed | direct anchor repaired |
-| tenant-owned supplier | `pending` | reconstructed | direct anchor repaired |
-| global supplier, unproven | `dead` | NULL | `outbox.backfill_unassigned` |
-| manufacturer, no anchor | `pending` | NULL | legitimate global event |
-| asset row missing | `dead` | NULL | `outbox.backfill_unassigned` |
+| asset event (direct anchor) | `processed` | 2 | tenant reconstructed |
+| assignment event (indirect anchor) | `processed` | 2 | tenant reconstructed through `asset__tenant` |
+| manufacturer event (no tenant anchor) | `processed` | NULL | legitimate global event |
+| event for a missing asset | `dead` | NULL | `outbox.backfill_unassigned`; no rule fired |
 
-**Scope.** Synthetic dataset only. The run exercised the predecessor schema, the
-two new migrations, post-upgrade system checks, and the resulting outbox state.
-It did not exercise rule or webhook fan-out after the upgrade, media files, or a
-restored production dump. Treat it as the migration-state qualification for
-1.0.1 → 1.0.2; a restored-dump run remains the stronger evidence class.
+The worker processed a new asset-create event and the event rule created a
+`WebhookDelivery` row. The unmodified image correctly rejected the loopback
+receiver with `integration.configuration` because the production SSRF guard
+requires a globally routable target. To exercise the delivery state machine and
+the receiver in isolation, the same delivery row was then reset and the task was
+run with a test-only `request_pinned` transport override that sent the real
+payload to the local receiver; it returned HTTP `200` and the receiver recorded
+the event payload. The override is drill-only and is not evidence that the
+production SSRF guard permits private endpoints.
 
+Restore-first rollback and re-upgrade were both exercised from the same
+pre-upgrade dump:
+
+| Phase | Action | Result |
+|---|---|---|
+| Rollback | restored `v1.0.1` dump into a clean database, ran the `v1.0.1` image | login `302`, asset list `200` |
+| Re-upgrade | restored the dump again, ran `v1.0.2` migrations | preflight `current-normalized-baseline`, login `302`, asset list `200` |
+
+**Scope.** The run restored the database only; the media volume was not part of
+it. The dataset is synthetic and the receiver was local. The real delivery
+attempt against the unmodified image terminated at the SSRF boundary, so the
+successful transport probe uses a test-only override; production webhook
+authorization and SSRF behavior were not changed or weakened. This is the
+restored-dump qualification for `1.0.1 → 1.0.2`; it does not replace the
+[recovery drill](recovery-drill.md).
 
 ## `v1.0.0` from `v1.0.0-rc.2`
 
