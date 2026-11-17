@@ -65,7 +65,7 @@ package is called out explicitly.
 
 ## htmx.org
 
-- Version: 2.0.10
+- Version: 2.0.11
 - License: 0BSD
 - Copyright: the package's own `LICENSE` file carries no copyright line (the
   Zero-Clause BSD text as published by the htmx project).
