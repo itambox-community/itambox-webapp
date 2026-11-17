@@ -205,6 +205,10 @@ extend-exclude = [
     "*/migrations/*",
     "itambox/static/dist",
     "itambox/static/docs",
+    # Ruff 0.17 formats Python code fences in Markdown by default. The docs
+    # snippets are prose examples, not formatter-owned source, so keep the
+    # 0.17 formatter from rewriting them as part of unrelated dependency bumps.
+    "*.md",
 ]
 
 [tool.ruff.format]
