@@ -9,15 +9,17 @@ honoured. Rendering is the shared engine in :mod:`extras.services.labels`.
 import logging
 from collections.abc import Sequence
 
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext
 
 from core.models import Job, Notification
 from core.pdf_renderer import html_to_pdf_bytes
-from core.tasks.context import TaskContext
+from core.tasks.context import TaskContext, task_failure_audit_context
 from core.tasks.utils import TaskResult, TaskStatus, classify_task_error, reverse_job_detail
 from extras.models import FileAttachment, LabelTemplate
 from extras.services.labels import (
@@ -68,6 +70,91 @@ def _try_create_notification(user, *, subject, message, level, target_url=None, 
                     "Job log append failed while handling notification failure",
                     extra={**(log_extra or {}), "phase": "notification", "exception_type": type(log_exc).__name__},
                 )
+
+
+LABEL_SETUP_FAILED = "[terminal] labels.setup_failed"
+
+
+def _fail_pending_label_job_after_setup_error(job_id, user_id, tenant_id, exc):
+    """Resolve a still-pending label Job when TaskContext setup is refused.
+
+    TaskContext has already restored its captured context when this runs. The
+    failure handler itself must never mask the setup exception, so every
+    persistence and delivery step is isolated.
+    """
+    log_extra = {
+        "operation": "labels.pdf_batch",
+        "phase": "setup",
+        "tenant_id": tenant_id,
+        "actor_id": user_id,
+        "job_id": job_id,
+        "exception_type": type(exc).__name__,
+    }
+    logger.error("Label PDF task setup failed", extra=log_extra)
+    try:
+        with task_failure_audit_context():
+            with transaction.atomic():
+                # unscoped: resolve and lock the job across task scopes after the context failed to set up
+                job = Job._base_manager.select_for_update().filter(pk=job_id).first()
+                if job is None or job.status != Job.STATUS_PENDING:
+                    return
+                job.mark_failed(LABEL_SETUP_FAILED)
+    # broad except: cleanup-reraise: a failed status write must not mask the setup exception
+    except Exception as mark_exc:
+        logger.error(
+            "Label PDF setup failure could not mark the job failed",
+            extra={**log_extra, "mark_exception_type": type(mark_exc).__name__},
+        )
+        return
+    if user_id is None:
+        return
+    try:
+        # unscoped: the actor may be inactive or its access revoked, which is why setup failed
+        actor = get_user_model()._base_manager.filter(pk=user_id, is_active=True).first()
+    # broad except: cleanup-reraise: actor lookup failure must not mask the setup exception
+    except Exception as actor_exc:
+        logger.error(
+            "Label PDF setup failure could not resolve the actor",
+            extra={**log_extra, "actor_exception_type": type(actor_exc).__name__},
+        )
+        return
+    if actor is None:
+        return
+    try:
+        target_url = reverse_job_detail(job.pk)
+    # broad except: cleanup-reraise: URL construction failure must not mask the setup exception
+    except Exception as url_exc:
+        logger.error(
+            "Label PDF setup failure could not build the notification URL",
+            extra={**log_extra, "url_exception_type": type(url_exc).__name__},
+        )
+        return
+    with task_failure_audit_context():
+        _try_create_notification(
+            actor,
+            subject=_("Label Generation Failed"),
+            message=_("Label generation could not start because the task context could not be established."),
+            level=Notification.LEVEL_DANGER,
+            target_url=target_url,
+            log_extra=log_extra,
+            job=job,
+        )
+
+
+class _LabelTaskContext(TaskContext):
+    """TaskContext that resolves a pending label Job when setup is refused."""
+
+    def __init__(self, *, job_id, **kwargs):
+        super().__init__(**kwargs)
+        self._job_id = job_id
+
+    def __enter__(self):
+        try:
+            return super().__enter__()
+        except Exception as exc:
+            # broad except: cleanup-reraise: record the failure on the Job before worker-level propagation
+            _fail_pending_label_job_after_setup_error(self._job_id, self.user_id, self.tenant_id, exc)
+            raise
 
 
 def _cleanup_partial_attachment(attachment, log_extra):
@@ -265,7 +352,7 @@ def generate_label_pdf_batch_task(
     tenant_id: int | None = None,
 ) -> TaskResult:
     """Render one PDF of labels for ``object_pks`` and attach it to the Job."""
-    with TaskContext(tenant_id=tenant_id, user_id=user_id, operation="labels.pdf_batch") as ctx:
+    with _LabelTaskContext(job_id=job_id, tenant_id=tenant_id, user_id=user_id, operation="labels.pdf_batch") as ctx:
         log_extra = {**ctx.log_context, "job_id": job_id}
         state: dict[str, object] = {"phase": "job_resolve", "attachment": None}
         job = None
