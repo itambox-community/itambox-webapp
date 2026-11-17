@@ -521,6 +521,23 @@
         "https://github.com/micromatch/braces/issues/70",
         "https://github.com/itambox-community/itambox-webapp/issues/627"
       ]
+    },
+    {
+      "id": "SEC-628-TRIVY-001",
+      "tool": "trivy",
+      "finding": "CVE-2026-112366",
+      "reason": "picomatch 4.0.7 is the newest npm release and GHSA-fc5q-39xc-vjpf affects every version through 4.0.7; the package is development-toolchain-only (stylelint/postcss glob matching) and no untrusted input reaches it. Time-boxed for removal when a patched release exists.",
+      "owner": "@itambox",
+      "scope": {
+        "target": "itambox/package-lock.json",
+        "package": "picomatch",
+        "version": "4.0.7"
+      },
+      "review_on": "2026-11-17",
+      "expires_on": "2026-12-15",
+      "references": [
+        "https://github.com/advisories/GHSA-fc5q-39xc-vjpf"
+      ]
     }
   ]
 }
