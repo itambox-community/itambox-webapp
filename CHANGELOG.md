@@ -13,13 +13,15 @@ Patch release with two workflow fixes, the published v1.0.2 restore/upgrade dril
 ### Fixed
 
 - CSV imports now commit imported rows, import logs and the terminal Job status in one transaction. A logging or status-save failure rolls the data back instead of leaving imported rows behind a running Job, while partial successes, skipped rows and validation errors keep their existing semantics. The failure path reads the committed Job status from the database rather than trusting a Python object.
-- A label-PDF task whose `TaskContext` setup fails now resolves only a still-pending Job as `failed` with `[terminal] labels.setup_failed`. Missing, running, completed and already-failed Jobs are left untouched. The failure write runs in a fresh audit context with its own request id and restores the surrounding context, so the original setup exception is not masked or misattributed.
+- The CSV setup-failure handler now locks the Job row and re-checks its status before writing `failed`, so a concurrent worker that completed the import keeps its `completed` status and result. The first import log after `mark_running()` is inside the task's failure boundary; a failure there records the Job as failed instead of leaving it running for a later delivery to skip.
+- Async CSV confirmation now publishes through the ORM broker inside the preview-claim transaction. The preview claim, Job and queue row commit or roll back together, so a failed enqueue cannot consume the preview while leaving a pending orphan Job. Non-ORM brokers keep the on-commit handoff.
+- A label-PDF task whose `TaskContext` setup fails classifies the failure. A transient database or broker error leaves the pending Job claimable for redelivery; a durable permission or tenant refusal resolves only a still-pending Job as `failed` with `[terminal] labels.setup_failed`. Missing, running, completed and already-failed Jobs are left untouched. The terminal failure write runs in a fresh audit context with its own request id and restores the surrounding context.
 
 ### Changed
 
-- Dependency and toolchain refresh: pypdf 7.0.1, Strawberry GraphQL 0.341.2, htmx 2.0.11, sass 1.108.2, ruff 0.17.5, stylelint 18, pytest-cov 7.1.0 and uv 0.13.8. The stylelint 18 configuration peer and the uv pins in CI, Docker and documentation move together.
+- Dependency and toolchain refresh: pypdf 7.0.1, Strawberry GraphQL 0.341.2, htmx 2.0.11, sass 1.108.2, ruff 0.17.5, stylelint 18, pytest-cov 7.1.0 and uv 0.13.8. The stylelint 18 configuration peer and the uv pins in CI, Docker and documentation move together; the pre-commit ruff hook now matches the CI version.
 - The dependency security gate is unblocked for the `picomatch` development-toolchain finding. The repository pins picomatch 4.0.7 and carries a time-boxed governed suppression through 2026-12-15; no suppressed scope, finding or owner changed.
-- The v1.0.1 to v1.0.2 restore/upgrade drill against the published images is documented in the [upgrade qualification record](itambox/docs/operations/upgrade-qualification.md), including restore-first rollback and re-upgrade evidence.
+- The final v1.0.2 to v1.0.3 candidate restore/upgrade drill is recorded in the [upgrade qualification record](itambox/docs/operations/upgrade-qualification.md). The earlier v1.0.1 to v1.0.2 drill remains the migration-pair evidence.
 
 ### Upgrade
 
