@@ -14,8 +14,8 @@ from core.context import get_current_request_id
 from core.importers.bulk_forms import get_import_form_class
 from core.models import Job, Notification
 
-from .context import TaskContext
-from .utils import reverse_job_detail
+from .context import TaskContext, task_failure_audit_context
+from .utils import TaskStatus, classify_task_error, reverse_job_detail
 
 logger = logging.getLogger(__name__)
 IMPORT_ABORT_MESSAGE = "The import could not be completed due to an unexpected error."
@@ -114,19 +114,38 @@ def _record_task_failure(job, user):
 
 
 def _fail_job_after_setup_error(job_id, user_id, tenant_id, exc):
-    """Fail the pending job and notify the actor when TaskContext setup was refused."""
+    """Fail a still-pending job and notify the actor when TaskContext setup was refused."""
     extra = _task_log_extra(
         operation="task.setup",
         tenant_id=tenant_id,
         actor_id=user_id,
         exception_type=type(exc).__name__,
     )
-    logger.error("Asynchronous import setup failed import_context=%s", extra["import_context"], extra=extra)
-    # unscoped: the context that would scope this lookup is the one that failed to set up
-    job = Job._base_manager.filter(pk=job_id).first()
-    if job is None or job.status != Job.STATUS_PENDING:
+    if classify_task_error(exc) is TaskStatus.RETRYABLE:
+        # A setup failure caused by the database or broker being unavailable
+        # must not consume the pending claim; a later delivery can still run.
+        logger.warning(
+            "Asynchronous import setup failed transiently import_context=%s", extra["import_context"], extra=extra
+        )
         return
-    job.mark_failed(IMPORT_ABORT_MESSAGE)
+    logger.error("Asynchronous import setup failed import_context=%s", extra["import_context"], extra=extra)
+    try:
+        with task_failure_audit_context():
+            with transaction.atomic():
+                # unscoped: the context that would scope this lookup is the one that failed to set up
+                job = Job._base_manager.select_for_update().filter(pk=job_id).first()
+                if job is None or job.status != Job.STATUS_PENDING:
+                    return
+                job.mark_failed(IMPORT_ABORT_MESSAGE)
+    # broad except: cleanup-reraise: a failed status write must not mask the setup exception
+    except Exception as mark_exc:
+        logger.error(
+            "Asynchronous import setup failure could not mark the job failed import_context=%s mark_exception_type=%s",
+            extra["import_context"],
+            type(mark_exc).__name__,
+            extra=extra,
+        )
+        return
     if user_id is None:
         return
     # unscoped: the actor may be inactive or its access revoked, which is why setup failed
@@ -246,10 +265,11 @@ def import_csv_task(
             if not job.mark_running():
                 logger.info("Job %s is no longer pending (cancelled?); skipping import.", job_id)
                 return
-            job.append_log("Initializing asynchronous import pipeline...")
-            job.append_log(f"Target model: {app_label}.{model_name} | Row Count: {len(rows_data)}")
 
             try:
+                job.append_log("Initializing asynchronous import pipeline...")
+                job.append_log(f"Target model: {app_label}.{model_name} | Row Count: {len(rows_data)}")
+
                 model = ContentType.objects.get(app_label=app_label, model=model_name).model_class()
                 if not model:
                     raise ValidationError(

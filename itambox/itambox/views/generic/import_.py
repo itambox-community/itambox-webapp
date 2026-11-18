@@ -88,6 +88,21 @@ def _relation_description(form_cls, name, related_model):
     return description.format(model_name=str(related_model._meta.verbose_name))
 
 
+def _enqueue_import_task(task_args, task_kwargs):
+    """Publish an import task with the durability of its ORM queue row.
+
+    The default deployment uses the django-q ORM broker on the same database.
+    Enqueueing inside the preview-claim transaction makes the claim, Job and
+    queue row commit or roll back together. Other brokers cannot participate in
+    that transaction, so they retain the on-commit handoff.
+    """
+    q_cluster = getattr(settings, "Q_CLUSTER", {}) or {}
+    if q_cluster.get("sync", False) or q_cluster.get("orm") == "default":
+        async_task(*task_args, **task_kwargs)
+        return
+    transaction.on_commit(lambda: async_task(*task_args, **task_kwargs))
+
+
 class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView, TemplateView):
     model_form = None
     template_name = "generic/object_import.html"
@@ -198,27 +213,16 @@ class ObjectImportView(PermissionRequiredMixin, LoginRequiredMixin, BaseHTMXView
                 status=Job.STATUS_PENDING,
             )
 
-            if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
-                async_task(
-                    "core.tasks.import_csv_task",
-                    job.pk,
-                    rows,
-                    model._meta.app_label,
-                    model._meta.model_name,
-                    request.user.pk,
-                    tenant_id=tenant_id,
-                )
-            else:
-                task_args = (
-                    "core.tasks.import_csv_task",
-                    job.pk,
-                    rows,
-                    model._meta.app_label,
-                    model._meta.model_name,
-                    request.user.pk,
-                )
-                task_kwargs = {"tenant_id": tenant_id}
-                transaction.on_commit(lambda args=task_args, kwargs=task_kwargs: async_task(*args, **kwargs))
+            task_args = (
+                "core.tasks.import_csv_task",
+                job.pk,
+                rows,
+                model._meta.app_label,
+                model._meta.model_name,
+                request.user.pk,
+            )
+            task_kwargs = {"tenant_id": tenant_id}
+            _enqueue_import_task(task_args, task_kwargs)
         return job
 
     def post(self, request, *args, **kwargs):
