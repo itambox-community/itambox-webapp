@@ -86,7 +86,7 @@ REST/OpenAPI, scoped GraphQL, SCIM, identity-provider integrations, imports, exp
 ITAMbox is licensed under Apache 2.0 and designed to run on infrastructure you control. Your deployment, data, integrations, retention policies, and upgrade decisions remain under your administration.
 
 > [!IMPORTANT]
-> ITAMbox 1.0 is the stable release line, maintained through `1.0.x` patch releases. The current release is `1.0.2`. Each release declares its supported upgrade origin (`1.0.2` upgrades from `1.0.1`), as set out in the [upgrade policy](itambox/docs/policies/upgrade.md). Capabilities marked **Beta** may change in minor releases. Keep tested backups and read the changelog before upgrading.
+> ITAMbox 1.0 is the stable release line, maintained through `1.0.x` patch releases. The current release is `1.0.3`. Each release declares its supported upgrade origin (`1.0.3` upgrades from `1.0.2`), as set out in the [upgrade policy](itambox/docs/policies/upgrade.md). Capabilities marked **Beta** may change in minor releases. Keep tested backups and read the changelog before upgrading.
 
 Maturity is declared per capability rather than per module. The [capability maturity guide](itambox/docs/operations/capability-maturity.md) lists the public grades, activation modes, and known limitations. Tenant Resource Grants are a Stable, security-critical capability whose expiry and recovery behavior is documented in the [resource grant expiry runbook](itambox/docs/operations/resource-grant-expiry.md). SCIM is Stable, and the plugin system is Experimental.
 

@@ -16,6 +16,11 @@ against a copy of a specific production database.
 | `v1.0.0` | `v1.0.0-rc.2` | 2026-11-13 | Passed |
 | `v1.0.2` | `v1.0.1` | 2026-11-16 | Passed (restored-dump drill) |
 
+`v1.0.3` introduces no database migrations. Its supported origin is `v1.0.2`;
+the database state is the same target state qualified by the `v1.0.2` run above,
+and the normal `migration_baseline_preflight` check remains the operator proof.
+No separate database drill is claimed for 1.0.3.
+
 ## `v1.0.2` from `v1.0.1`
 
 - **Target:** the published `v1.0.2` image

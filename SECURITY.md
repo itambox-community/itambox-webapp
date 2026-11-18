@@ -10,9 +10,9 @@ ITAMbox publishes tagged releases on GitHub. The **latest published release is t
 
 | Target | Status |
 |---|---|
-| `1.0.0` (latest stable) | Current supported target for security reports |
+| `1.0.3` (latest stable) | Current supported target for security reports |
 | `main` | Development state, not a published release; may contain unreleased or unfinished changes |
-| Prereleases (`1.0.0-rc.N` and older) | Superseded by `1.0.0`; no backport guarantee |
+| Prereleases (`1.0.0-rc.N` and older) | Superseded by `1.0.3`; no backport guarantee |
 
 Reports against the latest published release and against current `main` are both welcome. Reports about superseded prereleases are acknowledged, though any fix targets the supported line. Capability maturity grades — Stable, Beta, and Experimental in the [capability maturity guide](itambox/docs/operations/capability-maturity.md) — describe compatibility expectations only. They never waive tenant isolation or any other security requirement.
 

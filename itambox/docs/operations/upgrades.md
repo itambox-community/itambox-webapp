@@ -2,9 +2,17 @@
 
 ITAMbox ships as source and, starting with `v1.0.0-beta.2`, as the official container image published with each tagged release (`ghcr.io/itambox-community/itambox-webapp:<version>`). Starting with `v1.0.0-beta.2`, each tagged release declares a supported upgrade origin — the previously tagged release — and the upgrade path from that origin is verified on the qualification stack. Upgrades from earlier prereleases (`v1.0.0-alpha.*`, `v1.0.0-beta.1`) and version skipping remain unsupported; treat any target revision outside the declared origin as a potentially breaking change and test it against a restored copy of production first.
 
+`v1.0.3` declares `v1.0.2` as its supported upgrade origin. It introduces no new database migrations; the preflight and event-outbox state from 1.0.2 remain valid. The restore/upgrade evidence for the 1.0.1 to 1.0.2 migration pair is recorded in the [upgrade qualification record](upgrade-qualification.md).
+
 `v1.0.2` declares `v1.0.1` as its supported upgrade origin. The run behind that
 declaration is recorded in the
 [upgrade qualification record](upgrade-qualification.md).
+
+## 1.0.2 to 1.0.3
+
+No database migrations run. Upgrade with the normal release procedure, verify
+that `migration_baseline_preflight` still reports `current-normalized-baseline`,
+and use the 1.0.1 to 1.0.2 section below when the deployment is still on 1.0.1.
 
 ## 1.0.1 to 1.0.2
 
