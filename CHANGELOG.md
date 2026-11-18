@@ -8,7 +8,7 @@ This changelog follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [1.0.3] - 2026-11-18
 
-Patch release with two workflow fixes, the published v1.0.2 restore/upgrade drill and the 1.0.3 dependency refresh. No database migrations.
+Patch release with background-job lifecycle fixes, the final v1.0.2 restore/upgrade drill and the 1.0.3 dependency refresh. No database migrations.
 
 ### Fixed
 
