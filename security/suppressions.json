@@ -514,7 +514,7 @@
         "package": "braces",
         "version": "3.0.3"
       },
-      "review_on": "2026-11-17",
+      "review_on": "2026-12-15",
       "expires_on": "2026-12-15",
       "references": [
         "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
@@ -533,7 +533,7 @@
         "package": "picomatch",
         "version": "4.0.7"
       },
-      "review_on": "2026-11-17",
+      "review_on": "2026-12-15",
       "expires_on": "2026-12-15",
       "references": [
         "https://github.com/advisories/GHSA-fc5q-39xc-vjpf"
