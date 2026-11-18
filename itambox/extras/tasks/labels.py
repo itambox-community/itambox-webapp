@@ -75,37 +75,8 @@ def _try_create_notification(user, *, subject, message, level, target_url=None, 
 LABEL_SETUP_FAILED = "[terminal] labels.setup_failed"
 
 
-def _fail_pending_label_job_after_setup_error(job_id, user_id, tenant_id, exc):
-    """Resolve a still-pending label Job when TaskContext setup is refused.
-
-    TaskContext has already restored its captured context when this runs. The
-    failure handler itself must never mask the setup exception, so every
-    persistence and delivery step is isolated.
-    """
-    log_extra = {
-        "operation": "labels.pdf_batch",
-        "phase": "setup",
-        "tenant_id": tenant_id,
-        "actor_id": user_id,
-        "job_id": job_id,
-        "exception_type": type(exc).__name__,
-    }
-    logger.error("Label PDF task setup failed", extra=log_extra)
-    try:
-        with task_failure_audit_context():
-            with transaction.atomic():
-                # unscoped: resolve and lock the job across task scopes after the context failed to set up
-                job = Job._base_manager.select_for_update().filter(pk=job_id).first()
-                if job is None or job.status != Job.STATUS_PENDING:
-                    return
-                job.mark_failed(LABEL_SETUP_FAILED)
-    # broad except: cleanup-reraise: a failed status write must not mask the setup exception
-    except Exception as mark_exc:
-        logger.error(
-            "Label PDF setup failure could not mark the job failed",
-            extra={**log_extra, "mark_exception_type": type(mark_exc).__name__},
-        )
-        return
+def _notify_label_setup_failure(job, user_id, log_extra):
+    """Best-effort delivery of the terminal label setup failure."""
     if user_id is None:
         return
     try:
@@ -139,6 +110,46 @@ def _fail_pending_label_job_after_setup_error(job_id, user_id, tenant_id, exc):
             log_extra=log_extra,
             job=job,
         )
+
+
+def _fail_pending_label_job_after_setup_error(job_id, user_id, tenant_id, exc):
+    """Resolve a still-pending label Job when TaskContext setup is refused.
+
+    TaskContext has already restored its captured context when this runs. The
+    failure handler itself must never mask the setup exception, so every
+    persistence and delivery step is isolated.
+    """
+    log_extra = {
+        "operation": "labels.pdf_batch",
+        "phase": "setup",
+        "tenant_id": tenant_id,
+        "actor_id": user_id,
+        "job_id": job_id,
+        "exception_type": type(exc).__name__,
+    }
+    if classify_task_error(exc) is TaskStatus.RETRYABLE:
+        # Setup can fail because the database or broker is temporarily
+        # unavailable. Keep the pending Job claimable so a redelivery can
+        # complete it instead of recording a terminal failure.
+        logger.warning("Label PDF task setup failed transiently; job remains pending", extra=log_extra)
+        return
+    logger.error("Label PDF task setup failed", extra=log_extra)
+    try:
+        with task_failure_audit_context():
+            with transaction.atomic():
+                # unscoped: resolve and lock the job across task scopes after the context failed to set up
+                job = Job._base_manager.select_for_update().filter(pk=job_id).first()
+                if job is None or job.status != Job.STATUS_PENDING:
+                    return
+                job.mark_failed(LABEL_SETUP_FAILED)
+    # broad except: cleanup-reraise: a failed status write must not mask the setup exception
+    except Exception as mark_exc:
+        logger.error(
+            "Label PDF setup failure could not mark the job failed",
+            extra={**log_extra, "mark_exception_type": type(mark_exc).__name__},
+        )
+        return
+    _notify_label_setup_failure(job, user_id, log_extra)
 
 
 class _LabelTaskContext(TaskContext):

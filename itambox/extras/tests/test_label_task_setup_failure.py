@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
-from django.db import close_old_connections, transaction
+from django.db import OperationalError, close_old_connections, transaction
 from django.utils import timezone
 from model_bakery import baker
 
@@ -75,6 +75,42 @@ class TestLabelTaskSetupFailure(TenantTestMixin):
         assert self.job.status == Job.STATUS_FAILED
         assert "labels.setup_failed" in self.job.logs
         assert not Notification.objects.filter(user=self.tenant_user).exists()
+
+    def test_transient_setup_error_leaves_the_job_pending_for_redelivery(self):
+        with patch(
+            "core.tasks.context.TaskContext._resolve_principal_and_tenant",
+            side_effect=OperationalError("database temporarily unavailable"),
+        ):
+            with pytest.raises(OperationalError):
+                generate_label_pdf_batch_task(
+                    self.job.pk,
+                    self.content_type.pk,
+                    [self.accessory.pk],
+                    None,
+                    "roll",
+                    self.tenant_user.pk,
+                    self.tenant.pk,
+                )
+
+        self.job.refresh_from_db()
+        assert self.job.status == Job.STATUS_PENDING
+        assert "labels.setup_failed" not in self.job.logs
+        assert not FileAttachment.objects.filter(object_id=self.job.pk).exists()
+        assert not Notification.objects.filter(user=self.tenant_user).exists()
+
+        generate_label_pdf_batch_task(
+            self.job.pk,
+            self.content_type.pk,
+            [self.accessory.pk],
+            None,
+            "roll",
+            self.tenant_user.pk,
+            self.tenant.pk,
+        )
+
+        self.job.refresh_from_db()
+        assert self.job.status == Job.STATUS_COMPLETED
+        assert FileAttachment.objects.filter(object_id=self.job.pk).exists()
 
     @pytest.mark.parametrize("status", [Job.STATUS_COMPLETED, Job.STATUS_FAILED])
     def test_a_finished_job_is_not_overwritten(self, status):

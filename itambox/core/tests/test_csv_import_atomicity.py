@@ -67,6 +67,23 @@ class TestCsvImportAtomicOutcome(TenantTestMixin):
         assert job.status == Job.STATUS_FAILED
         assert IMPORT_ABORT_MESSAGE in job.logs
 
+    def test_first_log_failure_marks_the_job_failed_instead_of_leaving_it_running(self):
+        job = self._job()
+        original_append = Job.append_log
+
+        def fail_first_log(instance, message):
+            if "Initializing asynchronous import pipeline" in message:
+                raise DatabaseError("simulated first log write failure")
+            return original_append(instance, message)
+
+        with patch.object(Job, "append_log", fail_first_log):
+            self._run(job, [{"name": "Running Maker", "slug": "running-maker"}])
+
+        assert not Manufacturer.objects.filter(slug="running-maker").exists()
+        job.refresh_from_db()
+        assert job.status == Job.STATUS_FAILED
+        assert IMPORT_ABORT_MESSAGE in job.logs
+
     def test_partial_success_commits_rows_and_completed_status_together(self):
         job = self._job()
 

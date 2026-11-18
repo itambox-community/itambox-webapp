@@ -288,6 +288,40 @@ Asset Zeta,TAG-006,{self.status.pk},{self.asset_type.pk}"""
             tenant_id=None,
         )
 
+    @override_settings(Q_CLUSTER={"sync": False, "orm": "default"})
+    def test_orm_enqueue_failure_rolls_back_preview_claim_and_job(self):
+        csv_data = f"""name,asset_tag,status,asset_type
+Asset Eta,TAG-007,{self.status.pk},{self.asset_type.pk}"""
+        import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
+        response = self.client.post(
+            import_url,
+            {
+                "active_tab": "editor",
+                "import_format": "csv",
+                "delimiter": ",",
+                "import_text": csv_data,
+                "_preview": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        preview = ImportPreview.objects.filter(consumed_at__isnull=True).latest("created_at")
+
+        self.client.raise_request_exception = False
+        try:
+            with patch(
+                "itambox.views.generic.import_.async_task", side_effect=RuntimeError("broker unavailable")
+            ) as enqueue:
+                response = self.client.post(import_url, {"_confirm": "1", "preview_id": preview.pk.hex})
+        finally:
+            self.client.raise_request_exception = True
+
+        self.assertEqual(response.status_code, 500)
+        enqueue.assert_called_once()
+        preview.refresh_from_db()
+        self.assertIsNone(preview.consumed_at)
+        self.assertEqual(Job.objects.count(), 0)
+        self.assertFalse(Asset.objects.filter(asset_tag="TAG-007").exists())
+
     def test_confirm_imports_the_preview_it_names_not_the_latest(self):
         import_url = reverse("generic_import", kwargs={"app_label": "assets", "model_name": "asset"})
 
