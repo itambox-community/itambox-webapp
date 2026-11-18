@@ -16,7 +16,7 @@ repos:
   # from pyproject.toml. The Flake8 identity baseline retains only rules not yet
   # migrated.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.20
+    rev: v0.17.5
     hooks:
       - id: ruff-check
         name: ruff (configured rules)
