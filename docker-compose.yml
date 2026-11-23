@@ -81,7 +81,7 @@ services:
     # /var/lib/postgresql/data path against this image leaves the container
     # unhealthy. An existing 16 volume is not readable by this cluster layout:
     # migrate it, do not relabel it (itambox/docs/operations/upgrades.md).
-    image: postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    image: postgres:19@sha256:bb6e70add742cd868fb62cb3b2f67d1dd2bdd2b65a521e778420748753687c60
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${ITAMBOX_DB_USER:-itambox}
